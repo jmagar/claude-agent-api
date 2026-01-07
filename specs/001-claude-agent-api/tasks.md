@@ -258,15 +258,15 @@
 
 ### Tests for User Story 8
 
-- [ ] T089 [P] [US8] Integration test for structured output in tests/integration/test_structured_output.py
-- [ ] T090 [P] [US8] Unit test for OutputFormatSchema validation in tests/unit/test_schemas.py
+- [X] T089 [P] [US8] Integration test for structured output in tests/integration/test_structured_output.py
+- [X] T090 [P] [US8] Unit test for OutputFormatSchema validation in tests/unit/test_schemas.py
 
 ### Implementation for User Story 8
 
-- [ ] T091 [US8] Add OutputFormatSchema to apps/api/schemas/requests.py with schema validation
-- [ ] T092 [US8] Implement output_format parameter handling in AgentService.create_options()
-- [ ] T093 [US8] Add structured_output field to ResultEventData schema
-- [ ] T094 [US8] Add JSON schema validation error handling
+- [X] T091 [US8] Add OutputFormatSchema to apps/api/schemas/requests.py with schema validation
+- [X] T092 [US8] Implement output_format parameter handling in AgentService.create_options()
+- [X] T093 [US8] Add structured_output field to ResultEventData schema
+- [X] T094 [US8] Add JSON schema validation error handling
 
 **Checkpoint**: Structured output works - can enforce output format per request
 

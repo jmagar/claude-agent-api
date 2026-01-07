@@ -104,6 +104,7 @@ class QueryResponseDict(TypedDict):
     total_cost_usd: float | None
     usage: dict[str, int] | None
     result: str | None
+    structured_output: dict[str, object] | None
 
 
 @dataclass
@@ -446,6 +447,24 @@ class AgentService:
             ctx.num_turns = getattr(message, "num_turns", ctx.num_turns)
             ctx.total_cost_usd = getattr(message, "total_cost_usd", None)
             ctx.result_text = getattr(message, "result", None)
+
+            # Extract structured output if available (US8: Structured Output)
+            raw_structured = getattr(message, "structured_output", None)
+            if raw_structured is not None:
+                # SDK returns structured_output as the parsed JSON object
+                # We need to ensure it's a proper dict for our response
+                if isinstance(raw_structured, dict):
+                    ctx.structured_output = cast("dict[str, object]", raw_structured)
+                else:
+                    # If SDK returns non-dict (error case), log and leave as None
+                    logger.warning(
+                        "structured_output is not a dict",
+                        session_id=ctx.session_id,
+                        type=type(raw_structured).__name__,
+                    )
+                    # Mark as error if output_format was expected but invalid
+                    ctx.is_error = True
+
             return None
 
         return None
@@ -561,6 +580,22 @@ class AgentService:
         ctx.result_text = "Mock response completed"
         ctx.total_cost_usd = 0.001
 
+        # Generate mock structured output if output_format was specified
+        if request.output_format:
+            if request.output_format.type == "json":
+                # For json type, return a simple mock JSON object
+                ctx.structured_output = {
+                    "message": "Mock structured response",
+                    "status": "success",
+                }
+            elif request.output_format.type == "json_schema":
+                # For json_schema, generate a mock response matching the schema
+                # In production, the SDK would validate against the schema
+                ctx.structured_output = {
+                    "message": "Mock structured response matching schema",
+                    "validated": True,
+                }
+
     def _format_sse(self, event_type: str, data: dict[str, object]) -> str:
         """Format data as SSE event.
 
@@ -668,6 +703,7 @@ class AgentService:
         total_cost_usd: float | None = None
         result_text: str | None = None
         usage_data: dict[str, int] | None = None
+        structured_output: dict[str, object] | None = None
 
         # Collect all events from stream
         ctx = StreamContext(
@@ -685,6 +721,7 @@ class AgentService:
             num_turns = ctx.num_turns
             total_cost_usd = ctx.total_cost_usd
             result_text = ctx.result_text
+            structured_output = ctx.structured_output
 
         except Exception as e:
             is_error = True
@@ -702,6 +739,7 @@ class AgentService:
             total_cost_usd=total_cost_usd,
             usage=usage_data,
             result=result_text,
+            structured_output=structured_output,
         )
 
     # Hook execution methods for webhook-based hooks

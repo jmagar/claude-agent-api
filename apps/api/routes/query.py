@@ -1,9 +1,10 @@
 """Query endpoints for agent interactions."""
 
 import asyncio
+import json
+import re
 from collections.abc import AsyncGenerator
 from typing import Literal
-from uuid import uuid4
 
 from fastapi import APIRouter, Request
 from sse_starlette import EventSourceResponse
@@ -45,21 +46,37 @@ async def query_stream(
     Returns:
         SSE event stream.
     """
-    # Create or use existing session
-    if not query.session_id:
-        model = query.model or "sonnet"
-        session_id = str(uuid4())
-        await session_service.create_session(model=model, session_id=session_id)
-        # Update query with the new session_id
-        query.session_id = session_id
+    # Note: Session is created by agent_service.query_stream which emits
+    # the session_id in the init event. We extract it for tracking.
+    # DO NOT set query.session_id here - that would cause the SDK to try
+    # to resume a non-existent conversation!
 
     async def event_generator() -> AsyncGenerator[str, None]:
         """Generate SSE events with disconnect monitoring."""
-        session_id = query.session_id
+        # Will be populated from init event
+        session_id: str | None = query.session_id  # Only set if resuming
         is_error = False
         num_turns = 0
         try:
             async for event in agent_service.query_stream(query):
+                # Extract session_id from init event for tracking
+                if session_id is None and "event: init" in event:
+                    # Parse the init event to get session_id
+                    # Extract the JSON data from SSE format (event: init\ndata: {...})
+                    data_match = re.search(r'data: ({.*})', event)
+                    if data_match:
+                        try:
+                            init_data = json.loads(data_match.group(1))
+                            session_id = init_data.get("session_id")
+                            if session_id:
+                                # Create session in our service
+                                model = init_data.get("model", "sonnet")
+                                await session_service.create_session(
+                                    model=model, session_id=session_id
+                                )
+                        except json.JSONDecodeError:
+                            pass
+
                 # Check for client disconnect
                 if await request.is_disconnected():
                     # Interrupt the session if client disconnected
@@ -68,9 +85,9 @@ async def query_stream(
                     break
 
                 # Track turns and errors from events
-                if '"event": "message"' in event:
+                if "event: message" in event:
                     num_turns += 1
-                if '"event": "error"' in event:
+                if "event: error" in event:
                     is_error = True
 
                 yield event

@@ -12,6 +12,7 @@ from apps.api.exceptions import (
     SessionCompletedError,
     SessionLockedError,
     SessionNotFoundError,
+    StructuredOutputValidationError,
     ToolNotAllowedError,
     ValidationError,
 )
@@ -261,3 +262,77 @@ class TestCacheError:
         assert error.status_code == 500
         assert error.code == "CACHE_ERROR"
         assert "Cache" in error.message
+
+
+class TestStructuredOutputValidationError:
+    """Tests for StructuredOutputValidationError (US8, T094)."""
+
+    def test_default_message(self) -> None:
+        """Test default error message."""
+        error = StructuredOutputValidationError()
+
+        assert error.status_code == 422
+        assert error.code == "STRUCTURED_OUTPUT_VALIDATION_ERROR"
+        assert "validation failed" in error.message.lower()
+        assert error.details == {}
+
+    def test_with_validation_errors(self) -> None:
+        """Test error with validation error details."""
+        error = StructuredOutputValidationError(
+            message="Output does not match schema",
+            validation_errors=[
+                "Required field 'name' is missing",
+                "Field 'age' expected integer, got string",
+            ],
+        )
+
+        assert error.status_code == 422
+        assert error.code == "STRUCTURED_OUTPUT_VALIDATION_ERROR"
+        assert error.message == "Output does not match schema"
+        assert error.details["validation_errors"] == [
+            "Required field 'name' is missing",
+            "Field 'age' expected integer, got string",
+        ]
+
+    def test_with_schema_type(self) -> None:
+        """Test error with schema type information."""
+        error = StructuredOutputValidationError(
+            message="Invalid JSON output",
+            schema_type="json_schema",
+        )
+
+        assert error.details["schema_type"] == "json_schema"
+
+    def test_with_all_details(self) -> None:
+        """Test error with all detail fields."""
+        error = StructuredOutputValidationError(
+            message="Schema validation failed",
+            validation_errors=["Type mismatch at $.data.items[0]"],
+            schema_type="json_schema",
+        )
+
+        assert error.status_code == 422
+        assert error.code == "STRUCTURED_OUTPUT_VALIDATION_ERROR"
+        assert error.details["validation_errors"] == ["Type mismatch at $.data.items[0]"]
+        assert error.details["schema_type"] == "json_schema"
+
+    def test_to_dict(self) -> None:
+        """Test conversion to dictionary."""
+        error = StructuredOutputValidationError(
+            message="Output validation failed",
+            validation_errors=["Missing required field"],
+            schema_type="json_schema",
+        )
+
+        result = error.to_dict()
+
+        assert result == {
+            "error": {
+                "code": "STRUCTURED_OUTPUT_VALIDATION_ERROR",
+                "message": "Output validation failed",
+                "details": {
+                    "validation_errors": ["Missing required field"],
+                    "schema_type": "json_schema",
+                },
+            }
+        }
