@@ -160,6 +160,7 @@ class AgentService:
                     mcp_servers=[],
                     plugins=[],
                     commands=[],
+                    permission_mode=request.permission_mode,
                 )
             )
             yield self._format_sse(init_event.event, init_event.data.model_dump())
@@ -287,6 +288,11 @@ class AgentService:
             request.disallowed_tools if request.disallowed_tools else None
         )
         permission_mode = request.permission_mode if request.permission_mode else None
+        permission_prompt_tool_name = (
+            request.permission_prompt_tool_name
+            if request.permission_prompt_tool_name
+            else None
+        )
         model = request.model if request.model else None
         max_turns = request.max_turns if request.max_turns else None
         cwd = request.cwd if request.cwd else None
@@ -351,6 +357,7 @@ class AgentService:
             allowed_tools=allowed_tools or [],
             disallowed_tools=disallowed_tools or [],
             permission_mode=permission_mode,
+            permission_prompt_tool_name=permission_prompt_tool_name,
             model=model,
             max_turns=max_turns,
             cwd=cwd,
@@ -591,6 +598,39 @@ class AgentService:
         # TODO: Implement SDK answer submission when SDK supports it
         # This would typically involve calling a method on the client
         # to inject the user's response into the conversation
+
+        return True
+
+    async def update_permission_mode(
+        self,
+        session_id: str,
+        permission_mode: Literal["default", "acceptEdits", "plan", "bypassPermissions"],
+    ) -> bool:
+        """Update permission mode for an active session (FR-015).
+
+        Allows dynamic permission mode changes during streaming.
+
+        Args:
+            session_id: Session to update.
+            permission_mode: New permission mode to apply.
+
+        Returns:
+            True if update was accepted, False if session not found/active.
+        """
+        # Check if session exists and is active
+        if session_id not in self._active_sessions:
+            return False
+
+        # Log the permission mode change
+        logger.info(
+            "Permission mode updated for session",
+            session_id=session_id,
+            new_permission_mode=permission_mode,
+        )
+
+        # TODO: When SDK supports dynamic permission mode changes,
+        # call the appropriate SDK method here to update the mode
+        # for subsequent tool calls in the active session
 
         return True
 

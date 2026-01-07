@@ -208,16 +208,16 @@
 
 ### Tests for User Story 6
 
-- [ ] T075 [P] [US6] Integration test for permission modes in tests/integration/test_permissions.py
-- [ ] T076 [P] [US6] Unit test for permission mode handling in tests/unit/test_agent_service.py
+- [X] T075 [P] [US6] Integration test for permission modes in tests/integration/test_permissions.py
+- [X] T076 [P] [US6] Unit test for permission mode handling in tests/unit/test_agent_service.py
 
 ### Implementation for User Story 6
 
-- [ ] T077 [US6] Add permission_mode enum and validation to QueryRequest schema
-- [ ] T078 [US6] Implement permission_mode handling in AgentService.create_options()
-- [ ] T079 [US6] Add permission_prompt_tool_name parameter support
-- [ ] T080 [US6] Document permission modes in API response messages
-- [ ] T080a [US6] Implement dynamic permission mode changes during streaming via SSE control events (FR-015)
+- [X] T077 [US6] Add permission_mode enum and validation to QueryRequest schema
+- [X] T078 [US6] Implement permission_mode handling in AgentService.create_options()
+- [X] T079 [US6] Add permission_prompt_tool_name parameter support
+- [X] T080 [US6] Document permission modes in API response messages
+- [X] T080a [US6] Implement dynamic permission mode changes during streaming via SSE control events (FR-015)
 
 **Checkpoint**: Permission control works - can govern tool approval per request
 

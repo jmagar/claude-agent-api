@@ -50,6 +50,9 @@ class InitEventData(BaseModel):
     mcp_servers: list[McpServerStatusSchema] = Field(default_factory=list)
     plugins: list[str] = Field(default_factory=list)
     commands: list[str] = Field(default_factory=list)
+    permission_mode: Literal["default", "acceptEdits", "plan", "bypassPermissions"] = (
+        "default"
+    )
 
 
 class MessageEventData(BaseModel):

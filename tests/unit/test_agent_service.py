@@ -1,9 +1,12 @@
 """Unit tests for agent service."""
 
+from typing import Literal
+from unittest.mock import MagicMock, patch
+
 import pytest
 
 from apps.api.schemas.requests import QueryRequest
-from apps.api.services.agent import resolve_env_dict, resolve_env_var
+from apps.api.services.agent import AgentService, resolve_env_dict, resolve_env_var
 
 
 class TestAgentService:
@@ -360,3 +363,195 @@ class TestEnvVarResolution:
         """Test resolving empty dictionary."""
         result = resolve_env_dict({})
         assert result == {}
+
+
+class TestPermissionModeHandling:
+    """Unit tests for permission mode handling in AgentService._build_options (T076)."""
+
+    def test_build_options_passes_default_permission_mode(self) -> None:
+        """Test that default permission_mode is passed to ClaudeAgentOptions."""
+        service = AgentService()
+        request = QueryRequest(prompt="Test", permission_mode="default")
+
+        # Mock the SDK at the import location
+        with patch("claude_agent_sdk.ClaudeAgentOptions") as mock_cls:
+            mock_cls.return_value = MagicMock()
+            service._build_options(request)
+
+            # Verify permission_mode was passed
+            mock_cls.assert_called_once()
+            call_kwargs = mock_cls.call_args.kwargs
+            assert call_kwargs.get("permission_mode") == "default"
+
+    def test_build_options_passes_accept_edits_permission_mode(self) -> None:
+        """Test that acceptEdits permission_mode is passed to ClaudeAgentOptions."""
+        service = AgentService()
+        request = QueryRequest(prompt="Test", permission_mode="acceptEdits")
+
+        with patch("claude_agent_sdk.ClaudeAgentOptions") as mock_cls:
+            mock_cls.return_value = MagicMock()
+            service._build_options(request)
+
+            call_kwargs = mock_cls.call_args.kwargs
+            assert call_kwargs.get("permission_mode") == "acceptEdits"
+
+    def test_build_options_passes_plan_permission_mode(self) -> None:
+        """Test that plan permission_mode is passed to ClaudeAgentOptions."""
+        service = AgentService()
+        request = QueryRequest(prompt="Test", permission_mode="plan")
+
+        with patch("claude_agent_sdk.ClaudeAgentOptions") as mock_cls:
+            mock_cls.return_value = MagicMock()
+            service._build_options(request)
+
+            call_kwargs = mock_cls.call_args.kwargs
+            assert call_kwargs.get("permission_mode") == "plan"
+
+    def test_build_options_passes_bypass_permissions_mode(self) -> None:
+        """Test that bypassPermissions mode is passed to ClaudeAgentOptions."""
+        service = AgentService()
+        request = QueryRequest(prompt="Test", permission_mode="bypassPermissions")
+
+        with patch("claude_agent_sdk.ClaudeAgentOptions") as mock_cls:
+            mock_cls.return_value = MagicMock()
+            service._build_options(request)
+
+            call_kwargs = mock_cls.call_args.kwargs
+            assert call_kwargs.get("permission_mode") == "bypassPermissions"
+
+    def test_build_options_passes_permission_prompt_tool_name(self) -> None:
+        """Test that permission_prompt_tool_name is passed to ClaudeAgentOptions."""
+        service = AgentService()
+        request = QueryRequest(
+            prompt="Test",
+            permission_mode="default",
+            permission_prompt_tool_name="custom_permission_tool",
+        )
+
+        with patch("claude_agent_sdk.ClaudeAgentOptions") as mock_cls:
+            mock_cls.return_value = MagicMock()
+            service._build_options(request)
+
+            # Verify permission_prompt_tool_name was passed
+            call_kwargs = mock_cls.call_args.kwargs
+            assert (
+                call_kwargs.get("permission_prompt_tool_name")
+                == "custom_permission_tool"
+            )
+
+    def test_build_options_permission_prompt_tool_name_defaults_to_none(self) -> None:
+        """Test permission_prompt_tool_name defaults to None when not specified."""
+        service = AgentService()
+        request = QueryRequest(prompt="Test")
+
+        with patch("claude_agent_sdk.ClaudeAgentOptions") as mock_cls:
+            mock_cls.return_value = MagicMock()
+            service._build_options(request)
+
+            call_kwargs = mock_cls.call_args.kwargs
+            # Should be None or not present
+            permission_tool = call_kwargs.get("permission_prompt_tool_name")
+            assert permission_tool is None
+
+    def test_all_permission_modes_are_valid_literals(self) -> None:
+        """Test that all permission modes match the Literal type definition."""
+        valid_modes: list[Literal["default", "acceptEdits", "plan", "bypassPermissions"]] = [
+            "default",
+            "acceptEdits",
+            "plan",
+            "bypassPermissions",
+        ]
+        for mode in valid_modes:
+            request = QueryRequest(
+                prompt="Test",
+                permission_mode=mode,
+            )
+            assert request.permission_mode == mode
+
+    def test_invalid_permission_mode_raises_validation_error(self) -> None:
+        """Test that invalid permission mode raises validation error."""
+        with pytest.raises(ValueError):
+            QueryRequest(
+                prompt="Test",
+                permission_mode="invalid_mode",  # type: ignore
+            )
+
+    def test_build_options_with_all_permission_params(self) -> None:
+        """Test building options with all permission-related parameters."""
+        service = AgentService()
+        request = QueryRequest(
+            prompt="Test",
+            permission_mode="acceptEdits",
+            permission_prompt_tool_name="my_approval_tool",
+            allowed_tools=["Read", "Write"],
+            disallowed_tools=["Bash"],
+        )
+
+        with patch("claude_agent_sdk.ClaudeAgentOptions") as mock_cls:
+            mock_cls.return_value = MagicMock()
+            service._build_options(request)
+
+            call_kwargs = mock_cls.call_args.kwargs
+            assert call_kwargs.get("permission_mode") == "acceptEdits"
+            assert call_kwargs.get("permission_prompt_tool_name") == "my_approval_tool"
+            assert call_kwargs.get("allowed_tools") == ["Read", "Write"]
+            assert call_kwargs.get("disallowed_tools") == ["Bash"]
+
+
+class TestInitEventPermissionMode:
+    """Tests for permission mode in init event (T080)."""
+
+    def test_init_event_data_has_permission_mode_field(self) -> None:
+        """Test that InitEventData schema includes permission_mode field."""
+        from apps.api.schemas.responses import InitEventData
+
+        data = InitEventData(
+            session_id="test-session",
+            model="sonnet",
+            tools=["Read"],
+        )
+        assert data.permission_mode == "default"
+
+    def test_init_event_data_with_custom_permission_mode(self) -> None:
+        """Test InitEventData with custom permission mode."""
+        from apps.api.schemas.responses import InitEventData
+
+        data = InitEventData(
+            session_id="test-session",
+            model="sonnet",
+            tools=["Read"],
+            permission_mode="acceptEdits",
+        )
+        assert data.permission_mode == "acceptEdits"
+
+    def test_init_event_data_all_permission_modes(self) -> None:
+        """Test all permission modes are valid in InitEventData."""
+        from apps.api.schemas.responses import InitEventData
+
+        modes: list[Literal["default", "acceptEdits", "plan", "bypassPermissions"]] = [
+            "default",
+            "acceptEdits",
+            "plan",
+            "bypassPermissions",
+        ]
+        for mode in modes:
+            data = InitEventData(
+                session_id="test-session",
+                model="sonnet",
+                tools=[],
+                permission_mode=mode,
+            )
+            assert data.permission_mode == mode
+
+    def test_init_event_serialization_includes_permission_mode(self) -> None:
+        """Test that permission_mode is included in model_dump output."""
+        from apps.api.schemas.responses import InitEventData
+
+        data = InitEventData(
+            session_id="test-session",
+            model="sonnet",
+            tools=["Read"],
+            permission_mode="plan",
+        )
+        dumped = data.model_dump()
+        assert dumped["permission_mode"] == "plan"

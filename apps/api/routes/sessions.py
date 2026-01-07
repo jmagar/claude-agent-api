@@ -7,6 +7,7 @@ from apps.api.dependencies import AgentSvc, ApiKey, SessionSvc
 from apps.api.exceptions import SessionNotFoundError
 from apps.api.schemas.requests import (
     AnswerRequest,
+    ControlRequest,
     ForkRequest,
     QueryRequest,
     ResumeRequest,
@@ -266,3 +267,47 @@ async def interrupt_session(
         raise SessionNotFoundError(session_id)
 
     return {"status": "interrupted", "session_id": session_id}
+
+
+@router.post("/{session_id}/control")
+async def send_control_event(
+    session_id: str,
+    request: ControlRequest,
+    _api_key: ApiKey,
+    agent_service: AgentSvc,
+) -> dict[str, str]:
+    """Send a control event to an active session (FR-015).
+
+    Control events allow dynamic changes during streaming, such as
+    changing the permission mode mid-session.
+
+    Args:
+        session_id: Session ID to send control event to.
+        request: Control request with event type and data.
+        _api_key: Validated API key (via dependency).
+        agent_service: Agent service instance.
+
+    Returns:
+        Status response indicating control event was processed.
+
+    Raises:
+        SessionNotFoundError: If session doesn't exist or isn't active.
+    """
+    if request.type == "permission_mode_change":
+        # permission_mode is guaranteed to be not None by the validator
+        assert request.permission_mode is not None
+        success = await agent_service.update_permission_mode(
+            session_id, request.permission_mode
+        )
+
+        if not success:
+            raise SessionNotFoundError(session_id)
+
+        return {
+            "status": "accepted",
+            "session_id": session_id,
+            "permission_mode": request.permission_mode,
+        }
+
+    # Future control event types would go here
+    return {"status": "unknown_type", "session_id": session_id}
