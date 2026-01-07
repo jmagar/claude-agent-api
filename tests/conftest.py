@@ -152,3 +152,109 @@ async def mock_active_session_id(_async_client: AsyncClient) -> str:
     agent_service._active_sessions[session.id] = asyncio.Event()
 
     return session.id
+
+
+@pytest.fixture
+async def mock_session_with_checkpoints(
+    _async_client: AsyncClient,
+) -> str:
+    """Create a mock session with checkpoints for testing.
+
+    Creates a session and adds sample checkpoints to it.
+    """
+    from datetime import UTC, datetime
+    from uuid import uuid4
+
+    from apps.api.dependencies import get_cache
+    from apps.api.services.session import SessionService
+
+    cache = await get_cache()
+    service = SessionService(cache=cache)
+
+    # Create session
+    session_id = f"mock-session-with-checkpoints-{uuid4().hex[:8]}"
+    await service.create_session(model="sonnet", session_id=session_id)
+
+    # Add checkpoints directly to cache
+    checkpoint_id = f"checkpoint-{uuid4().hex[:8]}"
+    checkpoint_data: dict[str, object] = {
+        "id": checkpoint_id,
+        "session_id": session_id,
+        "user_message_uuid": f"msg-{uuid4().hex[:8]}",
+        "created_at": datetime.now(UTC).isoformat(),
+        "files_modified": ["/path/to/file1.py", "/path/to/file2.py"],
+    }
+
+    # Store individual checkpoint in cache (for validation lookup)
+    individual_key = f"checkpoint:{checkpoint_id}"
+    await cache.set_json(individual_key, checkpoint_data, 3600)
+
+    # Store checkpoint in cache using checkpoints list key (for listing)
+    checkpoints_key = f"checkpoints:{session_id}"
+    await cache.set_json(checkpoints_key, {"checkpoints": [checkpoint_data]}, 3600)
+
+    return session_id
+
+
+@pytest.fixture
+async def mock_checkpoint_id(
+    mock_session_with_checkpoints: str,
+    _async_client: AsyncClient,
+) -> str:
+    """Get the checkpoint ID from the mock session with checkpoints."""
+    from apps.api.dependencies import get_cache
+
+    cache = await get_cache()
+    checkpoints_key = f"checkpoints:{mock_session_with_checkpoints}"
+    data = await cache.get_json(checkpoints_key)
+
+    if data and "checkpoints" in data:
+        checkpoints = data["checkpoints"]
+        if isinstance(checkpoints, list) and len(checkpoints) > 0:
+            checkpoint = checkpoints[0]
+            if isinstance(checkpoint, dict) and "id" in checkpoint:
+                return str(checkpoint["id"])
+
+    raise ValueError("No checkpoint found in mock session")
+
+
+@pytest.fixture
+async def mock_checkpoint_from_other_session(
+    _async_client: AsyncClient,
+) -> str:
+    """Create a checkpoint that belongs to a different session.
+
+    Used to test that rewind rejects checkpoints from other sessions.
+    """
+    from datetime import UTC, datetime
+    from uuid import uuid4
+
+    from apps.api.dependencies import get_cache
+    from apps.api.services.session import SessionService
+
+    cache = await get_cache()
+    service = SessionService(cache=cache)
+
+    # Create another session
+    other_session_id = f"other-session-{uuid4().hex[:8]}"
+    await service.create_session(model="sonnet", session_id=other_session_id)
+
+    # Add checkpoint to that other session
+    checkpoint_id = f"other-checkpoint-{uuid4().hex[:8]}"
+    checkpoint_data: dict[str, object] = {
+        "id": checkpoint_id,
+        "session_id": other_session_id,
+        "user_message_uuid": f"msg-{uuid4().hex[:8]}",
+        "created_at": datetime.now(UTC).isoformat(),
+        "files_modified": ["/path/to/other/file.py"],
+    }
+
+    # Store individual checkpoint in cache (for validation lookup)
+    individual_key = f"checkpoint:{checkpoint_id}"
+    await cache.set_json(individual_key, checkpoint_data, 3600)
+
+    # Store checkpoint in cache using checkpoints list key (for listing)
+    checkpoints_key = f"checkpoints:{other_session_id}"
+    await cache.set_json(checkpoints_key, {"checkpoints": [checkpoint_data]}, 3600)
+
+    return checkpoint_id

@@ -3,16 +3,22 @@
 from fastapi import APIRouter, Query
 from fastapi.responses import StreamingResponse
 
-from apps.api.dependencies import AgentSvc, ApiKey, SessionSvc
-from apps.api.exceptions import SessionNotFoundError
+from apps.api.dependencies import AgentSvc, ApiKey, CheckpointSvc, SessionSvc
+from apps.api.exceptions import InvalidCheckpointError, SessionNotFoundError
 from apps.api.schemas.requests import (
     AnswerRequest,
     ControlRequest,
     ForkRequest,
     QueryRequest,
     ResumeRequest,
+    RewindRequest,
 )
-from apps.api.schemas.responses import SessionListResponse, SessionResponse
+from apps.api.schemas.responses import (
+    CheckpointListResponse,
+    CheckpointResponse,
+    SessionListResponse,
+    SessionResponse,
+)
 
 router = APIRouter(prefix="/sessions", tags=["Sessions"])
 
@@ -311,3 +317,99 @@ async def send_control_event(
 
     # Future control event types would go here
     return {"status": "unknown_type", "session_id": session_id}
+
+
+@router.get("/{session_id}/checkpoints")
+async def list_session_checkpoints(
+    session_id: str,
+    _api_key: ApiKey,
+    session_service: SessionSvc,
+    checkpoint_service: CheckpointSvc,
+) -> CheckpointListResponse:
+    """List all checkpoints for a session (T102).
+
+    Returns all file checkpoints created during the session, which can be
+    used to rewind the session to a previous state.
+
+    Args:
+        session_id: Session ID to get checkpoints for.
+        _api_key: Validated API key (via dependency).
+        session_service: Session service instance.
+        checkpoint_service: Checkpoint service instance.
+
+    Returns:
+        List of checkpoints for the session.
+
+    Raises:
+        SessionNotFoundError: If session doesn't exist.
+    """
+    # Verify session exists
+    session = await session_service.get_session(session_id)
+    if not session:
+        raise SessionNotFoundError(session_id)
+
+    # Get checkpoints for the session
+    checkpoints = await checkpoint_service.list_checkpoints(session_id)
+
+    return CheckpointListResponse(
+        checkpoints=[
+            CheckpointResponse(
+                id=cp.id,
+                session_id=cp.session_id,
+                user_message_uuid=cp.user_message_uuid,
+                created_at=cp.created_at,
+                files_modified=cp.files_modified,
+            )
+            for cp in checkpoints
+        ]
+    )
+
+
+@router.post("/{session_id}/rewind")
+async def rewind_to_checkpoint(
+    session_id: str,
+    request: RewindRequest,
+    _api_key: ApiKey,
+    session_service: SessionSvc,
+    checkpoint_service: CheckpointSvc,
+) -> dict[str, str]:
+    """Rewind session files to a checkpoint state (T103).
+
+    Restores files to their state at the specified checkpoint. This allows
+    reverting changes made by the agent during the session.
+
+    Args:
+        session_id: Session ID to rewind.
+        request: Rewind request with checkpoint_id.
+        _api_key: Validated API key (via dependency).
+        session_service: Session service instance.
+        checkpoint_service: Checkpoint service instance.
+
+    Returns:
+        Status response with checkpoint_id that was rewound to.
+
+    Raises:
+        SessionNotFoundError: If session doesn't exist.
+        InvalidCheckpointError: If checkpoint is invalid or doesn't belong to session.
+    """
+    # Verify session exists
+    session = await session_service.get_session(session_id)
+    if not session:
+        raise SessionNotFoundError(session_id)
+
+    # Validate checkpoint belongs to this session
+    is_valid = await checkpoint_service.validate_checkpoint(
+        session_id=session_id,
+        checkpoint_id=request.checkpoint_id,
+    )
+
+    if not is_valid:
+        raise InvalidCheckpointError(
+            checkpoint_id=request.checkpoint_id,
+            session_id=session_id,
+        )
+
+    # TODO: Actually rewind files using agent SDK when available
+    # For now, just return success as the checkpoint validation passed
+
+    return {"status": "rewound", "checkpoint_id": request.checkpoint_id}

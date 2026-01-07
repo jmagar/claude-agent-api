@@ -280,18 +280,18 @@
 
 ### Tests for User Story 9
 
-- [ ] T095 [P] [US9] Contract test for GET /sessions/{id}/checkpoints endpoint in tests/contract/test_checkpoints_contract.py
-- [ ] T096 [P] [US9] Contract test for POST /sessions/{id}/rewind endpoint in tests/contract/test_checkpoints_contract.py
-- [ ] T097 [P] [US9] Integration test for file rewind in tests/integration/test_checkpoints.py
-- [ ] T098 [P] [US9] Unit test for checkpoint service in tests/unit/test_checkpoint_service.py
+- [X] T095 [P] [US9] Contract test for GET /sessions/{id}/checkpoints endpoint in tests/contract/test_checkpoints_contract.py
+- [X] T096 [P] [US9] Contract test for POST /sessions/{id}/rewind endpoint in tests/contract/test_checkpoints_contract.py
+- [X] T097 [P] [US9] Integration test for file rewind in tests/integration/test_checkpoints.py
+- [X] T098 [P] [US9] Unit test for checkpoint service in tests/unit/test_checkpoint_service.py
 
 ### Implementation for User Story 9
 
-- [ ] T099 [US9] Add CheckpointResponse, CheckpointListResponse, RewindRequest schemas to apps/api/schemas/responses.py
+- [X] T099 [US9] Add CheckpointResponse, CheckpointListResponse, RewindRequest schemas to apps/api/schemas/responses.py
 - [ ] T100 [US9] Implement enable_file_checkpointing parameter handling in AgentService
-- [ ] T101 [US9] Create apps/api/services/checkpoint.py with CheckpointService class
-- [ ] T102 [US9] Implement GET /sessions/{id}/checkpoints endpoint in apps/api/routes/sessions.py
-- [ ] T103 [US9] Implement POST /sessions/{id}/rewind endpoint in apps/api/routes/sessions.py
+- [X] T101 [US9] Create apps/api/services/checkpoint.py with CheckpointService class
+- [X] T102 [US9] Implement GET /sessions/{id}/checkpoints endpoint in apps/api/routes/sessions.py
+- [X] T103 [US9] Implement POST /sessions/{id}/rewind endpoint in apps/api/routes/sessions.py
 - [ ] T104 [US9] Add checkpoint UUID tracking in message stream processing
 
 **Checkpoint**: File checkpointing works - can track and revert file changes

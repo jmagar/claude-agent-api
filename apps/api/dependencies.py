@@ -17,6 +17,7 @@ from apps.api.adapters.session_repo import SessionRepository
 from apps.api.config import Settings, get_settings
 from apps.api.exceptions import AuthenticationError
 from apps.api.services.agent import AgentService
+from apps.api.services.checkpoint import CheckpointService
 from apps.api.services.session import SessionService
 
 # Global instances (initialized in lifespan)
@@ -180,6 +181,20 @@ async def get_session_service(
     return SessionService(cache=cache)
 
 
+async def get_checkpoint_service(
+    cache: Annotated[RedisCache, Depends(get_cache)],
+) -> CheckpointService:
+    """Get checkpoint service instance with injected cache.
+
+    Args:
+        cache: Redis cache from dependency injection.
+
+    Returns:
+        CheckpointService instance.
+    """
+    return CheckpointService(cache=cache)
+
+
 # Type aliases for dependency injection
 DbSession = Annotated[AsyncSession, Depends(get_db)]
 Cache = Annotated[RedisCache, Depends(get_cache)]
@@ -187,3 +202,4 @@ SessionRepo = Annotated[SessionRepository, Depends(get_session_repo)]
 ApiKey = Annotated[str, Depends(verify_api_key)]
 AgentSvc = Annotated[AgentService, Depends(get_agent_service)]
 SessionSvc = Annotated[SessionService, Depends(get_session_service)]
+CheckpointSvc = Annotated[CheckpointService, Depends(get_checkpoint_service)]

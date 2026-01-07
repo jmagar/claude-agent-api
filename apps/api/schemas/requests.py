@@ -313,7 +313,7 @@ class AnswerRequest(BaseModel):
 class RewindRequest(BaseModel):
     """Request to rewind session to a checkpoint."""
 
-    checkpoint_uuid: str = Field(..., description="UUID of checkpoint to rewind to")
+    checkpoint_id: str = Field(..., description="ID of checkpoint to rewind to")
 
 
 class ControlRequest(BaseModel):

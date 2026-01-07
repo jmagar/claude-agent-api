@@ -190,6 +190,28 @@ class CheckpointNotFoundError(APIError):
         )
 
 
+class InvalidCheckpointError(APIError):
+    """Raised when a checkpoint is invalid for the requested operation."""
+
+    def __init__(
+        self, checkpoint_id: str, session_id: str, reason: str | None = None
+    ) -> None:
+        """Initialize invalid checkpoint error.
+
+        Args:
+            checkpoint_id: The checkpoint ID.
+            session_id: The session ID.
+            reason: Optional reason for invalidity.
+        """
+        msg = reason or f"Checkpoint '{checkpoint_id}' is not valid for session"
+        super().__init__(
+            message=msg,
+            code="INVALID_CHECKPOINT",
+            status_code=400,
+            details={"checkpoint_id": checkpoint_id, "session_id": session_id},
+        )
+
+
 class HookError(APIError):
     """Raised when a hook webhook fails."""
 
