@@ -231,20 +231,20 @@
 
 ### Tests for User Story 7
 
-- [ ] T081 [P] [US7] Integration test for webhook hooks in tests/integration/test_hooks.py
-- [ ] T082 [P] [US7] Unit test for HooksConfigSchema validation in tests/unit/test_schemas.py
-- [ ] T083 [P] [US7] Unit test for webhook service in tests/unit/test_webhook_service.py
+- [X] T081 [P] [US7] Integration test for webhook hooks in tests/integration/test_hooks.py
+- [X] T082 [P] [US7] Unit test for HooksConfigSchema validation in tests/unit/test_schemas.py
+- [X] T083 [P] [US7] Unit test for webhook service in tests/unit/test_webhook_service.py
 
 ### Implementation for User Story 7
 
-- [ ] T084 [US7] Add HooksConfigSchema and HookWebhookSchema to apps/api/schemas/requests.py
-- [ ] T085 [US7] Create apps/api/services/webhook.py with WebhookService for HTTP callbacks
-- [ ] T086 [US7] Implement hook callback execution with timeout, error handling, and input transformation support (FR-020: allow/deny/ask responses with optional transformed input)
-- [ ] T087 [US7] Implement hooks integration in AgentService using SDK hooks parameter
-- [ ] T088 [US7] Add matcher regex support for tool name filtering
-- [ ] T088a [US7] Implement SubagentStop hook type for tracking subagent completion (FR-021)
-- [ ] T088b [US7] Implement Stop hook type for agent completion events (FR-022)
-- [ ] T088c [US7] Implement UserPromptSubmit hook type for prompt interception (FR-023)
+- [X] T084 [US7] Add HooksConfigSchema and HookWebhookSchema to apps/api/schemas/requests.py
+- [X] T085 [US7] Create apps/api/services/webhook.py with WebhookService for HTTP callbacks
+- [X] T086 [US7] Implement hook callback execution with timeout, error handling, and input transformation support (FR-020: allow/deny/ask responses with optional transformed input)
+- [X] T087 [US7] Implement hooks integration in AgentService using SDK hooks parameter
+- [X] T088 [US7] Add matcher regex support for tool name filtering
+- [X] T088a [US7] Implement SubagentStop hook type for tracking subagent completion (FR-021)
+- [X] T088b [US7] Implement Stop hook type for agent completion events (FR-022)
+- [X] T088c [US7] Implement UserPromptSubmit hook type for prompt interception (FR-023)
 
 **Checkpoint**: Hooks work - can intercept agent execution for custom logic
 

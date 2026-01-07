@@ -18,7 +18,7 @@ from apps.api.schemas.messages import (
     map_sdk_content_block,
     map_sdk_usage,
 )
-from apps.api.schemas.requests import QueryRequest
+from apps.api.schemas.requests import HooksConfigSchema, QueryRequest
 from apps.api.schemas.responses import (
     ContentBlockSchema,
     DoneEvent,
@@ -35,6 +35,7 @@ from apps.api.schemas.responses import (
     ResultEventData,
     UsageSchema,
 )
+from apps.api.services.webhook import WebhookService
 
 if TYPE_CHECKING:
     from claude_agent_sdk import AgentDefinition, ClaudeAgentOptions
@@ -122,10 +123,16 @@ class StreamContext:
 class AgentService:
     """Service for interacting with Claude Agent SDK."""
 
-    def __init__(self) -> None:
-        """Initialize agent service."""
+    def __init__(self, webhook_service: WebhookService | None = None) -> None:
+        """Initialize agent service.
+
+        Args:
+            webhook_service: Optional WebhookService for hook callbacks.
+                           If not provided, a default instance is created.
+        """
         self._settings = get_settings()
         self._active_sessions: dict[str, asyncio.Event] = {}
+        self._webhook_service = webhook_service or WebhookService()
 
     async def query_stream(
         self,
@@ -241,8 +248,10 @@ class AgentService:
             options = self._build_options(request)
 
             # Create client and execute query
+            # Note: Only pass session_id to SDK when resuming an existing SDK session
+            # For new conversations, use the default "default" session_id
             async with ClaudeSDKClient(options) as client:
-                await client.query(request.prompt, session_id=ctx.session_id)
+                await client.query(request.prompt)
 
                 async for message in client.receive_response():
                     # Update context
@@ -349,6 +358,12 @@ class AgentService:
                 "type": request.output_format.type,
                 "schema": request.output_format.schema_,
             }
+
+        # Hooks - build callback wrappers for webhook-based hooks
+        # The SDK hooks parameter expects:
+        # hooks: dict[HookEvent, list[HookMatcher]] | None
+        # We don't use hooks directly in options; they're handled via webhook callbacks
+        # in the streaming loop. This keeps SDK compatibility while allowing HTTP webhooks.
 
         # Build the options with SDK-compatible defaults
         # Note: mcp_servers and agents are cast because SDK expects specific
@@ -687,4 +702,167 @@ class AgentService:
             total_cost_usd=total_cost_usd,
             usage=usage_data,
             result=result_text,
+        )
+
+    # Hook execution methods for webhook-based hooks
+
+    async def execute_pre_tool_use_hook(
+        self,
+        hooks_config: HooksConfigSchema | None,
+        session_id: str,
+        tool_name: str,
+        tool_input: dict[str, object] | None = None,
+    ) -> dict[str, object]:
+        """Execute PreToolUse webhook hook if configured.
+
+        Args:
+            hooks_config: Hooks configuration from request.
+            session_id: Current session ID.
+            tool_name: Name of tool being executed.
+            tool_input: Tool input parameters.
+
+        Returns:
+            Webhook response with decision (allow/deny/ask).
+        """
+        if not hooks_config or not hooks_config.pre_tool_use:
+            return {"decision": "allow"}
+
+        return await self._webhook_service.execute_hook(
+            hook_event="PreToolUse",
+            hook_config=hooks_config.pre_tool_use,
+            session_id=session_id,
+            tool_name=tool_name,
+            tool_input=tool_input,
+        )
+
+    async def execute_post_tool_use_hook(
+        self,
+        hooks_config: HooksConfigSchema | None,
+        session_id: str,
+        tool_name: str,
+        tool_input: dict[str, object] | None = None,
+        tool_result: dict[str, object] | None = None,
+    ) -> dict[str, object]:
+        """Execute PostToolUse webhook hook if configured.
+
+        Args:
+            hooks_config: Hooks configuration from request.
+            session_id: Current session ID.
+            tool_name: Name of tool that was executed.
+            tool_input: Tool input parameters.
+            tool_result: Result from tool execution.
+
+        Returns:
+            Webhook response.
+        """
+        if not hooks_config or not hooks_config.post_tool_use:
+            return {"acknowledged": True}
+
+        return await self._webhook_service.execute_hook(
+            hook_event="PostToolUse",
+            hook_config=hooks_config.post_tool_use,
+            session_id=session_id,
+            tool_name=tool_name,
+            tool_input=tool_input,
+            tool_result=tool_result,
+        )
+
+    async def execute_stop_hook(
+        self,
+        hooks_config: HooksConfigSchema | None,
+        session_id: str,
+        is_error: bool = False,
+        duration_ms: int = 0,
+        result: str | None = None,
+    ) -> dict[str, object]:
+        """Execute Stop webhook hook if configured.
+
+        Args:
+            hooks_config: Hooks configuration from request.
+            session_id: Current session ID.
+            is_error: Whether session ended with error.
+            duration_ms: Session duration in milliseconds.
+            result: Final result text.
+
+        Returns:
+            Webhook response.
+        """
+        if not hooks_config or not hooks_config.stop:
+            return {"acknowledged": True}
+
+        result_data: dict[str, object] = {
+            "is_error": is_error,
+            "duration_ms": duration_ms,
+        }
+        if result:
+            result_data["result"] = result
+
+        return await self._webhook_service.execute_hook(
+            hook_event="Stop",
+            hook_config=hooks_config.stop,
+            session_id=session_id,
+            result_data=result_data,
+        )
+
+    async def execute_subagent_stop_hook(
+        self,
+        hooks_config: HooksConfigSchema | None,
+        session_id: str,
+        subagent_name: str,
+        is_error: bool = False,
+        result: str | None = None,
+    ) -> dict[str, object]:
+        """Execute SubagentStop webhook hook if configured.
+
+        Args:
+            hooks_config: Hooks configuration from request.
+            session_id: Current session ID.
+            subagent_name: Name of subagent that stopped.
+            is_error: Whether subagent ended with error.
+            result: Subagent result.
+
+        Returns:
+            Webhook response.
+        """
+        if not hooks_config or not hooks_config.subagent_stop:
+            return {"acknowledged": True}
+
+        result_data: dict[str, object] = {
+            "subagent_name": subagent_name,
+            "is_error": is_error,
+        }
+        if result:
+            result_data["result"] = result
+
+        return await self._webhook_service.execute_hook(
+            hook_event="SubagentStop",
+            hook_config=hooks_config.subagent_stop,
+            session_id=session_id,
+            result_data=result_data,
+        )
+
+    async def execute_user_prompt_submit_hook(
+        self,
+        hooks_config: HooksConfigSchema | None,
+        session_id: str,
+        prompt: str,
+    ) -> dict[str, object]:
+        """Execute UserPromptSubmit webhook hook if configured.
+
+        Args:
+            hooks_config: Hooks configuration from request.
+            session_id: Current session ID.
+            prompt: User prompt being submitted.
+
+        Returns:
+            Webhook response with potential modified prompt.
+        """
+        if not hooks_config or not hooks_config.user_prompt_submit:
+            return {"decision": "allow"}
+
+        return await self._webhook_service.execute_hook(
+            hook_event="UserPromptSubmit",
+            hook_config=hooks_config.user_prompt_submit,
+            session_id=session_id,
+            tool_input={"prompt": prompt},
         )
