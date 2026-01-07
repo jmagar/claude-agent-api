@@ -11,7 +11,7 @@ info:
     name: MIT
 
 servers:
-  - url: http://localhost:53000/api/v1
+  - url: http://localhost:54000/api/v1
     description: Local development server
 
 tags:

@@ -28,7 +28,7 @@
 - [X] T001 Create project directory structure per plan.md in apps/api/
 - [X] T002 Initialize Python project with pyproject.toml and uv dependencies
 - [X] T003 [P] Configure ruff, mypy, and pytest in pyproject.toml
-- [X] T004 [P] Create docker-compose.yaml with PostgreSQL (port 53432) and Redis (port 53379)
+- [X] T004 [P] Create docker-compose.yaml with PostgreSQL (port 53432) and Redis (port 53380)
 - [X] T005 [P] Create .env.example with required environment variables
 - [X] T006 [P] Create tests/ directory structure with conftest.py
 

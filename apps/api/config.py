@@ -19,18 +19,18 @@ class Settings(BaseSettings):
 
     # API Settings
     api_host: str = Field(default="0.0.0.0", description="API host")
-    api_port: int = Field(default=53000, ge=1, le=65535, description="API port")
+    api_port: int = Field(default=54000, ge=1, le=65535, description="API port")
     api_key: SecretStr = Field(..., description="API key for client authentication")
     debug: bool = Field(default=False, description="Enable debug mode")
 
-    # Anthropic API
-    anthropic_api_key: SecretStr = Field(
-        ..., description="Anthropic API key for Claude"
+    # Anthropic API (optional when using Claude Max subscription)
+    anthropic_api_key: SecretStr | None = Field(
+        default=None, description="Anthropic API key for Claude (optional with Claude Max)"
     )
 
     # Database
     database_url: str = Field(
-        default="postgresql+asyncpg://postgres:postgres@localhost:53432/claude_agent",
+        default="postgresql+asyncpg://postgres:postgres@100.120.242.29:53432/claude_agent",
         description="PostgreSQL connection string",
     )
     db_pool_size: int = Field(default=5, ge=1, le=20, description="Database pool size")
@@ -40,7 +40,7 @@ class Settings(BaseSettings):
 
     # Redis
     redis_url: str = Field(
-        default="redis://localhost:53379/0",
+        default="redis://100.120.242.29:53380/0",
         description="Redis connection string",
     )
     redis_session_ttl: int = Field(

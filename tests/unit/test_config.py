@@ -26,7 +26,7 @@ class TestSettings:
             settings = Settings(_env_file=None)
 
             assert settings.api_host == "0.0.0.0"
-            assert settings.api_port == 53000
+            assert settings.api_port == 54000
             assert settings.debug is False
             assert settings.log_level == "INFO"
             assert settings.log_json is True
@@ -166,7 +166,7 @@ class TestSettings:
             # Disable .env file loading to test pure defaults
             settings = Settings(_env_file=None)
             assert settings.redis_url.startswith("redis://")
-            assert "53379" in settings.redis_url
+            assert "53380" in settings.redis_url
 
 
 class TestGetSettings:

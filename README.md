@@ -26,7 +26,7 @@ docker compose up -d
 uv run alembic upgrade head
 
 # Start server
-uv run uvicorn apps.api.main:app --host 0.0.0.0 --port 53000 --reload
+uv run uvicorn apps.api.main:app --host 0.0.0.0 --port 54000 --reload
 ```
 
 ## Documentation

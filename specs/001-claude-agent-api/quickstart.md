@@ -35,14 +35,14 @@ Edit `.env` with your settings:
 ANTHROPIC_API_KEY=your-api-key-here
 
 # Database (PostgreSQL)
-DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:53432/claude_agent
+DATABASE_URL=postgresql+asyncpg://postgres:postgres@100.120.242.29:53432/claude_agent
 
 # Cache (Redis)
-REDIS_URL=redis://localhost:53379/0
+REDIS_URL=redis://100.120.242.29:53380/0
 
 # API Settings
 API_HOST=0.0.0.0
-API_PORT=53000
+API_PORT=54000
 API_KEY=your-api-key-for-clients
 
 # Optional
@@ -70,7 +70,7 @@ uv run alembic upgrade head
 
 ```bash
 # Development mode with auto-reload
-uv run uvicorn apps.api.main:app --host 0.0.0.0 --port 53000 --reload
+uv run uvicorn apps.api.main:app --host 0.0.0.0 --port 54000 --reload
 
 # Or via pnpm script
 pnpm dev
@@ -80,7 +80,7 @@ pnpm dev
 
 ```bash
 # Health check
-curl http://localhost:53000/api/v1/health
+curl http://localhost:54000/api/v1/health
 
 # Expected response:
 # {"status":"ok","version":"1.0.0","dependencies":{"redis":"ok","postgres":"ok"}}
@@ -93,7 +93,7 @@ curl http://localhost:53000/api/v1/health
 ### Send a Query (Streaming)
 
 ```bash
-curl -X POST http://localhost:53000/api/v1/query \
+curl -X POST http://localhost:54000/api/v1/query \
   -H "Content-Type: application/json" \
   -H "X-API-Key: your-api-key-for-clients" \
   -d '{
@@ -105,7 +105,7 @@ curl -X POST http://localhost:53000/api/v1/query \
 ### Send a Query (Single Response)
 
 ```bash
-curl -X POST http://localhost:53000/api/v1/query/single \
+curl -X POST http://localhost:54000/api/v1/query/single \
   -H "Content-Type: application/json" \
   -H "X-API-Key: your-api-key-for-clients" \
   -d '{
@@ -117,7 +117,7 @@ curl -X POST http://localhost:53000/api/v1/query/single \
 ### Resume a Session
 
 ```bash
-curl -X POST http://localhost:53000/api/v1/sessions/{session_id}/resume \
+curl -X POST http://localhost:54000/api/v1/sessions/{session_id}/resume \
   -H "Content-Type: application/json" \
   -H "X-API-Key: your-api-key-for-clients" \
   -d '{
@@ -135,7 +135,7 @@ from httpx_sse import aconnect_sse
 import asyncio
 import json
 
-API_URL = "http://localhost:53000/api/v1"
+API_URL = "http://localhost:54000/api/v1"
 API_KEY = "your-api-key-for-clients"
 
 async def stream_query(prompt: str, allowed_tools: list[str] | None = None):
@@ -195,7 +195,7 @@ asyncio.run(stream_query(
 ```typescript
 import { EventSourceMessage, fetchEventSource } from '@microsoft/fetch-event-source';
 
-const API_URL = 'http://localhost:53000/api/v1';
+const API_URL = 'http://localhost:54000/api/v1';
 const API_KEY = 'your-api-key-for-clients';
 
 interface QueryRequest {
@@ -281,7 +281,7 @@ services:
     container_name: claude-agent-redis
     command: redis-server --appendonly yes
     ports:
-      - "53379:6379"
+      - "53380:6379"
     volumes:
       - claude_agent_redis_data:/data
     healthcheck:
@@ -343,11 +343,11 @@ Ensure your `ANTHROPIC_API_KEY` is set correctly in `.env` and has valid credits
 
 ### Port Already in Use
 
-If port 53000 is in use, change `API_PORT` in `.env` and restart:
+If port 54000 is in use, change `API_PORT` in `.env` and restart:
 
 ```bash
 # Check what's using the port
-ss -tuln | grep 53000
+ss -tuln | grep 54000
 
 # Use different port
 API_PORT=53001

@@ -35,6 +35,13 @@ tests/
 alembic/                     # Database migrations
 ```
 
+# Development Environment Note
+WE are developing inside a code-server container, when we deploy docker services, they are run on the container host. To be able to successfully reach those hosts you can use the hosts Tailscale IP, 100.120.242.29. The code-server container's docker compose also containers extra hosts: "host.docker.internal:host-gateway", so you should also be able to use http://host.docker.internal:<port>
+
+# Anthropic API Key Unnecessary
+Do not set environment variable ANTHROPIC_API_KEY, we are logged in with our CLaude Max subscription which we can use the Claude Agent SDK with, if you set that variable, then using our Claude Max subscription will NOT worko
+
+
 ## Commands
 
 ```bash
@@ -48,7 +55,7 @@ docker compose up -d
 uv run alembic upgrade head
 
 # Start dev server
-uv run uvicorn apps.api.main:app --host 0.0.0.0 --port 53000 --reload
+uv run uvicorn apps.api.main:app --host 0.0.0.0 --port 54000 --reload
 
 # Run tests
 uv run pytest
@@ -91,7 +98,7 @@ uv run mypy apps/api
 
 | Service | Port | Description |
 |---------|------|-------------|
-| API | 53000 | FastAPI server |
+| API | 54000 | FastAPI server |
 | PostgreSQL | 53432 | Database |
 | Redis | 53380 | Cache/pub-sub |
 
