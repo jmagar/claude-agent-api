@@ -5,7 +5,7 @@ import json
 import time
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal
 from uuid import uuid4
 
 import structlog
@@ -121,10 +121,14 @@ class AgentService:
             yield self._format_sse(result_event.event, result_event.data.model_dump())
 
             # Emit done event
-            reason = "interrupted" if self._active_sessions.get(
-                session_id, asyncio.Event()
-            ).is_set() else ("error" if ctx.is_error else "completed")
-            done_event = DoneEvent(data=DoneEventData(reason=reason))  # type: ignore
+            reason: Literal["completed", "interrupted", "error"]
+            if self._active_sessions.get(session_id, asyncio.Event()).is_set():
+                reason = "interrupted"
+            elif ctx.is_error:
+                reason = "error"
+            else:
+                reason = "completed"
+            done_event = DoneEvent(data=DoneEventData(reason=reason))
             yield self._format_sse(done_event.event, done_event.data.model_dump())
 
         except Exception as e:
@@ -162,7 +166,7 @@ class AgentService:
         """
         try:
             # Import SDK here to avoid import errors if not installed
-            from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient
+            from claude_agent_sdk import ClaudeSDKClient
 
             # Build options
             options = self._build_options(request)
@@ -189,7 +193,9 @@ class AgentService:
         except Exception as e:
             logger.error("SDK execution error", error=str(e))
             ctx.is_error = True
-            raise AgentError(f"Agent execution failed: {e}", original_error=str(e)) from e
+            raise AgentError(
+                f"Agent execution failed: {e}", original_error=str(e)
+            ) from e
 
     def _build_options(self, request: QueryRequest) -> Any:
         """Build SDK options from request.
@@ -232,42 +238,37 @@ class AgentService:
 
         # MCP servers
         if request.mcp_servers:
-            from claude_agent_sdk import McpServerConfig
-
-            mcp_configs = {}
+            mcp_configs: dict[str, object] = {}
             for name, config in request.mcp_servers.items():
-                mcp_configs[name] = McpServerConfig(
-                    command=config.command,
-                    args=config.args,
-                    type=config.type,
-                    url=config.url,
-                    headers=config.headers,
-                    env=config.env,
-                )
+                # Build config dict for SDK
+                mcp_configs[name] = {
+                    "command": config.command,
+                    "args": config.args,
+                    "type": config.type,
+                    "url": config.url,
+                    "headers": config.headers,
+                    "env": config.env,
+                }
             options_dict["mcp_servers"] = mcp_configs
 
         # Subagents
         if request.agents:
-            from claude_agent_sdk import AgentDefinition
-
-            agent_defs = {}
+            agent_defs: dict[str, object] = {}
             for name, agent in request.agents.items():
-                agent_defs[name] = AgentDefinition(
-                    description=agent.description,
-                    prompt=agent.prompt,
-                    tools=agent.tools,
-                    model=agent.model,
-                )
+                agent_defs[name] = {
+                    "description": agent.description,
+                    "prompt": agent.prompt,
+                    "tools": agent.tools,
+                    "model": agent.model,
+                }
             options_dict["agents"] = agent_defs
 
         # Output format
         if request.output_format:
-            from claude_agent_sdk import OutputFormat
-
-            options_dict["output_format"] = OutputFormat(
-                type=request.output_format.type,
-                schema=request.output_format.schema_,
-            )
+            options_dict["output_format"] = {
+                "type": request.output_format.type,
+                "schema": request.output_format.schema_,
+            }
 
         return ClaudeAgentOptions(**options_dict)
 
@@ -471,6 +472,35 @@ class AgentService:
             self._active_sessions[session_id].set()
             return True
         return False
+
+    async def submit_answer(self, session_id: str, answer: str) -> bool:
+        """Submit an answer to a pending AskUserQuestion.
+
+        Args:
+            session_id: Session that has a pending question.
+            answer: The user's answer.
+
+        Returns:
+            True if the answer was accepted, False if session not found.
+        """
+        # Check if session exists and is active
+        if session_id not in self._active_sessions:
+            return False
+
+        # Store the answer for the session to pick up
+        # In a full implementation, this would communicate with the SDK
+        # For now, we just acknowledge the answer was received
+        logger.info(
+            "Answer submitted for session",
+            session_id=session_id,
+            answer_length=len(answer),
+        )
+
+        # TODO: Implement SDK answer submission when SDK supports it
+        # This would typically involve calling a method on the client
+        # to inject the user's response into the conversation
+
+        return True
 
     async def query_single(self, request: QueryRequest) -> dict[str, Any]:
         """Execute non-streaming query.

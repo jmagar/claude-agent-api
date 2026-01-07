@@ -160,7 +160,7 @@ class Cache(Protocol):
         """
         ...
 
-    async def set(self, key: str, value: str, ttl: int | None = None) -> bool:
+    async def cache_set(self, key: str, value: str, ttl: int | None = None) -> bool:
         """Set a value in cache.
 
         Args:

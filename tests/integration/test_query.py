@@ -10,8 +10,8 @@ class TestQueryStreaming:
     @pytest.mark.anyio
     async def test_query_stream_init_event(
         self,
-        async_client: AsyncClient,
-        auth_headers: dict[str, str],
+        _async_client: AsyncClient,
+        _auth_headers: dict[str, str],
     ) -> None:
         """Test that query stream starts with init event."""
         # This test requires the actual SDK integration
@@ -20,8 +20,8 @@ class TestQueryStreaming:
     @pytest.mark.anyio
     async def test_query_stream_result_event(
         self,
-        async_client: AsyncClient,
-        auth_headers: dict[str, str],
+        _async_client: AsyncClient,
+        _auth_headers: dict[str, str],
     ) -> None:
         """Test that query stream ends with result event."""
         pytest.skip("Requires SDK integration")
@@ -29,8 +29,8 @@ class TestQueryStreaming:
     @pytest.mark.anyio
     async def test_query_stream_done_event(
         self,
-        async_client: AsyncClient,
-        auth_headers: dict[str, str],
+        _async_client: AsyncClient,
+        _auth_headers: dict[str, str],
     ) -> None:
         """Test that query stream ends with done event."""
         pytest.skip("Requires SDK integration")
@@ -38,8 +38,8 @@ class TestQueryStreaming:
     @pytest.mark.anyio
     async def test_query_stream_error_handling(
         self,
-        async_client: AsyncClient,
-        auth_headers: dict[str, str],
+        _async_client: AsyncClient,
+        _auth_headers: dict[str, str],
     ) -> None:
         """Test error handling in streaming mode."""
         pytest.skip("Requires SDK integration")
@@ -47,8 +47,8 @@ class TestQueryStreaming:
     @pytest.mark.anyio
     async def test_query_stream_with_allowed_tools(
         self,
-        async_client: AsyncClient,
-        auth_headers: dict[str, str],
+        _async_client: AsyncClient,
+        _auth_headers: dict[str, str],
     ) -> None:
         """Test query with allowed_tools restriction."""
         pytest.skip("Requires SDK integration")
@@ -56,8 +56,8 @@ class TestQueryStreaming:
     @pytest.mark.anyio
     async def test_query_stream_session_id_returned(
         self,
-        async_client: AsyncClient,
-        auth_headers: dict[str, str],
+        _async_client: AsyncClient,
+        _auth_headers: dict[str, str],
     ) -> None:
         """Test that session_id is returned in init event."""
         pytest.skip("Requires SDK integration")
@@ -69,8 +69,8 @@ class TestQuerySingle:
     @pytest.mark.anyio
     async def test_query_single_returns_complete_response(
         self,
-        async_client: AsyncClient,
-        auth_headers: dict[str, str],
+        _async_client: AsyncClient,
+        _auth_headers: dict[str, str],
     ) -> None:
         """Test that single query returns complete response."""
         pytest.skip("Requires SDK integration")
@@ -78,8 +78,8 @@ class TestQuerySingle:
     @pytest.mark.anyio
     async def test_query_single_includes_usage(
         self,
-        async_client: AsyncClient,
-        auth_headers: dict[str, str],
+        _async_client: AsyncClient,
+        _auth_headers: dict[str, str],
     ) -> None:
         """Test that single query response includes usage data."""
         pytest.skip("Requires SDK integration")

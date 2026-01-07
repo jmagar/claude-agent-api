@@ -1,6 +1,5 @@
 """Unit tests for exception classes."""
 
-
 from apps.api.exceptions import (
     AgentError,
     APIError,

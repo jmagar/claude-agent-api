@@ -70,9 +70,7 @@ class HooksConfigSchema(BaseModel):
     post_tool_use: HookWebhookSchema | None = Field(None, alias="PostToolUse")
     stop: HookWebhookSchema | None = Field(None, alias="Stop")
     subagent_stop: HookWebhookSchema | None = Field(None, alias="SubagentStop")
-    user_prompt_submit: HookWebhookSchema | None = Field(
-        None, alias="UserPromptSubmit"
-    )
+    user_prompt_submit: HookWebhookSchema | None = Field(None, alias="UserPromptSubmit")
     pre_compact: HookWebhookSchema | None = Field(None, alias="PreCompact")
     notification: HookWebhookSchema | None = Field(None, alias="Notification")
 
@@ -96,7 +94,9 @@ class OutputFormatSchema(BaseModel):
 
     @field_validator("schema_")
     @classmethod
-    def validate_json_schema(cls, v: dict[str, object] | None) -> dict[str, object] | None:
+    def validate_json_schema(
+        cls, v: dict[str, object] | None
+    ) -> dict[str, object] | None:
         """Validate JSON schema has type property."""
         if v is not None and "type" not in v:
             raise ValueError("JSON schema must have 'type' property")
@@ -130,9 +130,7 @@ class QueryRequest(BaseModel):
     )
     session_id: str | None = Field(None, description="Resume existing session")
     fork_session: bool = Field(False, description="Fork instead of continue")
-    continue_conversation: bool = Field(
-        False, description="Continue without resume ID"
-    )
+    continue_conversation: bool = Field(False, description="Continue without resume ID")
 
     # Tool configuration
     allowed_tools: list[str] = Field(default_factory=list)
@@ -213,15 +211,13 @@ class ResumeRequest(BaseModel):
     )
 
     # Optional configuration overrides
-    allowed_tools: list[str] | None = Field(
-        None, description="Override allowed tools"
-    )
+    allowed_tools: list[str] | None = Field(None, description="Override allowed tools")
     disallowed_tools: list[str] | None = Field(
         None, description="Override disallowed tools"
     )
-    permission_mode: Literal[
-        "default", "acceptEdits", "plan", "bypassPermissions"
-    ] | None = None
+    permission_mode: (
+        Literal["default", "acceptEdits", "plan", "bypassPermissions"] | None
+    ) = None
     max_turns: int | None = Field(None, ge=1, le=1000)
     hooks: HooksConfigSchema | None = None
 
@@ -235,15 +231,13 @@ class ForkRequest(BaseModel):
     )
 
     # Optional configuration overrides (inherited from parent if not specified)
-    allowed_tools: list[str] | None = Field(
-        None, description="Override allowed tools"
-    )
+    allowed_tools: list[str] | None = Field(None, description="Override allowed tools")
     disallowed_tools: list[str] | None = Field(
         None, description="Override disallowed tools"
     )
-    permission_mode: Literal[
-        "default", "acceptEdits", "plan", "bypassPermissions"
-    ] | None = None
+    permission_mode: (
+        Literal["default", "acceptEdits", "plan", "bypassPermissions"] | None
+    ) = None
     max_turns: int | None = Field(None, ge=1, le=1000)
     model: str | None = Field(None, description="Override model for forked session")
     hooks: HooksConfigSchema | None = None

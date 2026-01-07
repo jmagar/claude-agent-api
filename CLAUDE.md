@@ -93,7 +93,7 @@ uv run mypy apps/api
 |---------|------|-------------|
 | API | 53000 | FastAPI server |
 | PostgreSQL | 53432 | Database |
-| Redis | 53379 | Cache/pub-sub |
+| Redis | 53380 | Cache/pub-sub |
 
 ## Required Environment Variables
 

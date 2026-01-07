@@ -30,7 +30,7 @@ def get_agent_service() -> AgentService:
 async def query_stream(
     request: Request,
     query: QueryRequest,
-    api_key: ApiKey,
+    _api_key: ApiKey,
     agent_service: Annotated[AgentService, Depends(get_agent_service)],
 ) -> EventSourceResponse:
     """Execute a streaming query to the agent.
@@ -86,7 +86,7 @@ async def query_stream(
 @router.post("/single", response_model=SingleQueryResponse)
 async def query_single(
     query: QueryRequest,
-    api_key: ApiKey,
+    _api_key: ApiKey,
     agent_service: Annotated[AgentService, Depends(get_agent_service)],
 ) -> dict[str, Any]:
     """Execute a non-streaming query to the agent.

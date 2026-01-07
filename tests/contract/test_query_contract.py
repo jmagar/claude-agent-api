@@ -66,8 +66,8 @@ class TestQueryContractPOST:
     @pytest.mark.anyio
     async def test_query_returns_sse_content_type(
         self,
-        async_client: AsyncClient,
-        auth_headers: dict[str, str],
+        _async_client: AsyncClient,
+        _auth_headers: dict[str, str],
     ) -> None:
         """Test that query endpoint returns SSE content type."""
         # This test will need the actual endpoint implemented
@@ -107,8 +107,8 @@ class TestQuerySingleContractPOST:
     @pytest.mark.anyio
     async def test_query_single_returns_json(
         self,
-        async_client: AsyncClient,
-        auth_headers: dict[str, str],
+        _async_client: AsyncClient,
+        _auth_headers: dict[str, str],
     ) -> None:
         """Test that single query returns JSON response."""
         # This test will need the actual endpoint implemented

@@ -1,13 +1,19 @@
 """Shared pytest fixtures for all tests."""
 
+import os
 from collections.abc import AsyncGenerator
-from typing import Any
 
 import pytest
-from httpx import AsyncClient
+from httpx import ASGITransport, AsyncClient
 
-# Will be imported once the app is created
-# from apps.api.main import app
+# Set test environment variables before importing app
+os.environ.setdefault("API_KEY", "test-api-key-12345")
+os.environ.setdefault("ANTHROPIC_API_KEY", "test-anthropic-key")
+os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://test:test@localhost:53432/test")
+os.environ.setdefault("REDIS_URL", "redis://localhost:53379/0")
+os.environ.setdefault("DEBUG", "true")
+
+from apps.api.main import app
 
 
 @pytest.fixture
@@ -29,21 +35,30 @@ def auth_headers(test_api_key: str) -> dict[str, str]:
 
 
 @pytest.fixture
-async def async_client() -> AsyncGenerator[AsyncClient, None]:
-    """Async HTTP client for testing.
+def _auth_headers(auth_headers: dict[str, str]) -> dict[str, str]:
+    """Underscore-prefixed alias for skipped tests."""
+    return auth_headers
 
-    Once the app is created, uncomment the transport line.
-    """
-    # transport = ASGITransport(app=app)
+
+@pytest.fixture
+async def async_client() -> AsyncGenerator[AsyncClient, None]:
+    """Async HTTP client for testing with ASGI transport."""
+    transport = ASGITransport(app=app)
     async with AsyncClient(
-        # transport=transport,
+        transport=transport,
         base_url="http://test",
     ) as client:
         yield client
 
 
 @pytest.fixture
-def sample_query_request() -> dict[str, Any]:
+async def _async_client(async_client: AsyncClient) -> AsyncClient:
+    """Underscore-prefixed alias for skipped tests."""
+    return async_client
+
+
+@pytest.fixture
+def sample_query_request() -> dict[str, str | list[str]]:
     """Sample query request for testing."""
     return {
         "prompt": "List files in the current directory",

@@ -125,7 +125,7 @@ async def get_session_repo(
 
 
 def verify_api_key(
-    request: Request,
+    _request: Request,
     x_api_key: Annotated[str | None, Header()] = None,
 ) -> str:
     """Verify API key from header.

@@ -1,6 +1,5 @@
 """Unit tests for agent service."""
 
-
 import pytest
 
 from apps.api.schemas.requests import QueryRequest

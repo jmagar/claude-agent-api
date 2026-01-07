@@ -14,11 +14,11 @@ from apps.api.exceptions import APIError
 from apps.api.middleware.auth import ApiKeyAuthMiddleware
 from apps.api.middleware.correlation import CorrelationIdMiddleware
 from apps.api.middleware.logging import RequestLoggingMiddleware, configure_logging
-from apps.api.routes import health, query
+from apps.api.routes import health, query, sessions
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan manager.
 
     Initializes and cleans up resources.
@@ -75,7 +75,7 @@ def create_app() -> FastAPI:
 
     # Register exception handlers
     @app.exception_handler(APIError)
-    async def api_error_handler(request: Request, exc: APIError) -> JSONResponse:
+    async def api_error_handler(_request: Request, exc: APIError) -> JSONResponse:
         """Handle API errors."""
         return JSONResponse(
             status_code=exc.status_code,
@@ -84,7 +84,7 @@ def create_app() -> FastAPI:
 
     @app.exception_handler(Exception)
     async def general_exception_handler(
-        request: Request,
+        _request: Request,
         exc: Exception,
     ) -> JSONResponse:
         """Handle unexpected exceptions."""
@@ -102,6 +102,7 @@ def create_app() -> FastAPI:
     # Include routers
     app.include_router(health.router, prefix="/api/v1")
     app.include_router(query.router, prefix="/api/v1")
+    app.include_router(sessions.router, prefix="/api/v1")
 
     # Also mount health at root for convenience
     app.include_router(health.router)

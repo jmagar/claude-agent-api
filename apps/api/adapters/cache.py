@@ -1,17 +1,26 @@
 """Redis cache implementation."""
 
+from __future__ import annotations
+
 import json
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import redis.asyncio as redis
 
 from apps.api.config import get_settings
 
+if TYPE_CHECKING:
+    # Use generic type only during type checking
+    RedisClient = redis.Redis[bytes]
+else:
+    # At runtime, just use the base type to avoid subscript error
+    RedisClient = redis.Redis
+
 
 class RedisCache:
     """Redis cache implementation of Cache protocol."""
 
-    def __init__(self, client: redis.Redis[bytes]) -> None:
+    def __init__(self, client: RedisClient) -> None:
         """Initialize Redis cache.
 
         Args:
@@ -20,7 +29,7 @@ class RedisCache:
         self._client = client
 
     @classmethod
-    async def create(cls, url: str | None = None) -> "RedisCache":
+    async def create(cls, url: str | None = None) -> RedisCache:
         """Create Redis cache instance.
 
         Args:
@@ -31,7 +40,7 @@ class RedisCache:
         """
         settings = get_settings()
         redis_url = url or settings.redis_url
-        client: redis.Redis[bytes] = redis.from_url(
+        client = redis.from_url(
             redis_url,
             encoding="utf-8",
             decode_responses=False,
@@ -70,7 +79,7 @@ class RedisCache:
             return None
         return json.loads(value)  # type: ignore[no-any-return]
 
-    async def set(
+    async def cache_set(
         self,
         key: str,
         value: str,
@@ -108,7 +117,7 @@ class RedisCache:
         Returns:
             True if successful.
         """
-        return await self.set(key, json.dumps(value), ttl)
+        return await self.cache_set(key, json.dumps(value), ttl)
 
     async def delete(self, key: str) -> bool:
         """Delete a value from cache.

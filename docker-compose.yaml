@@ -21,7 +21,7 @@ services:
     container_name: claude-agent-redis
     command: redis-server --appendonly yes
     ports:
-      - "53379:6379"
+      - "53380:6379"
     volumes:
       - claude_agent_redis_data:/data
     healthcheck:

@@ -1,5 +1,6 @@
 """Structured request logging middleware."""
 
+import logging
 import time
 from typing import Any
 
@@ -9,9 +10,6 @@ from starlette.requests import Request
 from starlette.responses import Response
 
 from apps.api.middleware.correlation import get_correlation_id
-
-
-import logging
 
 LOG_LEVELS: dict[str, int] = {
     "DEBUG": logging.DEBUG,

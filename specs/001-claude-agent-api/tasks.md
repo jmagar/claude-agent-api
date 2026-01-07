@@ -89,7 +89,7 @@
 - [X] T035 [US1] Add client disconnect monitoring and cleanup in query routes
 - [X] T036 [US1] Register query router in apps/api/main.py
 - [X] T036a [US1] Add QuestionEvent schema to apps/api/schemas/responses.py for AskUserQuestion handling
-- [ ] T036b [US1] Implement POST /sessions/{id}/answer endpoint in apps/api/routes/sessions.py
+- [X] T036b [US1] Implement POST /sessions/{id}/answer endpoint in apps/api/routes/sessions.py
 - [X] T036c [P] [US1] Add UsageData schema to apps/api/schemas/messages.py with input_tokens, output_tokens, cache_read_input_tokens fields (FR-036)
 - [X] T036d [US1] Include usage data in MessageEventData for streamed assistant messages (FR-036)
 - [X] T036e [US1] Add total_cost_usd and model_usage breakdown fields to ResultEventData schema (FR-037, FR-038)

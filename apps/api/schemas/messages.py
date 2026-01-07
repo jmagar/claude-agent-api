@@ -119,9 +119,7 @@ def is_ask_user_question(block: dict[str, Any]) -> bool:
     Returns:
         True if block is AskUserQuestion.
     """
-    return (
-        block.get("type") == "tool_use" and block.get("name") == "AskUserQuestion"
-    )
+    return block.get("type") == "tool_use" and block.get("name") == "AskUserQuestion"
 
 
 def extract_question_from_block(block: dict[str, Any]) -> str | None:
@@ -137,4 +135,7 @@ def extract_question_from_block(block: dict[str, Any]) -> str | None:
         return None
 
     tool_input = block.get("input", {})
-    return tool_input.get("question")
+    question = tool_input.get("question")
+    if isinstance(question, str):
+        return question
+    return None

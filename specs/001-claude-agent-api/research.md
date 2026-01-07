@@ -35,11 +35,15 @@ class ClaudeSDKClient:
     def __init__(self, options: ClaudeAgentOptions | None = None)
     async def connect(self, prompt: str | AsyncIterable[dict] | None = None) -> None
     async def query(self, prompt: str | AsyncIterable[dict], session_id: str = "default") -> None
-    async def receive_messages(self) -> AsyncIterator[Message]
-    async def receive_response(self) -> AsyncIterator[Message]
+    async def receive_messages(self) -> AsyncIterator[Message | StreamEvent]
+    async def receive_response(self) -> AsyncIterator[Message | StreamEvent]
     async def interrupt(self) -> None
-    async def rewind_files(self, user_message_uuid: str) -> None
+    async def rewind_files(self, user_message_id: str) -> None
     async def disconnect(self) -> None
+    # Additional methods
+    def get_server_info(self) -> dict[str, Any] | None
+    async def set_model(self, model: str | None = None) -> None
+    async def set_permission_mode(self, mode: str) -> None
 ```
 
 #### ClaudeAgentOptions
@@ -49,32 +53,52 @@ Full configuration dataclass:
 ```python
 @dataclass
 class ClaudeAgentOptions:
+    # Tool configuration
+    tools: list[str] | ToolsPreset | None = None    # Tool preset or list
     allowed_tools: list[str] = field(default_factory=list)
+    disallowed_tools: list[str] = field(default_factory=list)
+
+    # Prompt and system configuration
     system_prompt: str | SystemPromptPreset | None = None
     mcp_servers: dict[str, McpServerConfig] | str | Path = field(default_factory=dict)
     permission_mode: PermissionMode | None = None  # 'default', 'acceptEdits', 'plan', 'bypassPermissions'
+
+    # Session management
     continue_conversation: bool = False
     resume: str | None = None                        # Resume session by ID
     fork_session: bool = False                       # Fork instead of continue
-    max_turns: int | None = None
-    disallowed_tools: list[str] = field(default_factory=list)
+
+    # Model configuration
     model: str | None = None                         # 'sonnet', 'opus', 'haiku'
+    fallback_model: str | None = None                # Fallback if primary unavailable
+    max_turns: int | None = None
+    max_budget_usd: float | None = None              # Cost limit
+    max_thinking_tokens: int | None = None           # Extended thinking limit
+    betas: list[Literal['context-1m-2025-08-07']] = field(default_factory=list)  # Beta features
+
+    # Environment and paths
     cwd: str | Path | None = None
+    cli_path: str | Path | None = None               # Path to Claude CLI
     env: dict[str, str] = field(default_factory=dict)
+    settings: str | None = None                      # Path to settings file
+    add_dirs: list[str | Path] = field(default_factory=list)  # Additional directories
+
+    # Callbacks and hooks
     can_use_tool: CanUseTool | None = None          # Permission callback
     hooks: dict[HookEvent, list[HookMatcher]] | None = None
+    stderr: Callable[[str], None] | None = None     # Callback for stderr output
+
+    # Features
     enable_file_checkpointing: bool = False
     output_format: OutputFormat | None = None       # Structured outputs
     agents: dict[str, AgentDefinition] | None = None  # Subagents
+    include_partial_messages: bool = False
+
+    # Additional configuration
     setting_sources: list[SettingSource] | None = None
     extra_args: dict[str, str | None] = field(default_factory=dict)
-    include_partial_messages: bool = False
-    # Additional fields
     permission_prompt_tool_name: str | None = None
-    settings: str | None = None                      # Path to settings file
-    add_dirs: list[str | Path] = field(default_factory=list)  # Additional directories
     max_buffer_size: int | None = None
-    stderr: Callable[[str], None] | None = None     # Callback for stderr output
     user: str | None = None                          # User identifier
     plugins: list[SdkPluginConfig] = field(default_factory=list)  # Local plugins
     sandbox: SandboxSettings | None = None           # Sandbox configuration
@@ -88,12 +112,18 @@ Message = UserMessage | AssistantMessage | SystemMessage | ResultMessage
 @dataclass
 class UserMessage:
     content: str | list[ContentBlock]
-    uuid: str | None = None  # For checkpointing
+    uuid: str | None = None              # For checkpointing
+    parent_tool_use_id: str | None = None  # If from subagent tool call
 
 @dataclass
 class AssistantMessage:
     content: list[ContentBlock]
     model: str
+    parent_tool_use_id: str | None = None  # If from subagent
+    error: Literal[
+        'authentication_failed', 'billing_error', 'rate_limit',
+        'invalid_request', 'server_error', 'unknown'
+    ] | None = None
 
 @dataclass
 class SystemMessage:
@@ -111,6 +141,7 @@ class ResultMessage:
     total_cost_usd: float | None = None
     usage: dict[str, Any] | None = None
     result: str | None = None
+    structured_output: Any = None        # Parsed structured output
 
 ContentBlock = TextBlock | ThinkingBlock | ToolUseBlock | ToolResultBlock
 ```
@@ -204,7 +235,6 @@ HookEvent = Literal[
     "Stop",             # When execution stops
     "SubagentStop",     # When subagent completes
     "PreCompact",       # Before message compaction
-    "Notification"      # System notifications
 ]
 
 # Hook configuration
@@ -237,11 +267,11 @@ options = ClaudeAgentOptions(
     enable_file_checkpointing=True
 )
 
-# Later, rewind to a checkpoint using user message UUID
-await client.rewind_files(user_message_uuid)
+# Later, rewind to a checkpoint using user message ID
+await client.rewind_files(user_message_id)
 ```
 
-**Note**: Checkpoint UUIDs are obtained from `UserMessage.uuid` fields in the message stream.
+**Note**: Checkpoint IDs are obtained from `UserMessage.uuid` fields in the message stream.
 
 ### Structured Output
 
@@ -258,22 +288,31 @@ output_format = OutputFormat(
 
 ### Custom Tools
 
-The SDK supports defining custom tools via decorators:
+The SDK supports defining custom tools via the `@tool` decorator:
 
 ```python
-from claude_agent_sdk import tool, create_sdk_mcp_server
+from claude_agent_sdk import tool, create_sdk_mcp_server, SdkMcpTool
+from pydantic import BaseModel
 
-@tool
-def get_weather(location: str) -> str:
-    """Get current weather for a location.
+# Define input schema
+class WeatherInput(BaseModel):
+    location: str
 
-    Args:
-        location: City name or coordinates
-    """
-    return f"Weather for {location}: Sunny, 72°F"
+# Use @tool decorator with explicit parameters
+@tool(
+    name="get_weather",
+    description="Get current weather for a location",
+    input_schema=WeatherInput
+)
+async def get_weather(input: WeatherInput) -> dict[str, Any]:
+    return {"result": f"Weather for {input.location}: Sunny, 72°F"}
 
 # Create MCP server from decorated tools
-mcp_server = create_sdk_mcp_server([get_weather])
+mcp_server = create_sdk_mcp_server(
+    name="custom-tools",
+    version="1.0.0",
+    tools=[get_weather]
+)
 
 # Use in options
 options = ClaudeAgentOptions(
@@ -282,10 +321,11 @@ options = ClaudeAgentOptions(
 ```
 
 **Key Points**:
-- Use `@tool` decorator on functions
-- Docstrings become tool descriptions
-- Type hints define parameter schemas
-- `create_sdk_mcp_server()` bundles tools into an MCP server
+- `@tool(name, description, input_schema)` - decorator requires all three parameters
+- `input_schema` can be a Pydantic model or dict schema
+- Handler must be async and return `dict[str, Any]`
+- `create_sdk_mcp_server(name, version, tools)` - name is required
+- Returns `McpSdkServerConfig` for use in options
 
 ### Error Handling
 

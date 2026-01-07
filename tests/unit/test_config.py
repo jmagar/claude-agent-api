@@ -22,7 +22,8 @@ class TestSettings:
             },
             clear=True,
         ):
-            settings = Settings()
+            # Disable .env file loading to test pure defaults
+            settings = Settings(_env_file=None)
 
             assert settings.api_host == "0.0.0.0"
             assert settings.api_port == 53000
@@ -41,7 +42,8 @@ class TestSettings:
         """Test that required fields raise error when missing."""
         with patch.dict(os.environ, {}, clear=True):
             with pytest.raises(ValidationError) as exc_info:
-                Settings()
+                # Disable .env file loading to test pure defaults
+                Settings(_env_file=None)
 
             errors = exc_info.value.errors()
             error_fields = {e["loc"][0] for e in errors}
@@ -146,7 +148,8 @@ class TestSettings:
             },
             clear=True,
         ):
-            settings = Settings()
+            # Disable .env file loading to test pure defaults
+            settings = Settings(_env_file=None)
             assert "postgresql+asyncpg://" in settings.database_url
             assert "53432" in settings.database_url
 
@@ -160,7 +163,8 @@ class TestSettings:
             },
             clear=True,
         ):
-            settings = Settings()
+            # Disable .env file loading to test pure defaults
+            settings = Settings(_env_file=None)
             assert settings.redis_url.startswith("redis://")
             assert "53379" in settings.redis_url
 
