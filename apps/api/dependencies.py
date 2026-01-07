@@ -1,6 +1,7 @@
 """FastAPI dependencies for dependency injection."""
 
 from collections.abc import AsyncGenerator
+from functools import lru_cache
 from typing import Annotated
 
 from fastapi import Depends, Header, Request
@@ -15,6 +16,8 @@ from apps.api.adapters.cache import RedisCache
 from apps.api.adapters.session_repo import SessionRepository
 from apps.api.config import Settings, get_settings
 from apps.api.exceptions import AuthenticationError
+from apps.api.services.agent import AgentService
+from apps.api.services.session import SessionService
 
 # Global instances (initialized in lifespan)
 _async_engine: AsyncEngine | None = None
@@ -151,8 +154,36 @@ def verify_api_key(
     return x_api_key
 
 
+@lru_cache(maxsize=1)
+def get_agent_service() -> AgentService:
+    """Get or create agent service singleton.
+
+    Uses lru_cache to ensure single instance across application lifetime.
+
+    Returns:
+        AgentService singleton instance.
+    """
+    return AgentService()
+
+
+async def get_session_service(
+    cache: Annotated[RedisCache, Depends(get_cache)],
+) -> SessionService:
+    """Get session service instance with injected cache.
+
+    Args:
+        cache: Redis cache from dependency injection.
+
+    Returns:
+        SessionService instance.
+    """
+    return SessionService(cache=cache)
+
+
 # Type aliases for dependency injection
 DbSession = Annotated[AsyncSession, Depends(get_db)]
 Cache = Annotated[RedisCache, Depends(get_cache)]
 SessionRepo = Annotated[SessionRepository, Depends(get_session_repo)]
 ApiKey = Annotated[str, Depends(verify_api_key)]
+AgentSvc = Annotated[AgentService, Depends(get_agent_service)]
+SessionSvc = Annotated[SessionService, Depends(get_session_service)]

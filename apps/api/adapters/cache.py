@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import redis.asyncio as redis
 
 from apps.api.config import get_settings
 
 if TYPE_CHECKING:
+    from collections.abc import Awaitable
+
     # Use generic type only during type checking
     RedisClient = redis.Redis[bytes]
 else:
@@ -48,8 +50,16 @@ class RedisCache:
         return cls(client)
 
     async def close(self) -> None:
-        """Close Redis connection."""
-        await self._client.aclose()  # type: ignore[attr-defined]
+        """Close Redis connection.
+
+        Note: redis.asyncio.Redis has aclose() at runtime but type stubs
+        use close(). We use getattr to safely call the async close method.
+        """
+        close_method = getattr(self._client, "aclose", self._client.close)
+        awaitable = close_method()
+        if TYPE_CHECKING:
+            awaitable = cast("Awaitable[None]", awaitable)
+        await awaitable
 
     async def get(self, key: str) -> str | None:
         """Get a value from cache.
@@ -140,8 +150,7 @@ class RedisCache:
             )
             cursor = int(cursor_result[0])
             all_keys.extend(
-                k.decode() if isinstance(k, bytes) else str(k)
-                for k in cursor_result[1]
+                k.decode() if isinstance(k, bytes) else str(k) for k in cursor_result[1]
             )
             if cursor == 0:
                 break

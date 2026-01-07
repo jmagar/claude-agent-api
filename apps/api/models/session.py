@@ -2,7 +2,6 @@
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Any
 from uuid import UUID, uuid4
 
 from sqlalchemy import ARRAY, ForeignKey, Index, Numeric, String, func
@@ -54,7 +53,7 @@ class Session(Base):
         nullable=True,
         index=True,
     )
-    metadata_: Mapped[dict[str, Any] | None] = mapped_column(
+    metadata_: Mapped[dict[str, object] | None] = mapped_column(
         "metadata",
         JSONB,
         nullable=True,
@@ -109,7 +108,7 @@ class SessionMessage(Base):
         index=True,
     )
     message_type: Mapped[str] = mapped_column(String(20))
-    content: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    content: Mapped[dict[str, object]] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(
         default=func.now(),
         server_default=func.now(),

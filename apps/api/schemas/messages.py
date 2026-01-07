@@ -1,6 +1,6 @@
 """SDK message type mappings and utilities."""
 
-from typing import Any, Literal
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -25,7 +25,7 @@ class SDKToolUseBlock(BaseModel):
     type: Literal["tool_use"] = "tool_use"
     id: str
     name: str
-    input: dict[str, Any]
+    input: dict[str, object]
 
 
 class SDKToolResultBlock(BaseModel):
@@ -33,7 +33,7 @@ class SDKToolResultBlock(BaseModel):
 
     type: Literal["tool_result"] = "tool_result"
     tool_use_id: str
-    content: str | list[Any]
+    content: str | list[object]
     is_error: bool = False
 
 
@@ -50,7 +50,7 @@ class SDKUsageData(BaseModel):
     cache_creation_input_tokens: int = 0
 
 
-def map_sdk_content_block(block: dict[str, Any]) -> dict[str, Any]:
+def map_sdk_content_block(block: dict[str, object]) -> dict[str, object]:
     """Map SDK content block to API schema.
 
     Args:
@@ -90,7 +90,16 @@ def map_sdk_content_block(block: dict[str, Any]) -> dict[str, Any]:
         return block
 
 
-def map_sdk_usage(usage: dict[str, Any] | None) -> dict[str, int] | None:
+def _to_int(value: object) -> int:
+    """Safely convert object to int."""
+    if isinstance(value, int):
+        return value
+    if isinstance(value, (float, str)):
+        return int(value)
+    return 0
+
+
+def map_sdk_usage(usage: dict[str, object] | None) -> dict[str, int] | None:
     """Map SDK usage data to API schema.
 
     Args:
@@ -103,14 +112,16 @@ def map_sdk_usage(usage: dict[str, Any] | None) -> dict[str, int] | None:
         return None
 
     return {
-        "input_tokens": usage.get("input_tokens", 0),
-        "output_tokens": usage.get("output_tokens", 0),
-        "cache_read_input_tokens": usage.get("cache_read_input_tokens", 0),
-        "cache_creation_input_tokens": usage.get("cache_creation_input_tokens", 0),
+        "input_tokens": _to_int(usage.get("input_tokens", 0)),
+        "output_tokens": _to_int(usage.get("output_tokens", 0)),
+        "cache_read_input_tokens": _to_int(usage.get("cache_read_input_tokens", 0)),
+        "cache_creation_input_tokens": _to_int(
+            usage.get("cache_creation_input_tokens", 0)
+        ),
     }
 
 
-def is_ask_user_question(block: dict[str, Any]) -> bool:
+def is_ask_user_question(block: dict[str, object]) -> bool:
     """Check if content block is an AskUserQuestion tool use.
 
     Args:
@@ -122,7 +133,7 @@ def is_ask_user_question(block: dict[str, Any]) -> bool:
     return block.get("type") == "tool_use" and block.get("name") == "AskUserQuestion"
 
 
-def extract_question_from_block(block: dict[str, Any]) -> str | None:
+def extract_question_from_block(block: dict[str, object]) -> str | None:
     """Extract question text from AskUserQuestion block.
 
     Args:
@@ -135,7 +146,8 @@ def extract_question_from_block(block: dict[str, Any]) -> str | None:
         return None
 
     tool_input = block.get("input", {})
-    question = tool_input.get("question")
-    if isinstance(question, str):
-        return question
+    if isinstance(tool_input, dict):
+        question = tool_input.get("question")
+        if isinstance(question, str):
+            return question
     return None

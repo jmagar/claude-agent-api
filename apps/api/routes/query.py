@@ -2,45 +2,18 @@
 
 import asyncio
 from collections.abc import AsyncGenerator
-from typing import Annotated
+from typing import Literal
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Request
 from sse_starlette import EventSourceResponse
 
-from apps.api.adapters.cache import RedisCache
-from apps.api.dependencies import ApiKey, get_cache
+from apps.api.dependencies import AgentSvc, ApiKey, SessionSvc
 from apps.api.schemas.requests import QueryRequest
 from apps.api.schemas.responses import SingleQueryResponse
-from apps.api.services.agent import AgentService, QueryResponseDict
-from apps.api.services.session import SessionService
+from apps.api.services.agent import QueryResponseDict
 
 router = APIRouter(prefix="/query", tags=["Query"])
-
-# Service instance (could be injected via dependency)
-_agent_service: AgentService | None = None
-
-
-def get_agent_service() -> AgentService:
-    """Get or create agent service instance."""
-    global _agent_service
-    if _agent_service is None:
-        _agent_service = AgentService()
-    return _agent_service
-
-
-async def get_session_service(
-    cache: Annotated[RedisCache, Depends(get_cache)],
-) -> SessionService:
-    """Get session service instance with injected cache.
-
-    Args:
-        cache: Redis cache from dependency injection.
-
-    Returns:
-        SessionService instance.
-    """
-    return SessionService(cache=cache)
 
 
 @router.post("")
@@ -48,8 +21,8 @@ async def query_stream(
     request: Request,
     query: QueryRequest,
     _api_key: ApiKey,
-    agent_service: Annotated[AgentService, Depends(get_agent_service)],
-    session_service: Annotated[SessionService, Depends(get_session_service)],
+    agent_service: AgentSvc,
+    session_service: SessionSvc,
 ) -> EventSourceResponse:
     """Execute a streaming query to the agent.
 
@@ -110,10 +83,12 @@ async def query_stream(
         finally:
             # Update session status when stream completes
             if session_id:
-                status = "error" if is_error else "completed"
+                status: Literal["completed", "error"] = (
+                    "error" if is_error else "completed"
+                )
                 await session_service.update_session(
                     session_id=session_id,
-                    status=status,  # type: ignore[arg-type]
+                    status=status,
                     total_turns=num_turns,
                 )
 
@@ -131,7 +106,7 @@ async def query_stream(
 async def query_single(
     query: QueryRequest,
     _api_key: ApiKey,
-    agent_service: Annotated[AgentService, Depends(get_agent_service)],
+    agent_service: AgentSvc,
 ) -> QueryResponseDict:
     """Execute a non-streaming query to the agent.
 

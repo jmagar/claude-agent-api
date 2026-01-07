@@ -2,10 +2,12 @@
 
 import asyncio
 import json
+import os
+import re
 import time
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Literal, TypedDict
+from typing import TYPE_CHECKING, Literal, TypedDict, cast
 from uuid import uuid4
 
 import structlog
@@ -35,9 +37,58 @@ from apps.api.schemas.responses import (
 )
 
 if TYPE_CHECKING:
-    from claude_agent_sdk import ClaudeAgentOptions
+    from claude_agent_sdk import AgentDefinition, ClaudeAgentOptions
+    from claude_agent_sdk.types import (
+        McpHttpServerConfig,
+        McpSdkServerConfig,
+        McpSSEServerConfig,
+        McpStdioServerConfig,
+    )
+
+    # Union type for MCP server configs
+    McpServerConfig = (
+        McpStdioServerConfig
+        | McpSSEServerConfig
+        | McpHttpServerConfig
+        | McpSdkServerConfig
+    )
 
 logger = structlog.get_logger(__name__)
+
+# Pattern for ${VAR} or ${VAR:-default} environment variable syntax
+_ENV_VAR_PATTERN = re.compile(r"\$\{([^}:]+)(?::-([^}]*))?\}")
+
+
+def resolve_env_var(value: str) -> str:
+    """Resolve environment variables in a string.
+
+    Supports ${VAR} and ${VAR:-default} syntax.
+
+    Args:
+        value: String potentially containing env var references.
+
+    Returns:
+        String with environment variables resolved.
+    """
+
+    def replacer(match: re.Match[str]) -> str:
+        var_name = match.group(1)
+        default = match.group(2)  # May be None if no default specified
+        return os.environ.get(var_name, default if default is not None else "")
+
+    return _ENV_VAR_PATTERN.sub(replacer, value)
+
+
+def resolve_env_dict(env: dict[str, str]) -> dict[str, str]:
+    """Resolve environment variables in a dict of strings.
+
+    Args:
+        env: Dictionary with string values that may contain env var references.
+
+    Returns:
+        Dictionary with all env vars resolved.
+    """
+    return {key: resolve_env_var(val) for key, val in env.items()}
 
 
 class QueryResponseDict(TypedDict):
@@ -232,7 +283,9 @@ class AgentService:
         # Build options dynamically based on request fields
         # Use keyword arguments directly to ClaudeAgentOptions
         allowed_tools = request.allowed_tools if request.allowed_tools else None
-        disallowed_tools = request.disallowed_tools if request.disallowed_tools else None
+        disallowed_tools = (
+            request.disallowed_tools if request.disallowed_tools else None
+        )
         permission_mode = request.permission_mode if request.permission_mode else None
         model = request.model if request.model else None
         max_turns = request.max_turns if request.max_turns else None
@@ -250,18 +303,25 @@ class AgentService:
             resume = request.session_id
             fork_session = True
 
-        # MCP servers - convert to dict of dicts
-        mcp_configs: dict[str, dict[str, str | list[str] | dict[str, str] | None]] | None = None
+        # MCP servers - convert to dict of dicts with env var resolution
+        mcp_configs: (
+            dict[str, dict[str, str | list[str] | dict[str, str] | None]] | None
+        ) = None
         if request.mcp_servers:
             mcp_configs = {}
             for name, config in request.mcp_servers.items():
+                # Resolve ${VAR:-default} syntax in env and headers
+                resolved_env = resolve_env_dict(config.env) if config.env else {}
+                resolved_headers = (
+                    resolve_env_dict(config.headers) if config.headers else {}
+                )
                 mcp_configs[name] = {
                     "command": config.command,
                     "args": config.args,
                     "type": config.type,
                     "url": config.url,
-                    "headers": config.headers,
-                    "env": config.env,
+                    "headers": resolved_headers,
+                    "env": resolved_env,
                 }
 
         # Subagents
@@ -285,6 +345,8 @@ class AgentService:
             }
 
         # Build the options with SDK-compatible defaults
+        # Note: mcp_servers and agents are cast because SDK expects specific
+        # config types but accepts dict-like structures at runtime
         return ClaudeAgentOptions(
             allowed_tools=allowed_tools or [],
             disallowed_tools=disallowed_tools or [],
@@ -297,8 +359,8 @@ class AgentService:
             enable_file_checkpointing=enable_checkpointing or False,
             resume=resume,
             fork_session=fork_session or False,
-            mcp_servers=mcp_configs,  # type: ignore[arg-type]
-            agents=agent_defs,  # type: ignore[arg-type]
+            mcp_servers=cast("dict[str, McpServerConfig]", mcp_configs or {}),
+            agents=cast("dict[str, AgentDefinition] | None", agent_defs),
             output_format=output_format,
         )
 

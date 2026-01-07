@@ -1,12 +1,9 @@
 """Session management endpoints."""
 
-from typing import Annotated
-
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Query
 from fastapi.responses import StreamingResponse
 
-from apps.api.adapters.cache import RedisCache
-from apps.api.dependencies import ApiKey, get_cache
+from apps.api.dependencies import AgentSvc, ApiKey, SessionSvc
 from apps.api.exceptions import SessionNotFoundError
 from apps.api.schemas.requests import (
     AnswerRequest,
@@ -15,45 +12,14 @@ from apps.api.schemas.requests import (
     ResumeRequest,
 )
 from apps.api.schemas.responses import SessionListResponse, SessionResponse
-from apps.api.services.agent import AgentService
-from apps.api.services.session import SessionService
 
 router = APIRouter(prefix="/sessions", tags=["Sessions"])
-
-# Agent service singleton (shared across endpoints)
-_agent_service: AgentService | None = None
-
-
-def get_agent_service() -> AgentService:
-    """Get or create agent service instance.
-
-    Returns:
-        AgentService singleton instance.
-    """
-    global _agent_service
-    if _agent_service is None:
-        _agent_service = AgentService()
-    return _agent_service
-
-
-async def get_session_service(
-    cache: Annotated[RedisCache, Depends(get_cache)],
-) -> SessionService:
-    """Get session service instance with injected cache.
-
-    Args:
-        cache: Redis cache from dependency injection.
-
-    Returns:
-        SessionService instance.
-    """
-    return SessionService(cache=cache)
 
 
 @router.get("")
 async def list_sessions(
     _api_key: ApiKey,
-    session_service: Annotated[SessionService, Depends(get_session_service)],
+    session_service: SessionSvc,
     page: int = Query(default=1, ge=1, description="Page number"),
     page_size: int = Query(default=20, ge=1, le=100, description="Page size"),
 ) -> SessionListResponse:
@@ -94,7 +60,7 @@ async def list_sessions(
 async def get_session(
     session_id: str,
     _api_key: ApiKey,
-    session_service: Annotated[SessionService, Depends(get_session_service)],
+    session_service: SessionSvc,
 ) -> SessionResponse:
     """Get session details by ID.
 
@@ -130,7 +96,7 @@ async def answer_question(
     session_id: str,
     answer: AnswerRequest,
     _api_key: ApiKey,
-    agent_service: Annotated[AgentService, Depends(get_agent_service)],
+    agent_service: AgentSvc,
 ) -> dict[str, str]:
     """Answer an AskUserQuestion from the agent.
 
@@ -162,8 +128,8 @@ async def resume_session(
     session_id: str,
     request: ResumeRequest,
     _api_key: ApiKey,
-    agent_service: Annotated[AgentService, Depends(get_agent_service)],
-    session_service: Annotated[SessionService, Depends(get_session_service)],
+    agent_service: AgentSvc,
+    session_service: SessionSvc,
 ) -> StreamingResponse:
     """Resume an existing session with a new prompt.
 
@@ -214,8 +180,8 @@ async def fork_session(
     session_id: str,
     request: ForkRequest,
     _api_key: ApiKey,
-    agent_service: Annotated[AgentService, Depends(get_agent_service)],
-    session_service: Annotated[SessionService, Depends(get_session_service)],
+    agent_service: AgentSvc,
+    session_service: SessionSvc,
 ) -> StreamingResponse:
     """Fork an existing session into a new branch.
 
@@ -276,7 +242,7 @@ async def fork_session(
 async def interrupt_session(
     session_id: str,
     _api_key: ApiKey,
-    agent_service: Annotated[AgentService, Depends(get_agent_service)],
+    agent_service: AgentSvc,
 ) -> dict[str, str]:
     """Interrupt a running session.
 

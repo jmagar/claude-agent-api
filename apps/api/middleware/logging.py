@@ -2,12 +2,15 @@
 
 import logging
 import time
-from typing import Any
+from typing import TYPE_CHECKING
 
 import structlog
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
 from starlette.responses import Response
+
+if TYPE_CHECKING:
+    import starlette.types
 
 from apps.api.middleware.correlation import get_correlation_id
 
@@ -27,7 +30,7 @@ def configure_logging(log_level: str = "INFO", log_json: bool = True) -> None:
         log_level: Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL).
         log_json: Whether to use JSON format.
     """
-    processors: list[Any] = [
+    processors: list[structlog.types.Processor] = [
         structlog.contextvars.merge_contextvars,
         structlog.processors.add_log_level,
         structlog.processors.TimeStamper(fmt="iso"),
@@ -65,7 +68,11 @@ def get_logger(name: str | None = None) -> structlog.BoundLogger:
 class RequestLoggingMiddleware(BaseHTTPMiddleware):
     """Middleware for structured request logging."""
 
-    def __init__(self, app: Any, skip_paths: list[str] | None = None) -> None:
+    def __init__(
+        self,
+        app: "starlette.types.ASGIApp",
+        skip_paths: list[str] | None = None,
+    ) -> None:
         """Initialize middleware.
 
         Args:

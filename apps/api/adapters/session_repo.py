@@ -1,9 +1,8 @@
 """Session repository implementation using SQLAlchemy."""
 
 from collections.abc import Sequence
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -29,7 +28,7 @@ class SessionRepository:
         model: str,
         working_directory: str | None = None,
         parent_session_id: UUID | None = None,
-        metadata: dict[str, Any] | None = None,
+        metadata: dict[str, object] | None = None,
     ) -> Session:
         """Create a new session record.
 
@@ -96,7 +95,7 @@ class SessionRepository:
             session.total_turns = total_turns
         if total_cost_usd is not None:
             session.total_cost_usd = Decimal(str(total_cost_usd))
-        session.updated_at = datetime.utcnow()
+        session.updated_at = datetime.now(UTC)
 
         await self._db.commit()
         await self._db.refresh(session)
@@ -141,7 +140,7 @@ class SessionRepository:
         self,
         session_id: UUID,
         message_type: str,
-        content: dict[str, Any],
+        content: dict[str, object],
     ) -> SessionMessage:
         """Add a message to a session.
 

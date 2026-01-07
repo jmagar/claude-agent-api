@@ -185,16 +185,16 @@
 
 ### Tests for User Story 5
 
-- [ ] T068 [P] [US5] Integration test for MCP server connection in tests/integration/test_mcp.py
-- [ ] T069 [P] [US5] Unit test for McpServerConfigSchema validation in tests/unit/test_schemas.py
+- [X] T068 [P] [US5] Integration test for MCP server connection in tests/integration/test_mcp.py
+- [X] T069 [P] [US5] Unit test for McpServerConfigSchema validation in tests/unit/test_agent_service.py
 
 ### Implementation for User Story 5
 
-- [ ] T070 [US5] Add McpServerConfigSchema to apps/api/schemas/requests.py with transport validation
-- [ ] T071 [US5] Add McpServerStatus schema to apps/api/schemas/responses.py
-- [ ] T072 [US5] Implement mcp_servers parameter handling in AgentService.create_options()
-- [ ] T073 [US5] Add MCP server status reporting in InitEvent data
-- [ ] T074 [US5] Implement environment variable resolution for ${VAR:-default} syntax
+- [X] T070 [US5] Add McpServerConfigSchema to apps/api/schemas/requests.py with transport validation
+- [X] T071 [US5] Add McpServerStatus schema to apps/api/schemas/responses.py
+- [X] T072 [US5] Implement mcp_servers parameter handling in AgentService.create_options()
+- [X] T073 [US5] Add MCP server status reporting in InitEvent data
+- [X] T074 [US5] Implement environment variable resolution for ${VAR:-default} syntax
 
 **Checkpoint**: MCP integration works - can connect external tool providers
 

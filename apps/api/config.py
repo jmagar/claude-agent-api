@@ -25,7 +25,8 @@ class Settings(BaseSettings):
 
     # Anthropic API (optional when using Claude Max subscription)
     anthropic_api_key: SecretStr | None = Field(
-        default=None, description="Anthropic API key for Claude (optional with Claude Max)"
+        default=None,
+        description="Anthropic API key for Claude (optional with Claude Max)",
     )
 
     # Database

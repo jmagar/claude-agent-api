@@ -9,7 +9,9 @@ from httpx import ASGITransport, AsyncClient
 
 # Set test environment variables before importing app
 os.environ.setdefault("API_KEY", "test-api-key-12345")
-os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://test:test@100.120.242.29:53432/test")
+os.environ.setdefault(
+    "DATABASE_URL", "postgresql+asyncpg://test:test@100.120.242.29:53432/test"
+)
 os.environ.setdefault("REDIS_URL", "redis://100.120.242.29:53380/0")
 os.environ.setdefault("DEBUG", "true")
 
@@ -56,15 +58,13 @@ async def async_client() -> AsyncGenerator[AsyncClient, None]:
 
     # Clear the global cache instance to force re-initialization
     from apps.api import dependencies
+
     dependencies._redis_cache = None
     dependencies._async_engine = None
     dependencies._async_session_maker = None
 
-    # Also clear service singletons
-    from apps.api.routes import query, sessions
-    sessions._session_service = None
-    sessions._agent_service = None
-    query._agent_service = None
+    # Clear the agent service singleton cache
+    dependencies.get_agent_service.cache_clear()
 
     settings = get_settings()
 
@@ -123,7 +123,9 @@ async def mock_session_id(_async_client: AsyncClient) -> str:
 
     cache = await get_cache()
     service = SessionService(cache=cache)
-    session = await service.create_session(model="sonnet", session_id="mock-existing-session-001")
+    session = await service.create_session(
+        model="sonnet", session_id="mock-existing-session-001"
+    )
     return session.id
 
 
@@ -133,18 +135,19 @@ async def mock_active_session_id(_async_client: AsyncClient) -> str:
 
     Creates a session and registers it with the agent service as active.
     """
-    from apps.api.dependencies import get_cache
-    from apps.api.routes.sessions import get_agent_service
+    import asyncio
+
+    from apps.api.dependencies import get_agent_service, get_cache
     from apps.api.services.session import SessionService
 
     # Create session in session service
     cache = await get_cache()
     service = SessionService(cache=cache)
-    session = await service.create_session(model="sonnet", session_id="mock-active-session-001")
+    session = await service.create_session(
+        model="sonnet", session_id="mock-active-session-001"
+    )
 
     # Register with agent service as active
-    import asyncio
-
     agent_service = get_agent_service()
     agent_service._active_sessions[session.id] = asyncio.Event()
 

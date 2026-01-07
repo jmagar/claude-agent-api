@@ -1,7 +1,5 @@
 """Custom exception classes for the API."""
 
-from typing import Any
-
 
 class APIError(Exception):
     """Base exception for API errors."""
@@ -11,7 +9,7 @@ class APIError(Exception):
         message: str,
         code: str = "INTERNAL_ERROR",
         status_code: int = 500,
-        details: dict[str, Any] | None = None,
+        details: dict[str, str | int | float | bool | list[str] | None] | None = None,
     ) -> None:
         """Initialize API error.
 
@@ -25,9 +23,15 @@ class APIError(Exception):
         self.message = message
         self.code = code
         self.status_code = status_code
-        self.details = details or {}
+        self.details: dict[str, str | int | float | bool | list[str] | None] = (
+            details or {}
+        )
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(
+        self,
+    ) -> dict[
+        str, dict[str, str | dict[str, str | int | float | bool | list[str] | None]]
+    ]:
         """Convert error to dictionary for JSON response.
 
         Returns:
@@ -104,7 +108,7 @@ class ValidationError(APIError):
             message: Validation error message.
             field: Optional field that failed validation.
         """
-        details: dict[str, Any] = {}
+        details: dict[str, str | int | float | bool | list[str] | None] = {}
         if field:
             details["field"] = field
         super().__init__(
@@ -140,7 +144,7 @@ class RateLimitError(APIError):
         Args:
             retry_after: Seconds until retry is allowed.
         """
-        details: dict[str, Any] = {}
+        details: dict[str, str | int | float | bool | list[str] | None] = {}
         if retry_after:
             details["retry_after"] = retry_after
         super().__init__(
@@ -202,7 +206,9 @@ class HookError(APIError):
             message: Error message.
             webhook_url: The webhook URL that failed.
         """
-        details: dict[str, Any] = {"hook_event": hook_event}
+        details: dict[str, str | int | float | bool | list[str] | None] = {
+            "hook_event": hook_event
+        }
         if webhook_url:
             details["webhook_url"] = webhook_url
         super().__init__(
@@ -223,7 +229,7 @@ class AgentError(APIError):
             message: Error message.
             original_error: Original error from SDK.
         """
-        details: dict[str, Any] = {}
+        details: dict[str, str | int | float | bool | list[str] | None] = {}
         if original_error:
             details["original_error"] = original_error
         super().__init__(

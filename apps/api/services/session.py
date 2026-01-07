@@ -298,10 +298,15 @@ class SessionService:
             updated_at_val = str(parsed["updated_at"])
 
             # Validate status is one of the allowed values
-            if status_raw not in ("active", "completed", "error"):
-                status_val: Literal["active", "completed", "error"] = "active"
+            status_val: Literal["active", "completed", "error"]
+            if status_raw == "active":
+                status_val = "active"
+            elif status_raw == "completed":
+                status_val = "completed"
+            elif status_raw == "error":
+                status_val = "error"
             else:
-                status_val = status_raw  # type: ignore[assignment]
+                status_val = "active"  # Default to active for invalid values
 
             # Get optional values with proper type handling
             total_turns_raw = parsed.get("total_turns", 0)
