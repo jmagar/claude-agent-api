@@ -1,0 +1,73 @@
+# Alembic configuration file
+# Copy to alembic.ini and update sqlalchemy.url
+
+[alembic]
+# Path to migration scripts
+script_location = alembic
+
+# Template used to generate migration file names
+file_template = %%(year)d%%(month).2d%%(day).2d_%%(hour).2d%%(minute).2d%%(second).2d_%%(rev)s_%%(slug)s
+
+# Truncate long revision identifiers
+truncate_slug_length = 40
+
+# Prepend revision info to file names
+prepend_sys_path = .
+
+# Timezone for file timestamps
+timezone = UTC
+
+# Version table name
+version_table = alembic_version
+
+# Version table schema
+version_table_schema = public
+
+# Output encoding
+output_encoding = utf-8
+
+# SQLAlchemy URL - UPDATE THIS FOR YOUR ENVIRONMENT
+sqlalchemy.url = postgresql+asyncpg://postgres:postgres@localhost:53432/claude_agent
+
+[post_write_hooks]
+# Format migrations with ruff
+hooks = ruff
+
+ruff.type = console_scripts
+ruff.entrypoint = ruff
+ruff.options = format REVISION_SCRIPT_FILENAME
+
+# Logging configuration
+[loggers]
+keys = root,sqlalchemy,alembic
+
+[handlers]
+keys = console
+
+[formatters]
+keys = generic
+
+[logger_root]
+level = WARN
+handlers = console
+qualname =
+
+[logger_sqlalchemy]
+level = WARN
+handlers =
+qualname = sqlalchemy.engine
+
+[logger_alembic]
+level = INFO
+handlers =
+qualname = alembic
+
+[handler_console]
+class = StreamHandler
+args = (sys.stderr,)
+level = NOTSET
+formatter = generic
+
+[formatter_generic]
+format = %(levelname)-5.5s [%(name)s] %(message)s
+datefmt = %H:%M:%S

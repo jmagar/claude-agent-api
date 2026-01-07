@@ -5,7 +5,7 @@ import json
 import time
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Literal, TypedDict
 from uuid import uuid4
 
 import structlog
@@ -34,7 +34,24 @@ from apps.api.schemas.responses import (
     UsageSchema,
 )
 
+if TYPE_CHECKING:
+    from claude_agent_sdk import ClaudeAgentOptions
+
 logger = structlog.get_logger(__name__)
+
+
+class QueryResponseDict(TypedDict):
+    """TypedDict for non-streaming query response."""
+
+    session_id: str
+    model: str
+    content: list[dict[str, object]]
+    is_error: bool
+    duration_ms: int
+    num_turns: int
+    total_cost_usd: float | None
+    usage: dict[str, int] | None
+    result: str | None
 
 
 @dataclass
@@ -48,7 +65,7 @@ class StreamContext:
     total_cost_usd: float | None = None
     is_error: bool = False
     result_text: str | None = None
-    structured_output: dict[str, Any] | None = None
+    structured_output: dict[str, object] | None = None
 
 
 class AgentService:
@@ -175,7 +192,7 @@ class AgentService:
             async with ClaudeSDKClient(options) as client:
                 await client.query(request.prompt, session_id=ctx.session_id)
 
-                async for message in client.receive_messages():
+                async for message in client.receive_response():
                     # Update context
                     ctx.num_turns += 1
 
@@ -197,7 +214,7 @@ class AgentService:
                 f"Agent execution failed: {e}", original_error=str(e)
             ) from e
 
-    def _build_options(self, request: QueryRequest) -> Any:
+    def _build_options(self, request: QueryRequest) -> "ClaudeAgentOptions":
         """Build SDK options from request.
 
         Args:
@@ -205,42 +222,39 @@ class AgentService:
 
         Returns:
             ClaudeAgentOptions instance.
+
+        Note:
+            The SDK has complex nested types that require dynamic construction.
+            We use a typed approach with conditional building.
         """
         from claude_agent_sdk import ClaudeAgentOptions
 
-        options_dict: dict[str, Any] = {}
-
-        if request.allowed_tools:
-            options_dict["allowed_tools"] = request.allowed_tools
-        if request.disallowed_tools:
-            options_dict["disallowed_tools"] = request.disallowed_tools
-        if request.permission_mode:
-            options_dict["permission_mode"] = request.permission_mode
-        if request.model:
-            options_dict["model"] = request.model
-        if request.max_turns:
-            options_dict["max_turns"] = request.max_turns
-        if request.cwd:
-            options_dict["cwd"] = request.cwd
-        if request.env:
-            options_dict["env"] = request.env
-        if request.system_prompt:
-            options_dict["system_prompt"] = request.system_prompt
-        if request.enable_file_checkpointing:
-            options_dict["enable_file_checkpointing"] = True
+        # Build options dynamically based on request fields
+        # Use keyword arguments directly to ClaudeAgentOptions
+        allowed_tools = request.allowed_tools if request.allowed_tools else None
+        disallowed_tools = request.disallowed_tools if request.disallowed_tools else None
+        permission_mode = request.permission_mode if request.permission_mode else None
+        model = request.model if request.model else None
+        max_turns = request.max_turns if request.max_turns else None
+        cwd = request.cwd if request.cwd else None
+        env = request.env if request.env else None
+        system_prompt = request.system_prompt if request.system_prompt else None
+        enable_checkpointing = True if request.enable_file_checkpointing else None
 
         # Session resume
+        resume: str | None = None
+        fork_session: bool | None = None
         if request.session_id and not request.fork_session:
-            options_dict["resume"] = request.session_id
+            resume = request.session_id
         elif request.session_id and request.fork_session:
-            options_dict["resume"] = request.session_id
-            options_dict["fork_session"] = True
+            resume = request.session_id
+            fork_session = True
 
-        # MCP servers
+        # MCP servers - convert to dict of dicts
+        mcp_configs: dict[str, dict[str, str | list[str] | dict[str, str] | None]] | None = None
         if request.mcp_servers:
-            mcp_configs: dict[str, object] = {}
+            mcp_configs = {}
             for name, config in request.mcp_servers.items():
-                # Build config dict for SDK
                 mcp_configs[name] = {
                     "command": config.command,
                     "args": config.args,
@@ -249,11 +263,11 @@ class AgentService:
                     "headers": config.headers,
                     "env": config.env,
                 }
-            options_dict["mcp_servers"] = mcp_configs
 
         # Subagents
+        agent_defs: dict[str, dict[str, str | list[str] | None]] | None = None
         if request.agents:
-            agent_defs: dict[str, object] = {}
+            agent_defs = {}
             for name, agent in request.agents.items():
                 agent_defs[name] = {
                     "description": agent.description,
@@ -261,18 +275,34 @@ class AgentService:
                     "tools": agent.tools,
                     "model": agent.model,
                 }
-            options_dict["agents"] = agent_defs
 
         # Output format
+        output_format: dict[str, str | dict[str, object] | None] | None = None
         if request.output_format:
-            options_dict["output_format"] = {
+            output_format = {
                 "type": request.output_format.type,
                 "schema": request.output_format.schema_,
             }
 
-        return ClaudeAgentOptions(**options_dict)
+        # Build the options with SDK-compatible defaults
+        return ClaudeAgentOptions(
+            allowed_tools=allowed_tools or [],
+            disallowed_tools=disallowed_tools or [],
+            permission_mode=permission_mode,
+            model=model,
+            max_turns=max_turns,
+            cwd=cwd,
+            env=env or {},
+            system_prompt=system_prompt,
+            enable_file_checkpointing=enable_checkpointing or False,
+            resume=resume,
+            fork_session=fork_session or False,
+            mcp_servers=mcp_configs,  # type: ignore[arg-type]
+            agents=agent_defs,  # type: ignore[arg-type]
+            output_format=output_format,
+        )
 
-    def _map_sdk_message(self, message: Any, ctx: StreamContext) -> str | None:
+    def _map_sdk_message(self, message: object, ctx: StreamContext) -> str | None:
         """Map SDK message to SSE event string.
 
         Args:
@@ -336,7 +366,7 @@ class AgentService:
 
         return None
 
-    def _extract_content_blocks(self, message: Any) -> list[ContentBlockSchema]:
+    def _extract_content_blocks(self, message: object) -> list[ContentBlockSchema]:
         """Extract content blocks from SDK message.
 
         Args:
@@ -379,7 +409,7 @@ class AgentService:
 
         return blocks
 
-    def _extract_usage(self, message: Any) -> UsageSchema | None:
+    def _extract_usage(self, message: object) -> UsageSchema | None:
         """Extract usage data from SDK message.
 
         Args:
@@ -447,7 +477,7 @@ class AgentService:
         ctx.result_text = "Mock response completed"
         ctx.total_cost_usd = 0.001
 
-    def _format_sse(self, event_type: str, data: dict[str, Any]) -> str:
+    def _format_sse(self, event_type: str, data: dict[str, object]) -> str:
         """Format data as SSE event.
 
         Args:
@@ -502,7 +532,7 @@ class AgentService:
 
         return True
 
-    async def query_single(self, request: QueryRequest) -> dict[str, Any]:
+    async def query_single(self, request: QueryRequest) -> QueryResponseDict:
         """Execute non-streaming query.
 
         Args:
@@ -515,7 +545,7 @@ class AgentService:
         model = request.model or "sonnet"
         start_time = time.perf_counter()
 
-        content_blocks: list[dict[str, Any]] = []
+        content_blocks: list[dict[str, object]] = []
         is_error = False
         num_turns = 0
         total_cost_usd: float | None = None
@@ -545,14 +575,14 @@ class AgentService:
 
         duration_ms = int((time.perf_counter() - start_time) * 1000)
 
-        return {
-            "session_id": session_id,
-            "model": model,
-            "content": content_blocks,
-            "is_error": is_error,
-            "duration_ms": duration_ms,
-            "num_turns": num_turns,
-            "total_cost_usd": total_cost_usd,
-            "usage": usage_data,
-            "result": result_text,
-        }
+        return QueryResponseDict(
+            session_id=session_id,
+            model=model,
+            content=content_blocks,
+            is_error=is_error,
+            duration_ms=duration_ms,
+            num_turns=num_turns,
+            total_cost_usd=total_cost_usd,
+            usage=usage_data,
+            result=result_text,
+        )

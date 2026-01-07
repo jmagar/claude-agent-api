@@ -73,11 +73,39 @@ uv run mypy apps/api
 
 ## Code Style
 
-- **Strict typing**: mypy strict mode, no `Any`
 - **Protocols**: Use `typing.Protocol` for abstractions, implementations in `adapters/`
 - **Async**: All I/O operations use async/await
 - **Logging**: structlog with correlation IDs
 - **TDD**: RED-GREEN-REFACTOR for all features
+
+## Type Safety (STRICTLY ENFORCED)
+
+**ZERO TOLERANCE FOR `Any` TYPES.** This is non-negotiable.
+
+- **NO `Any`**: Never use `typing.Any` or `dict[str, Any]`
+- **NO implicit Any**: All function parameters and returns must be explicitly typed
+- **NO `# type: ignore`**: Fix the type issue instead of ignoring it
+
+**What to use instead of `Any`:**
+
+| Instead of | Use |
+|------------|-----|
+| `Any` | Specific type, `object`, `TypeVar`, or `Protocol` |
+| `dict[str, Any]` | `TypedDict` with explicit fields |
+| `list[Any]` | `list[SpecificType]` or generic `list[T]` |
+| `Callable[..., Any]` | `Callable[[Args], ReturnType]` or `Protocol` |
+| Unknown JSON | `JsonValue` type alias (recursive union) |
+
+**Enforcement:**
+```bash
+# mypy must pass with strict mode
+uv run mypy apps/api --strict
+
+# ruff will catch Any usage
+uv run ruff check . --select=ANN401
+```
+
+If external libraries return `Any`, wrap them in typed adapter functions.
 
 ## Key Patterns
 

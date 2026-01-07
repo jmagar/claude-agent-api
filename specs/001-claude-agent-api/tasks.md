@@ -106,28 +106,28 @@
 
 ### Tests for User Story 2
 
-- [ ] T037 [P] [US2] Contract test for GET /sessions endpoint in tests/contract/test_sessions_contract.py
-- [ ] T038 [P] [US2] Contract test for GET /sessions/{id} endpoint in tests/contract/test_sessions_contract.py
-- [ ] T039 [P] [US2] Contract test for POST /sessions/{id}/resume endpoint in tests/contract/test_sessions_contract.py
-- [ ] T040 [P] [US2] Contract test for POST /sessions/{id}/fork endpoint in tests/contract/test_sessions_contract.py
-- [ ] T041 [P] [US2] Integration test for session resume in tests/integration/test_sessions.py
-- [ ] T042 [P] [US2] Unit test for session service in tests/unit/test_session_service.py
+- [X] T037 [P] [US2] Contract test for GET /sessions endpoint in tests/contract/test_sessions_contract.py
+- [X] T038 [P] [US2] Contract test for GET /sessions/{id} endpoint in tests/contract/test_sessions_contract.py
+- [X] T039 [P] [US2] Contract test for POST /sessions/{id}/resume endpoint in tests/contract/test_sessions_contract.py
+- [X] T040 [P] [US2] Contract test for POST /sessions/{id}/fork endpoint in tests/contract/test_sessions_contract.py
+- [X] T041 [P] [US2] Integration test for session resume in tests/integration/test_sessions.py
+- [X] T042 [P] [US2] Unit test for session service in tests/unit/test_session_service.py
 
 ### Implementation for User Story 2
 
-- [ ] T043 [P] [US2] Add ResumeRequest schema to apps/api/schemas/requests.py
-- [ ] T044 [P] [US2] Add ForkRequest schema to apps/api/schemas/requests.py
-- [ ] T045 [P] [US2] Add SessionResponse, SessionListResponse schemas to apps/api/schemas/responses.py
-- [ ] T046 [US2] Create apps/api/services/session.py with SessionService class
-- [ ] T047 [US2] Implement session creation, retrieval, and update in SessionService
-- [ ] T048 [US2] Implement session caching in Redis via SessionService
-- [ ] T049 [US2] Create apps/api/routes/sessions.py with GET /sessions list endpoint
-- [ ] T050 [US2] Implement GET /sessions/{id} endpoint in apps/api/routes/sessions.py
-- [ ] T051 [US2] Implement POST /sessions/{id}/resume endpoint in apps/api/routes/sessions.py
-- [ ] T052 [US2] Implement POST /sessions/{id}/fork endpoint in apps/api/routes/sessions.py
-- [ ] T053 [US2] Implement POST /sessions/{id}/interrupt endpoint in apps/api/routes/sessions.py
-- [ ] T054 [US2] Add session_id parameter handling in query routes for resume flow
-- [ ] T055 [US2] Register sessions router in apps/api/main.py
+- [X] T043 [P] [US2] Add ResumeRequest schema to apps/api/schemas/requests.py
+- [X] T044 [P] [US2] Add ForkRequest schema to apps/api/schemas/requests.py
+- [X] T045 [P] [US2] Add SessionResponse, SessionListResponse schemas to apps/api/schemas/responses.py
+- [X] T046 [US2] Create apps/api/services/session.py with SessionService class
+- [X] T047 [US2] Implement session creation, retrieval, and update in SessionService
+- [X] T048 [US2] Implement session caching in Redis via SessionService
+- [X] T049 [US2] Create apps/api/routes/sessions.py with GET /sessions list endpoint
+- [X] T050 [US2] Implement GET /sessions/{id} endpoint in apps/api/routes/sessions.py
+- [X] T051 [US2] Implement POST /sessions/{id}/resume endpoint in apps/api/routes/sessions.py
+- [X] T052 [US2] Implement POST /sessions/{id}/fork endpoint in apps/api/routes/sessions.py
+- [X] T053 [US2] Implement POST /sessions/{id}/interrupt endpoint in apps/api/routes/sessions.py
+- [X] T054 [US2] Add session_id parameter handling in query routes for resume flow
+- [X] T055 [US2] Register sessions router in apps/api/main.py
 
 **Checkpoint**: Sessions work - can resume and fork conversations with full context
 
@@ -141,15 +141,15 @@
 
 ### Tests for User Story 3
 
-- [ ] T056 [P] [US3] Integration test for tool restriction in tests/integration/test_tools.py
-- [ ] T057 [P] [US3] Unit test for tool configuration validation in tests/unit/test_schemas.py
+- [X] T056 [P] [US3] Integration test for tool restriction in tests/integration/test_tools.py
+- [X] T057 [P] [US3] Unit test for tool configuration validation in tests/unit/test_schemas.py
 
 ### Implementation for User Story 3
 
-- [ ] T058 [US3] Add allowed_tools and disallowed_tools validation to QueryRequest schema
-- [ ] T059 [US3] Implement tool filtering in AgentService.create_options() in apps/api/services/agent.py
-- [ ] T060 [US3] Add built-in tools constant and validation in apps/api/types.py
-- [ ] T061 [US3] Document available tools in error messages when invalid tool requested
+- [X] T058 [US3] Add allowed_tools and disallowed_tools validation to QueryRequest schema
+- [X] T059 [US3] Implement tool filtering in AgentService.create_options() in apps/api/services/agent.py
+- [X] T060 [US3] Add built-in tools constant and validation in apps/api/types.py
+- [X] T061 [US3] Document available tools in error messages when invalid tool requested
 
 **Checkpoint**: Tool configuration works - can restrict agent capabilities per request
 
@@ -163,15 +163,15 @@
 
 ### Tests for User Story 4
 
-- [ ] T062 [P] [US4] Integration test for subagent invocation in tests/integration/test_subagents.py
-- [ ] T063 [P] [US4] Unit test for AgentDefinitionSchema validation in tests/unit/test_schemas.py
+- [X] T062 [P] [US4] Integration test for subagent invocation in tests/integration/test_subagents.py
+- [X] T063 [P] [US4] Unit test for AgentDefinitionSchema validation in tests/unit/test_schemas.py
 
 ### Implementation for User Story 4
 
-- [ ] T064 [US4] Add AgentDefinitionSchema to apps/api/schemas/requests.py with description, prompt, tools, model fields and Task tool restriction
-- [ ] T065 [US4] Implement agents parameter handling in AgentService.create_options()
-- [ ] T066 [US4] Add parent_tool_use_id field to MessageEventData for subagent context tracking
-- [ ] T067 [US4] Document subagent usage patterns in error messages
+- [X] T064 [US4] Add AgentDefinitionSchema to apps/api/schemas/requests.py with description, prompt, tools, model fields and Task tool restriction
+- [X] T065 [US4] Implement agents parameter handling in AgentService.create_options()
+- [X] T066 [US4] Add parent_tool_use_id field to MessageEventData for subagent context tracking
+- [X] T067 [US4] Document subagent usage patterns in error messages
 
 **Checkpoint**: Subagents work - can define and invoke specialized agents
 

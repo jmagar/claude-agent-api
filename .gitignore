@@ -28,6 +28,8 @@ Thumbs.db
 
 # Project cache
 .cache/
+.mypy_cache/
+.ruff_cache/
 
 # Environment
 .env
@@ -37,14 +39,18 @@ Thumbs.db
 # Testing
 .pytest_cache/
 htmlcov/
+.coverage
+coverage.xml
 
 # Logs
 *.log
+logs/
 
 # UV
 .uv/
 
 # Alembic
+alembic.ini
 alembic/versions/*.pyc
 
 # Secrets (never commit)
@@ -52,3 +58,20 @@ alembic/versions/*.pyc
 *.key
 credentials.json
 secrets.json
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Docker
+docker-compose.override.yml
+
+# Node (if any tooling uses it)
+node_modules/
+
+# Temporary files
+*.tmp
+*.temp
+tmp/
+temp/

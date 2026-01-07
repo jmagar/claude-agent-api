@@ -2,15 +2,30 @@
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, TypedDict
 from uuid import uuid4
 
 import structlog
 
+from apps.api.config import get_settings
+
 if TYPE_CHECKING:
-    from apps.api.adapters.cache import RedisCache
+    from apps.api.protocols import Cache
 
 logger = structlog.get_logger(__name__)
+
+
+class CachedSessionData(TypedDict):
+    """TypedDict for session data stored in Redis cache."""
+
+    id: str
+    model: str
+    status: Literal["active", "completed", "error"]
+    created_at: str  # ISO format
+    updated_at: str  # ISO format
+    total_turns: int
+    total_cost_usd: float | None
+    parent_session_id: str | None
 
 
 @dataclass
@@ -40,14 +55,15 @@ class SessionListResult:
 class SessionService:
     """Service for managing agent sessions."""
 
-    def __init__(self, cache: "RedisCache | None" = None) -> None:
+    def __init__(self, cache: "Cache | None" = None) -> None:
         """Initialize session service.
 
         Args:
-            cache: RedisCache instance for caching.
+            cache: Cache instance implementing Cache protocol.
         """
         self._cache = cache
-        self._ttl = 3600  # 1 hour default TTL
+        settings = get_settings()
+        self._ttl = settings.redis_session_ttl
 
     def _cache_key(self, session_id: str) -> str:
         """Generate cache key for a session."""
@@ -130,22 +146,8 @@ class SessionService:
 
         if self._cache:
             pattern = "session:*"
-            # Use the underlying Redis client for scan
-            cursor: int = 0
-            all_keys: list[str] = []
-
-            while True:
-                cursor_result = await self._cache._client.scan(
-                    cursor=cursor,
-                    match=pattern,
-                    count=100,
-                )
-                cursor = int(cursor_result[0])
-                all_keys.extend(
-                    [k.decode() if isinstance(k, bytes) else k for k in cursor_result[1]]
-                )
-                if cursor == 0:
-                    break
+            # Use scan_keys method from Cache protocol
+            all_keys = await self._cache.scan_keys(pattern)
 
             # Get sessions
             for key in all_keys:
@@ -256,7 +258,7 @@ class SessionService:
             return
 
         key = self._cache_key(session.id)
-        data = {
+        data: dict[str, object] = {
             "id": session.id,
             "model": session.model,
             "status": session.status,
@@ -288,17 +290,50 @@ class SessionService:
             return None
 
         try:
+            # Extract values with proper type casting
+            session_id_val = str(parsed["id"])
+            model_val = str(parsed["model"])
+            status_raw = str(parsed["status"])
+            created_at_val = str(parsed["created_at"])
+            updated_at_val = str(parsed["updated_at"])
+
+            # Validate status is one of the allowed values
+            if status_raw not in ("active", "completed", "error"):
+                status_val: Literal["active", "completed", "error"] = "active"
+            else:
+                status_val = status_raw  # type: ignore[assignment]
+
+            # Get optional values with proper type handling
+            total_turns_raw = parsed.get("total_turns", 0)
+            if isinstance(total_turns_raw, int):
+                total_turns_val = total_turns_raw
+            elif isinstance(total_turns_raw, (str, float)):
+                total_turns_val = int(total_turns_raw)
+            else:
+                total_turns_val = 0
+
+            total_cost_raw = parsed.get("total_cost_usd")
+            if total_cost_raw is None:
+                total_cost_val = None
+            elif isinstance(total_cost_raw, (int, float, str)):
+                total_cost_val = float(total_cost_raw)
+            else:
+                total_cost_val = None
+
+            parent_id_raw = parsed.get("parent_session_id")
+            parent_id_val = str(parent_id_raw) if parent_id_raw is not None else None
+
             return Session(
-                id=parsed["id"],
-                model=parsed["model"],
-                status=parsed["status"],
-                created_at=datetime.fromisoformat(parsed["created_at"]),
-                updated_at=datetime.fromisoformat(parsed["updated_at"]),
-                total_turns=parsed.get("total_turns", 0),
-                total_cost_usd=parsed.get("total_cost_usd"),
-                parent_session_id=parsed.get("parent_session_id"),
+                id=session_id_val,
+                model=model_val,
+                status=status_val,
+                created_at=datetime.fromisoformat(created_at_val),
+                updated_at=datetime.fromisoformat(updated_at_val),
+                total_turns=total_turns_val,
+                total_cost_usd=total_cost_val,
+                parent_session_id=parent_id_val,
             )
-        except KeyError as e:
+        except (KeyError, ValueError, TypeError) as e:
             logger.warning(
                 "Failed to parse cached session",
                 session_id=session_id,

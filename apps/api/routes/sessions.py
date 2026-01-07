@@ -5,36 +5,49 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 
+from apps.api.adapters.cache import RedisCache
 from apps.api.dependencies import ApiKey, get_cache
 from apps.api.exceptions import SessionNotFoundError
-from apps.api.schemas.requests import AnswerRequest, ForkRequest, ResumeRequest
+from apps.api.schemas.requests import (
+    AnswerRequest,
+    ForkRequest,
+    QueryRequest,
+    ResumeRequest,
+)
 from apps.api.schemas.responses import SessionListResponse, SessionResponse
 from apps.api.services.agent import AgentService
 from apps.api.services.session import SessionService
 
 router = APIRouter(prefix="/sessions", tags=["Sessions"])
 
-
-# Service instances
+# Agent service singleton (shared across endpoints)
 _agent_service: AgentService | None = None
-_session_service: SessionService | None = None
 
 
 def get_agent_service() -> AgentService:
-    """Get or create agent service instance."""
+    """Get or create agent service instance.
+
+    Returns:
+        AgentService singleton instance.
+    """
     global _agent_service
     if _agent_service is None:
         _agent_service = AgentService()
     return _agent_service
 
 
-async def get_session_service() -> SessionService:
-    """Get or create session service instance."""
-    global _session_service
-    if _session_service is None:
-        cache = await get_cache()
-        _session_service = SessionService(cache=cache)
-    return _session_service
+async def get_session_service(
+    cache: Annotated[RedisCache, Depends(get_cache)],
+) -> SessionService:
+    """Get session service instance with injected cache.
+
+    Args:
+        cache: Redis cache from dependency injection.
+
+    Returns:
+        SessionService instance.
+    """
+    return SessionService(cache=cache)
 
 
 @router.get("")
@@ -173,8 +186,6 @@ async def resume_session(
         raise SessionNotFoundError(session_id)
 
     # Build query request from resume request
-    from apps.api.schemas.requests import QueryRequest
-
     query_request = QueryRequest(
         prompt=request.prompt,
         images=request.images,
@@ -225,23 +236,28 @@ async def fork_session(
         SessionNotFoundError: If parent session doesn't exist.
     """
     # Verify parent session exists
-    session = await session_service.get_session(session_id)
-    if not session:
+    parent_session = await session_service.get_session(session_id)
+    if not parent_session:
         raise SessionNotFoundError(session_id)
 
-    # Build query request with fork flag
-    from apps.api.schemas.requests import QueryRequest
+    # Create a NEW session for the fork, referencing the parent
+    model = request.model or parent_session.model
+    forked_session = await session_service.create_session(
+        model=model,
+        parent_session_id=session_id,
+    )
 
+    # Build query request with fork flag and NEW session_id
     query_request = QueryRequest(
         prompt=request.prompt,
         images=request.images,
-        session_id=session_id,
+        session_id=forked_session.id,  # Use the NEW session ID
         fork_session=True,  # Key difference from resume
         allowed_tools=request.allowed_tools or [],
         disallowed_tools=request.disallowed_tools or [],
         permission_mode=request.permission_mode or "default",
         max_turns=request.max_turns,
-        model=request.model or session.model,
+        model=model,
         hooks=request.hooks,
     )
 

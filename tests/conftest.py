@@ -1,8 +1,8 @@
 """Shared pytest fixtures for all tests."""
 
+import logging
 import os
 from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -16,6 +16,8 @@ os.environ.setdefault("DEBUG", "true")
 from apps.api.config import get_settings
 from apps.api.dependencies import close_cache, close_db, init_cache, init_db
 from apps.api.main import app
+
+logger = logging.getLogger(__name__)
 
 
 @pytest.fixture
@@ -49,21 +51,26 @@ async def async_client() -> AsyncGenerator[AsyncClient, None]:
     Initializes the app lifecycle (db, cache) before tests.
     Uses function scope to avoid Redis connection issues across tests.
     """
+    # Clear the settings cache to ensure test env vars are used
+    get_settings.cache_clear()
+
     # Clear the global cache instance to force re-initialization
     from apps.api import dependencies
     dependencies._redis_cache = None
     dependencies._async_engine = None
     dependencies._async_session_maker = None
 
-    # Also clear session service singleton
-    from apps.api.routes import sessions
+    # Also clear service singletons
+    from apps.api.routes import query, sessions
     sessions._session_service = None
+    sessions._agent_service = None
+    query._agent_service = None
 
     settings = get_settings()
 
     # Initialize resources
     await init_db(settings)
-    cache = await init_cache(settings)
+    await init_cache(settings)
 
     try:
         transport = ASGITransport(app=app)
@@ -76,12 +83,12 @@ async def async_client() -> AsyncGenerator[AsyncClient, None]:
         # Cleanup resources - cache first to avoid event loop issues
         try:
             await close_cache()
-        except RuntimeError:
-            pass  # Event loop may be closed
+        except RuntimeError as e:
+            logger.debug("Cache cleanup skipped: %s", str(e))
         try:
             await close_db()
-        except RuntimeError:
-            pass
+        except RuntimeError as e:
+            logger.debug("Database cleanup skipped: %s", str(e))
 
 
 @pytest.fixture
@@ -106,7 +113,7 @@ def sample_session_id() -> str:
 
 
 @pytest.fixture
-async def mock_session_id(async_client: AsyncClient) -> str:
+async def mock_session_id(_async_client: AsyncClient) -> str:
     """Create a mock session that exists in the system.
 
     Creates a real session by making a query, then returns its ID.
@@ -121,7 +128,7 @@ async def mock_session_id(async_client: AsyncClient) -> str:
 
 
 @pytest.fixture
-async def mock_active_session_id(async_client: AsyncClient) -> str:
+async def mock_active_session_id(_async_client: AsyncClient) -> str:
     """Create a mock active session that can be interrupted.
 
     Creates a session and registers it with the agent service as active.

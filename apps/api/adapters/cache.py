@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import redis.asyncio as redis
 
@@ -65,7 +65,7 @@ class RedisCache:
             return None
         return value.decode("utf-8")
 
-    async def get_json(self, key: str) -> dict[str, Any] | None:
+    async def get_json(self, key: str) -> dict[str, object] | None:
         """Get a JSON value from cache.
 
         Args:
@@ -77,7 +77,8 @@ class RedisCache:
         value = await self.get(key)
         if value is None:
             return None
-        return json.loads(value)  # type: ignore[no-any-return]
+        parsed: dict[str, object] = json.loads(value)
+        return parsed
 
     async def cache_set(
         self,
@@ -104,7 +105,7 @@ class RedisCache:
     async def set_json(
         self,
         key: str,
-        value: dict[str, Any],
+        value: dict[str, object],
         ttl: int | None = None,
     ) -> bool:
         """Set a JSON value in cache.
@@ -118,6 +119,34 @@ class RedisCache:
             True if successful.
         """
         return await self.cache_set(key, json.dumps(value), ttl)
+
+    async def scan_keys(self, pattern: str) -> list[str]:
+        """Scan for keys matching pattern.
+
+        Args:
+            pattern: Glob-style pattern (e.g., 'session:*').
+
+        Returns:
+            List of matching keys.
+        """
+        all_keys: list[str] = []
+        cursor: int = 0
+
+        while True:
+            cursor_result = await self._client.scan(
+                cursor=cursor,
+                match=pattern,
+                count=100,
+            )
+            cursor = int(cursor_result[0])
+            all_keys.extend(
+                k.decode() if isinstance(k, bytes) else str(k)
+                for k in cursor_result[1]
+            )
+            if cursor == 0:
+                break
+
+        return all_keys
 
     async def delete(self, key: str) -> bool:
         """Delete a value from cache.

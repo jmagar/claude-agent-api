@@ -48,7 +48,8 @@ class TestSettings:
             errors = exc_info.value.errors()
             error_fields = {e["loc"][0] for e in errors}
             assert "api_key" in error_fields
-            assert "anthropic_api_key" in error_fields
+            # anthropic_api_key is optional (for Claude Max subscription users)
+            assert "anthropic_api_key" not in error_fields
 
     def test_port_validation(self) -> None:
         """Test port number validation."""

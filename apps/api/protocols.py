@@ -261,6 +261,46 @@ class Cache(Protocol):
         """
         ...
 
+    async def scan_keys(self, pattern: str) -> list[str]:
+        """Scan for keys matching pattern.
+
+        Args:
+            pattern: Glob-style pattern (e.g., 'session:*').
+
+        Returns:
+            List of matching keys.
+        """
+        ...
+
+    async def get_json(self, key: str) -> dict[str, object] | None:
+        """Get a JSON value from cache.
+
+        Args:
+            key: Cache key.
+
+        Returns:
+            Parsed JSON dict or None.
+        """
+        ...
+
+    async def set_json(
+        self,
+        key: str,
+        value: dict[str, object],
+        ttl: int | None = None,
+    ) -> bool:
+        """Set a JSON value in cache.
+
+        Args:
+            key: Cache key.
+            value: Dict to cache as JSON.
+            ttl: Time to live in seconds.
+
+        Returns:
+            True if successful.
+        """
+        ...
+
 
 @runtime_checkable
 class AgentClient(Protocol):

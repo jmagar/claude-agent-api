@@ -4,6 +4,24 @@ from typing import Literal, Self
 
 from pydantic import BaseModel, Field, HttpUrl, field_validator, model_validator
 
+from apps.api.types import BUILT_IN_TOOLS
+
+
+def validate_tool_name(tool: str) -> bool:
+    """Check if a tool name is valid.
+
+    Args:
+        tool: Tool name to validate.
+
+    Returns:
+        True if valid (built-in or MCP tool).
+    """
+    # Built-in tools are valid
+    if tool in BUILT_IN_TOOLS:
+        return True
+    # MCP tools have mcp__ prefix (e.g., mcp__server__tool)
+    return bool(tool.startswith("mcp__"))
+
 
 class ImageContentSchema(BaseModel):
     """Image content for multimodal prompts."""
@@ -200,6 +218,49 @@ class QueryRequest(BaseModel):
     extra_args: dict[str, str | None] = Field(
         default_factory=dict, description="Additional CLI arguments"
     )
+
+    @field_validator("allowed_tools", "disallowed_tools")
+    @classmethod
+    def validate_tool_names(cls, tools: list[str]) -> list[str]:
+        """Validate that all tool names are valid.
+
+        Args:
+            tools: List of tool names.
+
+        Returns:
+            Validated list of tools.
+
+        Raises:
+            ValueError: If any tool name is invalid.
+        """
+        invalid_tools = [t for t in tools if not validate_tool_name(t)]
+        if invalid_tools:
+            valid_tools_msg = ", ".join(BUILT_IN_TOOLS[:5]) + "..."
+            raise ValueError(
+                f"Invalid tool names: {invalid_tools}. "
+                f"Valid tools include: {valid_tools_msg}, "
+                "or MCP tools with mcp__* prefix."
+            )
+        return tools
+
+    @model_validator(mode="after")
+    def validate_no_tool_conflicts(self) -> Self:
+        """Validate no conflicts between allowed and disallowed tools.
+
+        Returns:
+            Self after validation.
+
+        Raises:
+            ValueError: If same tool appears in both lists.
+        """
+        if self.allowed_tools and self.disallowed_tools:
+            conflicts = set(self.allowed_tools) & set(self.disallowed_tools)
+            if conflicts:
+                raise ValueError(
+                    f"Tool conflict: {conflicts} appear in both "
+                    "allowed_tools and disallowed_tools"
+                )
+        return self
 
 
 class ResumeRequest(BaseModel):

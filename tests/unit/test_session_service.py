@@ -1,40 +1,87 @@
 """Unit tests for SessionService (T042)."""
 
-from datetime import UTC, datetime
-from typing import Any
-from unittest.mock import AsyncMock, MagicMock
-
 import pytest
 
-from apps.api.services.session import Session, SessionService
+from apps.api.services.session import SessionService
 
 
 class MockCache:
-    """Mock cache that stores data in memory."""
+    """Mock cache that stores data in memory.
+
+    Implements the Cache protocol for testing purposes.
+    """
 
     def __init__(self) -> None:
-        self._store: dict[str, dict[str, Any]] = {}
-        # Mock the underlying _client for list_sessions scan
-        self._client = MagicMock()
-        self._client.scan = AsyncMock(return_value=(0, []))
+        self._store: dict[str, dict[str, object]] = {}
 
-    async def get_json(self, key: str) -> dict[str, Any] | None:
+    async def get(self, key: str) -> str | None:
+        """Get string value from cache."""
+        value = self._store.get(key)
+        if value is None:
+            return None
+        import json
+
+        return json.dumps(value)
+
+    async def cache_set(self, key: str, value: str, _ttl: int | None = None) -> bool:
+        """Set string value in cache."""
+        import json
+
+        self._store[key] = json.loads(value)
+        return True
+
+    async def get_json(self, key: str) -> dict[str, object] | None:
+        """Get JSON value from cache."""
         return self._store.get(key)
 
     async def set_json(
-        self, key: str, value: dict[str, Any], ttl: int | None = None
+        self, key: str, value: dict[str, object], _ttl: int | None = None
     ) -> bool:
+        """Set JSON value in cache."""
         self._store[key] = value
         return True
 
     async def delete(self, key: str) -> bool:
+        """Delete key from cache."""
         if key in self._store:
             del self._store[key]
             return True
         return False
 
     async def exists(self, key: str) -> bool:
+        """Check if key exists in cache."""
         return key in self._store
+
+    async def scan_keys(self, pattern: str) -> list[str]:
+        """Scan for keys matching pattern."""
+        # Simple pattern matching for session:* pattern
+        if pattern == "session:*":
+            return [k for k in self._store if k.startswith("session:")]
+        return list(self._store.keys())
+
+    async def add_to_set(self, _key: str, _value: str) -> bool:
+        """Add value to set (not implemented for tests)."""
+        return True
+
+    async def remove_from_set(self, _key: str, _value: str) -> bool:
+        """Remove value from set (not implemented for tests)."""
+        return True
+
+    async def set_members(self, _key: str) -> set[str]:
+        """Get set members (not implemented for tests)."""
+        return set()
+
+    async def acquire_lock(self, _key: str, _ttl: int = 300) -> bool:
+        """Acquire lock (not implemented for tests)."""
+        return True
+
+    async def release_lock(self, _key: str) -> bool:
+        """Release lock (not implemented for tests)."""
+        return True
+
+    async def ping(self) -> bool:
+        """Check connectivity."""
+        return True
 
 
 @pytest.fixture
@@ -45,7 +92,11 @@ def mock_cache() -> MockCache:
 
 @pytest.fixture
 def session_service(mock_cache: MockCache) -> SessionService:
-    """Create SessionService with mocked cache."""
+    """Create SessionService with mocked cache.
+
+    MockCache implements the Cache protocol required by SessionService.
+    """
+    # MockCache implements all required Cache protocol methods
     service = SessionService(cache=mock_cache)  # type: ignore[arg-type]
     return service
 
