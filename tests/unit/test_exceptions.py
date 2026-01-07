@@ -1,0 +1,264 @@
+"""Unit tests for exception classes."""
+
+
+from apps.api.exceptions import (
+    AgentError,
+    APIError,
+    AuthenticationError,
+    CacheError,
+    CheckpointNotFoundError,
+    DatabaseError,
+    HookError,
+    RateLimitError,
+    SessionCompletedError,
+    SessionLockedError,
+    SessionNotFoundError,
+    ToolNotAllowedError,
+    ValidationError,
+)
+
+
+class TestAPIError:
+    """Tests for base APIError class."""
+
+    def test_default_values(self) -> None:
+        """Test default error values."""
+        error = APIError("Test error")
+
+        assert error.message == "Test error"
+        assert error.code == "INTERNAL_ERROR"
+        assert error.status_code == 500
+        assert error.details == {}
+
+    def test_custom_values(self) -> None:
+        """Test custom error values."""
+        error = APIError(
+            message="Custom error",
+            code="CUSTOM_CODE",
+            status_code=400,
+            details={"key": "value"},
+        )
+
+        assert error.message == "Custom error"
+        assert error.code == "CUSTOM_CODE"
+        assert error.status_code == 400
+        assert error.details == {"key": "value"}
+
+    def test_to_dict(self) -> None:
+        """Test conversion to dictionary."""
+        error = APIError(
+            message="Test error",
+            code="TEST_CODE",
+            status_code=400,
+            details={"field": "value"},
+        )
+
+        result = error.to_dict()
+
+        assert result == {
+            "error": {
+                "code": "TEST_CODE",
+                "message": "Test error",
+                "details": {"field": "value"},
+            }
+        }
+
+    def test_str_representation(self) -> None:
+        """Test string representation."""
+        error = APIError("Test message")
+        assert str(error) == "Test message"
+
+
+class TestSessionNotFoundError:
+    """Tests for SessionNotFoundError."""
+
+    def test_error_details(self) -> None:
+        """Test error contains session ID."""
+        error = SessionNotFoundError("session-123")
+
+        assert error.status_code == 404
+        assert error.code == "SESSION_NOT_FOUND"
+        assert "session-123" in error.message
+        assert error.details["session_id"] == "session-123"
+
+
+class TestSessionLockedError:
+    """Tests for SessionLockedError."""
+
+    def test_error_details(self) -> None:
+        """Test error contains session ID."""
+        error = SessionLockedError("session-456")
+
+        assert error.status_code == 409
+        assert error.code == "SESSION_LOCKED"
+        assert "session-456" in error.message
+        assert error.details["session_id"] == "session-456"
+
+
+class TestSessionCompletedError:
+    """Tests for SessionCompletedError."""
+
+    def test_error_details(self) -> None:
+        """Test error contains session ID and status."""
+        error = SessionCompletedError("session-789", "completed")
+
+        assert error.status_code == 400
+        assert error.code == "SESSION_COMPLETED"
+        assert "session-789" in error.message
+        assert "completed" in error.message
+        assert error.details["session_id"] == "session-789"
+        assert error.details["status"] == "completed"
+
+
+class TestValidationError:
+    """Tests for ValidationError."""
+
+    def test_without_field(self) -> None:
+        """Test validation error without field."""
+        error = ValidationError("Invalid input")
+
+        assert error.status_code == 422
+        assert error.code == "VALIDATION_ERROR"
+        assert error.message == "Invalid input"
+        assert error.details == {}
+
+    def test_with_field(self) -> None:
+        """Test validation error with field."""
+        error = ValidationError("Invalid email", field="email")
+
+        assert error.status_code == 422
+        assert error.code == "VALIDATION_ERROR"
+        assert error.details["field"] == "email"
+
+
+class TestAuthenticationError:
+    """Tests for AuthenticationError."""
+
+    def test_default_message(self) -> None:
+        """Test default error message."""
+        error = AuthenticationError()
+
+        assert error.status_code == 401
+        assert error.code == "AUTHENTICATION_ERROR"
+        assert "API key" in error.message
+
+    def test_custom_message(self) -> None:
+        """Test custom error message."""
+        error = AuthenticationError("Token expired")
+
+        assert error.message == "Token expired"
+
+
+class TestRateLimitError:
+    """Tests for RateLimitError."""
+
+    def test_without_retry_after(self) -> None:
+        """Test rate limit error without retry info."""
+        error = RateLimitError()
+
+        assert error.status_code == 429
+        assert error.code == "RATE_LIMIT_EXCEEDED"
+        assert error.details == {}
+
+    def test_with_retry_after(self) -> None:
+        """Test rate limit error with retry info."""
+        error = RateLimitError(retry_after=60)
+
+        assert error.status_code == 429
+        assert error.details["retry_after"] == 60
+
+
+class TestToolNotAllowedError:
+    """Tests for ToolNotAllowedError."""
+
+    def test_error_details(self) -> None:
+        """Test error contains tool info."""
+        error = ToolNotAllowedError("Bash", ["Read", "Write"])
+
+        assert error.status_code == 400
+        assert error.code == "TOOL_NOT_ALLOWED"
+        assert "Bash" in error.message
+        assert error.details["tool_name"] == "Bash"
+        assert error.details["allowed_tools"] == ["Read", "Write"]
+
+
+class TestCheckpointNotFoundError:
+    """Tests for CheckpointNotFoundError."""
+
+    def test_error_details(self) -> None:
+        """Test error contains checkpoint UUID."""
+        error = CheckpointNotFoundError("checkpoint-abc")
+
+        assert error.status_code == 404
+        assert error.code == "CHECKPOINT_NOT_FOUND"
+        assert "checkpoint-abc" in error.message
+        assert error.details["checkpoint_uuid"] == "checkpoint-abc"
+
+
+class TestHookError:
+    """Tests for HookError."""
+
+    def test_without_webhook_url(self) -> None:
+        """Test hook error without webhook URL."""
+        error = HookError("PreToolUse", "Webhook timeout")
+
+        assert error.status_code == 502
+        assert error.code == "HOOK_ERROR"
+        assert error.message == "Webhook timeout"
+        assert error.details["hook_event"] == "PreToolUse"
+        assert "webhook_url" not in error.details
+
+    def test_with_webhook_url(self) -> None:
+        """Test hook error with webhook URL."""
+        error = HookError(
+            "PostToolUse",
+            "Connection refused",
+            webhook_url="https://example.com/hook",
+        )
+
+        assert error.status_code == 502
+        assert error.details["hook_event"] == "PostToolUse"
+        assert error.details["webhook_url"] == "https://example.com/hook"
+
+
+class TestAgentError:
+    """Tests for AgentError."""
+
+    def test_without_original_error(self) -> None:
+        """Test agent error without original error."""
+        error = AgentError("Agent crashed")
+
+        assert error.status_code == 500
+        assert error.code == "AGENT_ERROR"
+        assert error.message == "Agent crashed"
+        assert error.details == {}
+
+    def test_with_original_error(self) -> None:
+        """Test agent error with original error."""
+        error = AgentError("Agent failed", original_error="CLI process exited with 1")
+
+        assert error.details["original_error"] == "CLI process exited with 1"
+
+
+class TestDatabaseError:
+    """Tests for DatabaseError."""
+
+    def test_default_message(self) -> None:
+        """Test default error message."""
+        error = DatabaseError()
+
+        assert error.status_code == 500
+        assert error.code == "DATABASE_ERROR"
+        assert "Database" in error.message
+
+
+class TestCacheError:
+    """Tests for CacheError."""
+
+    def test_default_message(self) -> None:
+        """Test default error message."""
+        error = CacheError()
+
+        assert error.status_code == 500
+        assert error.code == "CACHE_ERROR"
+        assert "Cache" in error.message

@@ -1,0 +1,1048 @@
+openapi: 3.1.0
+info:
+  title: Claude Agent API
+  description: |
+    HTTP API service wrapping the Claude Agent SDK with full feature parity.
+    Enables autonomous Claude agent interactions through RESTful endpoints and SSE streaming.
+  version: 1.0.0
+  contact:
+    name: API Support
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:53000/api/v1
+    description: Local development server
+
+tags:
+  - name: Query
+    description: Agent query operations
+  - name: Sessions
+    description: Session management
+  - name: Health
+    description: Health and status checks
+
+paths:
+  /query:
+    post:
+      operationId: streamQuery
+      summary: Stream agent query
+      description: |
+        Send a prompt to the agent and receive streamed responses via Server-Sent Events.
+        The response includes system initialization, agent messages, tool uses, and final result.
+      tags:
+        - Query
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QueryRequest'
+            examples:
+              basic:
+                summary: Basic query
+                value:
+                  prompt: "List the files in the current directory"
+                  allowed_tools: ["Read", "Glob", "Bash"]
+              with_session:
+                summary: Resume session
+                value:
+                  prompt: "Continue with the authentication implementation"
+                  session_id: "sess_abc123"
+                  allowed_tools: ["Read", "Write", "Edit", "Bash"]
+              with_subagent:
+                summary: With custom subagent
+                value:
+                  prompt: "Review the authentication module for security issues"
+                  allowed_tools: ["Read", "Grep", "Glob", "Task"]
+                  agents:
+                    code-reviewer:
+                      description: "Expert code review specialist"
+                      prompt: "You are a security-focused code reviewer..."
+                      tools: ["Read", "Grep", "Glob"]
+      responses:
+        '200':
+          description: SSE stream of agent events
+          content:
+            text/event-stream:
+              schema:
+                $ref: '#/components/schemas/StreamEvent'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /query/single:
+    post:
+      operationId: singleQuery
+      summary: Single message query
+      description: |
+        Send a prompt and receive a single JSON response with all messages.
+        Suitable for stateless/serverless environments.
+      tags:
+        - Query
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QueryRequest'
+      responses:
+        '200':
+          description: Complete query response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SingleQueryResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /query/ws:
+    get:
+      operationId: streamQueryWebSocket
+      summary: WebSocket streaming query
+      description: |
+        WebSocket endpoint for bidirectional streaming. Enables:
+        - Real-time message queueing during agent execution
+        - Image uploads mid-conversation
+        - Immediate interruption support
+
+        **Connection**: Upgrade to WebSocket with query parameters from QueryRequest.
+
+        **Client → Server Messages**:
+        - `{"type": "prompt", "content": "...", "images": [...]}` - Send additional prompt
+        - `{"type": "interrupt"}` - Interrupt current execution
+
+        **Server → Client Messages**: Same structure as SSE events (init, message, result, error, done)
+
+        Note: OpenAPI does not fully support WebSocket specifications. See research.md for protocol details.
+      tags:
+        - Query
+      responses:
+        '101':
+          description: Switching Protocols (WebSocket upgrade)
+
+  /sessions:
+    get:
+      operationId: listSessions
+      summary: List sessions
+      description: Get paginated list of sessions
+      tags:
+        - Sessions
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, completed, error]
+      responses:
+        '200':
+          description: Paginated session list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /sessions/{session_id}:
+    get:
+      operationId: getSession
+      summary: Get session details
+      description: Retrieve details of a specific session
+      tags:
+        - Sessions
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      responses:
+        '200':
+          description: Session details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /sessions/{session_id}/resume:
+    post:
+      operationId: resumeSession
+      summary: Resume session
+      description: Resume an existing session with a new prompt
+      tags:
+        - Sessions
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResumeRequest'
+      responses:
+        '200':
+          description: SSE stream of agent events
+          content:
+            text/event-stream:
+              schema:
+                $ref: '#/components/schemas/StreamEvent'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Session is not active
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /sessions/{session_id}/fork:
+    post:
+      operationId: forkSession
+      summary: Fork session
+      description: Create a new session branched from an existing one
+      tags:
+        - Sessions
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ForkRequest'
+      responses:
+        '200':
+          description: SSE stream of agent events (new session ID in init event)
+          content:
+            text/event-stream:
+              schema:
+                $ref: '#/components/schemas/StreamEvent'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /sessions/{session_id}/interrupt:
+    post:
+      operationId: interruptSession
+      summary: Interrupt running query
+      description: Stop a currently executing query in this session
+      tags:
+        - Sessions
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      responses:
+        '200':
+          description: Interrupt successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [interrupted]
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: No active query to interrupt
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /sessions/{session_id}/checkpoints:
+    get:
+      operationId: listCheckpoints
+      summary: List checkpoints
+      description: Get all file checkpoints for a session
+      tags:
+        - Sessions
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      responses:
+        '200':
+          description: List of checkpoints
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CheckpointListResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /sessions/{session_id}/rewind:
+    post:
+      operationId: rewindToCheckpoint
+      summary: Rewind to checkpoint
+      description: Restore files to their state at a specific checkpoint
+      tags:
+        - Sessions
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RewindRequest'
+      responses:
+        '200':
+          description: Rewind successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [rewound]
+                  checkpoint_id:
+                    type: string
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '400':
+          description: Invalid checkpoint
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /health:
+    get:
+      operationId: healthCheck
+      summary: Health check
+      description: Check service health and dependencies
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+        '503':
+          description: Service is unhealthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+components:
+  parameters:
+    SessionId:
+      name: session_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Session identifier
+
+  responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+    ImageContent:
+      type: object
+      required:
+        - media_type
+        - data
+      properties:
+        type:
+          type: string
+          enum: [base64, url]
+          default: base64
+          description: Image data type
+        media_type:
+          type: string
+          enum: [image/jpeg, image/png, image/gif, image/webp]
+          description: Image MIME type
+        data:
+          type: string
+          description: Base64-encoded image data or URL
+
+    QueryRequest:
+      type: object
+      required:
+        - prompt
+      properties:
+        prompt:
+          type: string
+          minLength: 1
+          maxLength: 100000
+          description: The prompt to send to the agent
+        images:
+          type: array
+          items:
+            $ref: '#/components/schemas/ImageContent'
+          description: Images to include with prompt (multimodal)
+        session_id:
+          type: string
+          description: Resume existing session (optional)
+        fork_session:
+          type: boolean
+          default: false
+          description: Fork instead of continue when session_id provided
+        continue_conversation:
+          type: boolean
+          default: false
+          description: Continue conversation without explicit resume ID
+        allowed_tools:
+          type: array
+          items:
+            type: string
+          description: List of tools the agent can use
+          example: ["Read", "Write", "Edit", "Bash", "Glob", "Grep"]
+        disallowed_tools:
+          type: array
+          items:
+            type: string
+          description: Tools to explicitly disallow
+        permission_mode:
+          type: string
+          enum: [default, acceptEdits, plan, bypassPermissions]
+          default: default
+          description: Permission mode for tool execution
+        permission_prompt_tool_name:
+          type: string
+          description: Custom tool name for permission prompts
+        model:
+          type: string
+          description: Claude model to use
+          example: "claude-sonnet-4-5"
+        max_turns:
+          type: integer
+          minimum: 1
+          maximum: 1000
+          description: Maximum conversation turns
+        max_buffer_size:
+          type: integer
+          description: Maximum message buffer size
+        cwd:
+          type: string
+          description: Working directory for the agent
+        add_dirs:
+          type: array
+          items:
+            type: string
+          description: Additional directories to include
+        env:
+          type: object
+          additionalProperties:
+            type: string
+          description: Environment variables for the agent
+        system_prompt:
+          type: string
+          description: Custom system prompt (overrides default)
+        system_prompt_append:
+          type: string
+          description: Append to default system prompt (preset+append mode)
+        output_style:
+          type: string
+          description: Output style name from .claude/output-styles/ directory
+        settings:
+          type: string
+          description: Path to settings file
+        setting_sources:
+          type: array
+          items:
+            type: string
+            enum: [project, user]
+          description: Sources for loading CLAUDE.md files
+        agents:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/AgentDefinition'
+          description: Custom subagent definitions
+        mcp_servers:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/McpServerConfig'
+          description: MCP server configurations
+        hooks:
+          $ref: '#/components/schemas/HooksConfig'
+        enable_file_checkpointing:
+          type: boolean
+          default: false
+          description: Enable file change tracking for rewind
+        output_format:
+          $ref: '#/components/schemas/OutputFormat'
+        plugins:
+          type: array
+          items:
+            $ref: '#/components/schemas/SdkPluginConfig'
+          description: SDK plugin configurations
+        include_partial_messages:
+          type: boolean
+          default: false
+          description: Include partial messages in stream
+        sandbox:
+          $ref: '#/components/schemas/SandboxSettings'
+        user:
+          type: string
+          description: User identifier for tracking
+        extra_args:
+          type: object
+          additionalProperties:
+            type: string
+            nullable: true
+          description: Additional CLI arguments
+
+    AgentDefinition:
+      type: object
+      required:
+        - description
+        - prompt
+      properties:
+        description:
+          type: string
+          minLength: 1
+          maxLength: 1000
+          description: When to use this agent (for automatic invocation)
+        prompt:
+          type: string
+          minLength: 1
+          maxLength: 50000
+          description: System prompt for the subagent
+        tools:
+          type: array
+          items:
+            type: string
+          description: Tools available to the subagent (inherits if not specified)
+        model:
+          type: string
+          enum: [sonnet, opus, haiku, inherit]
+          description: Model override for this subagent
+
+    McpServerConfig:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [stdio, sse, http]
+          default: stdio
+          description: Transport type
+        command:
+          type: string
+          description: Command for stdio transport
+        args:
+          type: array
+          items:
+            type: string
+          description: Arguments for stdio command
+        url:
+          type: string
+          format: uri
+          description: URL for sse/http transport
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+          description: HTTP headers for remote transports
+        env:
+          type: object
+          additionalProperties:
+            type: string
+          description: Environment variables (supports ${VAR:-default} syntax)
+
+    HooksConfig:
+      type: object
+      properties:
+        PreToolUse:
+          $ref: '#/components/schemas/HookWebhook'
+        PostToolUse:
+          $ref: '#/components/schemas/HookWebhook'
+        Stop:
+          $ref: '#/components/schemas/HookWebhook'
+        SubagentStop:
+          $ref: '#/components/schemas/HookWebhook'
+        UserPromptSubmit:
+          $ref: '#/components/schemas/HookWebhook'
+        PreCompact:
+          $ref: '#/components/schemas/HookWebhook'
+        Notification:
+          $ref: '#/components/schemas/HookWebhook'
+
+    HookWebhook:
+      type: object
+      required:
+        - url
+      properties:
+        url:
+          type: string
+          format: uri
+          description: Webhook URL to call
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+          description: HTTP headers to include
+        timeout:
+          type: integer
+          minimum: 1
+          maximum: 300
+          default: 30
+          description: Request timeout in seconds
+        matcher:
+          type: string
+          description: Regex pattern for tool name matching (PreToolUse/PostToolUse only)
+
+    OutputFormat:
+      type: object
+      required:
+        - type
+      properties:
+        type:
+          type: string
+          enum: [json, json_schema]
+          default: json_schema
+          description: Output format type. 'json' for free-form JSON, 'json_schema' for schema-constrained output
+        schema:
+          type: object
+          description: JSON Schema for structured output. Required when type is 'json_schema', ignored for 'json'
+
+    SdkPluginConfig:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 1
+          description: Plugin name
+        path:
+          type: string
+          description: Path to plugin directory
+        enabled:
+          type: boolean
+          default: true
+          description: Whether plugin is enabled
+
+    SandboxSettings:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+          default: true
+          description: Enable sandbox mode
+        allowed_paths:
+          type: array
+          items:
+            type: string
+          description: Paths accessible in sandbox
+        network_access:
+          type: boolean
+          default: false
+          description: Allow network access in sandbox
+
+    ResumeRequest:
+      type: object
+      required:
+        - prompt
+      properties:
+        prompt:
+          type: string
+          minLength: 1
+          maxLength: 100000
+          description: User prompt to continue the session
+        images:
+          type: array
+          items:
+            $ref: '#/components/schemas/ImageContent'
+          description: Images to include with the prompt
+        allowed_tools:
+          type: array
+          items:
+            type: string
+          description: Override allowed tools for this continuation
+        disallowed_tools:
+          type: array
+          items:
+            type: string
+          description: Override disallowed tools for this continuation
+        permission_mode:
+          type: string
+          enum: [default, acceptEdits, plan, bypassPermissions]
+          description: Override permission mode
+        max_turns:
+          type: integer
+          minimum: 1
+          maximum: 1000
+          description: Override max turns for this continuation
+        hooks:
+          $ref: '#/components/schemas/HooksConfig'
+
+    ForkRequest:
+      type: object
+      required:
+        - prompt
+      properties:
+        prompt:
+          type: string
+          minLength: 1
+          maxLength: 100000
+          description: User prompt to start the forked session
+        images:
+          type: array
+          items:
+            $ref: '#/components/schemas/ImageContent'
+          description: Images to include with the prompt
+        allowed_tools:
+          type: array
+          items:
+            type: string
+          description: Override allowed tools for the forked session
+        disallowed_tools:
+          type: array
+          items:
+            type: string
+          description: Override disallowed tools for the forked session
+        permission_mode:
+          type: string
+          enum: [default, acceptEdits, plan, bypassPermissions]
+          description: Override permission mode
+        max_turns:
+          type: integer
+          minimum: 1
+          maximum: 1000
+          description: Override max turns for the forked session
+        model:
+          type: string
+          description: Override model for the forked session
+        hooks:
+          $ref: '#/components/schemas/HooksConfig'
+
+    RewindRequest:
+      type: object
+      required:
+        - checkpoint_id
+      properties:
+        checkpoint_id:
+          type: string
+          description: Checkpoint UUID to rewind to
+
+    StreamEvent:
+      type: object
+      description: Server-Sent Event payload
+      properties:
+        event:
+          type: string
+          enum: [init, message, partial, result, error, done]
+        id:
+          type: string
+        data:
+          type: object
+
+    SingleQueryResponse:
+      type: object
+      properties:
+        session_id:
+          type: string
+        messages:
+          type: array
+          items:
+            $ref: '#/components/schemas/MessageData'
+        result:
+          $ref: '#/components/schemas/ResultData'
+
+    MessageData:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [user, assistant, system]
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContentBlock'
+        model:
+          type: string
+        uuid:
+          type: string
+        usage:
+          $ref: '#/components/schemas/Usage'
+        parent_tool_use_id:
+          type: string
+          description: Present when message is from subagent context
+
+    ContentBlock:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [text, thinking, tool_use, tool_result]
+        text:
+          type: string
+        thinking:
+          type: string
+        id:
+          type: string
+        name:
+          type: string
+        input:
+          type: object
+        tool_use_id:
+          type: string
+        content:
+          oneOf:
+            - type: string
+            - type: array
+        is_error:
+          type: boolean
+
+    ResultData:
+      type: object
+      properties:
+        session_id:
+          type: string
+        is_error:
+          type: boolean
+        duration_ms:
+          type: integer
+        num_turns:
+          type: integer
+        total_cost_usd:
+          type: number
+        usage:
+          $ref: '#/components/schemas/Usage'
+        model_usage:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/Usage'
+        result:
+          type: string
+        structured_output:
+          type: object
+          description: Present when output_format was specified in the request
+
+    Usage:
+      type: object
+      properties:
+        input_tokens:
+          type: integer
+        output_tokens:
+          type: integer
+        cache_read_input_tokens:
+          type: integer
+        cache_creation_input_tokens:
+          type: integer
+
+    SessionResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [active, completed, error]
+        model:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        total_turns:
+          type: integer
+        total_cost_usd:
+          type: number
+        parent_session_id:
+          type: string
+          format: uuid
+
+    SessionListResponse:
+      type: object
+      properties:
+        sessions:
+          type: array
+          items:
+            $ref: '#/components/schemas/SessionResponse'
+        total:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+
+    CheckpointResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        session_id:
+          type: string
+          format: uuid
+        user_message_uuid:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        files_modified:
+          type: array
+          items:
+            type: string
+
+    CheckpointListResponse:
+      type: object
+      properties:
+        checkpoints:
+          type: array
+          items:
+            $ref: '#/components/schemas/CheckpointResponse'
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded, unhealthy]
+        version:
+          type: string
+          description: API version string (e.g., "1.0.0")
+        dependencies:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/DependencyStatus'
+
+    DependencyStatus:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [ok, error]
+        latency_ms:
+          type: number
+        error:
+          type: string
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - code
+      properties:
+        error:
+          type: string
+          description: Human-readable error message
+        code:
+          type: string
+          description: Error code for programmatic handling
+        details:
+          type: object
+          description: Additional error context
+
+    DoneEventData:
+      type: object
+      properties:
+        reason:
+          type: string
+          enum: [completed, interrupted, error]
+          default: completed
+          description: Reason for stream completion
+
+    PartialMessageEventData:
+      type: object
+      description: Delta content for streaming partial messages (when include_partial_messages is enabled)
+      required:
+        - type
+        - index
+      properties:
+        type:
+          type: string
+          enum: [content_block_start, content_block_delta, content_block_stop]
+          description: Type of partial event
+        index:
+          type: integer
+          description: Index of content block in the message
+        content_block:
+          $ref: '#/components/schemas/ContentBlock'
+          description: Full content block (for content_block_start)
+        delta:
+          $ref: '#/components/schemas/ContentDelta'
+          description: Delta content (for content_block_delta)
+
+    ContentDelta:
+      type: object
+      description: Delta content being streamed
+      required:
+        - type
+      properties:
+        type:
+          type: string
+          enum: [text_delta, thinking_delta, input_json_delta]
+          description: Type of delta content
+        text:
+          type: string
+          description: Text delta (for text_delta type)
+        thinking:
+          type: string
+          description: Thinking delta (for thinking_delta type)
+        partial_json:
+          type: string
+          description: Partial JSON for tool input (for input_json_delta type)
+
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API key for authentication
+
+security:
+  - ApiKeyAuth: []
