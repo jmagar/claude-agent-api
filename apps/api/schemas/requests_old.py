@@ -1,142 +1,47 @@
-"""Pydantic request models for API endpoints."""
+"""Pydantic request models for API endpoints.
+
+NOTE: This is a transitional module during refactoring. Config schemas have
+been extracted to requests/config.py. This module will be fully migrated
+in later tasks.
+"""
 
 from typing import Literal, Self
 
-from pydantic import BaseModel, Field, HttpUrl, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
+from apps.api.schemas.requests.config import (
+    AgentDefinitionSchema,
+    HooksConfigSchema,
+    ImageContentSchema,
+    McpServerConfigSchema,
+    OutputFormatSchema,
+    SandboxSettingsSchema,
+    SdkPluginConfigSchema,
+)
+from apps.api.schemas.validators import (
+    validate_model_name,
+    validate_no_null_bytes,
+    validate_no_path_traversal,
+    validate_tool_name,
+)
 from apps.api.types import BUILT_IN_TOOLS
 
-
-def validate_tool_name(tool: str) -> bool:
-    """Check if a tool name is valid.
-
-    Args:
-        tool: Tool name to validate.
-
-    Returns:
-        True if valid (built-in or MCP tool).
-    """
-    # Built-in tools are valid
-    if tool in BUILT_IN_TOOLS:
-        return True
-    # MCP tools have mcp__ prefix (e.g., mcp__server__tool)
-    return bool(tool.startswith("mcp__"))
-
-
-class ImageContentSchema(BaseModel):
-    """Image content for multimodal prompts."""
-
-    type: Literal["base64", "url"] = "base64"
-    media_type: Literal["image/jpeg", "image/png", "image/gif", "image/webp"]
-    data: str = Field(..., description="Base64-encoded image data or URL")
-
-
-class AgentDefinitionSchema(BaseModel):
-    """Definition for a custom subagent."""
-
-    description: str = Field(..., min_length=1, max_length=1000)
-    prompt: str = Field(..., min_length=1, max_length=50000)
-    tools: list[str] | None = None
-    model: Literal["sonnet", "opus", "haiku", "inherit"] | None = None
-
-    @model_validator(mode="after")
-    def validate_no_task_tool(self) -> Self:
-        """Validate that subagents cannot have Task tool."""
-        if self.tools and "Task" in self.tools:
-            raise ValueError("Subagents cannot have Task tool (no nested subagents)")
-        return self
-
-
-class McpServerConfigSchema(BaseModel):
-    """Configuration for an MCP server."""
-
-    # Stdio transport
-    command: str | None = None
-    args: list[str] = Field(default_factory=list)
-
-    # Remote transports
-    type: Literal["stdio", "sse", "http"] = "stdio"
-    url: str | None = None
-    headers: dict[str, str] = Field(default_factory=dict)
-
-    # Environment
-    env: dict[str, str] = Field(default_factory=dict)
-
-    @model_validator(mode="after")
-    def validate_transport(self) -> Self:
-        """Validate transport configuration."""
-        if self.type == "stdio" and not self.command:
-            raise ValueError("stdio transport requires 'command'")
-        if self.type in ("sse", "http") and not self.url:
-            raise ValueError(f"{self.type} transport requires 'url'")
-        return self
-
-
-class HookWebhookSchema(BaseModel):
-    """Webhook configuration for a hook event."""
-
-    url: HttpUrl
-    headers: dict[str, str] = Field(default_factory=dict)
-    timeout: int = Field(default=30, ge=1, le=300)
-    matcher: str | None = Field(None, description="Regex pattern for tool names")
-
-
-class HooksConfigSchema(BaseModel):
-    """Webhook configuration for hooks."""
-
-    pre_tool_use: HookWebhookSchema | None = Field(None, alias="PreToolUse")
-    post_tool_use: HookWebhookSchema | None = Field(None, alias="PostToolUse")
-    stop: HookWebhookSchema | None = Field(None, alias="Stop")
-    subagent_stop: HookWebhookSchema | None = Field(None, alias="SubagentStop")
-    user_prompt_submit: HookWebhookSchema | None = Field(None, alias="UserPromptSubmit")
-    pre_compact: HookWebhookSchema | None = Field(None, alias="PreCompact")
-    notification: HookWebhookSchema | None = Field(None, alias="Notification")
-
-    model_config = {"populate_by_name": True}
-
-
-class OutputFormatSchema(BaseModel):
-    """Structured output format specification."""
-
-    type: Literal["json", "json_schema"] = "json_schema"
-    schema_: dict[str, object] | None = Field(None, alias="schema")
-
-    model_config = {"populate_by_name": True}
-
-    @model_validator(mode="after")
-    def validate_schema_requirement(self) -> Self:
-        """Validate schema is provided for json_schema type."""
-        if self.type == "json_schema" and not self.schema_:
-            raise ValueError("json_schema type requires 'schema' field")
-        return self
-
-    @field_validator("schema_")
-    @classmethod
-    def validate_json_schema(
-        cls, v: dict[str, object] | None
-    ) -> dict[str, object] | None:
-        """Validate JSON schema has type property."""
-        if v is not None and "type" not in v:
-            raise ValueError("JSON schema must have 'type' property")
-        return v
-
-
-class SdkPluginConfigSchema(BaseModel):
-    """Configuration for an SDK plugin."""
-
-    name: str = Field(..., min_length=1, description="Plugin name")
-    path: str | None = Field(None, description="Path to plugin directory")
-    enabled: bool = Field(True, description="Whether plugin is enabled")
-
-
-class SandboxSettingsSchema(BaseModel):
-    """Sandbox configuration for agent execution."""
-
-    enabled: bool = Field(True, description="Enable sandbox mode")
-    allowed_paths: list[str] = Field(
-        default_factory=list, description="Paths accessible in sandbox"
-    )
-    network_access: bool = Field(False, description="Allow network access in sandbox")
+# Re-export config schemas for backward compatibility
+__all__ = [
+    "AgentDefinitionSchema",
+    "AnswerRequest",
+    "ControlRequest",
+    "ForkRequest",
+    "HooksConfigSchema",
+    "ImageContentSchema",
+    "McpServerConfigSchema",
+    "OutputFormatSchema",
+    "QueryRequest",
+    "ResumeRequest",
+    "RewindRequest",
+    "SandboxSettingsSchema",
+    "SdkPluginConfigSchema",
+]
 
 
 class QueryRequest(BaseModel):
@@ -219,20 +124,46 @@ class QueryRequest(BaseModel):
         default_factory=dict, description="Additional CLI arguments"
     )
 
+    @field_validator("model")
+    @classmethod
+    def validate_model(cls, model: str | None) -> str | None:
+        """Validate that the model name is valid."""
+        return validate_model_name(model)
+
+    @field_validator("cwd")
+    @classmethod
+    def validate_cwd_security(cls, v: str | None) -> str | None:
+        """Validate cwd for path traversal attacks (T128 security)."""
+        if v is not None:
+            validate_no_null_bytes(v, "cwd")
+            validate_no_path_traversal(v, "cwd")
+        return v
+
+    @field_validator("add_dirs")
+    @classmethod
+    def validate_add_dirs_security(cls, v: list[str]) -> list[str]:
+        """Validate add_dirs for path traversal attacks (T128 security)."""
+        for path in v:
+            validate_no_null_bytes(path, "add_dirs")
+            validate_no_path_traversal(path, "add_dirs")
+        return v
+
+    @field_validator("env")
+    @classmethod
+    def validate_env_security(cls, v: dict[str, str]) -> dict[str, str]:
+        """Validate environment variables for injection (T128 security)."""
+        for key, value in v.items():
+            validate_no_null_bytes(key, "env key")
+            validate_no_null_bytes(value, "env value")
+            # Check for dangerous env var names
+            if key.upper() in ("LD_PRELOAD", "LD_LIBRARY_PATH", "PATH"):
+                raise ValueError(f"Setting {key} environment variable is not allowed")
+        return v
+
     @field_validator("allowed_tools", "disallowed_tools")
     @classmethod
     def validate_tool_names(cls, tools: list[str]) -> list[str]:
-        """Validate that all tool names are valid.
-
-        Args:
-            tools: List of tool names.
-
-        Returns:
-            Validated list of tools.
-
-        Raises:
-            ValueError: If any tool name is invalid.
-        """
+        """Validate that all tool names are valid."""
         invalid_tools = [t for t in tools if not validate_tool_name(t)]
         if invalid_tools:
             valid_tools_msg = ", ".join(BUILT_IN_TOOLS[:5]) + "..."
@@ -245,14 +176,7 @@ class QueryRequest(BaseModel):
 
     @model_validator(mode="after")
     def validate_no_tool_conflicts(self) -> Self:
-        """Validate no conflicts between allowed and disallowed tools.
-
-        Returns:
-            Self after validation.
-
-        Raises:
-            ValueError: If same tool appears in both lists.
-        """
+        """Validate no conflicts between allowed and disallowed tools."""
         if self.allowed_tools and self.disallowed_tools:
             conflicts = set(self.allowed_tools) & set(self.disallowed_tools)
             if conflicts:
@@ -303,6 +227,12 @@ class ForkRequest(BaseModel):
     model: str | None = Field(None, description="Override model for forked session")
     hooks: HooksConfigSchema | None = None
 
+    @field_validator("model")
+    @classmethod
+    def validate_model(cls, model: str | None) -> str | None:
+        """Validate that the model name is valid."""
+        return validate_model_name(model)
+
 
 class AnswerRequest(BaseModel):
     """Request to answer an AskUserQuestion from the agent."""
@@ -326,20 +256,13 @@ class ControlRequest(BaseModel):
     type: Literal["permission_mode_change"] = Field(
         ..., description="Type of control event"
     )
-    permission_mode: Literal["default", "acceptEdits", "plan", "bypassPermissions"] | None = (
-        Field(None, description="New permission mode (required for permission_mode_change)")
-    )
+    permission_mode: (
+        Literal["default", "acceptEdits", "plan", "bypassPermissions"] | None
+    ) = Field(None, description="New permission mode (required for permission_mode_change)")
 
     @model_validator(mode="after")
     def validate_permission_mode_for_change(self) -> Self:
-        """Validate that permission_mode is provided for permission_mode_change type.
-
-        Returns:
-            Self after validation.
-
-        Raises:
-            ValueError: If permission_mode is missing for permission_mode_change type.
-        """
+        """Validate that permission_mode is provided for permission_mode_change type."""
         if self.type == "permission_mode_change" and self.permission_mode is None:
             raise ValueError(
                 "permission_mode is required for permission_mode_change control event"
