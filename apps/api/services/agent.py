@@ -6,7 +6,7 @@ import os
 import re
 import time
 from collections.abc import AsyncGenerator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal, TypedDict, cast
 from uuid import uuid4
 
@@ -21,6 +21,7 @@ from apps.api.schemas.messages import (
 from apps.api.schemas.requests import HooksConfigSchema, QueryRequest
 from apps.api.schemas.responses import (
     ContentBlockSchema,
+    ContentDeltaSchema,
     DoneEvent,
     DoneEventData,
     ErrorEvent,
@@ -29,6 +30,8 @@ from apps.api.schemas.responses import (
     InitEventData,
     MessageEvent,
     MessageEventData,
+    PartialMessageEvent,
+    PartialMessageEventData,
     QuestionEvent,
     QuestionEventData,
     ResultEvent,
@@ -44,7 +47,12 @@ if TYPE_CHECKING:
         McpSdkServerConfig,
         McpSSEServerConfig,
         McpStdioServerConfig,
+        SandboxSettings,
+        SdkPluginConfig,
+        SettingSource,
     )
+
+    from apps.api.services.checkpoint import Checkpoint, CheckpointService
 
     # Union type for MCP server configs
     McpServerConfig = (
@@ -58,6 +66,26 @@ logger = structlog.get_logger(__name__)
 
 # Pattern for ${VAR} or ${VAR:-default} environment variable syntax
 _ENV_VAR_PATTERN = re.compile(r"\$\{([^}:]+)(?::-([^}]*))?\}")
+
+# Pattern for slash command detection (T115a)
+# Matches prompts starting with / followed by alphanumeric characters, dashes, or underscores
+_SLASH_COMMAND_PATTERN = re.compile(r"^/([a-zA-Z][a-zA-Z0-9_-]*)")
+
+
+def detect_slash_command(prompt: str) -> str | None:
+    """Detect if a prompt starts with a slash command (T115a).
+
+    Slash commands are prompts that start with / followed by a command name.
+    Examples: /help, /clear, /commit, /review-pr
+
+    Args:
+        prompt: The user prompt to check.
+
+    Returns:
+        The command name (without /) if detected, None otherwise.
+    """
+    match = _SLASH_COMMAND_PATTERN.match(prompt.strip())
+    return match.group(1) if match else None
 
 
 def resolve_env_var(value: str) -> str:
@@ -119,33 +147,57 @@ class StreamContext:
     is_error: bool = False
     result_text: str | None = None
     structured_output: dict[str, object] | None = None
+    # Model usage tracking (T110)
+    model_usage: dict[str, dict[str, int]] | None = None
+    # Checkpoint tracking fields (T100, T104)
+    enable_file_checkpointing: bool = False
+    last_user_message_uuid: str | None = None
+    files_modified: list[str] = field(default_factory=list)
+    # Partial messages tracking (T118)
+    include_partial_messages: bool = False
 
 
 class AgentService:
     """Service for interacting with Claude Agent SDK."""
 
-    def __init__(self, webhook_service: WebhookService | None = None) -> None:
+    def __init__(
+        self,
+        webhook_service: WebhookService | None = None,
+        checkpoint_service: "CheckpointService | None" = None,
+    ) -> None:
         """Initialize agent service.
 
         Args:
             webhook_service: Optional WebhookService for hook callbacks.
                            If not provided, a default instance is created.
+            checkpoint_service: Optional CheckpointService for file checkpointing.
+                              Required for enable_file_checkpointing functionality.
         """
         self._settings = get_settings()
         self._active_sessions: dict[str, asyncio.Event] = {}
         self._webhook_service = webhook_service or WebhookService()
+        self._checkpoint_service = checkpoint_service
+
+    @property
+    def checkpoint_service(self) -> "CheckpointService | None":
+        """Get the checkpoint service instance.
+
+        Returns:
+            CheckpointService instance or None if not configured.
+        """
+        return self._checkpoint_service
 
     async def query_stream(
         self,
         request: QueryRequest,
-    ) -> AsyncGenerator[str, None]:
+    ) -> AsyncGenerator[dict[str, str], None]:
         """Stream a query to the agent.
 
         Args:
             request: Query request.
 
         Yields:
-            SSE formatted events.
+            SSE event dicts with 'event' and 'data' keys.
         """
         session_id = request.session_id or str(uuid4())
         model = request.model or "sonnet"
@@ -153,21 +205,32 @@ class AgentService:
             session_id=session_id,
             model=model,
             start_time=time.perf_counter(),
+            enable_file_checkpointing=request.enable_file_checkpointing,
+            include_partial_messages=request.include_partial_messages,
         )
 
         # Create interrupt event for this session
         self._active_sessions[session_id] = asyncio.Event()
 
         try:
+            # Extract plugin names for InitEvent (T115)
+            plugin_names: list[str] = []
+            if request.plugins:
+                plugin_names = [
+                    p.name for p in request.plugins if p.enabled
+                ]
+
             # Emit init event
+            # Note: commands will be populated from SDK's SystemMessage init event
+            # when the SDK provides available slash commands during connection
             init_event = InitEvent(
                 data=InitEventData(
                     session_id=session_id,
                     model=model,
                     tools=request.allowed_tools or [],
                     mcp_servers=[],
-                    plugins=[],
-                    commands=[],
+                    plugins=plugin_names,
+                    commands=[],  # Populated from SDK response if available
                     permission_mode=request.permission_mode,
                 )
             )
@@ -184,6 +247,24 @@ class AgentService:
 
             # Emit result event
             duration_ms = int((time.perf_counter() - ctx.start_time) * 1000)
+
+            # Convert model_usage to UsageSchema format (T110)
+            model_usage_converted: dict[str, UsageSchema] | None = None
+            if ctx.model_usage:
+                model_usage_converted = {}
+                for model_name, usage_dict in ctx.model_usage.items():
+                    if isinstance(usage_dict, dict):
+                        model_usage_converted[model_name] = UsageSchema(
+                            input_tokens=usage_dict.get("input_tokens", 0),
+                            output_tokens=usage_dict.get("output_tokens", 0),
+                            cache_read_input_tokens=usage_dict.get(
+                                "cache_read_input_tokens", 0
+                            ),
+                            cache_creation_input_tokens=usage_dict.get(
+                                "cache_creation_input_tokens", 0
+                            ),
+                        )
+
             result_event = ResultEvent(
                 data=ResultEventData(
                     session_id=session_id,
@@ -191,6 +272,7 @@ class AgentService:
                     duration_ms=duration_ms,
                     num_turns=ctx.num_turns,
                     total_cost_usd=ctx.total_cost_usd,
+                    model_usage=model_usage_converted,
                     result=ctx.result_text,
                     structured_output=ctx.structured_output,
                 )
@@ -231,7 +313,7 @@ class AgentService:
         self,
         request: QueryRequest,
         ctx: StreamContext,
-    ) -> AsyncGenerator[str, None]:
+    ) -> AsyncGenerator[dict[str, str], None]:
         """Execute query using Claude Agent SDK.
 
         Args:
@@ -239,9 +321,18 @@ class AgentService:
             ctx: Stream context.
 
         Yields:
-            SSE formatted message events.
+            SSE event dicts with 'event' and 'data' keys.
         """
         try:
+            # Detect slash commands in prompt (T115a)
+            slash_command = detect_slash_command(request.prompt)
+            if slash_command:
+                logger.info(
+                    "Slash command detected in prompt",
+                    session_id=ctx.session_id,
+                    command=slash_command,
+                )
+
             # Import SDK here to avoid import errors if not installed
             from claude_agent_sdk import ClaudeSDKClient
 
@@ -252,7 +343,46 @@ class AgentService:
             # Note: Only pass session_id to SDK when resuming an existing SDK session
             # For new conversations, use the default "default" session_id
             async with ClaudeSDKClient(options) as client:
-                await client.query(request.prompt)
+                # T122: Build query content with images if provided
+                # SDK accepts images as part of multimodal content
+                if request.images:
+                    # Build multimodal content: text + images
+                    content: list[dict[str, str | dict[str, str]]] = []
+
+                    # Add text prompt
+                    content.append({"type": "text", "text": request.prompt})
+
+                    # Add images
+                    for image in request.images:
+                        if image.type == "base64":
+                            content.append({
+                                "type": "image",
+                                "source": {
+                                    "type": "base64",
+                                    "media_type": image.media_type,
+                                    "data": image.data,
+                                },
+                            })
+                        else:
+                            # URL type
+                            content.append({
+                                "type": "image",
+                                "source": {
+                                    "type": "url",
+                                    "url": image.data,
+                                },
+                            })
+
+                    logger.info(
+                        "Multimodal query with images",
+                        session_id=ctx.session_id,
+                        image_count=len(request.images),
+                    )
+                    # Pass multimodal content to SDK
+                    await client.query(content)  # type: ignore[arg-type]
+                else:
+                    # Standard text-only prompt
+                    await client.query(request.prompt)
 
                 async for message in client.receive_response():
                     # Update context
@@ -276,6 +406,139 @@ class AgentService:
                 f"Agent execution failed: {e}", original_error=str(e)
             ) from e
 
+    def _build_mcp_configs(
+        self, request: QueryRequest
+    ) -> dict[str, dict[str, str | list[str] | dict[str, str] | None]] | None:
+        """Build MCP server configurations from request.
+
+        Args:
+            request: Query request.
+
+        Returns:
+            MCP server configs dict or None.
+        """
+        if not request.mcp_servers:
+            return None
+
+        mcp_configs: dict[str, dict[str, str | list[str] | dict[str, str] | None]] = {}
+        for name, config in request.mcp_servers.items():
+            # Resolve ${VAR:-default} syntax in env and headers
+            resolved_env = resolve_env_dict(config.env) if config.env else {}
+            resolved_headers = (
+                resolve_env_dict(config.headers) if config.headers else {}
+            )
+            mcp_configs[name] = {
+                "command": config.command,
+                "args": config.args,
+                "type": config.type,
+                "url": config.url,
+                "headers": resolved_headers,
+                "env": resolved_env,
+            }
+        return mcp_configs
+
+    def _build_agent_defs(
+        self, request: QueryRequest
+    ) -> dict[str, dict[str, str | list[str] | None]] | None:
+        """Build agent definitions from request.
+
+        Args:
+            request: Query request.
+
+        Returns:
+            Agent definitions dict or None.
+        """
+        if not request.agents:
+            return None
+
+        agent_defs: dict[str, dict[str, str | list[str] | None]] = {}
+        for name, agent in request.agents.items():
+            agent_defs[name] = {
+                "description": agent.description,
+                "prompt": agent.prompt,
+                "tools": agent.tools,
+                "model": agent.model,
+            }
+        return agent_defs
+
+    def _build_output_format(
+        self, request: QueryRequest
+    ) -> dict[str, str | dict[str, object] | None] | None:
+        """Build output format configuration from request.
+
+        Args:
+            request: Query request.
+
+        Returns:
+            Output format dict or None.
+        """
+        if not request.output_format:
+            return None
+
+        return {
+            "type": request.output_format.type,
+            "schema": request.output_format.schema_,
+        }
+
+    def _build_plugins(self, request: QueryRequest) -> list[dict[str, str | None]]:
+        """Build plugins list from request.
+
+        Args:
+            request: Query request.
+
+        Returns:
+            List of plugin config dicts.
+        """
+        plugins_list: list[dict[str, str | None]] = []
+        if request.plugins:
+            for plugin_config in request.plugins:
+                if plugin_config.enabled:  # Only include enabled plugins
+                    plugins_list.append({
+                        "name": plugin_config.name,
+                        "path": plugin_config.path,
+                    })
+        return plugins_list
+
+    def _build_sandbox_config(
+        self, request: QueryRequest
+    ) -> dict[str, bool | list[str]] | None:
+        """Build sandbox configuration from request.
+
+        Args:
+            request: Query request.
+
+        Returns:
+            Sandbox config dict or None.
+        """
+        if not request.sandbox:
+            return None
+
+        return {
+            "enabled": request.sandbox.enabled,
+            "allowed_paths": request.sandbox.allowed_paths,
+            "network_access": request.sandbox.network_access,
+        }
+
+    def _resolve_system_prompt(self, request: QueryRequest) -> str | None:
+        """Resolve system prompt with optional append.
+
+        Combines base system_prompt with system_prompt_append if both provided.
+
+        Args:
+            request: Query request.
+
+        Returns:
+            Resolved system prompt or None.
+        """
+        system_prompt = request.system_prompt if request.system_prompt else None
+
+        if request.system_prompt_append:
+            if system_prompt:
+                return f"{system_prompt}\n\n{request.system_prompt_append}"
+            return request.system_prompt_append
+
+        return system_prompt
+
     def _build_options(self, request: QueryRequest) -> "ClaudeAgentOptions":
         """Build SDK options from request.
 
@@ -291,8 +554,7 @@ class AgentService:
         """
         from claude_agent_sdk import ClaudeAgentOptions
 
-        # Build options dynamically based on request fields
-        # Use keyword arguments directly to ClaudeAgentOptions
+        # Extract basic options from request
         allowed_tools = request.allowed_tools if request.allowed_tools else None
         disallowed_tools = (
             request.disallowed_tools if request.disallowed_tools else None
@@ -303,14 +565,8 @@ class AgentService:
             if request.permission_prompt_tool_name
             else None
         )
-        model = request.model if request.model else None
-        max_turns = request.max_turns if request.max_turns else None
-        cwd = request.cwd if request.cwd else None
-        env = request.env if request.env else None
-        system_prompt = request.system_prompt if request.system_prompt else None
-        enable_checkpointing = True if request.enable_file_checkpointing else None
 
-        # Session resume
+        # Session resume configuration
         resume: str | None = None
         fork_session: bool | None = None
         if request.session_id and not request.fork_session:
@@ -319,155 +575,399 @@ class AgentService:
             resume = request.session_id
             fork_session = True
 
-        # MCP servers - convert to dict of dicts with env var resolution
-        mcp_configs: (
-            dict[str, dict[str, str | list[str] | dict[str, str] | None]] | None
-        ) = None
-        if request.mcp_servers:
-            mcp_configs = {}
-            for name, config in request.mcp_servers.items():
-                # Resolve ${VAR:-default} syntax in env and headers
-                resolved_env = resolve_env_dict(config.env) if config.env else {}
-                resolved_headers = (
-                    resolve_env_dict(config.headers) if config.headers else {}
-                )
-                mcp_configs[name] = {
-                    "command": config.command,
-                    "args": config.args,
-                    "type": config.type,
-                    "url": config.url,
-                    "headers": resolved_headers,
-                    "env": resolved_env,
-                }
+        # Setting sources for CLAUDE.md loading (T114)
+        setting_sources_typed: list[str] | None = None
+        if request.setting_sources:
+            setting_sources_typed = list(request.setting_sources)
 
-        # Subagents
-        agent_defs: dict[str, dict[str, str | list[str] | None]] | None = None
-        if request.agents:
-            agent_defs = {}
-            for name, agent in request.agents.items():
-                agent_defs[name] = {
-                    "description": agent.description,
-                    "prompt": agent.prompt,
-                    "tools": agent.tools,
-                    "model": agent.model,
-                }
+        # Build complex configs using helper methods
+        mcp_configs = self._build_mcp_configs(request)
+        agent_defs = self._build_agent_defs(request)
+        output_format = self._build_output_format(request)
+        plugins_list = self._build_plugins(request)
+        sandbox_config = self._build_sandbox_config(request)
+        final_system_prompt = self._resolve_system_prompt(request)
 
-        # Output format
-        output_format: dict[str, str | dict[str, object] | None] | None = None
-        if request.output_format:
-            output_format = {
-                "type": request.output_format.type,
-                "schema": request.output_format.schema_,
-            }
-
-        # Hooks - build callback wrappers for webhook-based hooks
-        # The SDK hooks parameter expects:
-        # hooks: dict[HookEvent, list[HookMatcher]] | None
-        # We don't use hooks directly in options; they're handled via webhook callbacks
-        # in the streaming loop. This keeps SDK compatibility while allowing HTTP webhooks.
-
-        # Build the options with SDK-compatible defaults
-        # Note: mcp_servers and agents are cast because SDK expects specific
-        # config types but accepts dict-like structures at runtime
+        # Note: mcp_servers, agents, plugins, setting_sources, and sandbox are cast
+        # because SDK expects specific config types but accepts dict-like structures
         return ClaudeAgentOptions(
             allowed_tools=allowed_tools or [],
             disallowed_tools=disallowed_tools or [],
             permission_mode=permission_mode,
             permission_prompt_tool_name=permission_prompt_tool_name,
-            model=model,
-            max_turns=max_turns,
-            cwd=cwd,
-            env=env or {},
-            system_prompt=system_prompt,
-            enable_file_checkpointing=enable_checkpointing or False,
+            model=request.model if request.model else None,
+            max_turns=request.max_turns if request.max_turns else None,
+            cwd=request.cwd if request.cwd else None,
+            env=request.env or {},
+            system_prompt=final_system_prompt,
+            enable_file_checkpointing=bool(request.enable_file_checkpointing),
             resume=resume,
             fork_session=fork_session or False,
             mcp_servers=cast("dict[str, McpServerConfig]", mcp_configs or {}),
             agents=cast("dict[str, AgentDefinition] | None", agent_defs),
             output_format=output_format,
+            plugins=cast("list[SdkPluginConfig]", plugins_list),
+            setting_sources=cast("list[SettingSource] | None", setting_sources_typed),
+            sandbox=cast("SandboxSettings | None", sandbox_config),
+            include_partial_messages=request.include_partial_messages,
         )
 
-    def _map_sdk_message(self, message: object, ctx: StreamContext) -> str | None:
-        """Map SDK message to SSE event string.
+    def _handle_user_message(
+        self, message: object, ctx: StreamContext
+    ) -> dict[str, str]:
+        """Handle UserMessage from SDK.
+
+        Args:
+            message: SDK UserMessage.
+            ctx: Stream context.
+
+        Returns:
+            SSE event dict with 'event' and 'data' keys.
+        """
+        content_blocks = self._extract_content_blocks(message)
+
+        # Track user message UUID for checkpointing (T104)
+        user_uuid = getattr(message, "uuid", None)
+        if ctx.enable_file_checkpointing and user_uuid:
+            ctx.last_user_message_uuid = user_uuid
+
+        event = MessageEvent(
+            data=MessageEventData(
+                type="user",
+                content=content_blocks,
+                uuid=user_uuid,
+            )
+        )
+        return self._format_sse(event.event, event.data.model_dump())
+
+    def _handle_assistant_message(
+        self, message: object, ctx: StreamContext
+    ) -> dict[str, str]:
+        """Handle AssistantMessage from SDK.
+
+        Args:
+            message: SDK AssistantMessage.
+            ctx: Stream context.
+
+        Returns:
+            SSE event dict with 'event' and 'data' keys.
+        """
+        content_blocks = self._extract_content_blocks(message)
+        usage = self._extract_usage(message)
+
+        # Track file modifications from Write/Edit tools for checkpointing (T104)
+        if ctx.enable_file_checkpointing:
+            self._track_file_modifications(content_blocks, ctx)
+
+        # Check for special tool uses (AskUserQuestion, TodoWrite)
+        special_event = self._check_special_tool_uses(content_blocks, ctx)
+        if special_event:
+            return special_event
+
+        event = MessageEvent(
+            data=MessageEventData(
+                type="assistant",
+                content=content_blocks,
+                model=getattr(message, "model", ctx.model),
+                usage=usage,
+            )
+        )
+        return self._format_sse(event.event, event.data.model_dump())
+
+    def _check_special_tool_uses(
+        self, content_blocks: list[ContentBlockSchema], ctx: StreamContext
+    ) -> dict[str, str] | None:
+        """Check for special tool uses and return event if found.
+
+        Args:
+            content_blocks: Content blocks from message.
+            ctx: Stream context.
+
+        Returns:
+            SSE event dict for special tool, or None.
+        """
+        for block in content_blocks:
+            if block.type == "tool_use" and block.name == "AskUserQuestion":
+                question = block.input.get("question", "") if block.input else ""
+                q_event = QuestionEvent(
+                    data=QuestionEventData(
+                        tool_use_id=block.id or "",
+                        question=question,
+                        session_id=ctx.session_id,
+                    )
+                )
+                return self._format_sse(q_event.event, q_event.data.model_dump())
+
+            # T116e: Log TodoWrite tool use for tracking
+            if block.type == "tool_use" and block.name == "TodoWrite":
+                todos_data = block.input.get("todos", []) if block.input else []
+                if isinstance(todos_data, list):
+                    logger.info(
+                        "TodoWrite tool use detected",
+                        session_id=ctx.session_id,
+                        todos_count=len(todos_data),
+                    )
+        return None
+
+    def _handle_result_message(self, message: object, ctx: StreamContext) -> None:
+        """Handle ResultMessage from SDK.
+
+        Updates context with result data. Does not emit an event.
+
+        Args:
+            message: SDK ResultMessage.
+            ctx: Stream context to update.
+        """
+        ctx.is_error = getattr(message, "is_error", False)
+        ctx.num_turns = getattr(message, "num_turns", ctx.num_turns)
+        ctx.total_cost_usd = getattr(message, "total_cost_usd", None)
+        ctx.result_text = getattr(message, "result", None)
+
+        # Extract model_usage if available (T110: Model Selection)
+        raw_model_usage = getattr(message, "model_usage", None)
+        if raw_model_usage is not None:
+            if isinstance(raw_model_usage, dict):
+                ctx.model_usage = cast("dict[str, dict[str, int]]", raw_model_usage)
+            else:
+                logger.warning(
+                    "model_usage is not a dict",
+                    session_id=ctx.session_id,
+                    type=type(raw_model_usage).__name__,
+                )
+
+        # Extract structured output if available (US8: Structured Output)
+        raw_structured = getattr(message, "structured_output", None)
+        if raw_structured is not None:
+            if isinstance(raw_structured, dict):
+                ctx.structured_output = cast("dict[str, object]", raw_structured)
+            else:
+                logger.warning(
+                    "structured_output is not a dict",
+                    session_id=ctx.session_id,
+                    type=type(raw_structured).__name__,
+                )
+                ctx.is_error = True
+
+    def _handle_partial_start(
+        self, message: object, _ctx: StreamContext
+    ) -> dict[str, str]:
+        """Handle ContentBlockStart for partial message streaming.
+
+        Args:
+            message: SDK ContentBlockStart message.
+            _ctx: Stream context (unused, kept for API consistency).
+
+        Returns:
+            SSE event dict with 'event' and 'data' keys.
+        """
+        index = getattr(message, "index", 0)
+        content_block = getattr(message, "content_block", None)
+
+        block_schema: ContentBlockSchema | None = None
+        if content_block:
+            block_schema = ContentBlockSchema(
+                type=getattr(content_block, "type", "text"),
+                text=getattr(content_block, "text", None),
+                id=getattr(content_block, "id", None),
+                name=getattr(content_block, "name", None),
+            )
+
+        partial_start_event = PartialMessageEvent(
+            data=PartialMessageEventData(
+                type="content_block_start",
+                index=index,
+                content_block=block_schema,
+            )
+        )
+        return self._format_sse(
+            partial_start_event.event, partial_start_event.data.model_dump()
+        )
+
+    def _handle_partial_delta(
+        self, message: object, _ctx: StreamContext
+    ) -> dict[str, str]:
+        """Handle ContentBlockDelta for partial message streaming.
+
+        Args:
+            message: SDK ContentBlockDelta message.
+            _ctx: Stream context (unused, kept for API consistency).
+
+        Returns:
+            SSE event dict with 'event' and 'data' keys.
+        """
+        index = getattr(message, "index", 0)
+        delta = getattr(message, "delta", None)
+
+        delta_schema: ContentDeltaSchema | None = None
+        if delta:
+            delta_type = getattr(delta, "type", "text_delta")
+            delta_schema = ContentDeltaSchema(
+                type=delta_type,
+                text=getattr(delta, "text", None) if delta_type == "text_delta" else None,
+                thinking=getattr(delta, "thinking", None) if delta_type == "thinking_delta" else None,
+                partial_json=getattr(delta, "partial_json", None) if delta_type == "input_json_delta" else None,
+            )
+
+        partial_delta_event = PartialMessageEvent(
+            data=PartialMessageEventData(
+                type="content_block_delta",
+                index=index,
+                delta=delta_schema,
+            )
+        )
+        return self._format_sse(
+            partial_delta_event.event, partial_delta_event.data.model_dump()
+        )
+
+    def _handle_partial_stop(
+        self, message: object, _ctx: StreamContext
+    ) -> dict[str, str]:
+        """Handle ContentBlockStop for partial message streaming.
+
+        Args:
+            message: SDK ContentBlockStop message.
+            _ctx: Stream context (unused, kept for API consistency).
+
+        Returns:
+            SSE event dict with 'event' and 'data' keys.
+        """
+        index = getattr(message, "index", 0)
+
+        partial_stop_event = PartialMessageEvent(
+            data=PartialMessageEventData(
+                type="content_block_stop",
+                index=index,
+            )
+        )
+        return self._format_sse(
+            partial_stop_event.event, partial_stop_event.data.model_dump()
+        )
+
+    def _map_sdk_message(
+        self, message: object, ctx: StreamContext
+    ) -> dict[str, str] | None:
+        """Map SDK message to SSE event dict.
 
         Args:
             message: SDK message.
             ctx: Stream context.
 
         Returns:
-            SSE formatted string or None.
+            SSE event dict with 'event' and 'data' keys, or None.
         """
         msg_type = type(message).__name__
 
         if msg_type == "SystemMessage":
-            # Handle system messages (init, etc.)
             return None
 
-        elif msg_type == "UserMessage":
-            content_blocks = self._extract_content_blocks(message)
-            event = MessageEvent(
-                data=MessageEventData(
-                    type="user",
-                    content=content_blocks,
-                    uuid=getattr(message, "uuid", None),
-                )
-            )
-            return self._format_sse(event.event, event.data.model_dump())
+        if msg_type == "UserMessage":
+            return self._handle_user_message(message, ctx)
 
-        elif msg_type == "AssistantMessage":
-            content_blocks = self._extract_content_blocks(message)
-            usage = self._extract_usage(message)
+        if msg_type == "AssistantMessage":
+            return self._handle_assistant_message(message, ctx)
 
-            # Check for AskUserQuestion
-            for block in content_blocks:
-                if block.type == "tool_use" and block.name == "AskUserQuestion":
-                    question = block.input.get("question", "") if block.input else ""
-                    q_event = QuestionEvent(
-                        data=QuestionEventData(
-                            tool_use_id=block.id or "",
-                            question=question,
-                            session_id=ctx.session_id,
-                        )
-                    )
-                    return self._format_sse(q_event.event, q_event.data.model_dump())
-
-            event = MessageEvent(
-                data=MessageEventData(
-                    type="assistant",
-                    content=content_blocks,
-                    model=getattr(message, "model", ctx.model),
-                    usage=usage,
-                )
-            )
-            return self._format_sse(event.event, event.data.model_dump())
-
-        elif msg_type == "ResultMessage":
-            # Update context from result
-            ctx.is_error = getattr(message, "is_error", False)
-            ctx.num_turns = getattr(message, "num_turns", ctx.num_turns)
-            ctx.total_cost_usd = getattr(message, "total_cost_usd", None)
-            ctx.result_text = getattr(message, "result", None)
-
-            # Extract structured output if available (US8: Structured Output)
-            raw_structured = getattr(message, "structured_output", None)
-            if raw_structured is not None:
-                # SDK returns structured_output as the parsed JSON object
-                # We need to ensure it's a proper dict for our response
-                if isinstance(raw_structured, dict):
-                    ctx.structured_output = cast("dict[str, object]", raw_structured)
-                else:
-                    # If SDK returns non-dict (error case), log and leave as None
-                    logger.warning(
-                        "structured_output is not a dict",
-                        session_id=ctx.session_id,
-                        type=type(raw_structured).__name__,
-                    )
-                    # Mark as error if output_format was expected but invalid
-                    ctx.is_error = True
-
+        if msg_type == "ResultMessage":
+            self._handle_result_message(message, ctx)
             return None
+
+        # T118: Handle partial/streaming messages when include_partial_messages is enabled
+        if msg_type == "ContentBlockStart" and ctx.include_partial_messages:
+            return self._handle_partial_start(message, ctx)
+
+        if msg_type == "ContentBlockDelta" and ctx.include_partial_messages:
+            return self._handle_partial_delta(message, ctx)
+
+        if msg_type == "ContentBlockStop" and ctx.include_partial_messages:
+            return self._handle_partial_stop(message, ctx)
 
         return None
+
+    def _track_file_modifications(
+        self, content_blocks: list[ContentBlockSchema], ctx: StreamContext
+    ) -> None:
+        """Track file modifications from tool_use blocks (T104).
+
+        Extracts file paths from Write and Edit tool invocations
+        and adds them to the context's files_modified list.
+
+        Args:
+            content_blocks: List of content blocks from assistant message.
+            ctx: Stream context to update.
+        """
+        for block in content_blocks:
+            if block.type != "tool_use":
+                continue
+
+            if (
+                block.name in ("Write", "Edit")
+                and block.input
+                and isinstance(block.input, dict)
+            ):
+                file_path = block.input.get("file_path")
+                if (
+                    file_path
+                    and isinstance(file_path, str)
+                    and file_path not in ctx.files_modified
+                ):
+                    ctx.files_modified.append(file_path)
+                    logger.debug(
+                        "Tracked file modification",
+                        file_path=file_path,
+                        tool=block.name,
+                        session_id=ctx.session_id,
+                    )
+
+    async def create_checkpoint_from_context(
+        self, ctx: StreamContext
+    ) -> "Checkpoint | None":
+        """Create a checkpoint from tracked context data (T104).
+
+        Creates a checkpoint if file checkpointing is enabled, a user message
+        UUID has been tracked, and the checkpoint service is available.
+
+        Args:
+            ctx: Stream context with tracked checkpoint data.
+
+        Returns:
+            Created Checkpoint if successful, None otherwise.
+        """
+        # Skip if checkpointing not enabled
+        if not ctx.enable_file_checkpointing:
+            return None
+
+        # Skip if no user message UUID to associate checkpoint with
+        if not ctx.last_user_message_uuid:
+            return None
+
+        # Skip if checkpoint service not available
+        if not self._checkpoint_service:
+            logger.warning(
+                "Cannot create checkpoint: checkpoint_service not configured",
+                session_id=ctx.session_id,
+            )
+            return None
+
+        try:
+            checkpoint = await self._checkpoint_service.create_checkpoint(
+                session_id=ctx.session_id,
+                user_message_uuid=ctx.last_user_message_uuid,
+                files_modified=ctx.files_modified.copy(),
+            )
+            logger.info(
+                "Created checkpoint from context",
+                checkpoint_id=checkpoint.id,
+                session_id=ctx.session_id,
+                user_message_uuid=ctx.last_user_message_uuid,
+                files_count=len(ctx.files_modified),
+            )
+            return checkpoint
+        except Exception as e:
+            logger.error(
+                "Failed to create checkpoint from context",
+                session_id=ctx.session_id,
+                error=str(e),
+            )
+            return None
 
     def _extract_content_blocks(self, message: object) -> list[ContentBlockSchema]:
         """Extract content blocks from SDK message.
@@ -544,7 +1044,7 @@ class AgentService:
         self,
         request: QueryRequest,
         ctx: StreamContext,
-    ) -> AsyncGenerator[str, None]:
+    ) -> AsyncGenerator[dict[str, str], None]:
         """Generate mock response for development without SDK.
 
         Args:
@@ -552,7 +1052,7 @@ class AgentService:
             ctx: Stream context.
 
         Yields:
-            SSE formatted events.
+            SSE event dicts with 'event' and 'data' keys.
         """
         # Simulate thinking delay
         await asyncio.sleep(0.1)
@@ -596,17 +1096,19 @@ class AgentService:
                     "validated": True,
                 }
 
-    def _format_sse(self, event_type: str, data: dict[str, object]) -> str:
-        """Format data as SSE event.
+    def _format_sse(
+        self, event_type: str, data: dict[str, object]
+    ) -> dict[str, str]:
+        """Format data as SSE event dict for EventSourceResponse.
 
         Args:
             event_type: Event type name.
             data: Event data.
 
         Returns:
-            SSE formatted string.
+            Dict with event and data keys for SSE.
         """
-        return f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
+        return {"event": event_type, "data": json.dumps(data)}
 
     async def interrupt(self, session_id: str) -> bool:
         """Interrupt a running query.

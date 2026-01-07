@@ -1,11 +1,14 @@
 """Unit tests for CheckpointService (T098)."""
 
-from datetime import UTC, datetime
+from typing import TYPE_CHECKING, cast
 from uuid import uuid4
 
 import pytest
 
-from apps.api.services.checkpoint import Checkpoint, CheckpointService
+from apps.api.services.checkpoint import CheckpointService
+
+if TYPE_CHECKING:
+    from apps.api.protocols import Cache
 
 
 class MockCache:
@@ -96,7 +99,7 @@ def checkpoint_service(mock_cache: MockCache) -> CheckpointService:
 
     MockCache implements the Cache protocol required by CheckpointService.
     """
-    service = CheckpointService(cache=mock_cache)  # type: ignore[arg-type]
+    service = CheckpointService(cache=cast("Cache", mock_cache))
     return service
 
 

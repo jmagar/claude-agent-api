@@ -15,10 +15,11 @@ from sqlalchemy.ext.asyncio import (
 from apps.api.adapters.cache import RedisCache
 from apps.api.adapters.session_repo import SessionRepository
 from apps.api.config import Settings, get_settings
-from apps.api.exceptions import AuthenticationError
+from apps.api.exceptions import AuthenticationError, ServiceUnavailableError
 from apps.api.services.agent import AgentService
 from apps.api.services.checkpoint import CheckpointService
 from apps.api.services.session import SessionService
+from apps.api.services.shutdown import ShutdownManager, get_shutdown_manager
 
 # Global instances (initialized in lifespan)
 _async_engine: AsyncEngine | None = None
@@ -195,6 +196,24 @@ async def get_checkpoint_service(
     return CheckpointService(cache=cache)
 
 
+def check_shutdown_state() -> ShutdownManager:
+    """Check if service is accepting new requests (T131).
+
+    Returns:
+        ShutdownManager instance.
+
+    Raises:
+        ServiceUnavailableError: If shutdown is in progress.
+    """
+    manager = get_shutdown_manager()
+    if manager.is_shutting_down:
+        raise ServiceUnavailableError(
+            message="Service is shutting down, not accepting new requests",
+            retry_after=30,
+        )
+    return manager
+
+
 # Type aliases for dependency injection
 DbSession = Annotated[AsyncSession, Depends(get_db)]
 Cache = Annotated[RedisCache, Depends(get_cache)]
@@ -203,3 +222,4 @@ ApiKey = Annotated[str, Depends(verify_api_key)]
 AgentSvc = Annotated[AgentService, Depends(get_agent_service)]
 SessionSvc = Annotated[SessionService, Depends(get_session_service)]
 CheckpointSvc = Annotated[CheckpointService, Depends(get_checkpoint_service)]
+ShutdownState = Annotated[ShutdownManager, Depends(check_shutdown_state)]

@@ -59,11 +59,20 @@ class Settings(BaseSettings):
         default=False, description="Enable SDK file checkpointing"
     )
 
-    # Rate Limiting
+    # Rate Limiting (T124)
     rate_limit_requests: int = Field(
         default=100, ge=1, description="Max requests per minute"
     )
     rate_limit_burst: int = Field(default=20, ge=1, description="Burst limit")
+    rate_limit_query_per_minute: int = Field(
+        default=10, ge=1, description="Query endpoint rate limit per minute"
+    )
+    rate_limit_session_per_minute: int = Field(
+        default=30, ge=1, description="Session endpoint rate limit per minute"
+    )
+    rate_limit_general_per_minute: int = Field(
+        default=100, ge=1, description="General endpoint rate limit per minute"
+    )
 
     # Request Settings
     request_timeout: int = Field(

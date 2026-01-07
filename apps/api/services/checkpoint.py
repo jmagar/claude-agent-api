@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, TypedDict
+from typing import TYPE_CHECKING, TypedDict, cast
 from uuid import uuid4
 
 import structlog
@@ -76,7 +76,17 @@ class CheckpointService:
 
         Returns:
             Created checkpoint.
+
+        Note:
+            If cache is not configured, checkpoint will be created but not persisted.
         """
+        if not self._cache:
+            logger.warning(
+                "CheckpointService has no cache configured - checkpoint will not be persisted",
+                session_id=session_id,
+                user_message_uuid=user_message_uuid,
+            )
+
         now = datetime.now(UTC)
         checkpoint_id = str(uuid4())
 
@@ -206,7 +216,7 @@ class CheckpointService:
             return
 
         key = self._checkpoint_key(checkpoint.id)
-        data: dict[str, object] = {
+        data: CachedCheckpointData = {
             "id": checkpoint.id,
             "session_id": checkpoint.session_id,
             "user_message_uuid": checkpoint.user_message_uuid,
@@ -214,7 +224,7 @@ class CheckpointService:
             "files_modified": checkpoint.files_modified,
         }
 
-        await self._cache.set_json(key, data, self._ttl)
+        await self._cache.set_json(key, cast("dict[str, object]", data), self._ttl)
 
     async def _get_cached_checkpoint(self, checkpoint_id: str) -> Checkpoint | None:
         """Get a checkpoint from cache.
@@ -255,7 +265,7 @@ class CheckpointService:
         if not isinstance(checkpoints_raw, list):
             checkpoints_raw = []
 
-        checkpoint_data: dict[str, object] = {
+        checkpoint_data: CachedCheckpointData = {
             "id": checkpoint.id,
             "session_id": checkpoint.session_id,
             "user_message_uuid": checkpoint.user_message_uuid,

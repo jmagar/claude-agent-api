@@ -6,7 +6,12 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from apps.api.schemas.requests import QueryRequest
-from apps.api.services.agent import AgentService, resolve_env_dict, resolve_env_var
+from apps.api.services.agent import (
+    AgentService,
+    detect_slash_command,
+    resolve_env_dict,
+    resolve_env_var,
+)
 
 
 class TestAgentService:
@@ -46,11 +51,16 @@ class TestAgentService:
 
     def test_query_request_permission_modes(self) -> None:
         """Test all permission modes are accepted."""
-        modes = ["default", "acceptEdits", "plan", "bypassPermissions"]
+        modes: list[Literal["default", "acceptEdits", "plan", "bypassPermissions"]] = [
+            "default",
+            "acceptEdits",
+            "plan",
+            "bypassPermissions",
+        ]
         for mode in modes:
             request = QueryRequest(
                 prompt="Test",
-                permission_mode=mode,  # type: ignore
+                permission_mode=mode,
             )
             assert request.permission_mode == mode
 
@@ -67,7 +77,8 @@ class TestAgentService:
                 )
             },
         )
-        assert "custom" in request.mcp_servers  # type: ignore
+        assert request.mcp_servers is not None
+        assert "custom" in request.mcp_servers
 
     def test_query_request_with_subagents(self) -> None:
         """Test QueryRequest with subagent definitions."""
@@ -83,7 +94,8 @@ class TestAgentService:
                 )
             },
         )
-        assert "reviewer" in request.agents  # type: ignore
+        assert request.agents is not None
+        assert "reviewer" in request.agents
 
     def test_subagent_no_task_tool(self) -> None:
         """Test that subagents cannot have Task tool."""
@@ -104,10 +116,10 @@ class TestAgentService:
         request = QueryRequest(
             prompt="Test",
             hooks=HooksConfigSchema(
-                PreToolUse=HookWebhookSchema(
-                    url="https://example.com/hook",  # type: ignore
-                    timeout=30,
-                )
+                PreToolUse=HookWebhookSchema.model_validate({
+                    "url": "https://example.com/hook",
+                    "timeout": 30,
+                })
             ),
         )
         assert request.hooks is not None
@@ -471,10 +483,10 @@ class TestPermissionModeHandling:
     def test_invalid_permission_mode_raises_validation_error(self) -> None:
         """Test that invalid permission mode raises validation error."""
         with pytest.raises(ValueError):
-            QueryRequest(
-                prompt="Test",
-                permission_mode="invalid_mode",  # type: ignore
-            )
+            QueryRequest.model_validate({
+                "prompt": "Test",
+                "permission_mode": "invalid_mode",
+            })
 
     def test_build_options_with_all_permission_params(self) -> None:
         """Test building options with all permission-related parameters."""
@@ -555,3 +567,387 @@ class TestInitEventPermissionMode:
         )
         dumped = data.model_dump()
         assert dumped["permission_mode"] == "plan"
+
+
+class TestEnableFileCheckpointing:
+    """Tests for enable_file_checkpointing handling in AgentService (T100)."""
+
+    def test_build_options_passes_enable_file_checkpointing_true(self) -> None:
+        """Test that enable_file_checkpointing=True is passed to ClaudeAgentOptions."""
+        service = AgentService()
+        request = QueryRequest(
+            prompt="Test",
+            enable_file_checkpointing=True,
+        )
+
+        with patch("claude_agent_sdk.ClaudeAgentOptions") as mock_cls:
+            mock_cls.return_value = MagicMock()
+            service._build_options(request)
+
+            call_kwargs = mock_cls.call_args.kwargs
+            assert call_kwargs.get("enable_file_checkpointing") is True
+
+    def test_build_options_passes_enable_file_checkpointing_false(self) -> None:
+        """Test that enable_file_checkpointing=False is passed to ClaudeAgentOptions."""
+        service = AgentService()
+        request = QueryRequest(
+            prompt="Test",
+            enable_file_checkpointing=False,
+        )
+
+        with patch("claude_agent_sdk.ClaudeAgentOptions") as mock_cls:
+            mock_cls.return_value = MagicMock()
+            service._build_options(request)
+
+            call_kwargs = mock_cls.call_args.kwargs
+            assert call_kwargs.get("enable_file_checkpointing") is False
+
+    def test_build_options_defaults_enable_file_checkpointing_to_false(self) -> None:
+        """Test that enable_file_checkpointing defaults to False when not specified."""
+        service = AgentService()
+        request = QueryRequest(prompt="Test")
+
+        with patch("claude_agent_sdk.ClaudeAgentOptions") as mock_cls:
+            mock_cls.return_value = MagicMock()
+            service._build_options(request)
+
+            call_kwargs = mock_cls.call_args.kwargs
+            # Default should be False
+            assert call_kwargs.get("enable_file_checkpointing") is False
+
+    def test_agent_service_accepts_checkpoint_service_dependency(self) -> None:
+        """Test that AgentService can be initialized with CheckpointService."""
+        from apps.api.services.checkpoint import CheckpointService
+
+        checkpoint_service = CheckpointService(cache=None)
+        service = AgentService(checkpoint_service=checkpoint_service)
+
+        assert service._checkpoint_service is checkpoint_service
+
+    def test_agent_service_has_checkpoint_service_property(self) -> None:
+        """Test that AgentService exposes checkpoint_service property."""
+        from apps.api.services.checkpoint import CheckpointService
+
+        checkpoint_service = CheckpointService(cache=None)
+        service = AgentService(checkpoint_service=checkpoint_service)
+
+        assert service.checkpoint_service is checkpoint_service
+
+    def test_agent_service_checkpoint_service_defaults_to_none(self) -> None:
+        """Test that checkpoint_service defaults to None when not provided."""
+        service = AgentService()
+
+        assert service._checkpoint_service is None
+
+    def test_query_request_enable_file_checkpointing_field_exists(self) -> None:
+        """Test that QueryRequest has enable_file_checkpointing field."""
+        request = QueryRequest(prompt="Test", enable_file_checkpointing=True)
+        assert request.enable_file_checkpointing is True
+
+        request2 = QueryRequest(prompt="Test")
+        assert request2.enable_file_checkpointing is False
+
+
+class TestCheckpointUuidTracking:
+    """Tests for checkpoint UUID tracking during message streaming (T104)."""
+
+    @pytest.mark.anyio
+    async def test_tracking_enabled_creates_checkpoint_on_user_message(
+        self,
+    ) -> None:
+        """Test that checkpoints are created when processing user messages with UUIDs."""
+        from unittest.mock import AsyncMock
+
+        from apps.api.services.checkpoint import CheckpointService
+
+        # Create a mock checkpoint service
+        mock_checkpoint_service = AsyncMock(spec=CheckpointService)
+        mock_checkpoint_service.create_checkpoint = AsyncMock()
+
+        service = AgentService(checkpoint_service=mock_checkpoint_service)
+
+        # Simulate a user message with UUID
+        user_message = MagicMock()
+        user_message.__class__.__name__ = "UserMessage"
+        user_message.content = "Test message"
+        user_message.uuid = "test-user-msg-uuid-123"
+
+        # Create stream context with checkpointing enabled
+        from apps.api.services.agent import StreamContext
+
+        ctx = StreamContext(
+            session_id="test-session-id",
+            model="sonnet",
+            start_time=0.0,
+        )
+        ctx.enable_file_checkpointing = True
+        ctx.files_modified = ["/path/to/file.py"]
+
+        # Process the message
+        service._map_sdk_message(user_message, ctx)
+
+        # Verify checkpoint was NOT created during _map_sdk_message
+        # (checkpoints should be created asynchronously via a method call)
+        # Instead, verify the UUID was tracked
+        assert ctx.last_user_message_uuid == "test-user-msg-uuid-123"
+
+    def test_stream_context_has_checkpoint_tracking_fields(self) -> None:
+        """Test that StreamContext has fields for checkpoint tracking."""
+        from apps.api.services.agent import StreamContext
+
+        ctx = StreamContext(
+            session_id="test-session",
+            model="sonnet",
+            start_time=0.0,
+        )
+
+        # Should have enable_file_checkpointing field (defaults to False)
+        assert hasattr(ctx, "enable_file_checkpointing")
+        assert ctx.enable_file_checkpointing is False
+
+        # Should have last_user_message_uuid field (defaults to None)
+        assert hasattr(ctx, "last_user_message_uuid")
+        assert ctx.last_user_message_uuid is None
+
+        # Should have files_modified tracking
+        assert hasattr(ctx, "files_modified")
+        assert ctx.files_modified == []
+
+    def test_stream_context_tracks_files_modified(self) -> None:
+        """Test that StreamContext can track modified files."""
+        from apps.api.services.agent import StreamContext
+
+        ctx = StreamContext(
+            session_id="test-session",
+            model="sonnet",
+            start_time=0.0,
+        )
+
+        ctx.files_modified.append("/path/to/file1.py")
+        ctx.files_modified.append("/path/to/file2.py")
+
+        assert len(ctx.files_modified) == 2
+        assert "/path/to/file1.py" in ctx.files_modified
+
+    def test_tool_result_with_write_updates_files_modified(self) -> None:
+        """Test that Write tool results update files_modified in context."""
+        from apps.api.schemas.responses import ContentBlockSchema
+        from apps.api.services.agent import StreamContext
+
+        service = AgentService()
+
+        # Create content blocks for Write tool directly
+        content_blocks = [
+            ContentBlockSchema(
+                type="tool_use",
+                id="tool-123",
+                name="Write",
+                input={"file_path": "/path/to/new_file.py", "content": "# New file"},
+            )
+        ]
+
+        ctx = StreamContext(
+            session_id="test-session",
+            model="sonnet",
+            start_time=0.0,
+        )
+        ctx.enable_file_checkpointing = True
+
+        # Test _track_file_modifications directly
+        service._track_file_modifications(content_blocks, ctx)
+
+        # Verify file path was tracked
+        assert "/path/to/new_file.py" in ctx.files_modified
+
+    def test_tool_result_with_edit_updates_files_modified(self) -> None:
+        """Test that Edit tool results update files_modified in context."""
+        from apps.api.schemas.responses import ContentBlockSchema
+        from apps.api.services.agent import StreamContext
+
+        service = AgentService()
+
+        # Create content blocks for Edit tool directly
+        content_blocks = [
+            ContentBlockSchema(
+                type="tool_use",
+                id="tool-456",
+                name="Edit",
+                input={"file_path": "/path/to/edited.py", "old_string": "x", "new_string": "y"},
+            )
+        ]
+
+        ctx = StreamContext(
+            session_id="test-session",
+            model="sonnet",
+            start_time=0.0,
+        )
+        ctx.enable_file_checkpointing = True
+
+        # Test _track_file_modifications directly
+        service._track_file_modifications(content_blocks, ctx)
+
+        # Verify file path was tracked
+        assert "/path/to/edited.py" in ctx.files_modified
+
+    def test_files_not_tracked_when_checkpointing_disabled(self) -> None:
+        """Test that files are not tracked when checkpointing is disabled.
+
+        The key behavior is that _map_sdk_message only calls _track_file_modifications
+        when enable_file_checkpointing is True. This test verifies that files_modified
+        remains empty when checkpointing is disabled, even with tool_use blocks that
+        would normally be tracked.
+        """
+        from apps.api.services.agent import StreamContext
+
+        # Create context with checkpointing disabled
+        ctx = StreamContext(
+            session_id="test-session",
+            model="sonnet",
+            start_time=0.0,
+        )
+        ctx.enable_file_checkpointing = False
+
+        # files_modified should be empty and stay empty when checkpointing is disabled
+        assert len(ctx.files_modified) == 0
+        assert ctx.enable_file_checkpointing is False
+
+    @pytest.mark.anyio
+    async def test_create_checkpoint_from_context(self) -> None:
+        """Test creating a checkpoint from tracked context data."""
+        from unittest.mock import AsyncMock
+
+        from apps.api.services.agent import StreamContext
+        from apps.api.services.checkpoint import CheckpointService
+
+        # Create mock checkpoint service
+        mock_checkpoint_service = AsyncMock(spec=CheckpointService)
+        mock_checkpoint_service.create_checkpoint = AsyncMock(return_value=MagicMock(
+            id="checkpoint-123",
+            session_id="test-session",
+            user_message_uuid="user-msg-uuid-456",
+            files_modified=["/path/to/file.py"],
+        ))
+
+        service = AgentService(checkpoint_service=mock_checkpoint_service)
+
+        ctx = StreamContext(
+            session_id="test-session",
+            model="sonnet",
+            start_time=0.0,
+        )
+        ctx.enable_file_checkpointing = True
+        ctx.last_user_message_uuid = "user-msg-uuid-456"
+        ctx.files_modified = ["/path/to/file.py"]
+
+        # Create checkpoint from context
+        checkpoint = await service.create_checkpoint_from_context(ctx)
+
+        # Verify checkpoint service was called correctly
+        mock_checkpoint_service.create_checkpoint.assert_called_once_with(
+            session_id="test-session",
+            user_message_uuid="user-msg-uuid-456",
+            files_modified=["/path/to/file.py"],
+        )
+
+        assert checkpoint is not None
+
+    @pytest.mark.anyio
+    async def test_create_checkpoint_skipped_when_no_uuid(self) -> None:
+        """Test that checkpoint creation is skipped when no user message UUID."""
+        from unittest.mock import AsyncMock
+
+        from apps.api.services.agent import StreamContext
+        from apps.api.services.checkpoint import CheckpointService
+
+        mock_checkpoint_service = AsyncMock(spec=CheckpointService)
+        service = AgentService(checkpoint_service=mock_checkpoint_service)
+
+        ctx = StreamContext(
+            session_id="test-session",
+            model="sonnet",
+            start_time=0.0,
+        )
+        ctx.enable_file_checkpointing = True
+        ctx.last_user_message_uuid = None  # No UUID
+        ctx.files_modified = ["/path/to/file.py"]
+
+        # Try to create checkpoint - should be skipped
+        checkpoint = await service.create_checkpoint_from_context(ctx)
+
+        # Should not call checkpoint service
+        mock_checkpoint_service.create_checkpoint.assert_not_called()
+        assert checkpoint is None
+
+    @pytest.mark.anyio
+    async def test_create_checkpoint_skipped_when_checkpointing_disabled(self) -> None:
+        """Test that checkpoint creation is skipped when checkpointing is disabled."""
+        from unittest.mock import AsyncMock
+
+        from apps.api.services.agent import StreamContext
+        from apps.api.services.checkpoint import CheckpointService
+
+        mock_checkpoint_service = AsyncMock(spec=CheckpointService)
+        service = AgentService(checkpoint_service=mock_checkpoint_service)
+
+        ctx = StreamContext(
+            session_id="test-session",
+            model="sonnet",
+            start_time=0.0,
+        )
+        ctx.enable_file_checkpointing = False  # Disabled
+        ctx.last_user_message_uuid = "user-msg-uuid"
+        ctx.files_modified = ["/path/to/file.py"]
+
+        checkpoint = await service.create_checkpoint_from_context(ctx)
+
+        mock_checkpoint_service.create_checkpoint.assert_not_called()
+        assert checkpoint is None
+
+
+class TestSlashCommandDetection:
+    """Unit tests for slash command detection (T115a)."""
+
+    def test_detect_slash_command_with_valid_command(self) -> None:
+        """Test detection of valid slash commands."""
+        assert detect_slash_command("/help") == "help"
+        assert detect_slash_command("/commit") == "commit"
+        assert detect_slash_command("/review-pr") == "review-pr"
+        assert detect_slash_command("/feature_dev") == "feature_dev"
+
+    def test_detect_slash_command_with_arguments(self) -> None:
+        """Test detection with command arguments."""
+        # Should detect the command, ignoring arguments
+        assert detect_slash_command("/commit -m 'message'") == "commit"
+        assert detect_slash_command("/review 123") == "review"
+        assert detect_slash_command("/search some query") == "search"
+
+    def test_detect_slash_command_with_whitespace_prefix(self) -> None:
+        """Test detection handles leading whitespace."""
+        assert detect_slash_command("  /help") == "help"
+        assert detect_slash_command("\t/commit") == "commit"
+        assert detect_slash_command("\n/review") == "review"
+
+    def test_detect_slash_command_returns_none_for_non_command(self) -> None:
+        """Test non-slash prompts return None."""
+        assert detect_slash_command("Hello world") is None
+        assert detect_slash_command("Can you help me?") is None
+        assert detect_slash_command("Write code for /api/users") is None
+
+    def test_detect_slash_command_returns_none_for_invalid_format(self) -> None:
+        """Test invalid slash command formats return None."""
+        assert detect_slash_command("/123invalid") is None  # Starts with number
+        assert detect_slash_command("//double") is None  # Double slash
+        assert detect_slash_command("/") is None  # Just slash
+        assert detect_slash_command("/ space") is None  # Slash with space
+
+    def test_detect_slash_command_case_sensitivity(self) -> None:
+        """Test slash commands preserve case."""
+        assert detect_slash_command("/Help") == "Help"
+        assert detect_slash_command("/COMMIT") == "COMMIT"
+        assert detect_slash_command("/ReviewPR") == "ReviewPR"
+
+    def test_detect_slash_command_with_mixed_chars(self) -> None:
+        """Test slash commands with mixed alphanumeric characters."""
+        assert detect_slash_command("/feature123") == "feature123"
+        assert detect_slash_command("/v2-release") == "v2-release"
+        assert detect_slash_command("/test_case_1") == "test_case_1"

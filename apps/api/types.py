@@ -17,6 +17,20 @@ PermissionMode = Literal["default", "acceptEdits", "plan", "bypassPermissions"]
 # Model options
 ModelOption = Literal["sonnet", "opus", "haiku"]
 
+# Valid short model names
+VALID_SHORT_MODEL_NAMES: set[str] = {"sonnet", "opus", "haiku"}
+
+# Valid model ID prefixes (for full model identifiers)
+# These match patterns like "claude-sonnet-4-20250514", "claude-3-5-sonnet-20241022"
+VALID_MODEL_PREFIXES: tuple[str, ...] = (
+    "claude-sonnet-",
+    "claude-opus-",
+    "claude-haiku-",
+    "claude-3-5-sonnet-",
+    "claude-3-5-haiku-",
+    "claude-3-opus-",
+)
+
 # SSE event types
 SSEEventType = Literal[
     "init", "message", "partial", "result", "error", "done", "question"
@@ -57,6 +71,8 @@ BUILT_IN_TOOLS: list[str] = [
     "NotebookEdit",
     "NotebookRead",
     "AskUserQuestion",
+    "Skill",  # T116c: Skill tool for invoking skills
+    "SlashCommand",  # Slash command invocation
 ]
 
 

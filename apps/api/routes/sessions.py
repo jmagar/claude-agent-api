@@ -1,9 +1,15 @@
 """Session management endpoints."""
 
 from fastapi import APIRouter, Query
-from fastapi.responses import StreamingResponse
+from sse_starlette import EventSourceResponse
 
-from apps.api.dependencies import AgentSvc, ApiKey, CheckpointSvc, SessionSvc
+from apps.api.dependencies import (
+    AgentSvc,
+    ApiKey,
+    CheckpointSvc,
+    SessionSvc,
+    ShutdownState,
+)
 from apps.api.exceptions import InvalidCheckpointError, SessionNotFoundError
 from apps.api.schemas.requests import (
     AnswerRequest,
@@ -137,7 +143,8 @@ async def resume_session(
     _api_key: ApiKey,
     agent_service: AgentSvc,
     session_service: SessionSvc,
-) -> StreamingResponse:
+    _shutdown: ShutdownState,
+) -> EventSourceResponse:
     """Resume an existing session with a new prompt.
 
     Args:
@@ -146,6 +153,7 @@ async def resume_session(
         _api_key: Validated API key (via dependency).
         agent_service: Agent service instance.
         session_service: Session service instance.
+        _shutdown: Shutdown state check (via dependency, rejects if shutting down).
 
     Returns:
         SSE stream of agent events.
@@ -171,12 +179,11 @@ async def resume_session(
         hooks=request.hooks,
     )
 
-    return StreamingResponse(
+    return EventSourceResponse(
         agent_service.query_stream(query_request),
-        media_type="text/event-stream",
+        ping=15,
         headers={
             "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
         },
     )
@@ -189,7 +196,8 @@ async def fork_session(
     _api_key: ApiKey,
     agent_service: AgentSvc,
     session_service: SessionSvc,
-) -> StreamingResponse:
+    _shutdown: ShutdownState,
+) -> EventSourceResponse:
     """Fork an existing session into a new branch.
 
     Creates a new session that inherits the conversation history
@@ -201,6 +209,7 @@ async def fork_session(
         _api_key: Validated API key (via dependency).
         agent_service: Agent service instance.
         session_service: Session service instance.
+        _shutdown: Shutdown state check (via dependency, rejects if shutting down).
 
     Returns:
         SSE stream of agent events for the new session.
@@ -234,12 +243,11 @@ async def fork_session(
         hooks=request.hooks,
     )
 
-    return StreamingResponse(
+    return EventSourceResponse(
         agent_service.query_stream(query_request),
-        media_type="text/event-stream",
+        ping=15,
         headers={
             "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
         },
     )
@@ -410,6 +418,12 @@ async def rewind_to_checkpoint(
         )
 
     # TODO: Actually rewind files using agent SDK when available
-    # For now, just return success as the checkpoint validation passed
+    # For now, validation passed but file restoration is not yet implemented.
+    # Return "validated" status to indicate checkpoint exists and belongs to session,
+    # but actual file restoration requires SDK support (T104).
 
-    return {"status": "rewound", "checkpoint_id": request.checkpoint_id}
+    return {
+        "status": "validated",
+        "checkpoint_id": request.checkpoint_id,
+        "message": "Checkpoint validated. File restoration pending SDK support.",
+    }

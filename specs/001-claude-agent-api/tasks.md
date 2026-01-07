@@ -288,11 +288,11 @@
 ### Implementation for User Story 9
 
 - [X] T099 [US9] Add CheckpointResponse, CheckpointListResponse, RewindRequest schemas to apps/api/schemas/responses.py
-- [ ] T100 [US9] Implement enable_file_checkpointing parameter handling in AgentService
+- [X] T100 [US9] Implement enable_file_checkpointing parameter handling in AgentService
 - [X] T101 [US9] Create apps/api/services/checkpoint.py with CheckpointService class
 - [X] T102 [US9] Implement GET /sessions/{id}/checkpoints endpoint in apps/api/routes/sessions.py
 - [X] T103 [US9] Implement POST /sessions/{id}/rewind endpoint in apps/api/routes/sessions.py
-- [ ] T104 [US9] Add checkpoint UUID tracking in message stream processing
+- [X] T104 [US9] Add checkpoint UUID tracking in message stream processing
 
 **Checkpoint**: File checkpointing works - can track and revert file changes
 
@@ -306,15 +306,15 @@
 
 ### Tests for User Story 10
 
-- [ ] T105 [P] [US10] Integration test for model selection in tests/integration/test_model_selection.py
-- [ ] T106 [P] [US10] Unit test for model validation in tests/unit/test_schemas.py
+- [X] T105 [P] [US10] Integration test for model selection in tests/integration/test_model_selection.py
+- [X] T106 [P] [US10] Unit test for model validation in tests/unit/test_schemas.py
 
 ### Implementation for User Story 10
 
-- [ ] T107 [US10] Add model parameter validation to QueryRequest schema
-- [ ] T108 [US10] Implement model parameter handling in AgentService.create_options()
-- [ ] T109 [US10] Add model information to InitEvent and ResultEvent responses
-- [ ] T110 [US10] Add model_usage breakdown in ResultEventData for multi-model sessions
+- [X] T107 [US10] Add model parameter validation to QueryRequest schema
+- [X] T108 [US10] Implement model parameter handling in AgentService.create_options()
+- [X] T109 [US10] Add model information to InitEvent and ResultEvent responses
+- [X] T110 [US10] Add model_usage breakdown in ResultEventData for multi-model sessions
 
 **Checkpoint**: Model selection works - can choose model per request
 
@@ -326,36 +326,36 @@
 
 ### Plugins, Skills, and Slash Commands
 
-- [ ] T111 [P] Add SdkPluginConfigSchema to apps/api/schemas/requests.py
-- [ ] T112 [P] Add SandboxSettingsSchema to apps/api/schemas/requests.py
-- [ ] T113 Implement plugins parameter handling in AgentService.create_options()
-- [ ] T114 Implement setting_sources parameter handling for CLAUDE.md loading
-- [ ] T115 Add commands list to InitEvent for slash command discovery
-- [ ] T115a Implement slash command prefix detection in prompt processing in apps/api/services/agent.py
-- [ ] T116 Implement system_prompt_append (preset+append mode) handling
+- [X] T111 [P] Add SdkPluginConfigSchema to apps/api/schemas/requests.py
+- [X] T112 [P] Add SandboxSettingsSchema to apps/api/schemas/requests.py
+- [X] T113 Implement plugins parameter handling in AgentService.create_options()
+- [X] T114 Implement setting_sources parameter handling for CLAUDE.md loading
+- [X] T115 Add commands list to InitEvent for slash command discovery
+- [X] T115a Implement slash command prefix detection in prompt processing in apps/api/services/agent.py
+- [X] T116 Implement system_prompt_append (preset+append mode) handling
 
 ### Skills
 
-- [ ] T116a Add SkillDiscoveryResponse schema to apps/api/schemas/responses.py
-- [ ] T116b Implement GET /skills endpoint for skill discovery in apps/api/routes/skills.py
-- [ ] T116c Implement Skill tool allowedTools validation in apps/api/services/agent.py
+- [X] T116a Add SkillDiscoveryResponse schema to apps/api/schemas/responses.py
+- [X] T116b Implement GET /skills endpoint for skill discovery in apps/api/routes/skills.py
+- [X] T116c Implement Skill tool allowedTools validation in apps/api/services/agent.py
 
 ### TODO Tracking
 
-- [ ] T116d Add TodoEventData schema to apps/api/schemas/responses.py
-- [ ] T116e Implement TodoWrite tool use message streaming in apps/api/services/agent.py
+- [X] T116d Add TodoEventData schema to apps/api/schemas/responses.py
+- [X] T116e Implement TodoWrite tool use message streaming in apps/api/services/agent.py
 
 ### Partial Messages and WebSocket
 
-- [ ] T117 Add PartialMessageEvent and ContentDeltaSchema to apps/api/schemas/responses.py
-- [ ] T118 Implement include_partial_messages streaming support in AgentService
-- [ ] T119 Create apps/api/routes/websocket.py for /query/ws WebSocket endpoint
-- [ ] T120 Implement WebSocket message handling for prompt, interrupt types
+- [X] T117 Add PartialMessageEvent and ContentDeltaSchema to apps/api/schemas/responses.py
+- [X] T118 Implement include_partial_messages streaming support in AgentService
+- [X] T119 Create apps/api/routes/websocket.py for /query/ws WebSocket endpoint
+- [X] T120 Implement WebSocket message handling for prompt, interrupt types
 
 ### Image Support
 
-- [ ] T121 Add ImageContentSchema to apps/api/schemas/requests.py
-- [ ] T122 Implement images parameter handling in AgentService for multimodal prompts
+- [X] T121 Add ImageContentSchema to apps/api/schemas/requests.py
+- [X] T122 Implement images parameter handling in AgentService for multimodal prompts
 
 ---
 
@@ -363,16 +363,16 @@
 
 **Purpose**: Improvements that affect multiple user stories
 
-- [ ] T123 Run all contract tests against OpenAPI spec in tests/contract/test_openapi.py
-- [ ] T124 Add rate limiting with slowapi in apps/api/middleware/ratelimit.py
-- [ ] T125 [P] Add request timeout handling in all routes
-- [ ] T126 [P] Add comprehensive error response formatting
-- [ ] T127 [P] Add OpenAPI documentation generation and validation
-- [ ] T128 Security hardening - validate all inputs, prevent injection attacks
+- [X] T123 Run all contract tests against OpenAPI spec in tests/contract/test_openapi.py
+- [X] T124 Add rate limiting with slowapi in apps/api/middleware/ratelimit.py
+- [X] T125 [P] Add request timeout handling in all routes
+- [X] T126 [P] Add comprehensive error response formatting
+- [X] T127 [P] Add OpenAPI documentation generation and validation
+- [X] T128 Security hardening - validate all inputs, prevent injection attacks
 - [ ] T129 Run quickstart.md validation - verify all setup steps work
 - [ ] T130 Performance testing - verify 100 concurrent sessions, <2s time-to-first-token, p95 latency <500ms, error rate <1% (track 5xx responses and timeout errors during load test)
-- [ ] T131 Add graceful shutdown handling for active sessions
-- [ ] T132 Final mypy strict mode check - no type errors
+- [X] T131 Add graceful shutdown handling for active sessions
+- [X] T132 Final mypy strict mode check - no type errors
 
 ---
 

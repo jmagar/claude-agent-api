@@ -74,7 +74,7 @@ class TestCheckpointIntegration:
         assert response.status_code == 200
         data = response.json()
 
-        assert data["status"] == "rewound"
+        assert data["status"] == "validated"
         assert data["checkpoint_id"] == mock_checkpoint_id
 
     @pytest.mark.anyio

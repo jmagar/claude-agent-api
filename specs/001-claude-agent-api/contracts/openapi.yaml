@@ -276,6 +276,80 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
+  /sessions/{session_id}/answer:
+    post:
+      operationId: answerQuestion
+      summary: Answer agent question
+      description: |
+        Respond to an AskUserQuestion from the agent during a streaming session.
+        When the agent uses the AskUserQuestion tool, a 'question' event is streamed
+        to the client. Use this endpoint to submit the user's answer.
+      tags:
+        - Sessions
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnswerRequest'
+      responses:
+        '200':
+          description: Answer accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [accepted]
+                  session_id:
+                    type: string
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /sessions/{session_id}/control:
+    post:
+      operationId: sendControlEvent
+      summary: Send control event
+      description: |
+        Send a control event to an active streaming session.
+        Currently supports dynamic permission mode changes during execution.
+      tags:
+        - Sessions
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ControlRequest'
+      responses:
+        '200':
+          description: Control event accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [accepted, unknown_type]
+                  session_id:
+                    type: string
+                  permission_mode:
+                    type: string
+                    description: New permission mode (for permission_mode_change)
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
   /sessions/{session_id}/checkpoints:
     get:
       operationId: listCheckpoints
@@ -322,9 +396,15 @@ paths:
                 properties:
                   status:
                     type: string
-                    enum: [rewound]
+                    enum: [validated, rewound]
+                    description: |
+                      'validated' - Checkpoint exists and belongs to session (file restoration pending SDK support)
+                      'rewound' - Files successfully restored to checkpoint state
                   checkpoint_id:
                     type: string
+                  message:
+                    type: string
+                    description: Additional status information
         '404':
           $ref: '#/components/responses/NotFound'
         '400':
@@ -774,13 +854,69 @@ components:
           type: string
           description: Checkpoint UUID to rewind to
 
+    AnswerRequest:
+      type: object
+      required:
+        - answer
+      properties:
+        answer:
+          type: string
+          minLength: 1
+          maxLength: 100000
+          description: User's answer to the agent's question
+
+    ControlRequest:
+      type: object
+      required:
+        - type
+      properties:
+        type:
+          type: string
+          enum: [permission_mode_change]
+          description: Type of control event
+        permission_mode:
+          type: string
+          enum: [default, acceptEdits, plan, bypassPermissions]
+          description: New permission mode (required for permission_mode_change)
+
+    QuestionEventData:
+      type: object
+      description: Data for 'question' events (AskUserQuestion tool)
+      required:
+        - question_id
+        - question
+      properties:
+        question_id:
+          type: string
+          description: Unique identifier for this question
+        question:
+          type: string
+          description: The question text from the agent
+        options:
+          type: array
+          items:
+            type: string
+          description: Optional list of suggested answer options
+        session_id:
+          type: string
+          description: Session ID that generated the question
+
     StreamEvent:
       type: object
       description: Server-Sent Event payload
       properties:
         event:
           type: string
-          enum: [init, message, partial, result, error, done]
+          enum: [init, message, partial, question, result, error, done]
+          description: |
+            Event types:
+            - init: Session initialized, contains session_id and configuration
+            - message: Complete assistant/user message
+            - partial: Streaming delta content (when include_partial_messages enabled)
+            - question: Agent asking user a question (AskUserQuestion tool)
+            - result: Final result with cost/usage data
+            - error: Error occurred during execution
+            - done: Stream completed
         id:
           type: string
         data:
@@ -850,6 +986,15 @@ components:
           type: string
         is_error:
           type: boolean
+        is_complete:
+          type: boolean
+          default: true
+          description: Whether the agent completed its task. False when max_turns reached or interrupted.
+        stop_reason:
+          type: string
+          enum: [completed, max_turns_reached, interrupted, error]
+          nullable: true
+          description: Reason for agent termination. 'max_turns_reached' per FR-033.
         duration_ms:
           type: integer
         num_turns:

@@ -2,14 +2,13 @@
 
 import asyncio
 import json
-import re
 from collections.abc import AsyncGenerator
 from typing import Literal
 
 from fastapi import APIRouter, Request
 from sse_starlette import EventSourceResponse
 
-from apps.api.dependencies import AgentSvc, ApiKey, SessionSvc
+from apps.api.dependencies import AgentSvc, ApiKey, SessionSvc, ShutdownState
 from apps.api.schemas.requests import QueryRequest
 from apps.api.schemas.responses import SingleQueryResponse
 from apps.api.services.agent import QueryResponseDict
@@ -24,6 +23,7 @@ async def query_stream(
     _api_key: ApiKey,
     agent_service: AgentSvc,
     session_service: SessionSvc,
+    _shutdown: ShutdownState,
 ) -> EventSourceResponse:
     """Execute a streaming query to the agent.
 
@@ -39,9 +39,10 @@ async def query_stream(
     Args:
         request: FastAPI request object.
         query: Query request body.
-        api_key: Validated API key.
+        _api_key: Validated API key (via dependency).
         agent_service: Agent service instance.
         session_service: Session service instance.
+        _shutdown: Shutdown state check (via dependency, rejects if shutting down).
 
     Returns:
         SSE event stream.
@@ -51,7 +52,7 @@ async def query_stream(
     # DO NOT set query.session_id here - that would cause the SDK to try
     # to resume a non-existent conversation!
 
-    async def event_generator() -> AsyncGenerator[str, None]:
+    async def event_generator() -> AsyncGenerator[dict[str, str], None]:
         """Generate SSE events with disconnect monitoring."""
         # Will be populated from init event
         session_id: str | None = query.session_id  # Only set if resuming
@@ -59,23 +60,22 @@ async def query_stream(
         num_turns = 0
         try:
             async for event in agent_service.query_stream(query):
+                event_type = event.get("event", "")
+                event_data = event.get("data", "{}")
+
                 # Extract session_id from init event for tracking
-                if session_id is None and "event: init" in event:
-                    # Parse the init event to get session_id
-                    # Extract the JSON data from SSE format (event: init\ndata: {...})
-                    data_match = re.search(r'data: ({.*})', event)
-                    if data_match:
-                        try:
-                            init_data = json.loads(data_match.group(1))
-                            session_id = init_data.get("session_id")
-                            if session_id:
-                                # Create session in our service
-                                model = init_data.get("model", "sonnet")
-                                await session_service.create_session(
-                                    model=model, session_id=session_id
-                                )
-                        except json.JSONDecodeError:
-                            pass
+                if session_id is None and event_type == "init":
+                    try:
+                        init_data = json.loads(event_data)
+                        session_id = init_data.get("session_id")
+                        if session_id:
+                            # Create session in our service
+                            model = init_data.get("model", "sonnet")
+                            await session_service.create_session(
+                                model=model, session_id=session_id
+                            )
+                    except json.JSONDecodeError:
+                        pass
 
                 # Check for client disconnect
                 if await request.is_disconnected():
@@ -85,9 +85,9 @@ async def query_stream(
                     break
 
                 # Track turns and errors from events
-                if "event: message" in event:
+                if event_type == "message":
                     num_turns += 1
-                if "event: error" in event:
+                if event_type == "error":
                     is_error = True
 
                 yield event
@@ -124,6 +124,7 @@ async def query_single(
     query: QueryRequest,
     _api_key: ApiKey,
     agent_service: AgentSvc,
+    _shutdown: ShutdownState,
 ) -> QueryResponseDict:
     """Execute a non-streaming query to the agent.
 
@@ -131,8 +132,9 @@ async def query_single(
 
     Args:
         query: Query request body.
-        api_key: Validated API key.
+        _api_key: Validated API key (via dependency).
         agent_service: Agent service instance.
+        _shutdown: Shutdown state check (via dependency, rejects if shutting down).
 
     Returns:
         Complete query response.

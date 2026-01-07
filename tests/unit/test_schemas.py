@@ -8,8 +8,8 @@ from pydantic import ValidationError
 from apps.api.schemas.requests import (
     AgentDefinitionSchema,
     ForkRequest,
-    HookWebhookSchema,
     HooksConfigSchema,
+    HookWebhookSchema,
     McpServerConfigSchema,
     OutputFormatSchema,
     QueryRequest,
@@ -43,11 +43,11 @@ class TestHookWebhookSchemaValidation:
 
     def test_url_must_be_valid_http_url(self) -> None:
         """Test that URL must be a valid HTTP/HTTPS URL."""
-        # Valid URLs
+        # Valid URLs (external only due to SSRF protection)
         hook = HookWebhookSchema(url="https://example.com/hook")  # type: ignore[arg-type]
         assert hook.url is not None
 
-        hook = HookWebhookSchema(url="http://localhost:8080/hook")  # type: ignore[arg-type]
+        hook = HookWebhookSchema(url="http://webhook.example.com/hook")  # type: ignore[arg-type]
         assert hook.url is not None
 
         # Invalid URLs
@@ -519,3 +519,87 @@ class TestMcpServerConfigSchemaValidation:
             headers={"Authorization": "Bearer token"},
         )
         assert config.url == "https://example.com/sse"
+
+
+class TestModelValidation:
+    """Unit tests for model parameter validation (US10, T106)."""
+
+    def test_model_accepts_sonnet(self) -> None:
+        """Test that 'sonnet' is a valid model."""
+        request = QueryRequest(prompt="Test", model="sonnet")
+        assert request.model == "sonnet"
+
+    def test_model_accepts_opus(self) -> None:
+        """Test that 'opus' is a valid model."""
+        request = QueryRequest(prompt="Test", model="opus")
+        assert request.model == "opus"
+
+    def test_model_accepts_haiku(self) -> None:
+        """Test that 'haiku' is a valid model."""
+        request = QueryRequest(prompt="Test", model="haiku")
+        assert request.model == "haiku"
+
+    def test_model_accepts_full_model_id_sonnet(self) -> None:
+        """Test that full Sonnet model ID is accepted."""
+        request = QueryRequest(prompt="Test", model="claude-sonnet-4-20250514")
+        assert request.model == "claude-sonnet-4-20250514"
+
+    def test_model_accepts_full_model_id_opus(self) -> None:
+        """Test that full Opus model ID is accepted."""
+        request = QueryRequest(prompt="Test", model="claude-opus-4-20250514")
+        assert request.model == "claude-opus-4-20250514"
+
+    def test_model_accepts_full_model_id_haiku(self) -> None:
+        """Test that full Haiku model ID is accepted."""
+        request = QueryRequest(prompt="Test", model="claude-haiku-3-5-20250514")
+        assert request.model == "claude-haiku-3-5-20250514"
+
+    def test_model_accepts_claude_3_5_sonnet(self) -> None:
+        """Test that claude-3-5-sonnet model ID is accepted."""
+        request = QueryRequest(prompt="Test", model="claude-3-5-sonnet-20241022")
+        assert request.model == "claude-3-5-sonnet-20241022"
+
+    def test_model_accepts_none_as_default(self) -> None:
+        """Test that model defaults to None (uses default model)."""
+        request = QueryRequest(prompt="Test")
+        assert request.model is None
+
+    def test_model_rejects_invalid_names(self) -> None:
+        """Test that invalid model names are rejected."""
+        with pytest.raises(ValidationError) as exc_info:
+            QueryRequest(prompt="Test", model="invalid-model")
+        error_str = str(exc_info.value).lower()
+        assert "model" in error_str or "invalid" in error_str
+
+    def test_model_rejects_empty_string(self) -> None:
+        """Test that empty string model is rejected."""
+        with pytest.raises(ValidationError):
+            QueryRequest(prompt="Test", model="")
+
+    def test_model_rejects_arbitrary_string(self) -> None:
+        """Test that arbitrary string model is rejected."""
+        with pytest.raises(ValidationError):
+            QueryRequest(prompt="Test", model="gpt-4")
+
+    def test_model_rejects_partial_model_name(self) -> None:
+        """Test that partial model names are rejected."""
+        with pytest.raises(ValidationError):
+            QueryRequest(prompt="Test", model="claude")
+
+    def test_model_in_fork_request(self) -> None:
+        """Test model validation in ForkRequest."""
+        request = ForkRequest(prompt="Fork", model="opus")
+        assert request.model == "opus"
+
+    def test_model_in_fork_request_invalid(self) -> None:
+        """Test that invalid model in ForkRequest is rejected."""
+        with pytest.raises(ValidationError):
+            ForkRequest(prompt="Fork", model="invalid-model")
+
+    def test_model_error_message_includes_valid_options(self) -> None:
+        """Test that validation error message mentions valid model options."""
+        with pytest.raises(ValidationError) as exc_info:
+            QueryRequest(prompt="Test", model="badmodel")
+        error_str = str(exc_info.value).lower()
+        # Error message should mention valid options or be descriptive
+        assert "sonnet" in error_str or "model" in error_str

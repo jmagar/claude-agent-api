@@ -9,6 +9,8 @@ from apps.api.exceptions import (
     DatabaseError,
     HookError,
     RateLimitError,
+    RequestTimeoutError,
+    ServiceUnavailableError,
     SessionCompletedError,
     SessionLockedError,
     SessionNotFoundError,
@@ -333,6 +335,123 @@ class TestStructuredOutputValidationError:
                 "details": {
                     "validation_errors": ["Missing required field"],
                     "schema_type": "json_schema",
+                },
+            }
+        }
+
+
+class TestRequestTimeoutError:
+    """Tests for RequestTimeoutError (T125)."""
+
+    def test_default_message(self) -> None:
+        """Test default error message."""
+        error = RequestTimeoutError()
+
+        assert error.status_code == 504
+        assert error.code == "REQUEST_TIMEOUT"
+        assert "timed out" in error.message.lower()
+        assert error.details == {}
+
+    def test_with_timeout_seconds(self) -> None:
+        """Test error with timeout seconds."""
+        error = RequestTimeoutError(
+            message="Query timed out",
+            timeout_seconds=300,
+        )
+
+        assert error.status_code == 504
+        assert error.message == "Query timed out"
+        assert error.details["timeout_seconds"] == 300
+
+    def test_with_operation(self) -> None:
+        """Test error with operation information."""
+        error = RequestTimeoutError(
+            message="Operation timed out",
+            operation="agent_query",
+        )
+
+        assert error.details["operation"] == "agent_query"
+
+    def test_with_all_details(self) -> None:
+        """Test error with all detail fields."""
+        error = RequestTimeoutError(
+            message="Request exceeded timeout limit",
+            timeout_seconds=120,
+            operation="stream_query",
+        )
+
+        assert error.status_code == 504
+        assert error.code == "REQUEST_TIMEOUT"
+        assert error.details["timeout_seconds"] == 120
+        assert error.details["operation"] == "stream_query"
+
+    def test_to_dict(self) -> None:
+        """Test conversion to dictionary."""
+        error = RequestTimeoutError(
+            message="Timeout occurred",
+            timeout_seconds=60,
+            operation="query",
+        )
+
+        result = error.to_dict()
+
+        assert result == {
+            "error": {
+                "code": "REQUEST_TIMEOUT",
+                "message": "Timeout occurred",
+                "details": {
+                    "timeout_seconds": 60,
+                    "operation": "query",
+                },
+            }
+        }
+
+
+class TestServiceUnavailableError:
+    """Tests for ServiceUnavailableError (T125)."""
+
+    def test_default_message(self) -> None:
+        """Test default error message."""
+        error = ServiceUnavailableError()
+
+        assert error.status_code == 503
+        assert error.code == "SERVICE_UNAVAILABLE"
+        assert "unavailable" in error.message.lower()
+        assert error.details == {}
+
+    def test_with_retry_after(self) -> None:
+        """Test error with retry-after information."""
+        error = ServiceUnavailableError(
+            message="Service under maintenance",
+            retry_after=300,
+        )
+
+        assert error.status_code == 503
+        assert error.message == "Service under maintenance"
+        assert error.details["retry_after"] == 300
+
+    def test_custom_message(self) -> None:
+        """Test custom error message."""
+        error = ServiceUnavailableError(message="System is shutting down")
+
+        assert error.message == "System is shutting down"
+        assert error.details == {}
+
+    def test_to_dict(self) -> None:
+        """Test conversion to dictionary."""
+        error = ServiceUnavailableError(
+            message="Maintenance in progress",
+            retry_after=120,
+        )
+
+        result = error.to_dict()
+
+        assert result == {
+            "error": {
+                "code": "SERVICE_UNAVAILABLE",
+                "message": "Maintenance in progress",
+                "details": {
+                    "retry_after": 120,
                 },
             }
         }

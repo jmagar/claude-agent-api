@@ -103,6 +103,10 @@ class ResultEventData(BaseModel):
 
     session_id: str
     is_error: bool
+    is_complete: bool = True
+    stop_reason: (
+        Literal["completed", "max_turns_reached", "interrupted", "error"] | None
+    ) = None
     duration_ms: int
     num_turns: int
     total_cost_usd: float | None = None
@@ -245,6 +249,10 @@ class SingleQueryResponse(BaseModel):
     model: str
     content: list[ContentBlockSchema]
     is_error: bool
+    is_complete: bool = True
+    stop_reason: (
+        Literal["completed", "max_turns_reached", "interrupted", "error"] | None
+    ) = None
     duration_ms: int
     num_turns: int
     total_cost_usd: float | None = None

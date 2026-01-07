@@ -3,6 +3,7 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
+import structlog
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -10,18 +11,22 @@ from fastapi.responses import JSONResponse
 from apps.api import __version__
 from apps.api.config import get_settings
 from apps.api.dependencies import close_cache, close_db, init_cache, init_db
-from apps.api.exceptions import APIError
+from apps.api.exceptions import APIError, RequestTimeoutError
 from apps.api.middleware.auth import ApiKeyAuthMiddleware
 from apps.api.middleware.correlation import CorrelationIdMiddleware
 from apps.api.middleware.logging import RequestLoggingMiddleware, configure_logging
-from apps.api.routes import health, query, sessions
+from apps.api.middleware.ratelimit import configure_rate_limiting
+from apps.api.routes import health, query, sessions, skills, websocket
+from apps.api.services.shutdown import get_shutdown_manager, reset_shutdown_manager
+
+logger = structlog.get_logger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan manager.
 
-    Initializes and cleans up resources.
+    Initializes and cleans up resources with graceful shutdown (T131).
     """
     settings = get_settings()
 
@@ -31,17 +36,32 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
         log_json=settings.log_json,
     )
 
+    # Reset shutdown manager for fresh state
+    reset_shutdown_manager()
+
     # Initialize database
     await init_db(settings)
 
     # Initialize cache
     await init_cache(settings)
 
+    logger.info("Application started", version=__version__)
+
     yield
 
-    # Cleanup
+    # Graceful shutdown (T131)
+    logger.info("Initiating graceful shutdown")
+    shutdown_manager = get_shutdown_manager()
+    shutdown_manager.initiate_shutdown()
+
+    # Wait for active sessions to complete (max 30 seconds)
+    await shutdown_manager.wait_for_sessions(timeout=30)
+
+    # Cleanup resources
     await close_cache()
     await close_db()
+
+    logger.info("Application shutdown complete")
 
 
 def create_app() -> FastAPI:
@@ -73,6 +93,9 @@ def create_app() -> FastAPI:
     app.add_middleware(CorrelationIdMiddleware)
     app.add_middleware(ApiKeyAuthMiddleware)
 
+    # Configure rate limiting (T124)
+    configure_rate_limiting(app)
+
     # Register exception handlers
     @app.exception_handler(APIError)
     async def api_error_handler(_request: Request, exc: APIError) -> JSONResponse:
@@ -80,6 +103,22 @@ def create_app() -> FastAPI:
         return JSONResponse(
             status_code=exc.status_code,
             content=exc.to_dict(),
+        )
+
+    @app.exception_handler(TimeoutError)
+    async def timeout_exception_handler(
+        _request: Request,
+        exc: TimeoutError,
+    ) -> JSONResponse:
+        """Handle timeout exceptions (T125)."""
+        timeout_error = RequestTimeoutError(
+            message="Request timed out",
+            timeout_seconds=settings.request_timeout,
+            operation="request",
+        )
+        return JSONResponse(
+            status_code=timeout_error.status_code,
+            content=timeout_error.to_dict(),
         )
 
     @app.exception_handler(Exception)
@@ -103,6 +142,8 @@ def create_app() -> FastAPI:
     app.include_router(health.router, prefix="/api/v1")
     app.include_router(query.router, prefix="/api/v1")
     app.include_router(sessions.router, prefix="/api/v1")
+    app.include_router(skills.router, prefix="/api/v1")
+    app.include_router(websocket.router, prefix="/api/v1")
 
     # Also mount health at root for convenience
     app.include_router(health.router)
