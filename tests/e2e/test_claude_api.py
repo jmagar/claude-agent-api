@@ -28,6 +28,6 @@ async def test_real_claude_query(
 
     # Check for required event types in the response
     assert "event: init" in response_text
-    assert "event: message" in response_text or "event: text" in response_text
+    assert "event: message" in response_text
     assert "event: result" in response_text
     assert "event: done" in response_text
