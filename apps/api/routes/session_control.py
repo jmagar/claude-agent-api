@@ -16,6 +16,7 @@ from apps.api.schemas.requests import (
     QueryRequest,
     ResumeRequest,
 )
+from apps.api.schemas.responses import ControlEventResponse, StatusResponse
 
 router = APIRouter(prefix="/sessions", tags=["Session Control"])
 
@@ -142,7 +143,7 @@ async def interrupt_session(
     session_id: str,
     _api_key: ApiKey,
     agent_service: AgentSvc,
-) -> dict[str, str]:
+) -> StatusResponse:
     """Interrupt a running session.
 
     Signals the agent to stop processing and return control
@@ -164,7 +165,7 @@ async def interrupt_session(
     if not success:
         raise SessionNotFoundError(session_id)
 
-    return {"status": "interrupted", "session_id": session_id}
+    return StatusResponse(status="interrupted", session_id=session_id)
 
 
 @router.post("/{session_id}/control")
@@ -173,7 +174,7 @@ async def send_control_event(
     request: ControlRequest,
     _api_key: ApiKey,
     agent_service: AgentSvc,
-) -> dict[str, str]:
+) -> ControlEventResponse:
     """Send a control event to an active session (FR-015).
 
     Control events allow dynamic changes during streaming, such as
@@ -191,9 +192,7 @@ async def send_control_event(
     Raises:
         SessionNotFoundError: If session doesn't exist or isn't active.
     """
-    if request.type == "permission_mode_change":
-        # permission_mode is guaranteed to be not None by the validator
-        assert request.permission_mode is not None
+    if request.type == "permission_mode_change" and request.permission_mode is not None:
         success = await agent_service.update_permission_mode(
             session_id, request.permission_mode
         )
@@ -201,11 +200,11 @@ async def send_control_event(
         if not success:
             raise SessionNotFoundError(session_id)
 
-        return {
-            "status": "accepted",
-            "session_id": session_id,
-            "permission_mode": request.permission_mode,
-        }
+        return ControlEventResponse(
+            status="accepted",
+            session_id=session_id,
+            permission_mode=request.permission_mode,
+        )
 
     # Future control event types would go here
-    return {"status": "unknown_type", "session_id": session_id}
+    return ControlEventResponse(status="unknown_type", session_id=session_id)

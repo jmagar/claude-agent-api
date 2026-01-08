@@ -12,6 +12,7 @@ from apps.api.schemas.requests import RewindRequest
 from apps.api.schemas.responses import (
     CheckpointListResponse,
     CheckpointResponse,
+    RewindResponse,
 )
 
 router = APIRouter(prefix="/sessions", tags=["Checkpoints"])
@@ -68,7 +69,7 @@ async def rewind_to_checkpoint(
     _api_key: ApiKey,
     session_service: SessionSvc,
     checkpoint_service: CheckpointSvc,
-) -> dict[str, str]:
+) -> RewindResponse:
     """Rewind session files to a checkpoint state (T103).
 
     Restores files to their state at the specified checkpoint. This allows
@@ -103,8 +104,8 @@ async def rewind_to_checkpoint(
             session_id=session_id,
         )
 
-    return {
-        "status": "validated",
-        "checkpoint_id": request.checkpoint_id,
-        "message": "Checkpoint validated. File restoration pending SDK support.",
-    }
+    return RewindResponse(
+        status="validated",
+        checkpoint_id=request.checkpoint_id,
+        message="Checkpoint validated. File restoration pending SDK support.",
+    )

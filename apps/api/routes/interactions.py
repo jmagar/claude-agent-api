@@ -5,6 +5,7 @@ from fastapi import APIRouter
 from apps.api.dependencies import AgentSvc, ApiKey
 from apps.api.exceptions import SessionNotFoundError
 from apps.api.schemas.requests import AnswerRequest
+from apps.api.schemas.responses import StatusResponse
 
 router = APIRouter(prefix="/sessions", tags=["Interactions"])
 
@@ -15,7 +16,7 @@ async def answer_question(
     answer: AnswerRequest,
     _api_key: ApiKey,
     agent_service: AgentSvc,
-) -> dict[str, str]:
+) -> StatusResponse:
     """Answer an AskUserQuestion from the agent.
 
     This endpoint is used to respond to questions posed by the agent
@@ -38,4 +39,4 @@ async def answer_question(
     if not success:
         raise SessionNotFoundError(session_id)
 
-    return {"status": "accepted", "session_id": session_id}
+    return StatusResponse(status="accepted", session_id=session_id)

@@ -259,3 +259,29 @@ class SingleQueryResponse(BaseModel):
     usage: UsageSchema | None = None
     result: str | None = None
     structured_output: dict[str, object] | None = None
+
+
+# Session Control Response Types
+class StatusResponse(BaseModel):
+    """Generic status response for session operations."""
+
+    status: str
+    session_id: str
+
+
+class ControlEventResponse(BaseModel):
+    """Response for control event operations."""
+
+    status: Literal["accepted", "unknown_type"]
+    session_id: str
+    permission_mode: (
+        Literal["default", "acceptEdits", "plan", "bypassPermissions"] | None
+    ) = None
+
+
+class RewindResponse(BaseModel):
+    """Response for checkpoint rewind operations."""
+
+    status: Literal["validated"]
+    checkpoint_id: str
+    message: str
