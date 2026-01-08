@@ -15,12 +15,14 @@ from apps.api.schemas.requests.config import (
     SdkPluginConfigSchema,
 )
 
+# QueryRequest (migrated to new module)
+from apps.api.schemas.requests.query import QueryRequest
+
 # Re-export from old location for now (will be migrated in later tasks)
 from apps.api.schemas.requests_old import (
     AnswerRequest,
     ControlRequest,
     ForkRequest,
-    QueryRequest,
     ResumeRequest,
     RewindRequest,
 )
