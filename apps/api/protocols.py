@@ -5,7 +5,13 @@ from uuid import UUID
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
-    from datetime import datetime
+
+    from apps.api.types import (
+        AgentMessage,
+        CheckpointData,
+        MessageData,
+        SessionData,
+    )
 
 
 @runtime_checkable
@@ -345,46 +351,3 @@ class AgentClient(Protocol):
             True if successful.
         """
         ...
-
-
-# Type aliases for protocol return types
-class SessionData:
-    """Session data structure."""
-
-    id: UUID
-    created_at: "datetime"
-    updated_at: "datetime"
-    status: str
-    model: str
-    working_directory: str | None
-    total_turns: int
-    total_cost_usd: float | None
-    parent_session_id: UUID | None
-    metadata: dict[str, object] | None
-
-
-class MessageData:
-    """Message data structure."""
-
-    id: UUID
-    session_id: UUID
-    message_type: str
-    content: dict[str, object]
-    created_at: "datetime"
-
-
-class CheckpointData:
-    """Checkpoint data structure."""
-
-    id: UUID
-    session_id: UUID
-    user_message_uuid: str
-    created_at: "datetime"
-    files_modified: list[str]
-
-
-class AgentMessage:
-    """Agent message structure."""
-
-    type: str
-    data: dict[str, object]
