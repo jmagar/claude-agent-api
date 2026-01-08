@@ -1,6 +1,31 @@
 """Builders for mock SSE events."""
 
 import json
+from typing import TypedDict
+
+
+class ResultEventConfig(TypedDict, total=False):
+    """Configuration for result SSE event.
+
+    Attributes:
+        session_id: Session ID
+        is_error: Whether an error occurred
+        duration_ms: Request duration in milliseconds
+        num_turns: Number of conversation turns
+        total_cost_usd: Total cost in USD
+        model_usage: Token usage by model
+        result: Result text
+        structured_output: Structured output if requested
+    """
+
+    session_id: str
+    is_error: bool
+    duration_ms: int
+    num_turns: int
+    total_cost_usd: float | None
+    model_usage: dict[str, dict[str, int]] | None
+    result: str | None
+    structured_output: dict[str, object] | None
 
 
 def build_init_event(
@@ -82,30 +107,29 @@ def build_message_event(
 
 
 def build_result_event(
-    session_id: str = "test-session-001",
-    is_error: bool = False,
-    duration_ms: int = 1500,
-    num_turns: int = 1,
-    total_cost_usd: float | None = 0.001,
-    model_usage: dict[str, dict[str, int]] | None = None,
-    result: str | None = None,
-    structured_output: dict[str, object] | None = None,
+    config: ResultEventConfig | None = None,
 ) -> dict[str, str]:
     """Build result SSE event.
 
     Args:
-        session_id: Session ID
-        is_error: Whether an error occurred
-        duration_ms: Request duration in milliseconds
-        num_turns: Number of conversation turns
-        total_cost_usd: Total cost in USD
-        model_usage: Token usage by model
-        result: Result text
-        structured_output: Structured output if requested
+        config: Result event configuration. If None, uses defaults.
 
     Returns:
         SSE event dict
     """
+    if config is None:
+        config = {}
+
+    # Extract values with defaults
+    session_id = config.get("session_id", "test-session-001")
+    is_error = config.get("is_error", False)
+    duration_ms = config.get("duration_ms", 1500)
+    num_turns = config.get("num_turns", 1)
+    total_cost_usd = config.get("total_cost_usd", 0.001)
+    model_usage = config.get("model_usage")
+    result = config.get("result")
+    structured_output = config.get("structured_output")
+
     data: dict[str, object] = {
         "session_id": session_id,
         "is_error": is_error,

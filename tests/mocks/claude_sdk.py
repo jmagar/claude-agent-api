@@ -5,8 +5,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from tests.mocks.event_builders import build_standard_response
-
 
 class AssistantMessage:
     """Mock AssistantMessage from SDK.
