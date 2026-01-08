@@ -62,9 +62,7 @@ async def async_client() -> AsyncGenerator[AsyncClient, None]:
     dependencies._redis_cache = None
     dependencies._async_engine = None
     dependencies._async_session_maker = None
-
-    # Clear the agent service singleton cache
-    dependencies.get_agent_service.cache_clear()
+    dependencies._agent_service = None  # Clear agent service singleton
 
     settings = get_settings()
 
@@ -141,7 +139,11 @@ async def mock_active_session_id(_async_client: AsyncClient) -> str:
     """
     import asyncio
 
-    from apps.api.dependencies import get_agent_service, get_cache
+    from apps.api.dependencies import (
+        get_cache,
+        set_agent_service_singleton,
+    )
+    from apps.api.services.agent import AgentService
     from apps.api.services.session import SessionService
 
     # Create session in session service
@@ -151,9 +153,10 @@ async def mock_active_session_id(_async_client: AsyncClient) -> str:
         model="sonnet", session_id="mock-active-session-001"
     )
 
-    # Register with agent service as active
-    agent_service = get_agent_service()
+    # Create agent service singleton and register session as active
+    agent_service = AgentService()
     agent_service._active_sessions[session.id] = asyncio.Event()
+    set_agent_service_singleton(agent_service)
 
     return session.id
 
@@ -262,3 +265,7 @@ async def mock_checkpoint_from_other_session(
     await cache.set_json(checkpoints_key, {"checkpoints": [checkpoint_data]}, 3600)
 
     return checkpoint_id
+
+
+# Import mock fixtures
+from tests.mocks.claude_sdk import mock_claude_sdk  # noqa: F401, E402
