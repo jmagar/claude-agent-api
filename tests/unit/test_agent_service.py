@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from apps.api.schemas.requests import QueryRequest
+from apps.api.schemas.requests.query import QueryRequest
 from apps.api.services.agent import (
     AgentService,
     detect_slash_command,
@@ -66,7 +66,7 @@ class TestAgentService:
 
     def test_query_request_with_mcp_servers(self) -> None:
         """Test QueryRequest with MCP server configuration."""
-        from apps.api.schemas.requests import McpServerConfigSchema
+        from apps.api.schemas.requests.config import McpServerConfigSchema
 
         request = QueryRequest(
             prompt="Test",
@@ -82,7 +82,7 @@ class TestAgentService:
 
     def test_query_request_with_subagents(self) -> None:
         """Test QueryRequest with subagent definitions."""
-        from apps.api.schemas.requests import AgentDefinitionSchema
+        from apps.api.schemas.requests.config import AgentDefinitionSchema
 
         request = QueryRequest(
             prompt="Test",
@@ -99,7 +99,7 @@ class TestAgentService:
 
     def test_subagent_no_task_tool(self) -> None:
         """Test that subagents cannot have Task tool."""
-        from apps.api.schemas.requests import AgentDefinitionSchema
+        from apps.api.schemas.requests.config import AgentDefinitionSchema
 
         with pytest.raises(ValueError) as exc_info:
             AgentDefinitionSchema(
@@ -111,7 +111,7 @@ class TestAgentService:
 
     def test_query_request_with_hooks(self) -> None:
         """Test QueryRequest with webhook hooks."""
-        from apps.api.schemas.requests import HooksConfigSchema, HookWebhookSchema
+        from apps.api.schemas.requests.config import HooksConfigSchema, HookWebhookSchema
 
         request = QueryRequest(
             prompt="Test",
@@ -127,7 +127,7 @@ class TestAgentService:
 
     def test_query_request_with_output_format(self) -> None:
         """Test QueryRequest with structured output format."""
-        from apps.api.schemas.requests import OutputFormatSchema
+        from apps.api.schemas.requests.config import OutputFormatSchema
 
         request = QueryRequest(
             prompt="Test",
@@ -144,35 +144,35 @@ class TestAgentService:
 
     def test_output_format_requires_schema(self) -> None:
         """Test that json_schema type requires schema field."""
-        from apps.api.schemas.requests import OutputFormatSchema
+        from apps.api.schemas.requests.config import OutputFormatSchema
 
         with pytest.raises(ValueError):
             OutputFormatSchema(type="json_schema", schema=None)
 
     def test_mcp_server_stdio_requires_command(self) -> None:
         """Test that stdio transport requires command."""
-        from apps.api.schemas.requests import McpServerConfigSchema
+        from apps.api.schemas.requests.config import McpServerConfigSchema
 
         with pytest.raises(ValueError):
             McpServerConfigSchema(type="stdio")
 
     def test_mcp_server_sse_requires_url(self) -> None:
         """Test that sse transport requires url."""
-        from apps.api.schemas.requests import McpServerConfigSchema
+        from apps.api.schemas.requests.config import McpServerConfigSchema
 
         with pytest.raises(ValueError):
             McpServerConfigSchema(type="sse")
 
     def test_mcp_server_http_requires_url(self) -> None:
         """Test that http transport requires url."""
-        from apps.api.schemas.requests import McpServerConfigSchema
+        from apps.api.schemas.requests.config import McpServerConfigSchema
 
         with pytest.raises(ValueError):
             McpServerConfigSchema(type="http")
 
     def test_mcp_server_stdio_with_args(self) -> None:
         """Test stdio transport with command and args."""
-        from apps.api.schemas.requests import McpServerConfigSchema
+        from apps.api.schemas.requests.config import McpServerConfigSchema
 
         config = McpServerConfigSchema(
             type="stdio",
@@ -185,7 +185,7 @@ class TestAgentService:
 
     def test_mcp_server_sse_with_headers(self) -> None:
         """Test SSE transport with headers."""
-        from apps.api.schemas.requests import McpServerConfigSchema
+        from apps.api.schemas.requests.config import McpServerConfigSchema
 
         config = McpServerConfigSchema(
             type="sse",
@@ -197,7 +197,7 @@ class TestAgentService:
 
     def test_mcp_server_http_with_headers(self) -> None:
         """Test HTTP transport with headers."""
-        from apps.api.schemas.requests import McpServerConfigSchema
+        from apps.api.schemas.requests.config import McpServerConfigSchema
 
         config = McpServerConfigSchema(
             type="http",
@@ -209,7 +209,7 @@ class TestAgentService:
 
     def test_mcp_server_env_vars(self) -> None:
         """Test MCP server with environment variables."""
-        from apps.api.schemas.requests import McpServerConfigSchema
+        from apps.api.schemas.requests.config import McpServerConfigSchema
 
         config = McpServerConfigSchema(
             type="stdio",
@@ -225,35 +225,35 @@ class TestAgentService:
 
     def test_mcp_server_default_type_is_stdio(self) -> None:
         """Test that default transport type is stdio."""
-        from apps.api.schemas.requests import McpServerConfigSchema
+        from apps.api.schemas.requests.config import McpServerConfigSchema
 
         config = McpServerConfigSchema(command="python")
         assert config.type == "stdio"
 
     def test_mcp_server_default_empty_args(self) -> None:
         """Test that args defaults to empty list."""
-        from apps.api.schemas.requests import McpServerConfigSchema
+        from apps.api.schemas.requests.config import McpServerConfigSchema
 
         config = McpServerConfigSchema(command="python")
         assert config.args == []
 
     def test_mcp_server_default_empty_headers(self) -> None:
         """Test that headers defaults to empty dict."""
-        from apps.api.schemas.requests import McpServerConfigSchema
+        from apps.api.schemas.requests.config import McpServerConfigSchema
 
         config = McpServerConfigSchema(type="sse", url="https://example.com/sse")
         assert config.headers == {}
 
     def test_mcp_server_default_empty_env(self) -> None:
         """Test that env defaults to empty dict."""
-        from apps.api.schemas.requests import McpServerConfigSchema
+        from apps.api.schemas.requests.config import McpServerConfigSchema
 
         config = McpServerConfigSchema(command="python")
         assert config.env == {}
 
     def test_multiple_mcp_servers_in_request(self) -> None:
         """Test multiple MCP servers in a single request."""
-        from apps.api.schemas.requests import McpServerConfigSchema
+        from apps.api.schemas.requests.config import McpServerConfigSchema
 
         request = QueryRequest(
             prompt="Test",

@@ -4,7 +4,7 @@ from fastapi import APIRouter
 
 from apps.api.dependencies import AgentSvc, ApiKey
 from apps.api.exceptions import SessionNotFoundError
-from apps.api.schemas.requests import AnswerRequest
+from apps.api.schemas.requests.sessions import AnswerRequest
 from apps.api.schemas.responses import StatusResponse
 
 router = APIRouter(prefix="/sessions", tags=["Interactions"])

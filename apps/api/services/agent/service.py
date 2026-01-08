@@ -29,7 +29,8 @@ from apps.api.services.agent.utils import detect_slash_command
 from apps.api.services.webhook import WebhookService
 
 if TYPE_CHECKING:
-    from apps.api.schemas.requests import HooksConfigSchema, QueryRequest
+    from apps.api.schemas.requests.config import HooksConfigSchema
+    from apps.api.schemas.requests.query import QueryRequest
     from apps.api.services.checkpoint import Checkpoint, CheckpointService
 
 logger = structlog.get_logger(__name__)
@@ -111,7 +112,7 @@ class AgentService:
                     permission_mode=request.permission_mode,
                 )
             )
-            yield self._message_handler._format_sse(
+            yield self._message_handler.format_sse(
                 init_event.event, init_event.data.model_dump()
             )
 
@@ -156,7 +157,7 @@ class AgentService:
                     structured_output=ctx.structured_output,
                 )
             )
-            yield self._message_handler._format_sse(
+            yield self._message_handler.format_sse(
                 result_event.event, result_event.data.model_dump()
             )
 
@@ -169,7 +170,7 @@ class AgentService:
             else:
                 reason = "completed"
             done_event = DoneEvent(data=DoneEventData(reason=reason))
-            yield self._message_handler._format_sse(
+            yield self._message_handler.format_sse(
                 done_event.event, done_event.data.model_dump()
             )
 
@@ -182,13 +183,13 @@ class AgentService:
                     message=str(e),
                 )
             )
-            yield self._message_handler._format_sse(
+            yield self._message_handler.format_sse(
                 error_event.event, error_event.data.model_dump()
             )
 
             # Emit done with error
             done_event = DoneEvent(data=DoneEventData(reason="error"))
-            yield self._message_handler._format_sse(
+            yield self._message_handler.format_sse(
                 done_event.event, done_event.data.model_dump()
             )
 
@@ -334,7 +335,7 @@ class AgentService:
                 ),
             )
         )
-        yield self._message_handler._format_sse(event.event, event.data.model_dump())
+        yield self._message_handler.format_sse(event.event, event.data.model_dump())
 
         ctx.result_text = "Mock response completed"
         ctx.total_cost_usd = 0.001
@@ -684,4 +685,4 @@ class AgentService:
                 # Skip non-dict, non-schema blocks
                 continue
 
-        self._message_handler._track_file_modifications(typed_blocks, ctx)
+        self._message_handler.track_file_modifications(typed_blocks, ctx)

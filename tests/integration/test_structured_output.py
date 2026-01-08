@@ -7,7 +7,8 @@ for enforcing structured JSON output from the agent.
 import pytest
 from httpx import AsyncClient
 
-from apps.api.schemas.requests import OutputFormatSchema, QueryRequest
+from apps.api.schemas.requests.config import OutputFormatSchema
+from apps.api.schemas.requests.query import QueryRequest
 
 
 class TestOutputFormatValidation:

@@ -10,7 +10,8 @@ Contains security patterns (T128) and validation functions for:
 
 import re
 
-from apps.api.types import BUILT_IN_TOOLS, VALID_MODEL_PREFIXES, VALID_SHORT_MODEL_NAMES
+from apps.api.constants import BUILT_IN_TOOLS
+from apps.api.types import VALID_MODEL_PREFIXES, VALID_SHORT_MODEL_NAMES
 
 # Security: Pattern for dangerous shell metacharacters
 SHELL_METACHAR_PATTERN = re.compile(r"[;&|`$(){}[\]<>!\n\r\\]")

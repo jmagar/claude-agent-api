@@ -3,12 +3,20 @@
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from apps.api.schemas.requests import HooksConfigSchema
+    from apps.api.schemas.requests.config import HooksConfigSchema
     from apps.api.services.webhook import WebhookService
 
 
 class HookExecutor:
-    """Executes webhook-based hooks for agent lifecycle events."""
+    """Executes webhook-based hooks for agent lifecycle events.
+
+    This class handles the execution of configured webhook callbacks for:
+    - PreToolUse: Before a tool is executed
+    - PostToolUse: After a tool completes
+    - Stop: When a session ends
+    - SubagentStop: When a subagent completes
+    - UserPromptSubmit: When a user submits a prompt
+    """
 
     def __init__(self, webhook_service: "WebhookService") -> None:
         """Initialize hook executor.

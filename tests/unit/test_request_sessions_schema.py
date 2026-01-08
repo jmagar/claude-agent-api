@@ -3,7 +3,7 @@
 import pytest
 from pydantic import ValidationError
 
-from apps.api.schemas.requests import (
+from apps.api.schemas.requests.sessions import (
     AnswerRequest,
     ForkRequest,
     ResumeRequest,

@@ -11,7 +11,7 @@ from typing import Literal
 import httpx
 import structlog
 
-from apps.api.schemas.requests import HooksConfigSchema, HookWebhookSchema
+from apps.api.schemas.requests.config import HooksConfigSchema, HookWebhookSchema
 
 logger = structlog.get_logger()
 

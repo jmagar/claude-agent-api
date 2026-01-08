@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
 
 from apps.api.config import get_settings
 from apps.api.dependencies import get_agent_service
-from apps.api.schemas.requests import QueryRequest
+from apps.api.schemas.requests.query import QueryRequest
 from apps.api.services.agent import AgentService
 
 logger = structlog.get_logger(__name__)

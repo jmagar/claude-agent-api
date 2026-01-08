@@ -5,16 +5,15 @@ import re
 import pytest
 from pydantic import ValidationError
 
-from apps.api.schemas.requests import (
+from apps.api.schemas.requests.config import (
     AgentDefinitionSchema,
-    ForkRequest,
     HooksConfigSchema,
     HookWebhookSchema,
     McpServerConfigSchema,
     OutputFormatSchema,
-    QueryRequest,
-    ResumeRequest,
 )
+from apps.api.schemas.requests.query import QueryRequest
+from apps.api.schemas.requests.sessions import ForkRequest, ResumeRequest
 
 
 class TestHookWebhookSchemaValidation:

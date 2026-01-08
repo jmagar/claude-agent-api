@@ -3,7 +3,7 @@
 import pytest
 from pydantic import ValidationError
 
-from apps.api.schemas.requests import ControlRequest, RewindRequest
+from apps.api.schemas.requests.control import ControlRequest, RewindRequest
 
 
 class TestRewindRequest:

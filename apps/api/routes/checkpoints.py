@@ -8,7 +8,7 @@ from apps.api.dependencies import (
     SessionSvc,
 )
 from apps.api.exceptions import InvalidCheckpointError, SessionNotFoundError
-from apps.api.schemas.requests import RewindRequest
+from apps.api.schemas.requests.control import RewindRequest
 from apps.api.schemas.responses import (
     CheckpointListResponse,
     CheckpointResponse,

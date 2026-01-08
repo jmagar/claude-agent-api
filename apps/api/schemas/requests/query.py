@@ -4,6 +4,7 @@ from typing import Literal, Self
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from apps.api.constants import BUILT_IN_TOOLS
 from apps.api.schemas.requests.config import (
     AgentDefinitionSchema,
     HooksConfigSchema,
@@ -19,7 +20,6 @@ from apps.api.schemas.validators import (
     validate_no_path_traversal,
     validate_tool_name,
 )
-from apps.api.types import BUILT_IN_TOOLS
 
 
 class QueryRequest(BaseModel):

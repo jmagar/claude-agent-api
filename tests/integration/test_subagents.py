@@ -6,7 +6,8 @@ Tests for T062: Subagent invocation integration tests.
 import pytest
 from httpx import AsyncClient
 
-from apps.api.schemas.requests import AgentDefinitionSchema, QueryRequest
+from apps.api.schemas.requests.config import AgentDefinitionSchema
+from apps.api.schemas.requests.query import QueryRequest
 
 
 class TestSubagentDefinitionValidation:

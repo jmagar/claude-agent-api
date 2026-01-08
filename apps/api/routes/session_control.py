@@ -10,12 +10,9 @@ from apps.api.dependencies import (
     ShutdownState,
 )
 from apps.api.exceptions import SessionNotFoundError
-from apps.api.schemas.requests import (
-    ControlRequest,
-    ForkRequest,
-    QueryRequest,
-    ResumeRequest,
-)
+from apps.api.schemas.requests.control import ControlRequest
+from apps.api.schemas.requests.query import QueryRequest
+from apps.api.schemas.requests.sessions import ForkRequest, ResumeRequest
 from apps.api.schemas.responses import ControlEventResponse, StatusResponse
 
 router = APIRouter(prefix="/sessions", tags=["Session Control"])

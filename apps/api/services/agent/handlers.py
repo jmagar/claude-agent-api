@@ -25,7 +25,15 @@ logger = structlog.get_logger(__name__)
 
 
 class MessageHandler:
-    """Handler for SDK message processing and SSE formatting."""
+    """Handler for SDK message processing and SSE formatting.
+
+    This class is responsible for:
+    - Mapping Claude Agent SDK messages to API SSE events
+    - Extracting content blocks and usage information
+    - Tracking file modifications for checkpointing
+    - Handling special tool uses (AskUserQuestion, TodoWrite)
+    - Formatting partial/streaming messages
+    """
 
     def map_sdk_message(
         self, message: object, ctx: "StreamContext"
@@ -92,7 +100,7 @@ class MessageHandler:
                 uuid=user_uuid,
             )
         )
-        return self._format_sse(event.event, event.data.model_dump())
+        return self.format_sse(event.event, event.data.model_dump())
 
     def _handle_assistant_message(
         self, message: object, ctx: "StreamContext"
@@ -111,7 +119,7 @@ class MessageHandler:
 
         # Track file modifications from Write/Edit tools for checkpointing (T104)
         if ctx.enable_file_checkpointing:
-            self._track_file_modifications(content_blocks, ctx)
+            self.track_file_modifications(content_blocks, ctx)
 
         # Check for special tool uses (AskUserQuestion, TodoWrite)
         special_event = self._check_special_tool_uses(content_blocks, ctx)
@@ -126,7 +134,7 @@ class MessageHandler:
                 usage=usage,
             )
         )
-        return self._format_sse(event.event, event.data.model_dump())
+        return self.format_sse(event.event, event.data.model_dump())
 
     def _check_special_tool_uses(
         self, content_blocks: list[ContentBlockSchema], ctx: "StreamContext"
@@ -150,7 +158,7 @@ class MessageHandler:
                         session_id=ctx.session_id,
                     )
                 )
-                return self._format_sse(q_event.event, q_event.data.model_dump())
+                return self.format_sse(q_event.event, q_event.data.model_dump())
 
             # T116e: Log TodoWrite tool use for tracking
             if block.type == "tool_use" and block.name == "TodoWrite":
@@ -235,7 +243,7 @@ class MessageHandler:
                 content_block=block_schema,
             )
         )
-        return self._format_sse(
+        return self.format_sse(
             partial_start_event.event, partial_start_event.data.model_dump()
         )
 
@@ -281,7 +289,7 @@ class MessageHandler:
                 delta=delta_schema,
             )
         )
-        return self._format_sse(
+        return self.format_sse(
             partial_delta_event.event, partial_delta_event.data.model_dump()
         )
 
@@ -305,11 +313,11 @@ class MessageHandler:
                 index=index,
             )
         )
-        return self._format_sse(
+        return self.format_sse(
             partial_stop_event.event, partial_stop_event.data.model_dump()
         )
 
-    def _track_file_modifications(
+    def track_file_modifications(
         self, content_blocks: list[ContentBlockSchema], ctx: "StreamContext"
     ) -> None:
         """Track file modifications from tool_use blocks (T104).
@@ -415,7 +423,7 @@ class MessageHandler:
             )
         return None
 
-    def _format_sse(
+    def format_sse(
         self, event_type: str, data: dict[str, object]
     ) -> dict[str, str]:
         """Format data as SSE event dict for EventSourceResponse.

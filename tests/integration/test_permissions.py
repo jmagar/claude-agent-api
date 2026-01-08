@@ -3,7 +3,7 @@
 import pytest
 from httpx import AsyncClient
 
-from apps.api.schemas.requests import QueryRequest
+from apps.api.schemas.requests.query import QueryRequest
 
 
 class TestPermissionModeValidation:
@@ -329,7 +329,7 @@ class TestDynamicPermissionModeChanges:
     @pytest.mark.anyio
     async def test_control_request_schema_validation(self) -> None:
         """Test ControlRequest schema validation."""
-        from apps.api.schemas.requests import ControlRequest
+        from apps.api.schemas.requests.control import ControlRequest
 
         # Valid permission_mode_change request
         request = ControlRequest(
@@ -342,7 +342,7 @@ class TestDynamicPermissionModeChanges:
     @pytest.mark.anyio
     async def test_control_request_requires_permission_mode_for_change(self) -> None:
         """Test that permission_mode_change type requires permission_mode field."""
-        from apps.api.schemas.requests import ControlRequest
+        from apps.api.schemas.requests.control import ControlRequest
 
         with pytest.raises(ValueError):
             ControlRequest(

@@ -57,30 +57,22 @@ McpTransportType = Literal["stdio", "sse", "http"]
 HookDecision = Literal["allow", "deny", "ask"]
 
 
-# Built-in tools list
-BUILT_IN_TOOLS: list[str] = [
-    "Read",
-    "Write",
-    "Edit",
-    "MultiEdit",
-    "Bash",
-    "Glob",
-    "Grep",
-    "LS",
-    "WebFetch",
-    "WebSearch",
-    "Task",
-    "TodoWrite",
-    "NotebookEdit",
-    "NotebookRead",
-    "AskUserQuestion",
-    "Skill",  # T116c: Skill tool for invoking skills
-    "SlashCommand",  # Slash command invocation
-]
-
-
 class ContentBlockDict(TypedDict, total=False):
-    """Content block dictionary structure."""
+    """Content block dictionary structure.
+
+    All fields are optional (total=False).
+
+    Attributes:
+        type: The content block type (text, thinking, tool_use, tool_result).
+        text: Text content for text blocks (optional).
+        thinking: Thinking content for thinking blocks (optional).
+        id: Unique identifier for tool_use blocks (optional).
+        name: Tool name for tool_use blocks (optional).
+        input: Tool input parameters for tool_use blocks (optional).
+        tool_use_id: Reference to tool_use id for tool_result blocks (optional).
+        content: Result content for tool_result blocks (optional).
+        is_error: Whether tool_result represents an error (optional).
+    """
 
     type: ContentBlockType
     text: str | None
@@ -94,7 +86,16 @@ class ContentBlockDict(TypedDict, total=False):
 
 
 class UsageDict(TypedDict, total=False):
-    """Token usage dictionary."""
+    """Token usage dictionary.
+
+    All fields are optional (total=False).
+
+    Attributes:
+        input_tokens: Number of input tokens consumed (optional).
+        output_tokens: Number of output tokens generated (optional).
+        cache_read_input_tokens: Number of cached input tokens read (optional).
+        cache_creation_input_tokens: Number of input tokens used for cache creation (optional).
+    """
 
     input_tokens: int
     output_tokens: int
@@ -122,7 +123,18 @@ class McpServerStatusDict(TypedDict, total=False):
 
 
 class MessageEventDataDict(TypedDict, total=False):
-    """Message event data structure."""
+    """Message event data structure.
+
+    All fields are optional (total=False).
+
+    Attributes:
+        type: Message type (user, assistant, system, result) (optional).
+        content: List of content blocks in the message (optional).
+        model: Model identifier used for this message (optional).
+        uuid: Unique identifier for the message (optional).
+        usage: Token usage statistics for this message (optional).
+        parent_tool_use_id: Parent tool use ID for nested tool calls (optional).
+    """
 
     type: MessageType
     content: list[ContentBlockDict]
@@ -133,7 +145,21 @@ class MessageEventDataDict(TypedDict, total=False):
 
 
 class ResultEventDataDict(TypedDict, total=False):
-    """Result event data structure."""
+    """Result event data structure.
+
+    All fields are optional (total=False).
+
+    Attributes:
+        session_id: Session identifier (optional).
+        is_error: Whether the session ended with an error (optional).
+        duration_ms: Session duration in milliseconds (optional).
+        num_turns: Number of conversation turns (optional).
+        total_cost_usd: Total estimated cost in USD (optional).
+        usage: Aggregate token usage statistics (optional).
+        model_usage: Per-model token usage breakdown (optional).
+        result: Final result text from the agent (optional).
+        structured_output: Structured output if requested (optional).
+    """
 
     session_id: str
     is_error: bool
@@ -155,13 +181,29 @@ class ErrorEventDataDict(TypedDict):
 
 
 class DoneEventDataDict(TypedDict, total=False):
-    """Done event data structure."""
+    """Done event data structure.
+
+    All fields are optional (total=False).
+
+    Attributes:
+        reason: Reason for session completion (completed, interrupted, error) (optional).
+    """
 
     reason: Literal["completed", "interrupted", "error"]
 
 
 class HookPayloadDict(TypedDict, total=False):
-    """Webhook hook payload structure."""
+    """Webhook hook payload structure.
+
+    All fields are optional (total=False).
+
+    Attributes:
+        hook_event: Type of hook event being triggered (optional).
+        session_id: Session identifier (optional).
+        tool_name: Name of tool being invoked (optional).
+        tool_input: Input parameters for the tool (optional).
+        tool_result: Result from tool execution (optional).
+    """
 
     hook_event: HookEventType
     session_id: str
@@ -171,7 +213,15 @@ class HookPayloadDict(TypedDict, total=False):
 
 
 class HookResponseDict(TypedDict, total=False):
-    """Webhook hook response structure."""
+    """Webhook hook response structure.
+
+    All fields are optional (total=False).
+
+    Attributes:
+        decision: Hook decision (allow, deny, ask) (optional).
+        reason: Human-readable reason for the decision (optional).
+        modified_input: Modified tool input parameters (optional).
+    """
 
     decision: HookDecision
     reason: str | None

@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from pydantic import HttpUrl
 
-from apps.api.schemas.requests import HookWebhookSchema, HooksConfigSchema
+from apps.api.schemas.requests.config import HookWebhookSchema, HooksConfigSchema
 
 
 # Type definitions for webhook payloads

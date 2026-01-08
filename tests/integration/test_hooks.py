@@ -7,11 +7,8 @@ agent execution at key points (PreToolUse, PostToolUse, Stop, etc.).
 import pytest
 from httpx import AsyncClient
 
-from apps.api.schemas.requests import (
-    HookWebhookSchema,
-    HooksConfigSchema,
-    QueryRequest,
-)
+from apps.api.schemas.requests.config import HooksConfigSchema, HookWebhookSchema
+from apps.api.schemas.requests.query import QueryRequest
 
 
 class TestHooksConfigValidation:

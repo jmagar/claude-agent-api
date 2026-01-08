@@ -3,11 +3,8 @@
 import pytest
 from pydantic import ValidationError
 
-from apps.api.schemas.requests import (
-    HookWebhookSchema,
-    McpServerConfigSchema,
-    QueryRequest,
-)
+from apps.api.schemas.requests.config import HookWebhookSchema, McpServerConfigSchema
+from apps.api.schemas.requests.query import QueryRequest
 
 
 class TestPathTraversalValidation:

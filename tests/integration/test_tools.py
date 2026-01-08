@@ -6,7 +6,7 @@ Tests for T056: Tool restriction integration tests.
 import pytest
 from httpx import AsyncClient
 
-from apps.api.schemas.requests import QueryRequest
+from apps.api.schemas.requests.query import QueryRequest
 
 
 class TestToolRestrictionValidation:
@@ -239,8 +239,8 @@ class TestBuiltInToolsValidation:
 
     @pytest.mark.anyio
     async def test_builtin_tools_defined(self) -> None:
-        """Test that BUILT_IN_TOOLS constant is defined in types module."""
-        from apps.api.types import BUILT_IN_TOOLS
+        """Test that BUILT_IN_TOOLS constant is defined in constants module."""
+        from apps.api.constants import BUILT_IN_TOOLS
 
         # Verify it's a collection
         assert isinstance(BUILT_IN_TOOLS, (list, tuple, set, frozenset))

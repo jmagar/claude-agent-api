@@ -1,5 +1,33 @@
 """Base exception class for the API."""
 
+from typing import TypedDict
+
+
+class ErrorDetailsDict(TypedDict, total=False):
+    """Error details structure.
+
+    All fields are optional (total=False).
+
+    Attributes:
+        code: Machine-readable error code (optional).
+        message: Human-readable error message (optional).
+        details: Additional error details (optional).
+    """
+
+    code: str
+    message: str
+    details: dict[str, str | int | float | bool | list[str] | None] | None
+
+
+class ErrorResponseDict(TypedDict):
+    """Error response structure.
+
+    Attributes:
+        error: Error details object.
+    """
+
+    error: ErrorDetailsDict
+
 
 class APIError(Exception):
     """Base exception for API errors."""
@@ -27,15 +55,11 @@ class APIError(Exception):
             details or {}
         )
 
-    def to_dict(
-        self,
-    ) -> dict[
-        str, dict[str, str | dict[str, str | int | float | bool | list[str] | None]]
-    ]:
+    def to_dict(self) -> ErrorResponseDict:
         """Convert error to dictionary for JSON response.
 
         Returns:
-            Error dictionary.
+            Error dictionary with typed structure.
         """
         return {
             "error": {

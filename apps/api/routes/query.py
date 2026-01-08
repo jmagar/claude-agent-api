@@ -9,7 +9,7 @@ from fastapi import APIRouter, Request
 from sse_starlette import EventSourceResponse
 
 from apps.api.dependencies import AgentSvc, ApiKey, SessionSvc, ShutdownState
-from apps.api.schemas.requests import QueryRequest
+from apps.api.schemas.requests.query import QueryRequest
 from apps.api.schemas.responses import SingleQueryResponse
 from apps.api.services.agent import QueryResponseDict
 

@@ -5,7 +5,11 @@ from typing import TypedDict
 
 
 class QueryResponseDict(TypedDict):
-    """TypedDict for non-streaming query response."""
+    """TypedDict for non-streaming query response.
+
+    Contains the complete response data for a non-streaming query,
+    including session info, content, usage statistics, and results.
+    """
 
     session_id: str
     model: str
@@ -21,7 +25,14 @@ class QueryResponseDict(TypedDict):
 
 @dataclass
 class StreamContext:
-    """Context for a streaming query."""
+    """Context for a streaming query.
+
+    Maintains state throughout a streaming query session, including:
+    - Session metadata (ID, model, timing)
+    - Query progress (turns, cost, errors)
+    - Checkpoint tracking (file modifications, message UUIDs)
+    - Partial message configuration
+    """
 
     session_id: str
     model: str
