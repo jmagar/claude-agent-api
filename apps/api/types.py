@@ -1,6 +1,9 @@
 """Type definitions and constants for the API."""
 
+from dataclasses import dataclass
+from datetime import datetime
 from typing import Literal, TypedDict
+from uuid import UUID
 
 # Session status values
 SessionStatus = Literal["active", "completed", "error"]
@@ -173,3 +176,52 @@ class HookResponseDict(TypedDict, total=False):
     decision: HookDecision
     reason: str | None
     modified_input: dict[str, object] | None
+
+
+# Data Classes
+
+
+@dataclass
+class SessionData:
+    """Session data structure returned from repository."""
+
+    id: UUID
+    created_at: datetime
+    updated_at: datetime
+    status: str
+    model: str
+    working_directory: str | None
+    total_turns: int
+    total_cost_usd: float | None
+    parent_session_id: UUID | None
+    metadata: dict[str, object] | None
+
+
+@dataclass
+class MessageData:
+    """Message data structure returned from repository."""
+
+    id: UUID
+    session_id: UUID
+    message_type: str
+    content: dict[str, object]
+    created_at: datetime
+
+
+@dataclass
+class CheckpointData:
+    """Checkpoint data structure returned from repository."""
+
+    id: UUID
+    session_id: UUID
+    user_message_uuid: str
+    created_at: datetime
+    files_modified: list[str]
+
+
+@dataclass
+class AgentMessage:
+    """Agent message structure from SDK client."""
+
+    type: str
+    data: dict[str, object]
