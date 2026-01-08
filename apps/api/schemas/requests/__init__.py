@@ -25,8 +25,8 @@ from apps.api.schemas.requests.sessions import (
     ResumeRequest,
 )
 
-# Re-export from old location for now (will be migrated in later tasks)
-from apps.api.schemas.requests_old import (
+# Control schemas (migrated from requests_old.py)
+from apps.api.schemas.requests.control import (
     ControlRequest,
     RewindRequest,
 )
