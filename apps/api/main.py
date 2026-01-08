@@ -16,7 +16,16 @@ from apps.api.middleware.auth import ApiKeyAuthMiddleware
 from apps.api.middleware.correlation import CorrelationIdMiddleware
 from apps.api.middleware.logging import RequestLoggingMiddleware, configure_logging
 from apps.api.middleware.ratelimit import configure_rate_limiting
-from apps.api.routes import health, query, sessions, skills, websocket
+from apps.api.routes import (
+    checkpoints,
+    health,
+    interactions,
+    query,
+    session_control,
+    sessions,
+    skills,
+    websocket,
+)
 from apps.api.services.shutdown import get_shutdown_manager, reset_shutdown_manager
 
 logger = structlog.get_logger(__name__)
@@ -142,6 +151,9 @@ def create_app() -> FastAPI:
     app.include_router(health.router, prefix="/api/v1")
     app.include_router(query.router, prefix="/api/v1")
     app.include_router(sessions.router, prefix="/api/v1")
+    app.include_router(session_control.router, prefix="/api/v1")
+    app.include_router(checkpoints.router, prefix="/api/v1")
+    app.include_router(interactions.router, prefix="/api/v1")
     app.include_router(skills.router, prefix="/api/v1")
     app.include_router(websocket.router, prefix="/api/v1")
 
