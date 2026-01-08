@@ -1,7 +1,6 @@
 """Mock Claude SDK client for testing."""
 
-from collections.abc import AsyncGenerator
-from typing import Any
+from collections.abc import AsyncGenerator, Generator
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -99,7 +98,7 @@ class MockClaudeSDKClient:
 
 
 @pytest.fixture
-def mock_claude_sdk() -> Any:
+def mock_claude_sdk() -> Generator[MagicMock, None, None]:
     """Mock the ClaudeSDKClient for testing.
 
     Patches the SDK at its source module since it's imported inside functions.
