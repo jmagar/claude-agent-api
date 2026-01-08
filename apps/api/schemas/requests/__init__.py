@@ -1,9 +1,9 @@
 """Request schemas package.
 
 Re-exports all request schemas for backward compatibility.
+Import from this module or submodules as needed.
 """
 
-# Config schemas (new module)
 from apps.api.schemas.requests.config import (
     AgentDefinitionSchema,
     HooksConfigSchema,
@@ -14,27 +14,29 @@ from apps.api.schemas.requests.config import (
     SandboxSettingsSchema,
     SdkPluginConfigSchema,
 )
-
-# QueryRequest (migrated to new module)
+from apps.api.schemas.requests.control import ControlRequest, RewindRequest
 from apps.api.schemas.requests.query import QueryRequest
+from apps.api.schemas.requests.sessions import AnswerRequest, ForkRequest, ResumeRequest
 
-# Session schemas (migrated to new module)
-from apps.api.schemas.requests.sessions import (
-    AnswerRequest,
-    ForkRequest,
-    ResumeRequest,
-)
-
-# Control schemas (migrated from requests_old.py)
-from apps.api.schemas.requests.control import (
-    ControlRequest,
-    RewindRequest,
+# Re-export validators for backward compatibility
+from apps.api.schemas.validators import (
+    BLOCKED_URL_PATTERNS,
+    NULL_BYTE_PATTERN,
+    PATH_TRAVERSAL_PATTERN,
+    SHELL_METACHAR_PATTERN,
+    validate_model_name,
+    validate_no_null_bytes,
+    validate_no_path_traversal,
+    validate_tool_name,
+    validate_url_not_internal,
 )
 
 __all__ = [
-    # Config schemas
+    "BLOCKED_URL_PATTERNS",
+    "NULL_BYTE_PATTERN",
+    "PATH_TRAVERSAL_PATTERN",
+    "SHELL_METACHAR_PATTERN",
     "AgentDefinitionSchema",
-    # Request schemas (from old module, to be migrated)
     "AnswerRequest",
     "ControlRequest",
     "ForkRequest",
@@ -48,4 +50,9 @@ __all__ = [
     "RewindRequest",
     "SandboxSettingsSchema",
     "SdkPluginConfigSchema",
+    "validate_model_name",
+    "validate_no_null_bytes",
+    "validate_no_path_traversal",
+    "validate_tool_name",
+    "validate_url_not_internal",
 ]
