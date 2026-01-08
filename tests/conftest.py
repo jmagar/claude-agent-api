@@ -17,7 +17,7 @@ os.environ.setdefault("DEBUG", "true")
 
 from apps.api.config import get_settings
 from apps.api.dependencies import close_cache, close_db, init_cache, init_db
-from apps.api.main import app
+from apps.api.main import create_app
 
 logger = logging.getLogger(__name__)
 
@@ -72,8 +72,12 @@ async def async_client() -> AsyncGenerator[AsyncClient, None]:
     await init_db(settings)
     await init_cache(settings)
 
+    # Create fresh app instance for this test to avoid event loop issues
+    # with BaseHTTPMiddleware when reusing app across different event loops
+    test_app = create_app()
+
     try:
-        transport = ASGITransport(app=app)
+        transport = ASGITransport(app=test_app)
         async with AsyncClient(
             transport=transport,
             base_url="http://test",

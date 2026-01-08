@@ -3,7 +3,7 @@
 import pytest
 from pydantic import ValidationError
 
-from apps.api.schemas.requests.query import QueryRequest
+from apps.api.schemas.requests import QueryRequest
 
 
 class TestQueryRequest:

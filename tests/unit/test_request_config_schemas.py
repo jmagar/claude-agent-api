@@ -3,10 +3,10 @@
 import pytest
 from pydantic import ValidationError
 
-from apps.api.schemas.requests.config import (
+from apps.api.schemas.requests import (
     AgentDefinitionSchema,
-    HookWebhookSchema,
     HooksConfigSchema,
+    HookWebhookSchema,
     ImageContentSchema,
     McpServerConfigSchema,
     OutputFormatSchema,
