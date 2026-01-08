@@ -18,12 +18,16 @@ from apps.api.schemas.requests.config import (
 # QueryRequest (migrated to new module)
 from apps.api.schemas.requests.query import QueryRequest
 
-# Re-export from old location for now (will be migrated in later tasks)
-from apps.api.schemas.requests_old import (
+# Session schemas (migrated to new module)
+from apps.api.schemas.requests.sessions import (
     AnswerRequest,
-    ControlRequest,
     ForkRequest,
     ResumeRequest,
+)
+
+# Re-export from old location for now (will be migrated in later tasks)
+from apps.api.schemas.requests_old import (
+    ControlRequest,
     RewindRequest,
 )
 
