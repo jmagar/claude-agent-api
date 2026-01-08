@@ -51,7 +51,6 @@ class Session(Base):
         PGUUID(as_uuid=True),
         ForeignKey("sessions.id"),
         nullable=True,
-        index=True,
     )
     metadata_: Mapped[dict[str, object] | None] = mapped_column(
         "metadata",
@@ -147,7 +146,6 @@ class Checkpoint(Base):
     )
     user_message_uuid: Mapped[str] = mapped_column(
         String(100),
-        unique=True,
     )
     created_at: Mapped[datetime] = mapped_column(
         default=func.now(),

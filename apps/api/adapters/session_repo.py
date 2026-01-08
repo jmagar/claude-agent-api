@@ -181,7 +181,7 @@ class SessionRepository:
             .where(SessionMessage.session_id == session_id)
             .order_by(SessionMessage.created_at)
         )
-        if limit:
+        if limit is not None:
             stmt = stmt.limit(limit)
 
         result = await self._db.execute(stmt)

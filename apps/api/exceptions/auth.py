@@ -29,7 +29,7 @@ class RateLimitError(APIError):
             retry_after: Seconds until retry is allowed.
         """
         details: dict[str, str | int | float | bool | list[str] | None] = {}
-        if retry_after:
+        if retry_after is not None:
             details["retry_after"] = retry_after
         super().__init__(
             message="Rate limit exceeded",

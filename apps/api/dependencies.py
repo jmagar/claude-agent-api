@@ -1,7 +1,7 @@
 """FastAPI dependencies for dependency injection."""
 
+import secrets
 from collections.abc import AsyncGenerator
-from functools import lru_cache
 from typing import Annotated
 
 from fastapi import Depends, Header, Request
@@ -54,10 +54,11 @@ async def init_db(settings: Settings) -> async_sessionmaker[AsyncSession]:
 
 async def close_db() -> None:
     """Close database connections."""
-    global _async_engine
+    global _async_engine, _async_session_maker
     if _async_engine is not None:
         await _async_engine.dispose()
         _async_engine = None
+        _async_session_maker = None
 
 
 async def init_cache(settings: Settings) -> RedisCache:
@@ -95,10 +96,7 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
         raise RuntimeError("Database not initialized")
 
     async with _async_session_maker() as session:
-        try:
-            yield session
-        finally:
-            await session.close()
+        yield session
 
 
 async def get_cache() -> RedisCache:
@@ -150,20 +148,20 @@ def verify_api_key(
     if not x_api_key:
         raise AuthenticationError("Missing API key")
 
-    if x_api_key != settings.api_key.get_secret_value():
+    if not secrets.compare_digest(x_api_key, settings.api_key.get_secret_value()):
         raise AuthenticationError("Invalid API key")
 
     return x_api_key
 
 
-@lru_cache(maxsize=1)
 def get_agent_service() -> AgentService:
-    """Get or create agent service singleton.
+    """Get agent service instance.
 
-    Uses lru_cache to ensure single instance across application lifetime.
+    Creates a new instance per request to avoid sharing mutable
+    request-scoped state (_active_sessions) across concurrent requests.
 
     Returns:
-        AgentService singleton instance.
+        AgentService instance.
     """
     return AgentService()
 

@@ -13,8 +13,9 @@ from apps.api.config import get_settings
 def get_client_ip(request: Request) -> str:
     """Get client IP address for rate limiting.
 
-    Checks X-Forwarded-For header first for proxy scenarios,
-    then falls back to direct client address.
+    Only trusts X-Forwarded-For header when explicitly configured
+    (trust_proxy_headers=True). When trusted, uses the rightmost IP
+    which is harder to spoof than the leftmost.
 
     Args:
         request: FastAPI request object.
@@ -22,11 +23,17 @@ def get_client_ip(request: Request) -> str:
     Returns:
         Client IP address string.
     """
-    # Check for forwarded header (behind proxy/load balancer)
-    forwarded_for = request.headers.get("X-Forwarded-For")
-    if forwarded_for:
-        # Take the first IP in the chain (original client)
-        return forwarded_for.split(",")[0].strip()
+    settings = get_settings()
+
+    # Only trust forwarded headers when explicitly configured
+    if settings.trust_proxy_headers:
+        forwarded_for = request.headers.get("X-Forwarded-For")
+        if forwarded_for:
+            # Use rightmost IP - added by trusted proxy, harder to spoof
+            # The leftmost IP can be easily spoofed by clients
+            ips = [ip.strip() for ip in forwarded_for.split(",")]
+            if ips:
+                return ips[-1]
 
     # Fall back to direct client address
     return get_remote_address(request)

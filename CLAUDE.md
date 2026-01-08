@@ -39,7 +39,7 @@ alembic/                     # Database migrations
 We are developing inside a code-server container, when we deploy docker services, they are run on the container host. To be able to successfully reach those hosts you can use the host's Tailscale IP, 100.120.242.29. The code-server container's docker compose also contains extra hosts: "host.docker.internal:host-gateway", so you should also be able to use http://host.docker.internal:<port>
 
 # Anthropic API Key Unnecessary
-Do not set environment variable ANTHROPIC_API_KEY, we are logged in with our CLaude Max subscription which we can use the Claude Agent SDK with, if you set that variable, then using our Claude Max subscription will NOT worko
+Do not set environment variable ANTHROPIC_API_KEY, we are logged in with our Claude Max subscription which we can use the Claude Agent SDK with, if you set that variable, then using our Claude Max subscription will NOT work
 
 
 ## Commands
@@ -133,7 +133,6 @@ If external libraries return `Any`, wrap them in typed adapter functions.
 ## Required Environment Variables
 
 ```bash
-ANTHROPIC_API_KEY=      # Required - Claude API key
 DATABASE_URL=           # PostgreSQL connection string
 REDIS_URL=              # Redis connection string
 API_KEY=                # API key for client authentication

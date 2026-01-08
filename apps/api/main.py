@@ -93,7 +93,7 @@ def create_app() -> FastAPI:
     # Add middleware (order matters - first added is last executed)
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=settings.cors_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -120,10 +120,18 @@ def create_app() -> FastAPI:
         exc: TimeoutError,
     ) -> JSONResponse:
         """Handle timeout exceptions (T125)."""
+        # Use exception message if available, otherwise default
+        message = str(exc) if str(exc) else "Request timed out"
         timeout_error = RequestTimeoutError(
-            message="Request timed out",
+            message=message,
             timeout_seconds=settings.request_timeout,
             operation="request",
+        )
+        # Log for debugging
+        logger.warning(
+            "Request timeout",
+            timeout_seconds=settings.request_timeout,
+            error=str(exc),
         )
         return JSONResponse(
             status_code=timeout_error.status_code,

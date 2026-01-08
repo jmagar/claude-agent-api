@@ -40,6 +40,13 @@ class SessionLockedError(APIError):
 class SessionCompletedError(APIError):
     """Raised when trying to resume a completed or errored session."""
 
+    # Map status values to grammatically correct past-tense forms
+    _STATUS_DISPLAY: dict[str, str] = {
+        "completed": "completed",
+        "error": "errored",
+        "active": "active",
+    }
+
     def __init__(self, session_id: str, status: str) -> None:
         """Initialize session completed error.
 
@@ -47,8 +54,9 @@ class SessionCompletedError(APIError):
             session_id: The session ID.
             status: Current session status.
         """
+        display_status = self._STATUS_DISPLAY.get(status, status)
         super().__init__(
-            message=f"Session '{session_id}' has already {status}",
+            message=f"Session '{session_id}' has already {display_status}",
             code="SESSION_COMPLETED",
             status_code=400,
             details={"session_id": session_id, "status": status},

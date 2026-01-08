@@ -106,7 +106,7 @@ class RedisCache:
         Returns:
             True if successful.
         """
-        if ttl:
+        if ttl is not None:
             await self._client.setex(key, ttl, value.encode("utf-8"))
         else:
             await self._client.set(key, value.encode("utf-8"))
@@ -223,8 +223,8 @@ class RedisCache:
         self,
         key: str,
         ttl: int = 300,
-        value: str = "locked",
-    ) -> bool:
+        value: str | None = None,
+    ) -> str | None:
         """Acquire a distributed lock.
 
         Args:
@@ -233,26 +233,38 @@ class RedisCache:
             value: Lock value.
 
         Returns:
-            True if lock acquired.
+            Lock value if acquired, None otherwise.
         """
+        import uuid
+        lock_value = value or str(uuid.uuid4())
         result = await self._client.set(
             f"lock:{key}",
-            value.encode("utf-8"),
+            lock_value.encode("utf-8"),
             nx=True,
             ex=ttl,
         )
-        return result is True
+        return lock_value if result is True else None
 
-    async def release_lock(self, key: str) -> bool:
+    async def release_lock(self, key: str, value: str) -> bool:
         """Release a distributed lock.
 
         Args:
             key: Lock key.
+            value: Lock value for ownership verification.
 
         Returns:
             True if released.
         """
-        return await self.delete(f"lock:{key}")
+        # Lua script for atomic check-and-delete
+        script = """
+        if redis.call("get", KEYS[1]) == ARGV[1] then
+            return redis.call("del", KEYS[1])
+        else
+            return 0
+        end
+        """
+        result = await self._client.eval(script, 1, f"lock:{key}", value)
+        return result == 1
 
     async def ping(self) -> bool:
         """Check cache connectivity.

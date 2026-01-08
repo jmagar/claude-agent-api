@@ -59,7 +59,7 @@ class ApiKeyAuthMiddleware(BaseHTTPMiddleware):
 
         # Validate API key
         settings = get_settings()
-        if api_key != settings.api_key.get_secret_value():
+        if not secrets.compare_digest(api_key, settings.api_key.get_secret_value()):
             return JSONResponse(
                 status_code=401,
                 content={

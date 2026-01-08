@@ -201,13 +201,13 @@ class TestCheckpointNotFoundError:
     """Tests for CheckpointNotFoundError."""
 
     def test_error_details(self) -> None:
-        """Test error contains checkpoint UUID."""
+        """Test error contains checkpoint ID."""
         error = CheckpointNotFoundError("checkpoint-abc")
 
         assert error.status_code == 404
         assert error.code == "CHECKPOINT_NOT_FOUND"
         assert "checkpoint-abc" in error.message
-        assert error.details["checkpoint_uuid"] == "checkpoint-abc"
+        assert error.details["checkpoint_id"] == "checkpoint-abc"
 
 
 class TestInvalidCheckpointError:
@@ -242,17 +242,17 @@ class TestHookError:
         assert error.details["hook_event"] == "PreToolUse"
         assert "webhook_url" not in error.details
 
-    def test_with_webhook_url(self) -> None:
-        """Test hook error with webhook URL."""
+    def test_with_different_event(self) -> None:
+        """Test hook error with different event type."""
         error = HookError(
             "PostToolUse",
             "Connection refused",
-            webhook_url="https://example.com/hook",
         )
 
         assert error.status_code == 502
         assert error.details["hook_event"] == "PostToolUse"
-        assert error.details["webhook_url"] == "https://example.com/hook"
+        # webhook_url intentionally excluded to prevent leaking sensitive info
+        assert "webhook_url" not in error.details
 
 
 class TestAgentError:

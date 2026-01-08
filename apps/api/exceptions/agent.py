@@ -49,20 +49,18 @@ class HookError(APIError):
         self,
         hook_event: str,
         message: str,
-        webhook_url: str | None = None,
     ) -> None:
         """Initialize hook error.
 
         Args:
             hook_event: The hook event type.
             message: Error message.
-            webhook_url: The webhook URL that failed.
         """
         details: dict[str, str | int | float | bool | list[str] | None] = {
             "hook_event": hook_event
         }
-        if webhook_url:
-            details["webhook_url"] = webhook_url
+        # Note: webhook_url intentionally excluded to prevent leaking
+        # sensitive information (tokens/keys in query params)
         super().__init__(
             message=message,
             code="HOOK_ERROR",

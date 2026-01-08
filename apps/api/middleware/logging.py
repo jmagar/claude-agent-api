@@ -23,7 +23,7 @@ LOG_LEVELS: dict[str, int] = {
 }
 
 
-def configure_logging(log_level: str = "INFO", log_json: bool = True) -> None:
+def configure_logging(log_level: str = "INFO", *, log_json: bool = True) -> None:
     """Configure structlog for the application.
 
     Args:
@@ -108,7 +108,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         correlation_id = get_correlation_id()
 
         # Bind context
-        structlog.contextvars.clear_contextvars()
+        # Bind context additively (preserve existing context)
         structlog.contextvars.bind_contextvars(
             correlation_id=correlation_id,
             method=request.method,
@@ -142,8 +142,8 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             # Calculate duration
             duration_ms = (time.perf_counter() - start_time) * 1000
 
-            # Log error
-            self.logger.error(
+            # Log error with stack trace
+            self.logger.exception(
                 "request_failed",
                 error=str(e),
                 error_type=type(e).__name__,

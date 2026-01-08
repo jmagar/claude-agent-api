@@ -6,17 +6,17 @@ from apps.api.exceptions.base import APIError
 class CheckpointNotFoundError(APIError):
     """Raised when a checkpoint is not found."""
 
-    def __init__(self, checkpoint_uuid: str) -> None:
+    def __init__(self, checkpoint_id: str) -> None:
         """Initialize checkpoint not found error.
 
         Args:
-            checkpoint_uuid: The checkpoint UUID that was not found.
+            checkpoint_id: The checkpoint ID that was not found.
         """
         super().__init__(
-            message=f"Checkpoint '{checkpoint_uuid}' not found",
+            message=f"Checkpoint '{checkpoint_id}' not found",
             code="CHECKPOINT_NOT_FOUND",
             status_code=404,
-            details={"checkpoint_uuid": checkpoint_uuid},
+            details={"checkpoint_id": checkpoint_id},
         )
 
 

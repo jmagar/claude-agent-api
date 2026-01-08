@@ -114,9 +114,6 @@ def upgrade() -> None:
 
     # Create indexes for checkpoints
     op.create_index("idx_checkpoints_session_id", "checkpoints", ["session_id"])
-    op.create_index(
-        "idx_checkpoints_uuid", "checkpoints", ["user_message_uuid"], unique=True
-    )
 
 
 def downgrade() -> None:

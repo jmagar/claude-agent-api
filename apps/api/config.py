@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     api_port: int = Field(default=54000, ge=1, le=65535, description="API port")
     api_key: SecretStr = Field(..., description="API key for client authentication")
     debug: bool = Field(default=False, description="Enable debug mode")
+    cors_origins: list[str] = Field(
+        default=["*"],
+        description="Allowed CORS origins (use ['*'] for development only)",
+    )
 
     # Anthropic API (optional when using Claude Max subscription)
     anthropic_api_key: SecretStr | None = Field(
@@ -31,7 +35,7 @@ class Settings(BaseSettings):
 
     # Database
     database_url: str = Field(
-        default="postgresql+asyncpg://postgres:postgres@100.120.242.29:53432/claude_agent",
+        default="postgresql+asyncpg://user:password@localhost:53432/claude_agent",
         description="PostgreSQL connection string",
     )
     db_pool_size: int = Field(default=5, ge=1, le=20, description="Database pool size")
@@ -41,7 +45,7 @@ class Settings(BaseSettings):
 
     # Redis
     redis_url: str = Field(
-        default="redis://100.120.242.29:53380/0",
+        default="redis://localhost:53380/0",
         description="Redis connection string",
     )
     redis_session_ttl: int = Field(
@@ -57,6 +61,12 @@ class Settings(BaseSettings):
     # File Checkpointing
     enable_file_checkpointing: bool = Field(
         default=False, description="Enable SDK file checkpointing"
+    )
+
+    # Proxy Settings
+    trust_proxy_headers: bool = Field(
+        default=False,
+        description="Trust X-Forwarded-For header (only enable behind trusted proxy)",
     )
 
     # Rate Limiting (T124)

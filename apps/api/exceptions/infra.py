@@ -56,7 +56,7 @@ class RequestTimeoutError(APIError):
             operation: The operation that timed out.
         """
         details: dict[str, str | int | float | bool | list[str] | None] = {}
-        if timeout_seconds:
+        if timeout_seconds is not None:
             details["timeout_seconds"] = timeout_seconds
         if operation:
             details["operation"] = operation
@@ -86,7 +86,7 @@ class ServiceUnavailableError(APIError):
             retry_after: Suggested retry time in seconds.
         """
         details: dict[str, str | int | float | bool | list[str] | None] = {}
-        if retry_after:
+        if retry_after is not None:
             details["retry_after"] = retry_after
         super().__init__(
             message=message,

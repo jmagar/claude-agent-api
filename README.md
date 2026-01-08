@@ -16,7 +16,7 @@ HTTP API service wrapping the Claude Agent Python SDK with full feature parity.
 
 ## Architecture
 
-```
+```text
 apps/api/
 ├── main.py              # FastAPI application
 ├── config.py            # Settings (pydantic-settings)
