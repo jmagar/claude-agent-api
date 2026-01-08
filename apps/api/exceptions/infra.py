@@ -36,7 +36,7 @@ class CacheError(APIError):
 
 
 class RequestTimeoutError(APIError):
-    """Raised when a request times out (T125).
+    """Raised when a request times out.
 
     This error is raised when a query or operation exceeds
     the configured timeout limit.

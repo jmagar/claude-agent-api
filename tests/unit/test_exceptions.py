@@ -8,6 +8,7 @@ from apps.api.exceptions import (
     CheckpointNotFoundError,
     DatabaseError,
     HookError,
+    InvalidCheckpointError,
     RateLimitError,
     RequestTimeoutError,
     ServiceUnavailableError,
@@ -69,6 +70,18 @@ class TestAPIError:
         """Test string representation."""
         error = APIError("Test message")
         assert str(error) == "Test message"
+
+    def test_repr(self) -> None:
+        """Test repr for debugging."""
+        error = APIError(
+            message="Test error",
+            code="TEST_CODE",
+            status_code=400,
+        )
+
+        result = repr(error)
+
+        assert result == "APIError(message='Test error', code='TEST_CODE', status_code=400)"
 
 
 class TestSessionNotFoundError:
@@ -195,6 +208,25 @@ class TestCheckpointNotFoundError:
         assert error.code == "CHECKPOINT_NOT_FOUND"
         assert "checkpoint-abc" in error.message
         assert error.details["checkpoint_uuid"] == "checkpoint-abc"
+
+
+class TestInvalidCheckpointError:
+    """Tests for InvalidCheckpointError."""
+
+    def test_error_details(self) -> None:
+        """Test error contains checkpoint and session IDs."""
+        error = InvalidCheckpointError("cp-123", "sess-456")
+
+        assert error.status_code == 400
+        assert error.code == "INVALID_CHECKPOINT"
+        assert error.details["checkpoint_id"] == "cp-123"
+        assert error.details["session_id"] == "sess-456"
+
+    def test_with_custom_reason(self) -> None:
+        """Test error with custom reason."""
+        error = InvalidCheckpointError("cp-123", "sess-456", reason="Checkpoint already restored")
+
+        assert error.message == "Checkpoint already restored"
 
 
 class TestHookError:

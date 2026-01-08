@@ -44,3 +44,16 @@ class APIError(Exception):
                 "details": self.details,
             }
         }
+
+    def __repr__(self) -> str:
+        """Return string representation for debugging.
+
+        Returns:
+            Debug string with class name and key attributes.
+        """
+        return (
+            f"{self.__class__.__name__}("
+            f"message={self.message!r}, "
+            f"code={self.code!r}, "
+            f"status_code={self.status_code})"
+        )
