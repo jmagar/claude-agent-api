@@ -60,7 +60,6 @@ class AgentService:
                    Required for horizontal scaling across multiple instances.
         """
         self._settings = get_settings()
-        self._active_sessions: dict[str, asyncio.Event] = {}
         self._webhook_service = webhook_service or WebhookService()
         self._checkpoint_service = checkpoint_service
         self._cache = cache
@@ -156,7 +155,10 @@ class AgentService:
     async def query_stream(
         self, request: "QueryRequest"
     ) -> AsyncGenerator[dict[str, str], None]:
-        """Stream a query to the agent.
+        """Stream a query to the agent (distributed-aware).
+
+        This method now uses Redis-backed session tracking instead of
+        in-memory dict, enabling horizontal scaling.
 
         Args:
             request: Query request.
@@ -174,8 +176,8 @@ class AgentService:
             include_partial_messages=request.include_partial_messages,
         )
 
-        # Create interrupt event for this session
-        self._active_sessions[session_id] = asyncio.Event()
+        # Register session as active using distributed tracking (replaces in-memory dict)
+        await self._register_active_session(session_id)
 
         try:
             # Extract plugin names for InitEvent (T115)
@@ -214,9 +216,9 @@ class AgentService:
             async for event in self._execute_query(request, ctx, commands_service):
                 yield event
 
-                # Check for interrupt
-                interrupt_event = self._active_sessions.get(session_id)
-                if interrupt_event and interrupt_event.is_set():
+                # Check for interrupt using Redis-backed check
+                if await self._check_interrupt(session_id):
+                    logger.info("Session interrupted", session_id=session_id)
                     ctx.is_error = False
                     break
 
@@ -258,8 +260,7 @@ class AgentService:
 
             # Emit done event
             reason: Literal["completed", "interrupted", "error"]
-            interrupt_event = self._active_sessions.get(session_id)
-            if interrupt_event and interrupt_event.is_set():
+            if await self._check_interrupt(session_id):
                 reason = "interrupted"
             elif ctx.is_error:
                 reason = "error"
@@ -290,8 +291,8 @@ class AgentService:
             )
 
         finally:
-            # Cleanup
-            self._active_sessions.pop(session_id, None)
+            # Cleanup: unregister from Redis
+            await self._unregister_active_session(session_id)
 
     async def _execute_query(
         self,
@@ -665,8 +666,9 @@ class AgentService:
         Returns:
             True if the answer was accepted, False if session not found.
         """
-        # Check if session exists and is active
-        if session_id not in self._active_sessions:
+        # Check if session exists and is active using distributed tracking
+        is_active = await self._is_session_active(session_id)
+        if not is_active:
             return False
 
         # Store the answer for the session to pick up
@@ -700,8 +702,9 @@ class AgentService:
         Returns:
             True if update was accepted, False if session not found/active.
         """
-        # Check if session exists and is active
-        if session_id not in self._active_sessions:
+        # Check if session exists and is active using distributed tracking
+        is_active = await self._is_session_active(session_id)
+        if not is_active:
             return False
 
         # Log the permission mode change

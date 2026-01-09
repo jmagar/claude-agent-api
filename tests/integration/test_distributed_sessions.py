@@ -131,3 +131,34 @@ async def test_session_create_writes_to_both_db_and_cache(_async_client: AsyncCl
         assert db_session_result.model == "opus"
 
         break
+
+
+@pytest.mark.integration
+@pytest.mark.anyio
+async def test_agent_service_uses_distributed_session_tracking(_async_client: AsyncClient):
+    """Test that AgentService registers sessions in Redis during query execution."""
+    from apps.api.dependencies import get_db
+
+    cache = await get_cache()
+
+    async for db_session in get_db():
+        repo = SessionRepository(db_session)
+        session_service = SessionService(cache=cache, db_repo=repo)
+        agent_service = AgentService(cache=cache)
+
+        session_id = str(uuid4())
+
+        # Register session using the new distributed method
+        await agent_service._register_active_session(session_id)
+
+        # Verify it's in Redis (not just in-memory)
+        is_active = await agent_service._is_session_active(session_id)
+        assert is_active is True
+
+        # Verify second instance can see it (distributed state)
+        agent_service2 = AgentService(cache=cache)
+        is_active_instance2 = await agent_service2._is_session_active(session_id)
+        assert is_active_instance2 is True
+
+        # This proves sessions are visible across instances
+        break
