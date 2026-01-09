@@ -4,6 +4,10 @@ import re
 from pathlib import Path
 from typing import TypedDict
 
+import structlog
+
+logger = structlog.get_logger(__name__)
+
 
 class CommandInfo(TypedDict):
     """Information about a discovered command."""
@@ -42,12 +46,22 @@ class CommandsService:
 
         commands: list[CommandInfo] = []
         for command_file in self.commands_dir.glob("*.md"):
-            commands.append(
-                CommandInfo(
-                    name=command_file.stem,
-                    path=str(command_file)
+            try:
+                commands.append(
+                    CommandInfo(
+                        name=command_file.stem,
+                        path=str(command_file)
+                    )
                 )
-            )
+            except (OSError, UnicodeDecodeError, ValueError) as e:
+                logger.error(
+                    "command_file_discovery_error",
+                    file_path=str(command_file),
+                    error_type=type(e).__name__,
+                    error_message=str(e),
+                )
+                # Continue processing other files
+                continue
 
         return commands
 
