@@ -186,6 +186,24 @@ uv run ruff format .
 uv run mypy apps/api
 ```
 
+## CI/CD
+
+GitHub Actions runs automated checks on every push and pull request:
+
+- **Linting**: Ruff checks code style and common errors
+- **Type Checking**: mypy verifies type safety with strict mode
+- **Testing**: Fast test suite (unit + contract tests) with PostgreSQL and Redis
+
+The CI pipeline ensures code quality and catches issues before merge. All checks must pass before merging to `main`.
+
+### Branch Protection
+
+To enforce CI checks in your repository:
+1. Go to Settings > Branches > Add rule
+2. Branch name pattern: `main`
+3. Enable "Require status checks to pass before merging"
+4. Select: `test` (the job name from ci.yml)
+
 ## Documentation
 
 - [API Specification](specs/001-claude-agent-api/contracts/openapi.yaml)
