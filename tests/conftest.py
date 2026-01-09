@@ -190,7 +190,6 @@ async def mock_active_session_id(_async_client: AsyncClient) -> str:
 
     # Create agent service singleton with cache and register session as active
     agent_service = AgentService(cache=cache)
-    agent_service._active_sessions[session.id] = asyncio.Event()
     # Register session as active in Redis (distributed)
     await agent_service._register_active_session(session.id)
     set_agent_service_singleton(agent_service)
