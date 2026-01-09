@@ -20,6 +20,7 @@ from apps.api.services.agent import AgentService
 from apps.api.services.checkpoint import CheckpointService
 from apps.api.services.session import SessionService
 from apps.api.services.shutdown import ShutdownManager, get_shutdown_manager
+from apps.api.services.skills import SkillsService
 
 # Global instances (initialized in lifespan)
 _async_engine: AsyncEngine | None = None
@@ -228,6 +229,19 @@ def check_shutdown_state() -> ShutdownManager:
             retry_after=30,
         )
     return manager
+
+
+def get_skills_service() -> SkillsService:
+    """Get skills service instance.
+
+    Returns:
+        SkillsService instance configured with project path.
+    """
+    from pathlib import Path
+
+    # Use current working directory as project root
+    project_path = Path.cwd()
+    return SkillsService(project_path=project_path)
 
 
 # Type aliases for dependency injection
