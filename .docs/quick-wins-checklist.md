@@ -111,9 +111,22 @@ if session and session.owner_api_key != current_api_key:
 
 ---
 
+### 6. ✅ Webhook Fail-Closed Security (2 hours) - COMPLETED
+**Impact**: HIGH - Critical security fix
+**Status**: Fixed (SEC-008)
+**Note**: PreToolUse webhooks now fail closed; connection/timeout/HTTP/JSON errors return `deny`.
+
+**Files Updated**:
+- /mnt/cache/workspace/claude-agent-api/apps/api/services/webhook.py
+
+**Fix Applied**:
+All error conditions (timeout, connection errors, HTTP errors, JSON errors) now return `deny` decision instead of `allow`, preventing security bypass when webhook services are unavailable.
+
+---
+
 ## Medium Priority (Next Sprint)
 
-### 6. Clean Ruff Violations (15 minutes)
+### 7. Clean Ruff Violations (15 minutes)
 ```bash
 uv run ruff check apps/api --fix
 ```
@@ -125,7 +138,7 @@ uv run ruff check apps/api --fix
 
 ---
 
-### 7. Add Request Size Limits (30 minutes)
+### 8. Add Request Size Limits (30 minutes)
 **File**: /mnt/cache/workspace/claude-agent-api/apps/api/main.py
 
 ```python
@@ -140,7 +153,7 @@ app.add_middleware(
 
 ---
 
-### 8. Add Performance Tests (4 hours)
+### 9. Add Performance Tests (4 hours)
 **Create**: /mnt/cache/workspace/claude-agent-api/tests/performance/
 
 ```python
@@ -164,7 +177,7 @@ async def test_concurrent_sessions():
 
 ## Low Priority (Backlog)
 
-### 9. Increase Docstring Coverage (2-3 days)
+### 10. Increase Docstring Coverage (2-3 days)
 **Target**: 70% (currently 54%)
 
 **Focus Areas**:
@@ -174,7 +187,7 @@ async def test_concurrent_sessions():
 
 ---
 
-### 10. Add OpenTelemetry Tracing (1 week)
+### 11. Add OpenTelemetry Tracing (1 week)
 **Dependencies**:
 ```toml
 dependencies = [

@@ -39,7 +39,7 @@ This is an **exceptionally well-engineered codebase** that demonstrates senior-l
 - Timing-safe authentication
 
 **Security Issues**:
-- Webhook fail-open behavior
+- ✅ Webhook fail-open behavior (FIXED - SEC-008)
 - No session ownership verification
 - Missing rate limit tests
 
@@ -62,7 +62,7 @@ This is an **exceptionally well-engineered codebase** that demonstrates senior-l
 - Mock strategy well-implemented
 
 **Gaps**:
-- No security tests for fail-open
+- ✅ No security tests for fail-open (FIXED - SEC-008)
 - No performance/load tests
 - Missing edge case coverage
 
@@ -118,7 +118,18 @@ This is an **exceptionally well-engineered codebase** that demonstrates senior-l
 
 ## High Priority Issues
 
-### 3. Session Authorization Bypass 🔒
+### 3. ✅ Webhook Fail-Open Security Bypass 🔒
+**Status**: Fixed (SEC-008)
+**Impact**: Security - webhook errors could bypass authorization controls
+**Effort**: 2 hours
+**Priority**: HIGH
+**Note**: PreToolUse webhooks now fail closed; connection/timeout/HTTP/JSON errors return `deny`.
+
+**Fix**: Modified webhook error handlers to return `deny` decision on all error conditions instead of `allow`.
+
+---
+
+### 4. Session Authorization Bypass 🔒
 **Impact**: Security - any API key can access any session
 **Effort**: 2-3 hours
 **Priority**: HIGH
@@ -127,7 +138,7 @@ This is an **exceptionally well-engineered codebase** that demonstrates senior-l
 
 ---
 
-### 4. N+1 Query Performance 🐌
+### 5. N+1 Query Performance 🐌
 **Status**: ✅ FIXED
 **Impact**: Performance degrades with session count
 **Effort**: 1 hour
@@ -137,7 +148,7 @@ This is an **exceptionally well-engineered codebase** that demonstrates senior-l
 
 ---
 
-### 5. Redis Connection Pool Missing 💥
+### 6. Redis Connection Pool Missing 💥
 **Impact**: Connection exhaustion under load
 **Effort**: 30 minutes
 **Priority**: HIGH
@@ -208,7 +219,7 @@ This is an **exceptionally well-engineered codebase** that demonstrates senior-l
 | **Overall** | **82%** | **748** | ✅ Good |
 
 **Missing Coverage**:
-- Security edge cases (webhook fail-open)
+- ✅ Security edge cases (webhook fail-open - FIXED - SEC-008)
 - Performance scenarios (connection pooling)
 - Error recovery paths
 
@@ -260,7 +271,7 @@ uvicorn: 0.32.0+        ✅ Latest
 | Secret Management | ✅ Excellent | .env + SecretStr |
 | CORS | ✅ Good | Enforced in production |
 | Rate Limiting | ✅ Good | Implemented (T124) |
-| Webhook Security | ⚠️ Fail-open | Should be fail-secure |
+| Webhook Security | ✅ Fixed (SEC-008) | PreToolUse webhooks fail closed on errors |
 
 **Overall Security**: B+ (Good with known gaps)
 
@@ -285,7 +296,7 @@ uvicorn: 0.32.0+        ✅ Latest
 
 - [ ] Split AgentService (2-3 days)
 - [ ] Add database indexes (1 hour)
-- [ ] Add webhook fail-secure behavior (2 hours)
+- [x] Add webhook fail-secure behavior (2 hours) - SEC-008 FIXED
 - [ ] Add security tests (4 hours)
 
 **Total**: 3-4 days
