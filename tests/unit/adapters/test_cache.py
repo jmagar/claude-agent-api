@@ -182,6 +182,35 @@ class TestCacheBasicOperations:
         assert exists is False
 
 
+class TestCacheBulkOperations:
+    """Tests for bulk cache operations (get_many_json)."""
+
+    @pytest.mark.anyio
+    async def test_get_many_json_uses_mget_and_parses(self) -> None:
+        """Test that get_many_json uses mget and parses JSON values safely."""
+        mock_client = AsyncMock()
+        mock_client.mget.return_value = [
+            b'{"id": "s1"}',
+            None,
+            b'{"id": "s2"}',
+        ]
+
+        cache = RedisCache(mock_client)
+
+        result = await cache.get_many_json(["session:s1", "session:missing", "session:s2"])
+
+        mock_client.mget.assert_called_once_with(
+            "session:s1",
+            "session:missing",
+            "session:s2",
+        )
+        assert result == [
+            {"id": "s1"},
+            None,
+            {"id": "s2"},
+        ]
+
+
 class TestCacheScanOperations:
     """Tests for scan_keys with pattern matching and pagination."""
 

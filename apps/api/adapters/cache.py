@@ -29,6 +29,18 @@ class RedisClientProtocol(Protocol):
         """Get value."""
         ...
 
+    async def mget(self, *names: str) -> list[bytes | None]:
+        """Get multiple values.
+
+        Args:
+            *names: Variable number of key names to fetch.
+
+        Returns:
+            List of values in the same order as keys.
+            None for missing keys.
+        """
+        ...
+
     async def set(
         self,
         name: str,
@@ -154,6 +166,34 @@ class RedisCache:
             return parsed
         except (json.JSONDecodeError, ValueError):
             return None
+
+    async def get_many_json(self, keys: list[str]) -> list[dict[str, object] | None]:
+        """Get multiple JSON values from cache using Redis mget.
+
+        Args:
+            keys: List of cache keys to fetch.
+
+        Returns:
+            List of parsed JSON dicts in same order as keys.
+            None for missing keys or JSON decode errors.
+        """
+        if not keys:
+            return []
+
+        values = await self._client.mget(*keys)
+        results: list[dict[str, object] | None] = []
+
+        for raw in values:
+            if raw is None:
+                results.append(None)
+                continue
+            try:
+                decoded = raw.decode("utf-8")
+                results.append(json.loads(decoded))
+            except (UnicodeDecodeError, json.JSONDecodeError, ValueError):
+                results.append(None)
+
+        return results
 
     async def cache_set(
         self,
