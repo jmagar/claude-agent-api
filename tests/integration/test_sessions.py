@@ -1,7 +1,10 @@
 """Integration tests for session management (T041)."""
 
+import json
+
 import pytest
 from httpx import AsyncClient
+from httpx_sse import aconnect_sse
 
 
 class TestSessionResumeIntegration:
@@ -16,29 +19,25 @@ class TestSessionResumeIntegration:
         mock_claude_sdk: None,
     ) -> None:
         """Test that a query creates a session that can be resumed."""
-        # First query to create a session
-        response = await async_client.post(
+        # First query to create a session using SSE
+        request_data = {"prompt": "Say hello"}
+
+        events: list[dict[str, str]] = []
+        async with aconnect_sse(
+            async_client,
+            "POST",
             "/api/v1/query",
-            json={"prompt": "Say hello"},
-            headers=auth_headers,
-        )
-        assert response.status_code == 200
+            headers={**auth_headers, "Accept": "text/event-stream"},
+            json=request_data,
+        ) as event_source:
+            async for sse in event_source.aiter_sse():
+                if sse.event:
+                    events.append({"event": sse.event, "data": sse.data})
 
         # Extract session ID from the init event
-        # The response is SSE - we need to parse it
-        content = response.text
-        assert "session_id" in content
-
-        # For now, we'll parse the session_id from the SSE response
-        # In a real test, we'd use an SSE client
-        import json
-        import re
-
-        # Find init event data
-        init_match = re.search(r'data: (\{"session_id".*?\})', content)
-        assert init_match is not None, f"No init event found in: {content[:500]}"
-
-        init_data = json.loads(init_match.group(1))
+        init_events = [e for e in events if e["event"] == "init"]
+        assert len(init_events) == 1
+        init_data = json.loads(init_events[0]["data"])
         session_id = init_data["session_id"]
         assert session_id is not None
 
@@ -60,34 +59,43 @@ class TestSessionResumeIntegration:
         mock_claude_sdk: None,
     ) -> None:
         """Test that forking creates a new session ID."""
-        # First query to create a session
-        response = await async_client.post(
-            "/api/v1/query",
-            json={"prompt": "Count to 3"},
-            headers=auth_headers,
-        )
-        assert response.status_code == 200
+        # First query to create a session using SSE
+        request_data = {"prompt": "Count to 3"}
 
-        import json
-        import re
+        events: list[dict[str, str]] = []
+        async with aconnect_sse(
+            async_client,
+            "POST",
+            "/api/v1/query",
+            headers={**auth_headers, "Accept": "text/event-stream"},
+            json=request_data,
+        ) as event_source:
+            async for sse in event_source.aiter_sse():
+                if sse.event:
+                    events.append({"event": sse.event, "data": sse.data})
 
         # Extract original session_id
-        init_match = re.search(r'data: (\{"session_id".*?\})', response.text)
-        assert init_match is not None
-        original_session_id = json.loads(init_match.group(1))["session_id"]
+        init_events = [e for e in events if e["event"] == "init"]
+        assert len(init_events) == 1
+        original_session_id = json.loads(init_events[0]["data"])["session_id"]
 
-        # Fork the session
-        fork_response = await async_client.post(
+        # Fork the session using SSE
+        fork_events: list[dict[str, str]] = []
+        async with aconnect_sse(
+            async_client,
+            "POST",
             f"/api/v1/sessions/{original_session_id}/fork",
+            headers={**auth_headers, "Accept": "text/event-stream"},
             json={"prompt": "Now count backwards from 3"},
-            headers=auth_headers,
-        )
-        assert fork_response.status_code == 200
+        ) as event_source:
+            async for sse in event_source.aiter_sse():
+                if sse.event:
+                    fork_events.append({"event": sse.event, "data": sse.data})
 
         # The forked session should have a different session_id
-        fork_init_match = re.search(r'data: (\{"session_id".*?\})', fork_response.text)
-        assert fork_init_match is not None
-        forked_session_id = json.loads(fork_init_match.group(1))["session_id"]
+        fork_init_events = [e for e in fork_events if e["event"] == "init"]
+        assert len(fork_init_events) == 1
+        forked_session_id = json.loads(fork_init_events[0]["data"])["session_id"]
 
         assert forked_session_id != original_session_id
 
@@ -100,20 +108,25 @@ class TestSessionResumeIntegration:
         mock_claude_sdk: None,
     ) -> None:
         """Test that session list shows recently created sessions."""
-        # Create a session
-        query_response = await async_client.post(
+        # Create a session using SSE
+        request_data = {"prompt": "Test session listing"}
+
+        events: list[dict[str, str]] = []
+        async with aconnect_sse(
+            async_client,
+            "POST",
             "/api/v1/query",
-            json={"prompt": "Test session listing"},
-            headers=auth_headers,
-        )
-        assert query_response.status_code == 200
+            headers={**auth_headers, "Accept": "text/event-stream"},
+            json=request_data,
+        ) as event_source:
+            async for sse in event_source.aiter_sse():
+                if sse.event:
+                    events.append({"event": sse.event, "data": sse.data})
 
-        import json
-        import re
-
-        init_match = re.search(r'data: (\{"session_id".*?\})', query_response.text)
-        assert init_match is not None
-        session_id = json.loads(init_match.group(1))["session_id"]
+        # Extract session ID
+        init_events = [e for e in events if e["event"] == "init"]
+        assert len(init_events) == 1
+        session_id = json.loads(init_events[0]["data"])["session_id"]
 
         # List sessions
         list_response = await async_client.get(
@@ -136,20 +149,25 @@ class TestSessionResumeIntegration:
         mock_claude_sdk: None,
     ) -> None:
         """Test that session detail returns session information."""
-        # Create a session
-        query_response = await async_client.post(
+        # Create a session using SSE
+        request_data = {"prompt": "Test session detail"}
+
+        events: list[dict[str, str]] = []
+        async with aconnect_sse(
+            async_client,
+            "POST",
             "/api/v1/query",
-            json={"prompt": "Test session detail"},
-            headers=auth_headers,
-        )
-        assert query_response.status_code == 200
+            headers={**auth_headers, "Accept": "text/event-stream"},
+            json=request_data,
+        ) as event_source:
+            async for sse in event_source.aiter_sse():
+                if sse.event:
+                    events.append({"event": sse.event, "data": sse.data})
 
-        import json
-        import re
-
-        init_match = re.search(r'data: (\{"session_id".*?\})', query_response.text)
-        assert init_match is not None
-        session_id = json.loads(init_match.group(1))["session_id"]
+        # Extract session ID
+        init_events = [e for e in events if e["event"] == "init"]
+        assert len(init_events) == 1
+        session_id = json.loads(init_events[0]["data"])["session_id"]
 
         # Get session detail
         detail_response = await async_client.get(
