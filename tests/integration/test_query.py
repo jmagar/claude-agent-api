@@ -43,12 +43,14 @@ pytestmark = pytest.mark.skipif(
 class TestQueryStreaming:
     """Integration tests for streaming query functionality."""
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     @pytest.mark.timeout(60)
     async def test_query_stream_init_event(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test that query stream starts with init event."""
         request_data = {
@@ -79,12 +81,14 @@ class TestQueryStreaming:
         assert isinstance(init_data, dict)
         assert "session_id" in init_data
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     @pytest.mark.timeout(60)
     async def test_query_stream_result_event(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test that query stream ends with result event."""
         request_data = {
@@ -121,12 +125,14 @@ class TestQueryStreaming:
         # Result should have either is_complete or session_id
         assert "is_complete" in result_data or "session_id" in result_data
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     @pytest.mark.timeout(60)
     async def test_query_stream_done_event(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test that query stream ends with done event."""
         request_data = {
@@ -153,12 +159,14 @@ class TestQueryStreaming:
         event_types = [e["event"] for e in events]
         assert "done" in event_types
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     @pytest.mark.timeout(60)
     async def test_query_stream_session_id_returned(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test that session_id is returned in init event."""
         request_data = {
@@ -184,12 +192,14 @@ class TestQueryStreaming:
         assert isinstance(session_id, str)
         assert len(session_id) > 0
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     @pytest.mark.timeout(60)
     async def test_query_stream_with_allowed_tools(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test query with allowed_tools restriction."""
         request_data = {
@@ -219,12 +229,14 @@ class TestQueryStreaming:
         error_events = [e for e in events if e["event"] == "error"]
         assert len(error_events) == 0
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     @pytest.mark.timeout(30)
     async def test_query_stream_error_handling(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test error handling in streaming mode."""
         # Send invalid request (missing required prompt)
@@ -243,12 +255,14 @@ class TestQueryStreaming:
 class TestQuerySingle:
     """Integration tests for single (non-streaming) query."""
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     @pytest.mark.timeout(60)
     async def test_query_single_returns_complete_response(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test that single query returns complete response."""
         request_data = {
@@ -270,12 +284,14 @@ class TestQuerySingle:
         assert "session_id" in data
         assert "content" in data or "message" in data or "result" in data
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     @pytest.mark.timeout(60)
     async def test_query_single_includes_usage(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test that single query response includes usage data."""
         request_data = {

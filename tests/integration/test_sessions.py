@@ -7,11 +7,13 @@ from httpx import AsyncClient
 class TestSessionResumeIntegration:
     """Integration tests for session resume flow."""
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_query_creates_session_that_can_be_resumed(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test that a query creates a session that can be resumed."""
         # First query to create a session
@@ -49,11 +51,13 @@ class TestSessionResumeIntegration:
         assert resume_response.status_code == 200
         assert "text/event-stream" in resume_response.headers.get("content-type", "")
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_session_fork_creates_new_session(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test that forking creates a new session ID."""
         # First query to create a session
@@ -87,11 +91,13 @@ class TestSessionResumeIntegration:
 
         assert forked_session_id != original_session_id
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_session_list_shows_created_sessions(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test that session list shows recently created sessions."""
         # Create a session
@@ -121,11 +127,13 @@ class TestSessionResumeIntegration:
         session_ids = [s["id"] for s in data["sessions"]]
         assert session_id in session_ids
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_session_detail_returns_session_info(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test that session detail returns session information."""
         # Create a session
@@ -154,3 +162,39 @@ class TestSessionResumeIntegration:
         assert data["id"] == session_id
         assert "status" in data
         assert "created_at" in data
+
+    @pytest.mark.integration
+    @pytest.mark.anyio
+    async def test_single_query_session_is_persisted(
+        self,
+        async_client: AsyncClient,
+        auth_headers: dict[str, str],
+        mock_claude_sdk: None,
+    ) -> None:
+        """Test that sessions from /query/single are persisted and retrievable."""
+        # Create a session via single query endpoint
+        query_response = await async_client.post(
+            "/api/v1/query/single",
+            json={"prompt": "Test single query session persistence"},
+            headers=auth_headers,
+        )
+        assert query_response.status_code == 200
+        query_data = query_response.json()
+
+        # Extract session_id from response
+        session_id = query_data["session_id"]
+        assert session_id is not None
+
+        # Verify session can be retrieved
+        detail_response = await async_client.get(
+            f"/api/v1/sessions/{session_id}",
+            headers=auth_headers,
+        )
+        assert detail_response.status_code == 200
+        session_data = detail_response.json()
+
+        # Verify session details
+        assert session_data["id"] == session_id
+        assert session_data["status"] in ["active", "completed", "error"]
+        assert "created_at" in session_data
+        assert "model" in session_data

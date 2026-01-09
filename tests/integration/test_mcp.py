@@ -7,12 +7,16 @@ import pytest
 from httpx import AsyncClient
 
 
+@pytest.mark.integration
 @pytest.mark.anyio
 class TestMcpServerIntegration:
     """Integration tests for MCP server configuration."""
 
     async def test_query_with_mcp_server_config_accepted(
-        self, async_client: AsyncClient, auth_headers: dict[str, str]
+        self,
+        async_client: AsyncClient,
+        auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test that MCP server configuration is accepted by the API.
 
@@ -41,7 +45,10 @@ class TestMcpServerIntegration:
         assert response.status_code == 200
 
     async def test_query_with_sse_mcp_server_config(
-        self, async_client: AsyncClient, auth_headers: dict[str, str]
+        self,
+        async_client: AsyncClient,
+        auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test that SSE transport MCP servers are accepted."""
         response = await async_client.post(
@@ -64,7 +71,10 @@ class TestMcpServerIntegration:
         assert response.status_code == 200
 
     async def test_query_with_http_mcp_server_config(
-        self, async_client: AsyncClient, auth_headers: dict[str, str]
+        self,
+        async_client: AsyncClient,
+        auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test that HTTP transport MCP servers are accepted."""
         response = await async_client.post(
@@ -86,7 +96,10 @@ class TestMcpServerIntegration:
         assert response.status_code == 200
 
     async def test_query_with_env_var_syntax_in_mcp_config(
-        self, async_client: AsyncClient, auth_headers: dict[str, str]
+        self,
+        async_client: AsyncClient,
+        auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test that environment variable syntax is accepted in MCP config."""
         response = await async_client.post(
@@ -112,7 +125,10 @@ class TestMcpServerIntegration:
         assert response.status_code == 200
 
     async def test_invalid_mcp_server_stdio_missing_command(
-        self, async_client: AsyncClient, auth_headers: dict[str, str]
+        self,
+        async_client: AsyncClient,
+        auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test that stdio transport without command returns validation error."""
         response = await async_client.post(
@@ -133,7 +149,10 @@ class TestMcpServerIntegration:
         # Validation error for missing command
 
     async def test_invalid_mcp_server_sse_missing_url(
-        self, async_client: AsyncClient, auth_headers: dict[str, str]
+        self,
+        async_client: AsyncClient,
+        auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test that sse transport without url returns validation error."""
         response = await async_client.post(
@@ -153,7 +172,10 @@ class TestMcpServerIntegration:
         assert response.status_code == 422
 
     async def test_multiple_mcp_servers(
-        self, async_client: AsyncClient, auth_headers: dict[str, str]
+        self,
+        async_client: AsyncClient,
+        auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test configuring multiple MCP servers."""
         response = await async_client.post(

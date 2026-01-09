@@ -13,11 +13,13 @@ from apps.api.schemas.requests.query import QueryRequest
 class TestSubagentDefinitionValidation:
     """Tests for subagent definition request validation."""
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_agents_parameter_accepted(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test that agents parameter is accepted in query request."""
         response = await async_client.post(
@@ -38,11 +40,13 @@ class TestSubagentDefinitionValidation:
         # Should accept the request (stream starts) - status 200 for SSE
         assert response.status_code == 200
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_multiple_agents_accepted(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test that multiple agents can be defined."""
         response = await async_client.post(
@@ -66,11 +70,13 @@ class TestSubagentDefinitionValidation:
         )
         assert response.status_code == 200
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_agent_with_model_override(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test that agent model can be overridden."""
         response = await async_client.post(
@@ -94,8 +100,12 @@ class TestSubagentDefinitionValidation:
 class TestAgentDefinitionSchema:
     """Tests for AgentDefinitionSchema validation."""
 
+    @pytest.mark.integration
     @pytest.mark.anyio
-    async def test_schema_requires_description(self) -> None:
+    async def test_schema_requires_description(
+        self,
+        mock_claude_sdk: None,
+    ) -> None:
         """Test that AgentDefinitionSchema requires description."""
         with pytest.raises(ValueError):
             AgentDefinitionSchema(
@@ -103,8 +113,12 @@ class TestAgentDefinitionSchema:
                 # missing description
             )  # type: ignore
 
+    @pytest.mark.integration
     @pytest.mark.anyio
-    async def test_schema_requires_prompt(self) -> None:
+    async def test_schema_requires_prompt(
+        self,
+        mock_claude_sdk: None,
+    ) -> None:
         """Test that AgentDefinitionSchema requires prompt."""
         with pytest.raises(ValueError):
             AgentDefinitionSchema(
@@ -112,8 +126,12 @@ class TestAgentDefinitionSchema:
                 # missing prompt
             )  # type: ignore
 
+    @pytest.mark.integration
     @pytest.mark.anyio
-    async def test_schema_accepts_minimal_definition(self) -> None:
+    async def test_schema_accepts_minimal_definition(
+        self,
+        mock_claude_sdk: None,
+    ) -> None:
         """Test that minimal agent definition is accepted."""
         agent = AgentDefinitionSchema(
             description="Test agent",
@@ -124,8 +142,12 @@ class TestAgentDefinitionSchema:
         assert agent.tools is None
         assert agent.model is None
 
+    @pytest.mark.integration
     @pytest.mark.anyio
-    async def test_schema_accepts_full_definition(self) -> None:
+    async def test_schema_accepts_full_definition(
+        self,
+        mock_claude_sdk: None,
+    ) -> None:
         """Test that full agent definition is accepted."""
         agent = AgentDefinitionSchema(
             description="Full test agent",
@@ -137,8 +159,12 @@ class TestAgentDefinitionSchema:
         assert agent.tools == ["Read", "Grep"]
         assert agent.model == "sonnet"
 
+    @pytest.mark.integration
     @pytest.mark.anyio
-    async def test_schema_model_enum_validation(self) -> None:
+    async def test_schema_model_enum_validation(
+        self,
+        mock_claude_sdk: None,
+    ) -> None:
         """Test that model field validates against allowed values."""
         # Valid model values
         for model in ["sonnet", "opus", "haiku", "inherit"]:
@@ -153,8 +179,12 @@ class TestAgentDefinitionSchema:
 class TestSubagentInQueryRequest:
     """Tests for subagent definition in QueryRequest schema."""
 
+    @pytest.mark.integration
     @pytest.mark.anyio
-    async def test_query_request_accepts_agents(self) -> None:
+    async def test_query_request_accepts_agents(
+        self,
+        mock_claude_sdk: None,
+    ) -> None:
         """Test that QueryRequest accepts agents parameter."""
         request = QueryRequest(
             prompt="Test with agents",
@@ -169,8 +199,12 @@ class TestSubagentInQueryRequest:
         assert "test-agent" in request.agents
         assert request.agents["test-agent"].description == "Test agent"
 
+    @pytest.mark.integration
     @pytest.mark.anyio
-    async def test_query_request_agents_default_none(self) -> None:
+    async def test_query_request_agents_default_none(
+        self,
+        mock_claude_sdk: None,
+    ) -> None:
         """Test that agents defaults to None when not specified."""
         request = QueryRequest(prompt="Test without agents")
         assert request.agents is None
@@ -179,11 +213,13 @@ class TestSubagentInQueryRequest:
 class TestSubagentWithTaskTool:
     """Tests for subagent Task tool integration (T064)."""
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_task_tool_required_for_subagents(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test that Task tool enables subagent delegation.
 
@@ -205,12 +241,14 @@ class TestSubagentWithTaskTool:
 class TestSubagentWithResume:
     """Tests for subagent definition in session resume scenarios."""
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_resume_cannot_add_new_agents(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
         mock_session_id: str,
+        mock_claude_sdk: None,
     ) -> None:
         """Test that resume uses original session agents.
 
@@ -231,12 +269,14 @@ class TestSubagentWithResume:
 class TestSubagentWithFork:
     """Tests for subagent definition in session fork scenarios."""
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_fork_with_agents(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
         mock_session_id: str,
+        mock_claude_sdk: None,
     ) -> None:
         """Test that fork can specify agents for new session."""
         response = await async_client.post(
@@ -254,11 +294,13 @@ class TestSubagentWithFork:
 class TestSubagentSingleQuery:
     """Tests for subagent definition in non-streaming (single) query."""
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_single_query_with_agents(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test that agents work with single (non-streaming) query."""
         response = await async_client.post(
@@ -281,8 +323,12 @@ class TestSubagentSingleQuery:
 class TestSubagentMessageTracking:
     """Tests for subagent message tracking (T066)."""
 
+    @pytest.mark.integration
     @pytest.mark.anyio
-    async def test_parent_tool_use_id_in_schema(self) -> None:
+    async def test_parent_tool_use_id_in_schema(
+        self,
+        mock_claude_sdk: None,
+    ) -> None:
         """Test that parent_tool_use_id field exists in MessageEventData.
 
         Per US4 acceptance scenario 6: Given a subagent is executing,
@@ -301,11 +347,13 @@ class TestSubagentMessageTracking:
 class TestSubagentSDKIntegration:
     """Integration tests requiring SDK for subagent behavior."""
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_subagent_automatic_invocation(
         self,
         _async_client: AsyncClient,
         _auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test that subagent is automatically invoked based on description.
 
@@ -315,11 +363,13 @@ class TestSubagentSDKIntegration:
         """
         pytest.skip("Requires SDK integration for subagent invocation testing")
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_subagent_tool_restriction(
         self,
         _async_client: AsyncClient,
         _auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test that subagent respects tool restrictions.
 
@@ -329,11 +379,13 @@ class TestSubagentSDKIntegration:
         """
         pytest.skip("Requires SDK integration for subagent tool restriction testing")
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_subagent_explicit_invocation(
         self,
         _async_client: AsyncClient,
         _auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test that subagent is invoked when explicitly mentioned by name.
 

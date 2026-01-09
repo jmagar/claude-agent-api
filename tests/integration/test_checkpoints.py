@@ -10,12 +10,14 @@ from httpx import AsyncClient
 class TestCheckpointIntegration:
     """Integration tests for checkpoint functionality."""
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_session_with_checkpointing_lists_checkpoints(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
         mock_session_with_checkpoints: str,
+        mock_claude_sdk: None,
     ) -> None:
         """Test that checkpoints can be listed for a session with checkpoints."""
         # Get checkpoints for the session
@@ -38,12 +40,14 @@ class TestCheckpointIntegration:
         assert "created_at" in checkpoint
         assert "files_modified" in checkpoint
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_session_without_checkpointing_returns_empty_list(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
         mock_session_id: str,
+        mock_claude_sdk: None,
     ) -> None:
         """Test that sessions without checkpoints return empty list."""
         response = await async_client.get(
@@ -57,6 +61,7 @@ class TestCheckpointIntegration:
         assert isinstance(data["checkpoints"], list)
         assert len(data["checkpoints"]) == 0
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_rewind_to_valid_checkpoint_succeeds(
         self,
@@ -64,6 +69,7 @@ class TestCheckpointIntegration:
         auth_headers: dict[str, str],
         mock_session_with_checkpoints: str,
         mock_checkpoint_id: str,
+        mock_claude_sdk: None,
     ) -> None:
         """Test that rewinding to a valid checkpoint succeeds."""
         response = await async_client.post(
@@ -77,12 +83,14 @@ class TestCheckpointIntegration:
         assert data["status"] == "validated"
         assert data["checkpoint_id"] == mock_checkpoint_id
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_rewind_to_invalid_checkpoint_fails(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
         mock_session_id: str,
+        mock_claude_sdk: None,
     ) -> None:
         """Test that rewinding to an invalid checkpoint fails with 400."""
         response = await async_client.post(
@@ -95,6 +103,7 @@ class TestCheckpointIntegration:
 
         assert data["error"]["code"] == "INVALID_CHECKPOINT"
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_rewind_with_other_session_checkpoint_fails(
         self,
@@ -102,6 +111,7 @@ class TestCheckpointIntegration:
         auth_headers: dict[str, str],
         mock_session_id: str,
         mock_checkpoint_from_other_session: str,
+        mock_claude_sdk: None,
     ) -> None:
         """Test that rewinding with a checkpoint from another session fails."""
         response = await async_client.post(
@@ -118,11 +128,13 @@ class TestCheckpointIntegration:
 class TestEnableFileCheckpointing:
     """Integration tests for enable_file_checkpointing parameter."""
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_query_with_checkpointing_enabled_tracks_checkpoints(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test that queries with enable_file_checkpointing=true track checkpoints."""
         # Send a query with checkpointing enabled
@@ -158,11 +170,13 @@ class TestEnableFileCheckpointing:
         assert "checkpoints" in data
         assert isinstance(data["checkpoints"], list)
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_query_without_checkpointing_does_not_track(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test that queries without enable_file_checkpointing don't track checkpoints."""
         # Send a query without checkpointing

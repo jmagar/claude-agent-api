@@ -12,11 +12,13 @@ from apps.api.schemas.requests.query import QueryRequest
 class TestToolRestrictionValidation:
     """Tests for tool restriction request validation."""
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_allowed_tools_parameter_accepted(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test that allowed_tools parameter is accepted in query request."""
         response = await async_client.post(
@@ -30,11 +32,13 @@ class TestToolRestrictionValidation:
         # Should accept the request (stream starts) - status 200 for SSE
         assert response.status_code == 200
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_disallowed_tools_parameter_accepted(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test that disallowed_tools parameter is accepted in query request."""
         response = await async_client.post(
@@ -47,11 +51,13 @@ class TestToolRestrictionValidation:
         )
         assert response.status_code == 200
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_allowed_and_disallowed_tools_together(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test that both allowed_tools and disallowed_tools can be specified.
 
@@ -68,11 +74,13 @@ class TestToolRestrictionValidation:
         )
         assert response.status_code == 200
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_conflicting_tools_rejected(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test that conflicting tools (same tool in both lists) are rejected."""
         response = await async_client.post(
@@ -87,11 +95,13 @@ class TestToolRestrictionValidation:
         # Should be rejected due to Bash appearing in both lists
         assert response.status_code == 422
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_empty_allowed_tools_list_accepted(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test that empty allowed_tools list is accepted."""
         response = await async_client.post(
@@ -108,8 +118,12 @@ class TestToolRestrictionValidation:
 class TestToolRestrictionSchema:
     """Tests for tool restriction in QueryRequest schema."""
 
+    @pytest.mark.integration
     @pytest.mark.anyio
-    async def test_schema_accepts_allowed_tools(self) -> None:
+    async def test_schema_accepts_allowed_tools(
+        self,
+        mock_claude_sdk: None,
+    ) -> None:
         """Test that QueryRequest schema accepts allowed_tools."""
         request = QueryRequest(
             prompt="Test prompt",
@@ -117,8 +131,12 @@ class TestToolRestrictionSchema:
         )
         assert request.allowed_tools == ["Read", "Write", "Edit"]
 
+    @pytest.mark.integration
     @pytest.mark.anyio
-    async def test_schema_accepts_disallowed_tools(self) -> None:
+    async def test_schema_accepts_disallowed_tools(
+        self,
+        mock_claude_sdk: None,
+    ) -> None:
         """Test that QueryRequest schema accepts disallowed_tools."""
         request = QueryRequest(
             prompt="Test prompt",
@@ -126,8 +144,12 @@ class TestToolRestrictionSchema:
         )
         assert request.disallowed_tools == ["Bash"]
 
+    @pytest.mark.integration
     @pytest.mark.anyio
-    async def test_schema_defaults_to_empty_lists(self) -> None:
+    async def test_schema_defaults_to_empty_lists(
+        self,
+        mock_claude_sdk: None,
+    ) -> None:
         """Test that tools default to empty lists when not specified."""
         request = QueryRequest(prompt="Test prompt")
         assert request.allowed_tools == []
@@ -137,12 +159,14 @@ class TestToolRestrictionSchema:
 class TestToolRestrictionWithResume:
     """Tests for tool restriction in session resume scenarios."""
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_resume_with_tool_override(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
         mock_session_id: str,
+        mock_claude_sdk: None,
     ) -> None:
         """Test that tools can be overridden when resuming session."""
         response = await async_client.post(
@@ -155,12 +179,14 @@ class TestToolRestrictionWithResume:
         )
         assert response.status_code == 200
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_resume_inherits_tools_when_not_specified(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
         mock_session_id: str,
+        mock_claude_sdk: None,
     ) -> None:
         """Test that tools are inherited when not specified in resume."""
         response = await async_client.post(
@@ -176,12 +202,14 @@ class TestToolRestrictionWithResume:
 class TestToolRestrictionWithFork:
     """Tests for tool restriction in session fork scenarios."""
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_fork_with_tool_override(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
         mock_session_id: str,
+        mock_claude_sdk: None,
     ) -> None:
         """Test that tools can be overridden when forking session."""
         response = await async_client.post(
@@ -199,11 +227,13 @@ class TestToolRestrictionWithFork:
 class TestToolRestrictionSingleQuery:
     """Tests for tool restriction in non-streaming (single) query."""
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_single_query_with_allowed_tools(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test that allowed_tools works with single (non-streaming) query."""
         response = await async_client.post(
@@ -216,11 +246,13 @@ class TestToolRestrictionSingleQuery:
         )
         assert response.status_code == 200
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_single_query_with_disallowed_tools(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test that disallowed_tools works with single query."""
         response = await async_client.post(
@@ -237,8 +269,12 @@ class TestToolRestrictionSingleQuery:
 class TestBuiltInToolsValidation:
     """Tests for built-in tools constant validation (T060)."""
 
+    @pytest.mark.integration
     @pytest.mark.anyio
-    async def test_builtin_tools_defined(self) -> None:
+    async def test_builtin_tools_defined(
+        self,
+        mock_claude_sdk: None,
+    ) -> None:
         """Test that BUILT_IN_TOOLS constant is defined in constants module."""
         from apps.api.constants import BUILT_IN_TOOLS
 
@@ -261,11 +297,13 @@ class TestBuiltInToolsValidation:
 class TestToolRestrictionSDKIntegration:
     """Integration tests requiring SDK for tool restriction behavior."""
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_agent_respects_allowed_tools(
         self,
         _async_client: AsyncClient,
         _auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test that agent only uses permitted tools.
 
@@ -274,11 +312,13 @@ class TestToolRestrictionSDKIntegration:
         """
         pytest.skip("Requires SDK integration for full tool restriction testing")
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_agent_respects_disallowed_tools(
         self,
         _async_client: AsyncClient,
         _auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test that agent cannot use disallowed tools.
 

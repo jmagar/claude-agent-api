@@ -14,11 +14,13 @@ from apps.api.schemas.requests.query import QueryRequest
 class TestHooksConfigValidation:
     """Tests for hooks configuration in query requests."""
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_query_with_pre_tool_use_hook_accepted(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test that PreToolUse hook configuration is accepted."""
         response = await async_client.post(
@@ -37,11 +39,13 @@ class TestHooksConfigValidation:
         # Should accept the request (stream starts) - status 200 for SSE
         assert response.status_code == 200
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_query_with_post_tool_use_hook_accepted(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test that PostToolUse hook configuration is accepted."""
         response = await async_client.post(
@@ -59,11 +63,13 @@ class TestHooksConfigValidation:
         )
         assert response.status_code == 200
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_query_with_stop_hook_accepted(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test that Stop hook configuration is accepted."""
         response = await async_client.post(
@@ -81,11 +87,13 @@ class TestHooksConfigValidation:
         )
         assert response.status_code == 200
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_query_with_subagent_stop_hook_accepted(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test that SubagentStop hook configuration is accepted."""
         response = await async_client.post(
@@ -103,11 +111,13 @@ class TestHooksConfigValidation:
         )
         assert response.status_code == 200
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_query_with_user_prompt_submit_hook_accepted(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test that UserPromptSubmit hook configuration is accepted."""
         response = await async_client.post(
@@ -125,11 +135,13 @@ class TestHooksConfigValidation:
         )
         assert response.status_code == 200
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_query_with_multiple_hooks_accepted(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test that multiple hooks can be configured together."""
         response = await async_client.post(
@@ -155,11 +167,13 @@ class TestHooksConfigValidation:
         )
         assert response.status_code == 200
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_query_with_hook_headers_accepted(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test that hooks with custom headers are accepted."""
         response = await async_client.post(
@@ -181,11 +195,13 @@ class TestHooksConfigValidation:
         )
         assert response.status_code == 200
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_query_with_hook_matcher_accepted(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test that hooks with matcher regex patterns are accepted."""
         response = await async_client.post(
@@ -311,12 +327,14 @@ class TestHooksConfigSchemaValidation:
 class TestResumeWithHooks:
     """Tests for hooks in session resume requests."""
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_resume_with_hooks_accepted(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
         mock_session_id: str,
+        mock_claude_sdk: None,
     ) -> None:
         """Test that hooks can be provided when resuming a session."""
         response = await async_client.post(
@@ -335,12 +353,14 @@ class TestResumeWithHooks:
         # Should accept the resume request with hooks
         assert response.status_code == 200
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_resume_with_hooks_override(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
         mock_session_id: str,
+        mock_claude_sdk: None,
     ) -> None:
         """Test that hooks can override previous session hooks."""
         response = await async_client.post(
@@ -362,12 +382,14 @@ class TestResumeWithHooks:
 class TestForkWithHooks:
     """Tests for hooks in session fork requests."""
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_fork_with_hooks_accepted(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
         mock_session_id: str,
+        mock_claude_sdk: None,
     ) -> None:
         """Test that hooks can be provided when forking a session."""
         response = await async_client.post(
@@ -394,11 +416,13 @@ class TestForkWithHooks:
 class TestHookInvalidConfigurations:
     """Tests for invalid hook configurations that should be rejected."""
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_invalid_hook_url_rejected(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test that invalid webhook URLs are rejected."""
         response = await async_client.post(
@@ -416,11 +440,13 @@ class TestHookInvalidConfigurations:
         )
         assert response.status_code == 422
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_timeout_below_minimum_rejected(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test that timeout below 1 second is rejected."""
         response = await async_client.post(
@@ -438,11 +464,13 @@ class TestHookInvalidConfigurations:
         )
         assert response.status_code == 422
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_timeout_above_maximum_rejected(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test that timeout above 300 seconds is rejected."""
         response = await async_client.post(
@@ -460,11 +488,13 @@ class TestHookInvalidConfigurations:
         )
         assert response.status_code == 422
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_invalid_hook_type_rejected(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test that invalid hook types are rejected."""
         response = await async_client.post(

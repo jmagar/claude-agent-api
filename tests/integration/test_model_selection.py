@@ -10,11 +10,13 @@ from httpx import AsyncClient
 class TestModelSelection:
     """Integration tests for model selection parameter."""
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_query_with_default_model_uses_sonnet(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test that queries without model parameter default to sonnet."""
         response = await async_client.post(
@@ -35,11 +37,13 @@ class TestModelSelection:
         init_data = json.loads(init_match.group(1))
         assert init_data["model"] == "sonnet"
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_query_with_explicit_sonnet_model(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test that queries with model=sonnet use sonnet."""
         response = await async_client.post(
@@ -60,11 +64,13 @@ class TestModelSelection:
         init_data = json.loads(init_match.group(1))
         assert init_data["model"] == "sonnet"
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_query_with_opus_model(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test that queries with model=opus use opus."""
         response = await async_client.post(
@@ -85,11 +91,13 @@ class TestModelSelection:
         init_data = json.loads(init_match.group(1))
         assert init_data["model"] == "opus"
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_query_with_haiku_model(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test that queries with model=haiku use haiku."""
         response = await async_client.post(
@@ -110,11 +118,13 @@ class TestModelSelection:
         init_data = json.loads(init_match.group(1))
         assert init_data["model"] == "haiku"
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_query_with_invalid_model_returns_422(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test that queries with invalid model return validation error."""
         response = await async_client.post(
@@ -134,11 +144,13 @@ class TestModelSelection:
         error_str = str(data["detail"])
         assert "sonnet" in error_str or "model" in error_str.lower()
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_query_with_full_model_id_accepted(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test that queries with full model ID are accepted."""
         response = await async_client.post(
@@ -159,11 +171,13 @@ class TestModelSelection:
         init_data = json.loads(init_match.group(1))
         assert init_data["model"] == "claude-sonnet-4-20250514"
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_result_event_contains_model_usage(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test that result event contains model_usage breakdown."""
         response = await async_client.post(
@@ -198,11 +212,13 @@ class TestModelSelection:
         # model_usage should be present (may be None if single model)
         assert "model_usage" in result_data
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_single_query_with_model_parameter(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test that /query/single endpoint respects model parameter."""
         response = await async_client.post(

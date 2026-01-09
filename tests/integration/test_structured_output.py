@@ -14,11 +14,13 @@ from apps.api.schemas.requests.query import QueryRequest
 class TestOutputFormatValidation:
     """Tests for output_format request validation."""
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_json_output_format_accepted(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test that json output format type is accepted in query request."""
         response = await async_client.post(
@@ -34,11 +36,13 @@ class TestOutputFormatValidation:
         # Should accept the request (stream starts) - status 200 for SSE
         assert response.status_code == 200
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_json_schema_output_format_accepted(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test that json_schema output format with valid schema is accepted."""
         response = await async_client.post(
@@ -70,11 +74,13 @@ class TestOutputFormatValidation:
         )
         assert response.status_code == 200
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_json_schema_without_schema_rejected(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test that json_schema type without schema field is rejected with 422."""
         response = await async_client.post(
@@ -92,11 +98,13 @@ class TestOutputFormatValidation:
         error_data = response.json()
         assert "detail" in error_data
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_invalid_schema_without_type_rejected(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test that schema without 'type' property is rejected with 422."""
         response = await async_client.post(
@@ -119,11 +127,13 @@ class TestOutputFormatValidation:
         error_data = response.json()
         assert "detail" in error_data
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_invalid_output_format_type_rejected(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test that invalid output format type is rejected with 422."""
         response = await async_client.post(
@@ -202,11 +212,13 @@ class TestOutputFormatSchemaValidation:
 class TestOutputFormatSingleQuery:
     """Tests for output_format in non-streaming (single) query."""
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_single_query_with_json_output_format(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test that output_format works with single (non-streaming) query."""
         response = await async_client.post(
@@ -222,11 +234,13 @@ class TestOutputFormatSingleQuery:
         # Single query endpoint should accept output_format
         assert response.status_code == 200
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_single_query_with_json_schema_output_format(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test single query with json_schema output format."""
         response = await async_client.post(
@@ -249,11 +263,13 @@ class TestOutputFormatSingleQuery:
         )
         assert response.status_code == 200
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_single_query_invalid_output_format_rejected(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
+        mock_claude_sdk: None,
     ) -> None:
         """Test that invalid output_format is rejected in single query."""
         response = await async_client.post(
@@ -332,12 +348,14 @@ class TestOutputFormatInQueryRequest:
 class TestOutputFormatWithSession:
     """Tests for output_format with session operations."""
 
+    @pytest.mark.integration
     @pytest.mark.anyio
     async def test_resume_with_output_format(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
         mock_session_id: str,
+        mock_claude_sdk: None,
     ) -> None:
         """Test that output_format can be specified when resuming a session.
 
