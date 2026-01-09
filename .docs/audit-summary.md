@@ -128,11 +128,12 @@ This is an **exceptionally well-engineered codebase** that demonstrates senior-l
 ---
 
 ### 4. N+1 Query Performance 🐌
+**Status**: ✅ FIXED
 **Impact**: Performance degrades with session count
 **Effort**: 1 hour
 **Priority**: HIGH
 
-**Fix**: Add composite index on `sessions(status, created_at DESC)`.
+**Fix**: Session listing now uses Redis `mget` via `get_many_json` to fetch all sessions in one roundtrip instead of N individual cache reads.
 
 ---
 

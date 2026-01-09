@@ -87,25 +87,10 @@ CMD ["sh", "-c", "uv run alembic upgrade head && uv run uvicorn apps.api.main:ap
 ## High Priority (This Sprint)
 
 ### 4. Add Database Index (1 hour)
-**Impact**: HIGH - Fixes N+1 queries on session listing
+**Status**: N/A (PERF-001 fixed via Redis bulk fetch instead)
+**Impact**: HIGH - N+1 cache reads eliminated
 
-**Create Migration**:
-```bash
-uv run alembic revision -m "add_sessions_composite_index"
-```
-
-**Migration Code**:
-```python
-def upgrade():
-    op.create_index(
-        'idx_sessions_status_created',
-        'sessions',
-        ['status', sa.text('created_at DESC')],
-    )
-
-def downgrade():
-    op.drop_index('idx_sessions_status_created', 'sessions')
-```
+**Note**: Session listing performance issue was resolved by implementing bulk cache reads using Redis `mget` command. Database index not needed for this specific issue.
 
 ---
 
