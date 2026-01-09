@@ -1,5 +1,7 @@
 """API key authentication middleware."""
 
+import secrets
+
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response

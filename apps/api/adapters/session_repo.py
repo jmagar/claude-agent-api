@@ -8,6 +8,7 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from apps.api.exceptions.session import SessionNotFoundError
 from apps.api.models.session import Checkpoint, Session, SessionMessage
 
 
@@ -74,7 +75,7 @@ class SessionRepository:
         total_turns: int | None = None,
         total_cost_usd: float | None = None,
     ) -> Session | None:
-        """Update a session record.
+        """Update a session record atomically.
 
         Args:
             session_id: Session identifier.
@@ -85,21 +86,30 @@ class SessionRepository:
         Returns:
             Updated session or None if not found.
         """
-        session = await self.get(session_id)
-        if session is None:
-            return None
+        from sqlalchemy import update as sql_update
+
+        # Build update values
+        update_values: dict[str, object] = {"updated_at": datetime.now(UTC)}
 
         if status is not None:
-            session.status = status
+            update_values["status"] = status
         if total_turns is not None:
-            session.total_turns = total_turns
+            update_values["total_turns"] = total_turns
         if total_cost_usd is not None:
-            session.total_cost_usd = Decimal(str(total_cost_usd))
-        session.updated_at = datetime.now(UTC)
+            update_values["total_cost_usd"] = Decimal(str(total_cost_usd))
 
+        # Atomic update with RETURNING
+        stmt = (
+            sql_update(Session)
+            .where(Session.id == session_id)
+            .values(**update_values)
+            .returning(Session)
+        )
+
+        result = await self._db.execute(stmt)
         await self._db.commit()
-        await self._db.refresh(session)
-        return session
+
+        return result.scalar_one_or_none()
 
     async def list_sessions(
         self,
@@ -151,16 +161,27 @@ class SessionRepository:
 
         Returns:
             Created message.
+
+        Raises:
+            SessionNotFoundError: If session does not exist.
         """
-        message = SessionMessage(
-            session_id=session_id,
-            message_type=message_type,
-            content=content,
-        )
-        self._db.add(message)
-        await self._db.commit()
-        await self._db.refresh(message)
-        return message
+        try:
+            session = await self.get(session_id)
+            if session is None:
+                raise SessionNotFoundError(str(session_id))
+
+            message = SessionMessage(
+                session_id=session_id,
+                message_type=message_type,
+                content=content,
+            )
+            self._db.add(message)
+            await self._db.commit()
+            await self._db.refresh(message)
+            return message
+        except Exception:
+            await self._db.rollback()
+            raise
 
     async def get_messages(
         self,
@@ -202,16 +223,27 @@ class SessionRepository:
 
         Returns:
             Created checkpoint.
+
+        Raises:
+            SessionNotFoundError: If session does not exist.
         """
-        checkpoint = Checkpoint(
-            session_id=session_id,
-            user_message_uuid=user_message_uuid,
-            files_modified=files_modified,
-        )
-        self._db.add(checkpoint)
-        await self._db.commit()
-        await self._db.refresh(checkpoint)
-        return checkpoint
+        try:
+            session = await self.get(session_id)
+            if session is None:
+                raise SessionNotFoundError(str(session_id))
+
+            checkpoint = Checkpoint(
+                session_id=session_id,
+                user_message_uuid=user_message_uuid,
+                files_modified=files_modified,
+            )
+            self._db.add(checkpoint)
+            await self._db.commit()
+            await self._db.refresh(checkpoint)
+            return checkpoint
+        except Exception:
+            await self._db.rollback()
+            raise
 
     async def get_checkpoints(self, session_id: UUID) -> Sequence[Checkpoint]:
         """Get checkpoints for a session.

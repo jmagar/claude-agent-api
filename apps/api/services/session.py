@@ -84,7 +84,13 @@ class SessionService:
 
         Returns:
             Created session.
+
+        Raises:
+            ValueError: If cache instance is not provided.
         """
+        if not self._cache:
+            raise ValueError("SessionService requires a cache instance")
+
         now = datetime.now(UTC)
         session = Session(
             id=session_id or str(uuid4()),

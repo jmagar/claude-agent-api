@@ -24,7 +24,7 @@ dev:
 	uv run uvicorn apps.api.main:app --host 0.0.0.0 --port 54000 --reload
 
 dev-stop:
-	@PID=$$(lsof -ti :54000 2>/dev/null || fuser 54000/tcp 2>/dev/null | tr -d ' ') && kill $$PID 2>/dev/null && echo "Dev server stopped (PID $$PID)" || echo "No dev server running on port 54000"
+	@PID=$$(lsof -ti :54000 2>/dev/null || fuser 54000/tcp 2>/dev/null | awk '{print $$2}') && kill $$PID 2>/dev/null && echo "Dev server stopped (PID $$PID)" || echo "No dev server running on port 54000"
 
 dev-restart: dev-stop dev
 
@@ -65,7 +65,7 @@ db-migrate:
 	uv run alembic upgrade head
 
 db-reset: db-down db-up
-	@sleep 2
+	@sleep 5
 	$(MAKE) db-migrate
 
 # Cleanup

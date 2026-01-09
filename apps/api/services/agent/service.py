@@ -121,7 +121,8 @@ class AgentService:
                 yield event
 
                 # Check for interrupt
-                if self._active_sessions.get(session_id, asyncio.Event()).is_set():
+                interrupt_event = self._active_sessions.get(session_id)
+                if interrupt_event and interrupt_event.is_set():
                     ctx.is_error = False
                     break
 
@@ -163,7 +164,8 @@ class AgentService:
 
             # Emit done event
             reason: Literal["completed", "interrupted", "error"]
-            if self._active_sessions.get(session_id, asyncio.Event()).is_set():
+            interrupt_event = self._active_sessions.get(session_id)
+            if interrupt_event and interrupt_event.is_set():
                 reason = "interrupted"
             elif ctx.is_error:
                 reason = "error"

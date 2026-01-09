@@ -6,8 +6,11 @@ import json
 from typing import TYPE_CHECKING, cast
 
 import redis.asyncio as redis
+import structlog
 
 from apps.api.config import get_settings
+
+logger = structlog.get_logger(__name__)
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable
@@ -130,14 +133,18 @@ class RedisCache:
         """
         return await self.cache_set(key, json.dumps(value), ttl)
 
-    async def scan_keys(self, pattern: str) -> list[str]:
-        """Scan for keys matching pattern.
+    async def scan_keys(self, pattern: str, max_keys: int = 10000) -> list[str]:
+        """Scan for keys matching a pattern.
 
         Args:
-            pattern: Glob-style pattern (e.g., 'session:*').
+            pattern: Redis key pattern (e.g., "session:*")
+            max_keys: Maximum number of keys to return (default: 10000)
 
         Returns:
-            List of matching keys.
+            List of matching keys (up to max_keys)
+
+        Note:
+            If more than max_keys match, only the first max_keys are returned.
         """
         all_keys: list[str] = []
         cursor: int = 0
@@ -149,13 +156,28 @@ class RedisCache:
                 count=100,
             )
             cursor = int(cursor_result[0])
-            all_keys.extend(
-                k.decode() if isinstance(k, bytes) else str(k) for k in cursor_result[1]
-            )
+
+            # Decode and add keys
+            batch = [
+                k.decode() if isinstance(k, bytes) else str(k)
+                for k in cursor_result[1]
+            ]
+            all_keys.extend(batch)
+
+            # Safety limit to prevent OOM
+            if len(all_keys) >= max_keys:
+                logger.warning(
+                    "scan_keys hit limit",
+                    pattern=pattern,
+                    max_keys=max_keys,
+                    found=len(all_keys),
+                )
+                break
+
             if cursor == 0:
                 break
 
-        return all_keys
+        return all_keys[:max_keys]
 
     async def delete(self, key: str) -> bool:
         """Delete a value from cache.

@@ -5,6 +5,7 @@ import json
 from collections.abc import AsyncGenerator
 from typing import Literal
 
+import structlog
 from fastapi import APIRouter, Request
 from sse_starlette import EventSourceResponse
 
@@ -12,6 +13,8 @@ from apps.api.dependencies import AgentSvc, ApiKey, SessionSvc, ShutdownState
 from apps.api.schemas.requests.query import QueryRequest
 from apps.api.schemas.responses import SingleQueryResponse
 from apps.api.services.agent import QueryResponseDict
+
+logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/query", tags=["Query"])
 
@@ -74,8 +77,26 @@ async def query_stream(
                             await session_service.create_session(
                                 model=model, session_id=session_id
                             )
-                    except json.JSONDecodeError:
-                        pass
+                    except json.JSONDecodeError as e:
+                        logger.error("Failed to parse init event", error=str(e), event_data=event_data)
+                        yield {
+                            "event": "error",
+                            "data": json.dumps({
+                                "error": "Session initialization failed",
+                                "details": "Invalid init event format"
+                            })
+                        }
+                        return
+                    except Exception as e:
+                        logger.error("Failed to create session", error=str(e), session_id=session_id)
+                        yield {
+                            "event": "error",
+                            "data": json.dumps({
+                                "error": "Session creation failed",
+                                "details": str(e)
+                            })
+                        }
+                        return
 
                 # Check for client disconnect
                 if await request.is_disconnected():
@@ -124,6 +145,7 @@ async def query_single(
     query: QueryRequest,
     _api_key: ApiKey,
     agent_service: AgentSvc,
+    session_service: SessionSvc,
     _shutdown: ShutdownState,
 ) -> QueryResponseDict:
     """Execute a non-streaming query to the agent.
@@ -134,9 +156,40 @@ async def query_single(
         query: Query request body.
         _api_key: Validated API key (via dependency).
         agent_service: Agent service instance.
+        session_service: Session service instance.
         _shutdown: Shutdown state check (via dependency, rejects if shutting down).
 
     Returns:
         Complete query response.
     """
-    return await agent_service.query_single(query)
+    # Execute the query
+    result = await agent_service.query_single(query)
+
+    # Persist the session if this is a new session (not resuming)
+    if query.session_id is None:
+        try:
+            session_id = result["session_id"]
+            model = result["model"]
+            await session_service.create_session(
+                model=model, session_id=session_id
+            )
+
+            # Update session status based on result
+            status: Literal["completed", "error"] = (
+                "error" if result["is_error"] else "completed"
+            )
+            await session_service.update_session(
+                session_id=session_id,
+                status=status,
+                total_turns=result["num_turns"],
+            )
+        except Exception as e:
+            logger.error(
+                "Failed to persist session for single query",
+                error=str(e),
+                session_id=result.get("session_id"),
+            )
+            # Don't fail the request if session persistence fails
+            # Return the result anyway
+
+    return result

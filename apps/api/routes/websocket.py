@@ -3,6 +3,7 @@
 import asyncio
 import contextlib
 import json
+import secrets
 from dataclasses import dataclass
 from typing import Literal, TypedDict, cast
 
@@ -255,13 +256,16 @@ async def websocket_query(
     """
     settings = get_settings()
 
-    # Authenticate via query parameter or header
-    api_key = websocket.query_params.get("api_key")
-    if not api_key:
-        api_key = websocket.headers.get("x-api-key")
+    # Authenticate via header ONLY (don't allow query params for secrets)
+    api_key = websocket.headers.get("x-api-key")
 
-    if not api_key or api_key != settings.api_key:
-        await websocket.close(code=4001, reason="Unauthorized")
+    if not api_key:
+        await websocket.close(code=4001, reason="Missing API key")
+        return
+
+    # Use constant-time comparison to prevent timing attacks
+    if not secrets.compare_digest(api_key, settings.api_key.get_secret_value()):
+        await websocket.close(code=4001, reason="Invalid API key")
         return
 
     await websocket.accept()
@@ -284,8 +288,8 @@ async def websocket_query(
     except WebSocketDisconnect:
         logger.info("WebSocket disconnected")
     except Exception as e:
-        logger.error("WebSocket error", error=str(e))
-        await _send_error(websocket, f"Internal error: {e}")
+        logger.error("WebSocket error", error=str(e), error_type=type(e).__name__)
+        await _send_error(websocket, "An internal error occurred")
     finally:
         if state.query_task and not state.query_task.done():
             state.query_task.cancel()
@@ -329,8 +333,8 @@ async def _stream_query(
         logger.info("WebSocket query cancelled")
         raise
     except Exception as e:
-        logger.error("WebSocket stream error", error=str(e))
-        await _send_error(websocket, f"Stream error: {e}")
+        logger.error("WebSocket stream error", error=str(e), error_type=type(e).__name__)
+        await _send_error(websocket, "Stream processing failed")
 
 
 async def _send_error(websocket: WebSocket, message: str) -> None:

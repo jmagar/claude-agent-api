@@ -3,7 +3,6 @@
 import pytest
 
 from apps.api.schemas.validators import (
-    BLOCKED_URL_PATTERNS,
     NULL_BYTE_PATTERN,
     PATH_TRAVERSAL_PATTERN,
     SHELL_METACHAR_PATTERN,
@@ -35,13 +34,6 @@ class TestSecurityPatterns:
         """Test null byte pattern."""
         assert NULL_BYTE_PATTERN.search("test\x00inject") is not None
         assert NULL_BYTE_PATTERN.search("safe_string") is None
-
-    def test_blocked_url_patterns(self) -> None:
-        """Test blocked URL patterns tuple."""
-        assert "localhost" in BLOCKED_URL_PATTERNS
-        assert "127.0.0.1" in BLOCKED_URL_PATTERNS
-        assert "169.254." in BLOCKED_URL_PATTERNS
-        assert "metadata.google.internal" in BLOCKED_URL_PATTERNS
 
 
 class TestValidateNoNullBytes:
@@ -94,6 +86,26 @@ class TestValidateUrlNotInternal:
         """Test private IPs raise ValueError."""
         with pytest.raises(ValueError, match="internal resources"):
             validate_url_not_internal("http://192.168.1.1/api")
+
+    def test_loopback_ip_raises(self) -> None:
+        """Test loopback IPs raise ValueError."""
+        with pytest.raises(ValueError, match="internal resources"):
+            validate_url_not_internal("http://127.0.0.1/api")
+
+    def test_link_local_ip_raises(self) -> None:
+        """Test link-local IPs raise ValueError."""
+        with pytest.raises(ValueError, match="internal resources"):
+            validate_url_not_internal("http://169.254.1.1/api")
+
+    def test_ipv6_loopback_raises(self) -> None:
+        """Test IPv6 loopback raises ValueError."""
+        with pytest.raises(ValueError, match="internal resources"):
+            validate_url_not_internal("http://[::1]/api")
+
+    def test_ipv6_private_raises(self) -> None:
+        """Test IPv6 private addresses raise ValueError."""
+        with pytest.raises(ValueError, match="internal resources"):
+            validate_url_not_internal("http://[fd00::1]/api")
 
     def test_metadata_url_raises(self) -> None:
         """Test cloud metadata URLs raise ValueError."""

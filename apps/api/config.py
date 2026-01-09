@@ -3,7 +3,7 @@
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field, SecretStr
+from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -18,7 +18,10 @@ class Settings(BaseSettings):
     )
 
     # API Settings
-    api_host: str = Field(default="0.0.0.0", description="API host")
+    api_host: str = Field(
+        default="0.0.0.0",
+        description="API host (0.0.0.0 binds to all interfaces - ensure firewall/proxy protection)",
+    )
     api_port: int = Field(default=54000, ge=1, le=65535, description="API port")
     api_key: SecretStr = Field(..., description="API key for client authentication")
     debug: bool = Field(default=False, description="Enable debug mode")
@@ -91,6 +94,22 @@ class Settings(BaseSettings):
     max_prompt_length: int = Field(
         default=100000, ge=1, le=500000, description="Max prompt length"
     )
+
+    @model_validator(mode="after")
+    def validate_cors_in_production(self) -> "Settings":
+        """Validate CORS configuration in production.
+
+        Prevents using wildcard (*) CORS origins when debug mode is disabled.
+
+        Raises:
+            ValueError: If wildcard CORS is used in production
+        """
+        if not self.debug and "*" in self.cors_origins:
+            raise ValueError(
+                "CORS wildcard (*) is not allowed in production. "
+                "Set DEBUG=true for development or configure specific origins in CORS_ORIGINS."
+            )
+        return self
 
 
 @lru_cache

@@ -1,7 +1,7 @@
 """Constants for the API."""
 
 # Built-in tools list
-BUILT_IN_TOOLS: list[str] = [
+BUILT_IN_TOOLS: tuple[str, ...] = (
     "Read",
     "Write",
     "Edit",
@@ -19,4 +19,4 @@ BUILT_IN_TOOLS: list[str] = [
     "AskUserQuestion",
     "Skill",  # T116c: Skill tool for invoking skills
     "SlashCommand",  # Slash command invocation
-]
+)

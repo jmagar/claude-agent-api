@@ -74,11 +74,13 @@ class MockCache:
         """Get set members (not implemented for tests)."""
         return set()
 
-    async def acquire_lock(self, _key: str, _ttl: int = 300) -> bool:
+    async def acquire_lock(
+        self, _key: str, _ttl: int = 300, _value: str | None = None
+    ) -> str | None:
         """Acquire lock (not implemented for tests)."""
-        return True
+        return "mock-lock-value"
 
-    async def release_lock(self, _key: str) -> bool:
+    async def release_lock(self, _key: str, _value: str) -> bool:
         """Release lock (not implemented for tests)."""
         return True
 

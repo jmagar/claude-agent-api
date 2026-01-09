@@ -8,7 +8,9 @@ Contains security patterns (T128) and validation functions for:
 - Model name validation
 """
 
+import ipaddress
 import re
+from urllib.parse import urlparse
 
 from apps.api.constants import BUILT_IN_TOOLS
 from apps.api.types import VALID_MODEL_PREFIXES, VALID_SHORT_MODEL_NAMES
@@ -21,36 +23,6 @@ PATH_TRAVERSAL_PATTERN = re.compile(r"(?:\.\./|\.\.\\|%2e%2e%2f|%2e%2e/|\.%2e/|%
 
 # Security: Pattern for null bytes
 NULL_BYTE_PATTERN = re.compile(r"\x00")
-
-# Security: Blocked internal URL patterns for SSRF prevention
-BLOCKED_URL_PATTERNS = (
-    "localhost",
-    "127.0.0.1",
-    "0.0.0.0",
-    "::1",
-    "169.254.",  # Link-local
-    "10.",  # Private Class A
-    "172.16.",
-    "172.17.",
-    "172.18.",
-    "172.19.",
-    "172.20.",
-    "172.21.",
-    "172.22.",
-    "172.23.",
-    "172.24.",
-    "172.25.",
-    "172.26.",
-    "172.27.",
-    "172.28.",
-    "172.29.",
-    "172.30.",
-    "172.31.",  # Private Class B
-    "192.168.",  # Private Class C
-    "metadata.google.internal",  # Cloud metadata
-    "metadata.aws.",
-    "instance-data",
-)
 
 
 def validate_no_null_bytes(value: str, field_name: str) -> str:
@@ -101,10 +73,32 @@ def validate_url_not_internal(url: str) -> str:
     Raises:
         ValueError: If URL targets internal resources.
     """
-    url_lower = url.lower()
-    for pattern in BLOCKED_URL_PATTERNS:
-        if pattern in url_lower:
-            raise ValueError("URLs targeting internal resources are not allowed")
+    parsed = urlparse(url)
+    hostname = parsed.hostname
+
+    if not hostname:
+        raise ValueError("Invalid URL: missing hostname")
+
+    # Check for blocked hostnames
+    hostname_lower = hostname.lower()
+    if (
+        hostname_lower in ("localhost", "metadata.google.internal")
+        or hostname_lower.startswith("metadata.aws.")
+        or hostname_lower == "instance-data"
+    ):
+        raise ValueError("URLs targeting internal resources are not allowed")
+
+    # Try to parse as IP address
+    try:
+        ip = ipaddress.ip_address(hostname)
+    except ValueError:
+        # Not an IP address, which is fine - hostname validation passed
+        return url
+
+    # If we got here, it's a valid IP - check if it's internal
+    if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+        raise ValueError("URLs targeting internal resources are not allowed")
+
     return url
 
 

@@ -24,6 +24,7 @@ class SessionRepository(Protocol):
         model: str,
         working_directory: str | None = None,
         parent_session_id: UUID | None = None,
+        metadata: dict[str, object] | None = None,
     ) -> "SessionData":
         """Create a new session record.
 
@@ -32,6 +33,7 @@ class SessionRepository(Protocol):
             model: Claude model used for the session.
             working_directory: Working directory path.
             parent_session_id: Parent session ID for forks.
+            metadata: Additional session metadata.
 
         Returns:
             Created session data.
@@ -236,23 +238,27 @@ class Cache(Protocol):
         """
         ...
 
-    async def acquire_lock(self, key: str, ttl: int = 300) -> bool:
+    async def acquire_lock(
+        self, key: str, ttl: int = 300, value: str | None = None
+    ) -> str | None:
         """Acquire a distributed lock.
 
         Args:
             key: Lock key.
             ttl: Lock TTL in seconds.
+            value: Lock value for ownership. Generated if None.
 
         Returns:
-            True if lock acquired.
+            Lock value if acquired, None otherwise.
         """
         ...
 
-    async def release_lock(self, key: str) -> bool:
+    async def release_lock(self, key: str, value: str) -> bool:
         """Release a distributed lock.
 
         Args:
             key: Lock key.
+            value: Lock value for ownership verification.
 
         Returns:
             True if released.

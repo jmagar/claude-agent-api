@@ -2,8 +2,19 @@
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Literal, TypedDict
+from typing import Literal, TypeAlias, TypedDict
 from uuid import UUID
+
+# JSON value type (recursive union for proper type safety)
+JsonValue: TypeAlias = (
+    None
+    | bool
+    | int
+    | float
+    | str
+    | list["JsonValue"]
+    | dict[str, "JsonValue"]
+)
 
 # Session status values
 SessionStatus = Literal["active", "completed", "error"]

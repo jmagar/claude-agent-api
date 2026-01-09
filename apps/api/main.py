@@ -91,6 +91,10 @@ def create_app() -> FastAPI:
     )
 
     # Add middleware (order matters - first added is last executed)
+    # Reverse order so auth runs first, then correlation, then logging, then CORS
+    app.add_middleware(ApiKeyAuthMiddleware)
+    app.add_middleware(CorrelationIdMiddleware)
+    app.add_middleware(RequestLoggingMiddleware, skip_paths=["/health", "/"])
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
@@ -98,9 +102,6 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    app.add_middleware(RequestLoggingMiddleware, skip_paths=["/health", "/"])
-    app.add_middleware(CorrelationIdMiddleware)
-    app.add_middleware(ApiKeyAuthMiddleware)
 
     # Configure rate limiting (T124)
     configure_rate_limiting(app)

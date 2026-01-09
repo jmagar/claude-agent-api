@@ -25,6 +25,7 @@ from apps.api.services.shutdown import ShutdownManager, get_shutdown_manager
 _async_engine: AsyncEngine | None = None
 _async_session_maker: async_sessionmaker[AsyncSession] | None = None
 _redis_cache: RedisCache | None = None
+_agent_service: AgentService | None = None  # Singleton for tests, None for per-request
 
 
 async def init_db(settings: Settings) -> async_sessionmaker[AsyncSession]:
@@ -160,10 +161,27 @@ def get_agent_service() -> AgentService:
     Creates a new instance per request to avoid sharing mutable
     request-scoped state (_active_sessions) across concurrent requests.
 
+    In tests, if a global singleton is set via set_agent_service_singleton(),
+    that instance is returned instead to allow test fixtures to share state.
+
     Returns:
         AgentService instance.
     """
+    # Use singleton if set (for tests)
+    if _agent_service is not None:
+        return _agent_service
+    # Otherwise create new instance per request
     return AgentService()
+
+
+def set_agent_service_singleton(service: AgentService | None) -> None:
+    """Set a global agent service singleton for tests.
+
+    Args:
+        service: AgentService instance to use as singleton, or None to disable.
+    """
+    global _agent_service
+    _agent_service = service
 
 
 async def get_session_service(
