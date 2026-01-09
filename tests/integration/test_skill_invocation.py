@@ -16,7 +16,7 @@ def parse_sse_data(data: str | None) -> dict[str, object]:
 
     try:
         result = json.loads(data)
-        return cast(dict[str, object], result)
+        return cast("dict[str, object]", result)
     except json.JSONDecodeError:
         return {"raw": data}
 
