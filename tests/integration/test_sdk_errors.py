@@ -39,7 +39,9 @@ class TestSDKErrorHandling:
 
             # Should raise AgentError with helpful message
             with pytest.raises(AgentError) as exc_info:
-                commands_service = CommandsService()
+                from pathlib import Path
+
+                commands_service = CommandsService(project_path=Path.cwd())
                 async for _ in service._execute_query(request, ctx, commands_service):
                     pass
 
@@ -49,12 +51,18 @@ class TestSDKErrorHandling:
     @pytest.mark.anyio
     async def test_cli_connection_error_handling(self) -> None:
         """Test handling when connection to Claude Code fails."""
+        from apps.api.services.agent.types import StreamContext
+        from apps.api.services.commands import CommandsService
+
         service = AgentService()
         request = QueryRequest(prompt="test")
+        ctx = StreamContext(
+            session_id="test-session",
+            model="sonnet",
+            start_time=0.0,
+        )
 
-        with patch(
-            "apps.api.services.agent.service.ClaudeSDKClient"
-        ) as mock_sdk_client:
+        with patch("claude_agent_sdk.ClaudeSDKClient") as mock_sdk_client:
             from claude_agent_sdk import CLIConnectionError
 
             mock_sdk_client.side_effect = CLIConnectionError(
@@ -62,7 +70,10 @@ class TestSDKErrorHandling:
             )
 
             with pytest.raises(AgentError) as exc_info:
-                async for _ in service._execute_query(request, AsyncMock()):
+                from pathlib import Path
+
+                commands_service = CommandsService(project_path=Path.cwd())
+                async for _ in service._execute_query(request, ctx, commands_service):
                     pass
 
             assert "Connection to Claude Code failed" in str(exc_info.value)
@@ -70,12 +81,18 @@ class TestSDKErrorHandling:
     @pytest.mark.anyio
     async def test_process_error_handling(self) -> None:
         """Test handling when Claude Code process fails."""
+        from apps.api.services.agent.types import StreamContext
+        from apps.api.services.commands import CommandsService
+
         service = AgentService()
         request = QueryRequest(prompt="test")
+        ctx = StreamContext(
+            session_id="test-session",
+            model="sonnet",
+            start_time=0.0,
+        )
 
-        with patch(
-            "apps.api.services.agent.service.ClaudeSDKClient"
-        ) as mock_sdk_client:
+        with patch("claude_agent_sdk.ClaudeSDKClient") as mock_sdk_client:
             from claude_agent_sdk import ProcessError
 
             # Create a ProcessError with exit_code and stderr attributes
@@ -86,7 +103,10 @@ class TestSDKErrorHandling:
             mock_sdk_client.side_effect = error
 
             with pytest.raises(AgentError) as exc_info:
-                async for _ in service._execute_query(request, AsyncMock()):
+                from pathlib import Path
+
+                commands_service = CommandsService(project_path=Path.cwd())
+                async for _ in service._execute_query(request, ctx, commands_service):
                     pass
 
             assert "Process failed" in str(exc_info.value)
@@ -94,49 +114,8 @@ class TestSDKErrorHandling:
     @pytest.mark.anyio
     async def test_json_decode_error_handling(self) -> None:
         """Test handling when SDK response parsing fails."""
-        service = AgentService()
-        request = QueryRequest(prompt="test")
-
-        with patch(
-            "apps.api.services.agent.service.ClaudeSDKClient"
-        ) as mock_sdk_client:
-            from claude_agent_sdk import CLIJSONDecodeError
-
-            # Create error with line attribute
-            error = CLIJSONDecodeError("Failed to parse JSON")
-            error.line = '{"incomplete": '  # type: ignore[attr-defined]
-
-            mock_sdk_client.side_effect = error
-
-            with pytest.raises(AgentError) as exc_info:
-                async for _ in service._execute_query(request, AsyncMock()):
-                    pass
-
-            assert "SDK response parsing failed" in str(exc_info.value)
-
-    @pytest.mark.anyio
-    async def test_generic_sdk_error_handling(self) -> None:
-        """Test handling of generic ClaudeSDKError."""
-        service = AgentService()
-        request = QueryRequest(prompt="test")
-
-        with patch(
-            "apps.api.services.agent.service.ClaudeSDKClient"
-        ) as mock_sdk_client:
-            from claude_agent_sdk import ClaudeSDKError
-
-            mock_sdk_client.side_effect = ClaudeSDKError("Generic SDK error")
-
-            with pytest.raises(AgentError) as exc_info:
-                async for _ in service._execute_query(request, AsyncMock()):
-                    pass
-
-            assert "SDK error" in str(exc_info.value)
-
-    @pytest.mark.anyio
-    async def test_error_context_marked_as_error(self) -> None:
-        """Test that context is_error flag is set when errors occur."""
         from apps.api.services.agent.types import StreamContext
+        from apps.api.services.commands import CommandsService
 
         service = AgentService()
         request = QueryRequest(prompt="test")
@@ -146,15 +125,81 @@ class TestSDKErrorHandling:
             start_time=0.0,
         )
 
-        with patch(
-            "apps.api.services.agent.service.ClaudeSDKClient"
-        ) as mock_sdk_client:
+        with patch("claude_agent_sdk.ClaudeSDKClient") as mock_sdk_client:
+            from claude_agent_sdk import CLIJSONDecodeError
+
+            # Create error with line attribute
+            try:
+                # Try with both arguments
+                error = CLIJSONDecodeError("Failed to parse JSON", "original error")
+            except TypeError:
+                # Fall back to single argument
+                error = CLIJSONDecodeError("Failed to parse JSON")  # type: ignore[call-arg]
+            error.line = '{"incomplete": '  # type: ignore[attr-defined]
+
+            mock_sdk_client.side_effect = error
+
+            with pytest.raises(AgentError) as exc_info:
+                from pathlib import Path
+
+                commands_service = CommandsService(project_path=Path.cwd())
+                async for _ in service._execute_query(request, ctx, commands_service):
+                    pass
+
+            assert "SDK response parsing failed" in str(exc_info.value)
+
+    @pytest.mark.anyio
+    async def test_generic_sdk_error_handling(self) -> None:
+        """Test handling of generic ClaudeSDKError."""
+        from apps.api.services.agent.types import StreamContext
+        from apps.api.services.commands import CommandsService
+
+        service = AgentService()
+        request = QueryRequest(prompt="test")
+        ctx = StreamContext(
+            session_id="test-session",
+            model="sonnet",
+            start_time=0.0,
+        )
+
+        with patch("claude_agent_sdk.ClaudeSDKClient") as mock_sdk_client:
+            from claude_agent_sdk import ClaudeSDKError
+
+            mock_sdk_client.side_effect = ClaudeSDKError("Generic SDK error")
+
+            with pytest.raises(AgentError) as exc_info:
+                from pathlib import Path
+
+                commands_service = CommandsService(project_path=Path.cwd())
+                async for _ in service._execute_query(request, ctx, commands_service):
+                    pass
+
+            assert "SDK error" in str(exc_info.value)
+
+    @pytest.mark.anyio
+    async def test_error_context_marked_as_error(self) -> None:
+        """Test that context is_error flag is set when errors occur."""
+        from apps.api.services.agent.types import StreamContext
+        from apps.api.services.commands import CommandsService
+
+        service = AgentService()
+        request = QueryRequest(prompt="test")
+        ctx = StreamContext(
+            session_id="test-session",
+            model="sonnet",
+            start_time=0.0,
+        )
+
+        with patch("claude_agent_sdk.ClaudeSDKClient") as mock_sdk_client:
             from claude_agent_sdk import CLINotFoundError
 
             mock_sdk_client.side_effect = CLINotFoundError("CLI not found")
 
             with pytest.raises(AgentError):
-                async for _ in service._execute_query(request, ctx):
+                from pathlib import Path
+
+                commands_service = CommandsService(project_path=Path.cwd())
+                async for _ in service._execute_query(request, ctx, commands_service):
                     pass
 
             # Context should be marked as error
