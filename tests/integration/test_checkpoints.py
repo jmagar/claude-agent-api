@@ -1,10 +1,10 @@
 """Integration tests for file checkpointing and rewind (T097)."""
 
 import json
-import re
 
 import pytest
 from httpx import AsyncClient
+from httpx_sse import aconnect_sse
 
 
 class TestCheckpointIntegration:
@@ -137,24 +137,30 @@ class TestEnableFileCheckpointing:
         mock_claude_sdk: None,
     ) -> None:
         """Test that queries with enable_file_checkpointing=true track checkpoints."""
-        # Send a query with checkpointing enabled
-        response = await async_client.post(
+        # Send a query with checkpointing enabled using SSE
+        request_data = {
+            "prompt": "Create a test file",
+            "enable_file_checkpointing": True,
+            "allowed_tools": ["Write"],
+        }
+
+        # Collect events from SSE stream
+        events: list[dict[str, str]] = []
+        async with aconnect_sse(
+            async_client,
+            "POST",
             "/api/v1/query",
-            json={
-                "prompt": "Create a test file",
-                "enable_file_checkpointing": True,
-                "allowed_tools": ["Write"],
-            },
-            headers=auth_headers,
-        )
-        assert response.status_code == 200
+            headers={**auth_headers, "Accept": "text/event-stream"},
+            json=request_data,
+        ) as event_source:
+            async for sse in event_source.aiter_sse():
+                if sse.event:
+                    events.append({"event": sse.event, "data": sse.data})
 
         # Extract session ID from the init event
-        content = response.text
-        init_match = re.search(r'data: (\{"session_id".*?\})', content)
-        assert init_match is not None, f"No init event found in: {content[:500]}"
-
-        init_data = json.loads(init_match.group(1))
+        init_events = [e for e in events if e["event"] == "init"]
+        assert len(init_events) == 1
+        init_data = json.loads(init_events[0]["data"])
         session_id = init_data["session_id"]
 
         # Get checkpoints for the session
@@ -179,24 +185,30 @@ class TestEnableFileCheckpointing:
         mock_claude_sdk: None,
     ) -> None:
         """Test that queries without enable_file_checkpointing don't track checkpoints."""
-        # Send a query without checkpointing
-        response = await async_client.post(
+        # Send a query without checkpointing using SSE
+        request_data = {
+            "prompt": "List files",
+            "enable_file_checkpointing": False,
+            "allowed_tools": ["Glob"],
+        }
+
+        # Collect events from SSE stream
+        events: list[dict[str, str]] = []
+        async with aconnect_sse(
+            async_client,
+            "POST",
             "/api/v1/query",
-            json={
-                "prompt": "List files",
-                "enable_file_checkpointing": False,
-                "allowed_tools": ["Glob"],
-            },
-            headers=auth_headers,
-        )
-        assert response.status_code == 200
+            headers={**auth_headers, "Accept": "text/event-stream"},
+            json=request_data,
+        ) as event_source:
+            async for sse in event_source.aiter_sse():
+                if sse.event:
+                    events.append({"event": sse.event, "data": sse.data})
 
         # Extract session ID
-        content = response.text
-        init_match = re.search(r'data: (\{"session_id".*?\})', content)
-        assert init_match is not None
-
-        init_data = json.loads(init_match.group(1))
+        init_events = [e for e in events if e["event"] == "init"]
+        assert len(init_events) == 1
+        init_data = json.loads(init_events[0]["data"])
         session_id = init_data["session_id"]
 
         # Get checkpoints - should be empty (no checkpointing enabled)

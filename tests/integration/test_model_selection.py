@@ -1,10 +1,10 @@
 """Integration tests for model selection (T105)."""
 
 import json
-import re
 
 import pytest
 from httpx import AsyncClient
+from httpx_sse import aconnect_sse
 
 
 class TestModelSelection:
@@ -19,22 +19,28 @@ class TestModelSelection:
         mock_claude_sdk: None,
     ) -> None:
         """Test that queries without model parameter default to sonnet."""
-        response = await async_client.post(
+        request_data = {
+            "prompt": "Hello",
+            "allowed_tools": [],
+        }
+
+        # Collect events from SSE stream
+        events: list[dict[str, str]] = []
+        async with aconnect_sse(
+            async_client,
+            "POST",
             "/api/v1/query",
-            json={
-                "prompt": "Hello",
-                "allowed_tools": [],
-            },
-            headers=auth_headers,
-        )
-        assert response.status_code == 200
+            headers={**auth_headers, "Accept": "text/event-stream"},
+            json=request_data,
+        ) as event_source:
+            async for sse in event_source.aiter_sse():
+                if sse.event:
+                    events.append({"event": sse.event, "data": sse.data})
 
         # Parse init event to check model
-        content = response.text
-        init_match = re.search(r'data: (\{"session_id".*?\})', content)
-        assert init_match is not None, f"No init event found in: {content[:500]}"
-
-        init_data = json.loads(init_match.group(1))
+        init_events = [e for e in events if e["event"] == "init"]
+        assert len(init_events) == 1
+        init_data = json.loads(init_events[0]["data"])
         assert init_data["model"] == "sonnet"
 
     @pytest.mark.integration
@@ -46,22 +52,29 @@ class TestModelSelection:
         mock_claude_sdk: None,
     ) -> None:
         """Test that queries with model=sonnet use sonnet."""
-        response = await async_client.post(
+        request_data = {
+            "prompt": "Hello",
+            "model": "sonnet",
+            "allowed_tools": [],
+        }
+
+        # Collect events from SSE stream
+        events: list[dict[str, str]] = []
+        async with aconnect_sse(
+            async_client,
+            "POST",
             "/api/v1/query",
-            json={
-                "prompt": "Hello",
-                "model": "sonnet",
-                "allowed_tools": [],
-            },
-            headers=auth_headers,
-        )
-        assert response.status_code == 200
+            headers={**auth_headers, "Accept": "text/event-stream"},
+            json=request_data,
+        ) as event_source:
+            async for sse in event_source.aiter_sse():
+                if sse.event:
+                    events.append({"event": sse.event, "data": sse.data})
 
-        content = response.text
-        init_match = re.search(r'data: (\{"session_id".*?\})', content)
-        assert init_match is not None
-
-        init_data = json.loads(init_match.group(1))
+        # Parse init event to check model
+        init_events = [e for e in events if e["event"] == "init"]
+        assert len(init_events) == 1
+        init_data = json.loads(init_events[0]["data"])
         assert init_data["model"] == "sonnet"
 
     @pytest.mark.integration
@@ -73,22 +86,29 @@ class TestModelSelection:
         mock_claude_sdk: None,
     ) -> None:
         """Test that queries with model=opus use opus."""
-        response = await async_client.post(
+        request_data = {
+            "prompt": "Hello",
+            "model": "opus",
+            "allowed_tools": [],
+        }
+
+        # Collect events from SSE stream
+        events: list[dict[str, str]] = []
+        async with aconnect_sse(
+            async_client,
+            "POST",
             "/api/v1/query",
-            json={
-                "prompt": "Hello",
-                "model": "opus",
-                "allowed_tools": [],
-            },
-            headers=auth_headers,
-        )
-        assert response.status_code == 200
+            headers={**auth_headers, "Accept": "text/event-stream"},
+            json=request_data,
+        ) as event_source:
+            async for sse in event_source.aiter_sse():
+                if sse.event:
+                    events.append({"event": sse.event, "data": sse.data})
 
-        content = response.text
-        init_match = re.search(r'data: (\{"session_id".*?\})', content)
-        assert init_match is not None
-
-        init_data = json.loads(init_match.group(1))
+        # Parse init event to check model
+        init_events = [e for e in events if e["event"] == "init"]
+        assert len(init_events) == 1
+        init_data = json.loads(init_events[0]["data"])
         assert init_data["model"] == "opus"
 
     @pytest.mark.integration
@@ -100,22 +120,29 @@ class TestModelSelection:
         mock_claude_sdk: None,
     ) -> None:
         """Test that queries with model=haiku use haiku."""
-        response = await async_client.post(
+        request_data = {
+            "prompt": "Hello",
+            "model": "haiku",
+            "allowed_tools": [],
+        }
+
+        # Collect events from SSE stream
+        events: list[dict[str, str]] = []
+        async with aconnect_sse(
+            async_client,
+            "POST",
             "/api/v1/query",
-            json={
-                "prompt": "Hello",
-                "model": "haiku",
-                "allowed_tools": [],
-            },
-            headers=auth_headers,
-        )
-        assert response.status_code == 200
+            headers={**auth_headers, "Accept": "text/event-stream"},
+            json=request_data,
+        ) as event_source:
+            async for sse in event_source.aiter_sse():
+                if sse.event:
+                    events.append({"event": sse.event, "data": sse.data})
 
-        content = response.text
-        init_match = re.search(r'data: (\{"session_id".*?\})', content)
-        assert init_match is not None
-
-        init_data = json.loads(init_match.group(1))
+        # Parse init event to check model
+        init_events = [e for e in events if e["event"] == "init"]
+        assert len(init_events) == 1
+        init_data = json.loads(init_events[0]["data"])
         assert init_data["model"] == "haiku"
 
     @pytest.mark.integration
@@ -153,22 +180,29 @@ class TestModelSelection:
         mock_claude_sdk: None,
     ) -> None:
         """Test that queries with full model ID are accepted."""
-        response = await async_client.post(
+        request_data = {
+            "prompt": "Hello",
+            "model": "claude-sonnet-4-20250514",
+            "allowed_tools": [],
+        }
+
+        # Collect events from SSE stream
+        events: list[dict[str, str]] = []
+        async with aconnect_sse(
+            async_client,
+            "POST",
             "/api/v1/query",
-            json={
-                "prompt": "Hello",
-                "model": "claude-sonnet-4-20250514",
-                "allowed_tools": [],
-            },
-            headers=auth_headers,
-        )
-        assert response.status_code == 200
+            headers={**auth_headers, "Accept": "text/event-stream"},
+            json=request_data,
+        ) as event_source:
+            async for sse in event_source.aiter_sse():
+                if sse.event:
+                    events.append({"event": sse.event, "data": sse.data})
 
-        content = response.text
-        init_match = re.search(r'data: (\{"session_id".*?\})', content)
-        assert init_match is not None
-
-        init_data = json.loads(init_match.group(1))
+        # Parse init event to check model
+        init_events = [e for e in events if e["event"] == "init"]
+        assert len(init_events) == 1
+        init_data = json.loads(init_events[0]["data"])
         assert init_data["model"] == "claude-sonnet-4-20250514"
 
     @pytest.mark.integration
