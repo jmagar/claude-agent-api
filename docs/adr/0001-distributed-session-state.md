@@ -126,6 +126,47 @@ After Redis restarts or cold starts, the cache will be empty. The system handles
 6. Deploy with Redis + PostgreSQL
 7. Monitor cache hit rate and lock contention
 
+## Monitoring
+
+### Key Metrics
+
+**Cache Performance:**
+- `redis_session_hits` - Cache hit rate
+- `redis_session_misses` - Cache miss rate
+- `postgres_fallback_queries` - DB fallback frequency
+
+**Distributed Operations:**
+- `active_sessions_redis` - Active sessions in Redis
+- `session_lock_acquisitions` - Lock acquisition rate
+- `session_lock_timeouts` - Lock timeout frequency
+- `interrupt_signals_sent` - Interrupt signal rate
+
+**Performance:**
+- `session_read_latency_ms` - Read operation latency
+- `session_write_latency_ms` - Write operation latency
+- `session_cache_repopulation_ms` - Cache miss recovery time
+
+### Logging
+
+All session operations include structured logging with:
+- `session_id` - Session identifier
+- `storage` - Storage backend (redis/postgres)
+- `distributed` - Whether operation is distributed
+- `operation` - Operation type (create/read/update/delete)
+
+Example log output:
+```json
+{
+  "timestamp": "2026-01-09T10:15:30Z",
+  "level": "info",
+  "message": "Session retrieved from database and re-cached",
+  "session_id": "abc-123",
+  "model": "sonnet",
+  "storage": "postgres",
+  "distributed": true
+}
+```
+
 ## References
 
 - P0-1: In-Memory Session State Prevents Horizontal Scaling
