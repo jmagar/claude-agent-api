@@ -280,8 +280,9 @@ class RedisCache:
             return 0
         end
         """
-        result = await self._client.eval(script, 1, f"lock:{key}", value)
-        return result == 1
+        # Redis eval returns int (1 or 0) - type stubs are incomplete
+        result: int = await self._client.eval(script, 1, f"lock:{key}", value)  # type: ignore[no-untyped-call]
+        return bool(result == 1)
 
     async def ping(self) -> bool:
         """Check cache connectivity.

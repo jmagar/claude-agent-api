@@ -1,6 +1,7 @@
 """Integration tests for slash command execution."""
 
 from pathlib import Path
+from typing import cast
 
 import pytest
 from httpx import AsyncClient
@@ -118,6 +119,19 @@ Say hello to: $ARGUMENTS
     # Check for error events
     error_events = [e for e in events if e["event"] == "error"]
     assert len(error_events) == 0
+
+    # Verify init event contains the command
+    init_events = [e for e in events if e["event"] == "init"]
+    assert len(init_events) == 1
+    init_data = cast("dict[str, object]", init_events[0]["data"])
+    commands = cast("list[dict[str, object]]", init_data.get("commands", []))
+    assert len(commands) == 1
+    assert commands[0]["name"] == "greet"
+
+    # Verify message events show the slash command was processed
+    # The SDK receives the prompt with slash command and processes it
+    message_events = [e for e in events if e["event"] == "message"]
+    assert len(message_events) > 0, "Expected message events from SDK execution"
 
     # Verify we got a done event (stream completed successfully)
     done_events = [e for e in events if e["event"] == "done"]

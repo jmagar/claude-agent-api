@@ -31,6 +31,10 @@ class Settings(BaseSettings):
     )
 
     # Anthropic API (optional when using Claude Max subscription)
+    # NOTE: If you are logged in with Claude Max subscription, this is NOT needed.
+    # Only set this if you want to use an API key instead of your subscription.
+    # Setting this environment variable will override your Claude Max subscription.
+    # See CLAUDE.md for details.
     anthropic_api_key: SecretStr | None = Field(
         default=None,
         description="Anthropic API key for Claude (optional with Claude Max)",

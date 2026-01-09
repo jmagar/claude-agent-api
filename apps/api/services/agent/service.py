@@ -4,6 +4,7 @@ import asyncio
 import json
 import time
 from collections.abc import AsyncGenerator
+from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 from uuid import uuid4
 
@@ -27,6 +28,7 @@ from apps.api.services.agent.handlers import MessageHandler
 from apps.api.services.agent.hooks import HookExecutor
 from apps.api.services.agent.options import OptionsBuilder
 from apps.api.services.agent.types import QueryResponseDict, StreamContext
+from apps.api.services.commands import CommandsService
 from apps.api.services.webhook import WebhookService
 
 if TYPE_CHECKING:
@@ -100,10 +102,6 @@ class AgentService:
                 plugin_names = [p.name for p in request.plugins if p.enabled]
 
             # Discover slash commands from project directory (T115)
-            from pathlib import Path
-
-            from apps.api.services.commands import CommandsService
-
             project_path = Path(request.cwd) if request.cwd else Path.cwd()
             commands_service = CommandsService(project_path=project_path)
             discovered_commands = commands_service.discover_commands()
@@ -131,7 +129,7 @@ class AgentService:
             )
 
             # Execute query using SDK
-            async for event in self._execute_query(request, ctx):
+            async for event in self._execute_query(request, ctx, commands_service):
                 yield event
 
                 # Check for interrupt
@@ -217,25 +215,20 @@ class AgentService:
         self,
         request: "QueryRequest",
         ctx: StreamContext,
+        commands_service: CommandsService,
     ) -> AsyncGenerator[dict[str, str], None]:
         """Execute query using Claude Agent SDK.
 
         Args:
             request: Query request.
             ctx: Stream context.
+            commands_service: Commands service for slash command detection.
 
         Yields:
             SSE event dicts with 'event' and 'data' keys.
         """
         try:
-            # Detect slash commands in prompt (T115a)
-            # Use CommandsService for full parsing including arguments
-            from pathlib import Path
-
-            from apps.api.services.commands import CommandsService
-
-            project_path = Path(request.cwd) if request.cwd else Path.cwd()
-            commands_service = CommandsService(project_path=project_path)
+            # Detect slash commands in prompt for observability logging
             parsed_command = commands_service.parse_command(request.prompt)
 
             if parsed_command:
@@ -249,15 +242,31 @@ class AgentService:
                 )
 
             # Import SDK here to avoid import errors if not installed
-            from claude_agent_sdk import ClaudeSDKClient
+            from claude_agent_sdk import (
+                ClaudeSDKClient,
+                ClaudeSDKError,
+                CLIConnectionError,
+                CLIJSONDecodeError,
+                CLINotFoundError,
+                ProcessError,
+            )
 
             # Build options using OptionsBuilder
             options = OptionsBuilder(request).build()
+
+            logger.info(
+                "Creating SDK client",
+                session_id=ctx.session_id,
+                model=ctx.model,
+                enable_file_checkpointing=request.enable_file_checkpointing,
+                permission_mode=request.permission_mode,
+            )
 
             # Create client and execute query
             # Note: Only pass session_id to SDK when resuming an existing SDK session
             # For new conversations, use the default "default" session_id
             async with ClaudeSDKClient(options) as client:
+                logger.debug("SDK client connected", session_id=ctx.session_id)
                 # T122: Build query content with images if provided
                 # SDK accepts images as part of multimodal content
                 if request.images:
@@ -299,20 +308,67 @@ class AgentService:
                     # Standard text-only prompt
                     await client.query(request.prompt)
 
+                logger.debug("Query sent to SDK", session_id=ctx.session_id)
+
                 async for message in client.receive_response():
                     # Update context
                     ctx.num_turns += 1
+
+                    logger.debug(
+                        "Received SDK message",
+                        session_id=ctx.session_id,
+                        message_type=type(message).__name__,
+                    )
 
                     # Map SDK message to API event using MessageHandler
                     event_str = self._message_handler.map_sdk_message(message, ctx)
                     if event_str:
                         yield event_str
 
+                logger.debug("SDK client disconnecting", session_id=ctx.session_id)
+
         except ImportError:
             # SDK not installed - emit mock response for development
             logger.warning("Claude Agent SDK not installed, using mock response")
             async for event in self._mock_response(request, ctx):
                 yield event
+
+        except CLINotFoundError as e:
+            logger.error("Claude Code CLI not found", error=str(e))
+            ctx.is_error = True
+            raise AgentError(
+                "Claude Code CLI is not installed. Install with: npm install -g @anthropic-ai/claude-code",
+                original_error=str(e),
+            ) from e
+
+        except CLIConnectionError as e:
+            logger.error("Failed to connect to Claude Code", error=str(e))
+            ctx.is_error = True
+            raise AgentError(
+                f"Connection to Claude Code failed: {e}", original_error=str(e)
+            ) from e
+
+        except ProcessError as e:
+            exit_code = getattr(e, "exit_code", None)
+            stderr = getattr(e, "stderr", None)
+            logger.error(
+                "Claude Code process failed", exit_code=exit_code, stderr=stderr
+            )
+            ctx.is_error = True
+            raise AgentError(f"Process failed: {e}", original_error=str(e)) from e
+
+        except CLIJSONDecodeError as e:
+            line = getattr(e, "line", None)
+            logger.error("Failed to parse SDK response", line=line)
+            ctx.is_error = True
+            raise AgentError(
+                f"SDK response parsing failed: {e}", original_error=str(e)
+            ) from e
+
+        except ClaudeSDKError as e:
+            logger.error("SDK error", error=str(e))
+            ctx.is_error = True
+            raise AgentError(f"SDK error: {e}", original_error=str(e)) from e
 
         except Exception as e:
             logger.error("SDK execution error", error=str(e))
@@ -413,8 +469,12 @@ class AgentService:
             include_partial_messages=request.include_partial_messages,
         )
 
+        # Initialize commands service for slash command detection
+        project_path = Path(request.cwd) if request.cwd else Path.cwd()
+        commands_service = CommandsService(project_path=project_path)
+
         try:
-            async for event in self._execute_query(request, ctx):
+            async for event in self._execute_query(request, ctx, commands_service):
                 event_type = event.get("event")
                 if event_type == "message":
                     try:

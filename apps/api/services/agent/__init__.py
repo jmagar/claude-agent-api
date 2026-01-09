@@ -11,6 +11,8 @@ from apps.api.services.agent.service import AgentService
 from apps.api.services.agent.types import QueryResponseDict, StreamContext
 from apps.api.services.agent.utils import (
     detect_slash_command,
+    resolve_env_dict,
+    resolve_env_var,
 )
 
 __all__ = [
@@ -21,4 +23,6 @@ __all__ = [
     "QueryResponseDict",
     "StreamContext",
     "detect_slash_command",
+    "resolve_env_dict",
+    "resolve_env_var",
 ]

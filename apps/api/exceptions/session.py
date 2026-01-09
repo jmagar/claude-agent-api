@@ -1,5 +1,7 @@
 """Session-related exceptions."""
 
+from typing import ClassVar
+
 from apps.api.exceptions.base import APIError
 
 
@@ -41,7 +43,7 @@ class SessionCompletedError(APIError):
     """Raised when trying to resume a completed or errored session."""
 
     # Map status values to grammatically correct past-tense forms
-    _STATUS_DISPLAY: dict[str, str] = {
+    _STATUS_DISPLAY: ClassVar[dict[str, str]] = {
         "completed": "completed",
         "error": "errored",
         "active": "active",
