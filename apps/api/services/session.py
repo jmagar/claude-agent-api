@@ -23,6 +23,7 @@ from uuid import uuid4
 import structlog
 
 from apps.api.config import get_settings
+from apps.api.exceptions.session import SessionNotFoundError
 
 T = TypeVar("T")
 
@@ -45,6 +46,7 @@ class CachedSessionData(TypedDict):
     total_turns: int
     total_cost_usd: float | None
     parent_session_id: str | None
+    owner_api_key: str | None
 
 
 @dataclass
@@ -59,6 +61,7 @@ class Session:
     total_turns: int = 0
     total_cost_usd: float | None = None
     parent_session_id: str | None = None
+    owner_api_key: str | None = None
 
 
 @dataclass
@@ -184,6 +187,7 @@ class SessionService:
         model: str,
         session_id: str | None = None,
         parent_session_id: str | None = None,
+        owner_api_key: str | None = None,
     ) -> Session:
         """Create a new session with dual-write to PostgreSQL and Redis.
 
@@ -191,6 +195,7 @@ class SessionService:
             model: Claude model name.
             session_id: Optional session ID (generates UUID if None).
             parent_session_id: ID of parent session if forked.
+            owner_api_key: Owning API key for authorization checks.
 
         Returns:
             Created session.
@@ -217,6 +222,7 @@ class SessionService:
             total_turns=0,
             total_cost_usd=None,
             parent_session_id=parent_session_id,
+            owner_api_key=owner_api_key,
             created_at=now,
             updated_at=now,
         )
@@ -227,6 +233,7 @@ class SessionService:
                 await self._db_repo.create(
                     session_id=UUID(session_id),
                     model=model,
+                    owner_api_key=owner_api_key,
                 )
                 logger.info(
                     "Session created in database",
@@ -266,11 +273,16 @@ class SessionService:
 
         return session
 
-    async def get_session(self, session_id: str) -> Session | None:
+    async def get_session(
+        self,
+        session_id: str,
+        current_api_key: str | None = None,
+    ) -> Session | None:
         """Get session by ID with PostgreSQL fallback.
 
         Args:
             session_id: The session ID.
+            current_api_key: API key for ownership enforcement.
 
         Returns:
             Session if found, None otherwise.
@@ -290,7 +302,7 @@ class SessionService:
                 session_id=session_id,
                 source="redis",
             )
-            return cached
+            return self._enforce_owner(cached, current_api_key)
 
         # Cache miss: fall back to PostgreSQL
         logger.debug(
@@ -315,6 +327,8 @@ class SessionService:
 
             # Map SQLAlchemy model to service model
             session = self._map_db_to_service(db_session)
+
+            session = self._enforce_owner(session, current_api_key)
 
             # Re-cache for future requests (cache-aside pattern)
             await self._cache_session(session)
@@ -341,7 +355,7 @@ class SessionService:
         page: int = 1,
         page_size: int = 20,
     ) -> SessionListResult:
-        """List sessions with pagination.
+        """List sessions with pagination using bulk cache reads.
 
         Args:
             page: Page number (1-indexed).
@@ -350,18 +364,20 @@ class SessionService:
         Returns:
             Paginated session list.
         """
-        # Get all session keys from cache
         sessions: list[Session] = []
 
         if self._cache:
             pattern = "session:*"
-            # Use scan_keys method from Cache protocol
             all_keys = await self._cache.scan_keys(pattern)
 
-            # Get sessions
-            for key in all_keys:
-                session_id = key.replace("session:", "")
-                session = await self._get_cached_session(session_id)
+            # Bulk fetch all session data in one Redis roundtrip
+            cached_rows = await self._cache.get_many_json(all_keys)
+
+            # Parse each cached session
+            for _key, parsed in zip(all_keys, cached_rows, strict=True):
+                if not parsed:
+                    continue
+                session = self._parse_cached_session(parsed)
                 if session:
                     sessions.append(session)
 
@@ -503,6 +519,7 @@ class SessionService:
             "total_turns": session.total_turns,
             "total_cost_usd": session.total_cost_usd,
             "parent_session_id": session.parent_session_id,
+            "owner_api_key": session.owner_api_key,
         }
 
         await self._cache.set_json(key, data, self._ttl)
@@ -525,6 +542,24 @@ class SessionService:
         if not parsed:
             return None
 
+        return self._parse_cached_session(parsed)
+
+    def _parse_cached_session(
+        self,
+        parsed: dict[str, object],
+    ) -> Session | None:
+        """Parse cached session data into Session object.
+
+        Args:
+            parsed: Parsed JSON dict from cache.
+
+        Returns:
+            Session object or None if parsing fails.
+
+        Note:
+            This extracts the parsing logic from _get_cached_session
+            for reuse in list_sessions bulk operations.
+        """
         try:
             # Extract values with proper type casting
             session_id_val = str(parsed["id"])
@@ -563,21 +598,33 @@ class SessionService:
 
             parent_id_raw = parsed.get("parent_session_id")
             parent_id_val = str(parent_id_raw) if parent_id_raw is not None else None
+            owner_raw = parsed.get("owner_api_key")
+            owner_val = str(owner_raw) if owner_raw is not None else None
+
+            # Parse datetimes and normalize to naive (remove timezone info)
+            created_dt = datetime.fromisoformat(created_at_val)
+            updated_dt = datetime.fromisoformat(updated_at_val)
+
+            # Convert to naive if timezone-aware
+            if created_dt.tzinfo is not None:
+                created_dt = created_dt.replace(tzinfo=None)
+            if updated_dt.tzinfo is not None:
+                updated_dt = updated_dt.replace(tzinfo=None)
 
             return Session(
                 id=session_id_val,
                 model=model_val,
                 status=status_val,
-                created_at=datetime.fromisoformat(created_at_val),
-                updated_at=datetime.fromisoformat(updated_at_val),
+                created_at=created_dt,
+                updated_at=updated_dt,
                 total_turns=total_turns_val,
                 total_cost_usd=total_cost_val,
                 parent_session_id=parent_id_val,
+                owner_api_key=owner_val,
             )
         except (KeyError, ValueError, TypeError) as e:
             logger.warning(
                 "Failed to parse cached session",
-                session_id=session_id,
                 error=str(e),
             )
             return None
@@ -609,15 +656,28 @@ class SessionService:
             status=status_val,
             total_turns=db_session.total_turns,
             total_cost_usd=(
-                float(db_session.total_cost_usd)
-                if db_session.total_cost_usd
-                else None
+                float(db_session.total_cost_usd) if db_session.total_cost_usd else None
             ),
             parent_session_id=(
                 str(db_session.parent_session_id)
                 if db_session.parent_session_id
                 else None
             ),
+            owner_api_key=db_session.owner_api_key,
             created_at=db_session.created_at,
             updated_at=db_session.updated_at,
         )
+
+    def _enforce_owner(
+        self,
+        session: Session,
+        current_api_key: str | None,
+    ) -> Session:
+        """Enforce that the current API key owns the session."""
+        if (
+            current_api_key
+            and session.owner_api_key
+            and session.owner_api_key != current_api_key
+        ):
+            raise SessionNotFoundError(session.id)
+        return session
