@@ -4,8 +4,10 @@ import pytest
 from httpx import AsyncClient
 from uuid import uuid4
 
-from apps.api.dependencies import get_cache
+from apps.api.dependencies import get_cache, get_db
 from apps.api.services.agent.service import AgentService
+from apps.api.services.session import SessionService
+from apps.api.adapters.session_repo import SessionRepository
 
 
 @pytest.mark.integration
@@ -56,3 +58,49 @@ async def test_interrupt_signal_propagates_across_instances(_async_client: Async
     interrupt_key = f"interrupted:{session_id}"
     exists = await cache.exists(interrupt_key)
     assert exists is True
+
+
+@pytest.mark.integration
+@pytest.mark.anyio
+async def test_session_fallback_to_database_when_cache_miss(_async_client: AsyncClient):
+    """Test that sessions fall back to PostgreSQL when not in Redis cache."""
+    from uuid import UUID
+
+    cache = await get_cache()
+
+    async for db_session in get_db():
+        repo = SessionRepository(db_session)
+        service = SessionService(cache=cache, db_repo=repo)
+
+        # Create session directly in database
+        session_id = uuid4()
+        db_record = await repo.create(
+            session_id=session_id,
+            model="sonnet",
+            working_directory=None,
+            parent_session_id=None,
+            metadata=None,
+        )
+
+        # Cache it (simulating normal operation)
+        session = await service.create_session(
+            model="sonnet",
+            session_id=str(session_id),
+        )
+
+        # Evict from Redis cache (simulating cache expiration)
+        cache_key = f"session:{session_id}"
+        await cache.delete(cache_key)
+
+        # Should still retrieve from PostgreSQL
+        retrieved = await service.get_session(str(session_id))
+
+        assert retrieved is not None
+        assert retrieved.id == str(session_id)
+        assert retrieved.model == "sonnet"
+
+        # Verify it was re-cached after retrieval
+        cached_after = await cache.get_json(cache_key)
+        assert cached_after is not None
+
+        break

@@ -11,6 +11,7 @@ from apps.api.config import get_settings
 
 if TYPE_CHECKING:
     from apps.api.adapters.session_repo import SessionRepository
+    from apps.api.models.session import Session as SessionModel
     from apps.api.protocols import Cache
 
 logger = structlog.get_logger(__name__)
@@ -124,22 +125,74 @@ class SessionService:
         return session
 
     async def get_session(self, session_id: str) -> Session | None:
-        """Get a session by ID.
+        """Get session by ID with PostgreSQL fallback.
 
         Args:
-            session_id: Session ID to retrieve.
+            session_id: The session ID.
 
         Returns:
             Session if found, None otherwise.
+
+        Implementation:
+        1. Check Redis cache (fast path)
+        2. If cache miss, query PostgreSQL (fallback)
+        3. Re-cache the result for future requests (cache-aside pattern)
+
+        This ensures sessions survive Redis restarts (P0-2 fix).
         """
-        # Try cache first
+        # Try cache first (fast path)
         cached = await self._get_cached_session(session_id)
         if cached:
+            logger.debug(
+                "Session retrieved from cache",
+                session_id=session_id,
+                source="redis",
+            )
             return cached
 
-        # TODO: Implement database fallback
-        logger.debug("Session not found", session_id=session_id)
-        return None
+        # Cache miss: fall back to PostgreSQL
+        logger.debug(
+            "Session cache miss, querying database",
+            session_id=session_id,
+            source="postgres",
+        )
+
+        if not self._db_repo:
+            logger.debug("No database repository configured", session_id=session_id)
+            return None
+
+        try:
+            # Query PostgreSQL
+            from uuid import UUID
+
+            db_session = await self._db_repo.get(UUID(session_id))
+
+            if not db_session:
+                logger.debug("Session not found in database", session_id=session_id)
+                return None
+
+            # Map SQLAlchemy model to service model
+            session = self._map_db_to_service(db_session)
+
+            # Re-cache for future requests (cache-aside pattern)
+            await self._cache_session(session)
+
+            logger.info(
+                "Session retrieved from database and re-cached",
+                session_id=session_id,
+                model=session.model,
+            )
+
+            return session
+
+        except Exception as e:
+            logger.error(
+                "Failed to retrieve session from database",
+                session_id=session_id,
+                error=str(e),
+                exc_info=True,
+            )
+            return None
 
     async def list_sessions(
         self,
@@ -359,3 +412,43 @@ class SessionService:
                 error=str(e),
             )
             return None
+
+    def _map_db_to_service(self, db_session: "SessionModel") -> Session:
+        """Map SQLAlchemy Session model to service Session dataclass.
+
+        Args:
+            db_session: SQLAlchemy Session model from database.
+
+        Returns:
+            Service-layer Session dataclass.
+        """
+        # Validate and cast status to Literal type
+        status_raw = db_session.status
+        status_val: Literal["active", "completed", "error"]
+        if status_raw == "active":
+            status_val = "active"
+        elif status_raw == "completed":
+            status_val = "completed"
+        elif status_raw == "error":
+            status_val = "error"
+        else:
+            status_val = "active"  # Default to active for invalid values
+
+        return Session(
+            id=str(db_session.id),
+            model=db_session.model,
+            status=status_val,
+            total_turns=db_session.total_turns,
+            total_cost_usd=(
+                float(db_session.total_cost_usd)
+                if db_session.total_cost_usd
+                else None
+            ),
+            parent_session_id=(
+                str(db_session.parent_session_id)
+                if db_session.parent_session_id
+                else None
+            ),
+            created_at=db_session.created_at,
+            updated_at=db_session.updated_at,
+        )
