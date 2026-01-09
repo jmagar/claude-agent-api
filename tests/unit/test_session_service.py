@@ -248,6 +248,21 @@ class TestSessionServiceDelete:
         assert result is False
 
 
+@pytest.mark.unit
+@pytest.mark.anyio
+async def test_session_service_accepts_db_repo_parameter() -> None:
+    """Test that SessionService can be initialized with db_repo dependency."""
+    from unittest.mock import MagicMock
+
+    from apps.api.adapters.session_repo import SessionRepository
+
+    mock_cache = MagicMock()
+    mock_repo = MagicMock(spec=SessionRepository)
+    service = SessionService(cache=mock_cache, db_repo=mock_repo)
+
+    assert service._db_repo is mock_repo
+
+
 class TestSessionServiceExists:
     """Tests for session existence check."""
 

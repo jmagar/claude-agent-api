@@ -10,6 +10,7 @@ import structlog
 from apps.api.config import get_settings
 
 if TYPE_CHECKING:
+    from apps.api.adapters.session_repo import SessionRepository
     from apps.api.protocols import Cache
 
 logger = structlog.get_logger(__name__)
@@ -55,13 +56,20 @@ class SessionListResult:
 class SessionService:
     """Service for managing agent sessions."""
 
-    def __init__(self, cache: "Cache | None" = None) -> None:
+    def __init__(
+        self,
+        cache: "Cache | None" = None,
+        db_repo: "SessionRepository | None" = None,
+    ) -> None:
         """Initialize session service.
 
         Args:
             cache: Cache instance implementing Cache protocol.
+            db_repo: Optional SessionRepository for PostgreSQL persistence.
+                   Required for dual-write and database fallback functionality.
         """
         self._cache = cache
+        self._db_repo = db_repo
         settings = get_settings()
         self._ttl = settings.redis_session_ttl
 
