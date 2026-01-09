@@ -907,6 +907,21 @@ class TestCheckpointUuidTracking:
         assert checkpoint is None
 
 
+@pytest.mark.unit
+@pytest.mark.anyio
+async def test_agent_service_accepts_cache_parameter() -> None:
+    """Test that AgentService can be initialized with cache dependency."""
+    # This test will fail until we add cache parameter to constructor
+    from unittest.mock import AsyncMock, MagicMock
+
+    from apps.api.adapters.cache import RedisCache
+
+    mock_cache = MagicMock(spec=RedisCache)
+    service = AgentService(cache=mock_cache)
+
+    assert service._cache is mock_cache
+
+
 class TestSlashCommandDetection:
     """Unit tests for slash command detection (T115a)."""
 

@@ -3,9 +3,9 @@
 import asyncio
 import json
 import time
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, AsyncIterable
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal, cast
 from uuid import uuid4
 
 import structlog
@@ -32,6 +32,7 @@ from apps.api.services.commands import CommandsService
 from apps.api.services.webhook import WebhookService
 
 if TYPE_CHECKING:
+    from apps.api.protocols import Cache
     from apps.api.schemas.requests.config import HooksConfigSchema
     from apps.api.schemas.requests.query import QueryRequest
     from apps.api.services.checkpoint import Checkpoint, CheckpointService
@@ -46,6 +47,7 @@ class AgentService:
         self,
         webhook_service: WebhookService | None = None,
         checkpoint_service: "CheckpointService | None" = None,
+        cache: "Cache | None" = None,
     ) -> None:
         """Initialize agent service.
 
@@ -54,11 +56,14 @@ class AgentService:
                            If not provided, a default instance is created.
             checkpoint_service: Optional CheckpointService for file checkpointing.
                               Required for enable_file_checkpointing functionality.
+            cache: Optional Cache instance for distributed session tracking.
+                   Required for horizontal scaling across multiple instances.
         """
         self._settings = get_settings()
         self._active_sessions: dict[str, asyncio.Event] = {}
         self._webhook_service = webhook_service or WebhookService()
         self._checkpoint_service = checkpoint_service
+        self._cache = cache
         self._message_handler = MessageHandler()
         self._hook_executor = HookExecutor(self._webhook_service)
 
@@ -303,7 +308,12 @@ class AgentService:
                         image_count=len(request.images),
                     )
                     # Pass multimodal content to SDK
-                    await client.query(content)  # type: ignore[arg-type]
+                    # SDK type hints require AsyncIterable but accepts lists at runtime
+                    multimodal_content = cast(
+                        AsyncIterable[dict[str, Any]],
+                        content
+                    )
+                    await client.query(multimodal_content)
                 else:
                     # Standard text-only prompt
                     await client.query(request.prompt)
