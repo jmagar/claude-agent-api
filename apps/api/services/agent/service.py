@@ -12,6 +12,7 @@ import structlog
 from apps.api.config import get_settings
 from apps.api.exceptions import AgentError
 from apps.api.schemas.responses import (
+    CommandInfoSchema,
     DoneEvent,
     DoneEventData,
     ErrorEvent,
@@ -26,7 +27,6 @@ from apps.api.services.agent.handlers import MessageHandler
 from apps.api.services.agent.hooks import HookExecutor
 from apps.api.services.agent.options import OptionsBuilder
 from apps.api.services.agent.types import QueryResponseDict, StreamContext
-from apps.api.services.agent.utils import detect_slash_command
 from apps.api.services.webhook import WebhookService
 
 if TYPE_CHECKING:
@@ -99,9 +99,22 @@ class AgentService:
             if request.plugins:
                 plugin_names = [p.name for p in request.plugins if p.enabled]
 
+            # Discover slash commands from project directory (T115)
+            from pathlib import Path
+
+            from apps.api.services.commands import CommandsService
+
+            project_path = Path(request.cwd) if request.cwd else Path.cwd()
+            commands_service = CommandsService(project_path=project_path)
+            discovered_commands = commands_service.discover_commands()
+
+            # Convert to schema objects
+            command_schemas: list[CommandInfoSchema] = [
+                CommandInfoSchema(name=cmd["name"], path=cmd["path"])
+                for cmd in discovered_commands
+            ]
+
             # Emit init event
-            # Note: commands will be populated from SDK's SystemMessage init event
-            # when the SDK provides available slash commands during connection
             init_event = InitEvent(
                 data=InitEventData(
                     session_id=session_id,
@@ -109,7 +122,7 @@ class AgentService:
                     tools=request.allowed_tools or [],
                     mcp_servers=[],
                     plugins=plugin_names,
-                    commands=[],  # Populated from SDK response if available
+                    commands=command_schemas,
                     permission_mode=request.permission_mode,
                 )
             )
@@ -216,12 +229,23 @@ class AgentService:
         """
         try:
             # Detect slash commands in prompt (T115a)
-            slash_command = detect_slash_command(request.prompt)
-            if slash_command:
+            # Use CommandsService for full parsing including arguments
+            from pathlib import Path
+
+            from apps.api.services.commands import CommandsService
+
+            project_path = Path(request.cwd) if request.cwd else Path.cwd()
+            commands_service = CommandsService(project_path=project_path)
+            parsed_command = commands_service.parse_command(request.prompt)
+
+            if parsed_command:
+                # Slash command detected - SDK will handle execution
+                # Just log for observability
                 logger.info(
-                    "Slash command detected in prompt",
+                    "slash_command_detected",
                     session_id=ctx.session_id,
-                    command=slash_command,
+                    command=parsed_command["command"],
+                    args=parsed_command["args"],
                 )
 
             # Import SDK here to avoid import errors if not installed

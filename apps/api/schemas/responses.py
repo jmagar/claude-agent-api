@@ -41,6 +41,13 @@ class McpServerStatusSchema(BaseModel):
     error: str | None = None
 
 
+class CommandInfoSchema(BaseModel):
+    """Information about an available slash command."""
+
+    name: str
+    path: str
+
+
 class InitEventData(BaseModel):
     """Data for init event."""
 
@@ -49,7 +56,7 @@ class InitEventData(BaseModel):
     tools: list[str]
     mcp_servers: list[McpServerStatusSchema] = Field(default_factory=list)
     plugins: list[str] = Field(default_factory=list)
-    commands: list[str] = Field(default_factory=list)
+    commands: list[CommandInfoSchema] = Field(default_factory=list)
     permission_mode: Literal["default", "acceptEdits", "plan", "bypassPermissions"] = (
         "default"
     )
