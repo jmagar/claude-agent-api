@@ -19,7 +19,7 @@ class TestSettings:
             {
                 "API_KEY": "test-key",
                 "ANTHROPIC_API_KEY": "test-anthropic-key",
-                "DEBUG": "true",
+                "CORS_ORIGINS": '["http://localhost:3000"]',
             },
             clear=True,
         ):
@@ -60,6 +60,7 @@ class TestSettings:
                 "API_KEY": "test-key",
                 "ANTHROPIC_API_KEY": "test-anthropic-key",
                 "API_PORT": "0",
+                "CORS_ORIGINS": '["http://localhost:3000"]',
             },
             clear=True,
         ):
@@ -77,6 +78,7 @@ class TestSettings:
                 "API_KEY": "test-key",
                 "ANTHROPIC_API_KEY": "test-anthropic-key",
                 "API_PORT": "70000",
+                "CORS_ORIGINS": '["http://localhost:3000"]',
             },
             clear=True,
         ):
@@ -94,6 +96,7 @@ class TestSettings:
                 "API_KEY": "test-key",
                 "ANTHROPIC_API_KEY": "test-anthropic-key",
                 "LOG_LEVEL": "INVALID",
+                "CORS_ORIGINS": '["http://localhost:3000"]',
             },
             clear=True,
         ):
@@ -114,6 +117,7 @@ class TestSettings:
                     "API_KEY": "test-key",
                     "ANTHROPIC_API_KEY": "test-anthropic-key",
                     "LOG_LEVEL": level,
+                    "CORS_ORIGINS": '["http://localhost:3000"]',
                 },
                 clear=True,
             ):
@@ -127,6 +131,7 @@ class TestSettings:
             {
                 "API_KEY": "my-api-key",
                 "ANTHROPIC_API_KEY": "my-anthropic-key",
+                "CORS_ORIGINS": '["http://localhost:3000"]',
             },
             clear=True,
         ):
@@ -147,6 +152,7 @@ class TestSettings:
             {
                 "API_KEY": "test-key",
                 "ANTHROPIC_API_KEY": "test-anthropic-key",
+                "CORS_ORIGINS": '["http://localhost:3000"]',
             },
             clear=True,
         ):
@@ -162,6 +168,7 @@ class TestSettings:
             {
                 "API_KEY": "test-key",
                 "ANTHROPIC_API_KEY": "test-anthropic-key",
+                "CORS_ORIGINS": '["http://localhost:3000"]',
             },
             clear=True,
         ):
@@ -184,6 +191,7 @@ class TestGetSettings:
             {
                 "API_KEY": "test-key",
                 "ANTHROPIC_API_KEY": "test-anthropic-key",
+                "CORS_ORIGINS": '["http://localhost:3000"]',
             },
             clear=True,
         ):
