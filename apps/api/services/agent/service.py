@@ -67,6 +67,64 @@ class AgentService:
         self._message_handler = MessageHandler()
         self._hook_executor = HookExecutor(self._webhook_service)
 
+    async def _register_active_session(self, session_id: str) -> None:
+        """Register session as active in Redis for distributed tracking.
+
+        Args:
+            session_id: The session ID to register.
+
+        Raises:
+            RuntimeError: If cache is not configured (required for distributed sessions).
+
+        This replaces the in-memory dict approach and enables horizontal scaling.
+        Sessions are tracked with a TTL to auto-cleanup stale entries.
+        Redis is REQUIRED - no in-memory fallback to prevent split-brain in multi-instance.
+        """
+        if not self._cache:
+            raise RuntimeError("Cache is required for distributed session tracking")
+
+        key = f"active_session:{session_id}"
+        await self._cache.cache_set(
+            key,
+            "true",  # Value doesn't matter, existence = active
+            ttl=7200,  # 2 hours TTL for auto-cleanup
+        )
+        logger.info("Registered active session", session_id=session_id, storage="redis")
+
+    async def _is_session_active(self, session_id: str) -> bool:
+        """Check if session is active across all instances.
+
+        Args:
+            session_id: The session ID to check.
+
+        Returns:
+            True if session is active in Redis.
+
+        Raises:
+            RuntimeError: If cache is not configured.
+        """
+        if not self._cache:
+            raise RuntimeError("Cache is required for distributed session tracking")
+
+        key = f"active_session:{session_id}"
+        return await self._cache.exists(key)
+
+    async def _unregister_active_session(self, session_id: str) -> None:
+        """Remove session from active tracking.
+
+        Args:
+            session_id: The session ID to unregister.
+
+        Raises:
+            RuntimeError: If cache is not configured.
+        """
+        if not self._cache:
+            raise RuntimeError("Cache is required for distributed session tracking")
+
+        key = f"active_session:{session_id}"
+        await self._cache.delete(key)
+        logger.info("Unregistered active session", session_id=session_id, storage="redis")
+
     @property
     def checkpoint_service(self) -> "CheckpointService | None":
         """Get the checkpoint service instance.
