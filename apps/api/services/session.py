@@ -1,13 +1,16 @@
 """Session management service."""
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Literal, TypedDict
+from typing import TYPE_CHECKING, Literal, TypedDict, TypeVar
 from uuid import uuid4
 
 import structlog
 
 from apps.api.config import get_settings
+
+T = TypeVar("T")
 
 if TYPE_CHECKING:
     from apps.api.adapters.session_repo import SessionRepository
@@ -77,6 +80,90 @@ class SessionService:
     def _cache_key(self, session_id: str) -> str:
         """Generate cache key for a session."""
         return f"session:{session_id}"
+
+    async def _with_session_lock(
+        self,
+        session_id: str,
+        operation: str,
+        func: Callable[[], Awaitable[T]],
+        timeout: int = 5,
+    ) -> T:
+        """Execute operation with distributed lock on session.
+
+        Args:
+            session_id: The session ID to lock.
+            operation: Description of operation (for logging).
+            func: Async function to execute while holding lock.
+            timeout: Lock acquisition timeout in seconds.
+
+        Returns:
+            Result from func.
+
+        Raises:
+            TimeoutError: If lock cannot be acquired within timeout.
+        """
+        import asyncio
+        import time
+
+        if not self._cache:
+            # No cache = no distributed locking needed (single-instance mode)
+            return await func()
+
+        lock_key = f"session_lock:{session_id}"
+        lock_value = None
+        start_time = time.monotonic()
+
+        # Retry loop with exponential backoff
+        retry_delay = 0.01  # Start with 10ms
+        max_retry_delay = 0.5  # Cap at 500ms
+
+        while True:
+            # Try to acquire lock
+            lock_value = await self._cache.acquire_lock(
+                lock_key,
+                ttl=timeout,
+            )
+
+            if lock_value is not None:
+                # Lock acquired successfully
+                break
+
+            # Check if we've exceeded timeout
+            elapsed = time.monotonic() - start_time
+            if elapsed >= timeout:
+                logger.warning(
+                    "Failed to acquire session lock after timeout",
+                    session_id=session_id,
+                    operation=operation,
+                    timeout=timeout,
+                    elapsed=elapsed,
+                )
+                raise TimeoutError(f"Could not acquire lock for session {session_id}")
+
+            # Wait before retrying (exponential backoff)
+            await asyncio.sleep(retry_delay)
+            retry_delay = min(retry_delay * 2, max_retry_delay)
+
+        try:
+            logger.debug(
+                "Acquired session lock",
+                session_id=session_id,
+                operation=operation,
+            )
+
+            # Execute operation while holding lock
+            result = await func()
+
+            return result
+
+        finally:
+            # Always release lock
+            await self._cache.release_lock(lock_key, lock_value)
+            logger.debug(
+                "Released session lock",
+                session_id=session_id,
+                operation=operation,
+            )
 
     async def create_session(
         self,
@@ -286,43 +373,70 @@ class SessionService:
         status: Literal["active", "completed", "error"] | None = None,
         total_turns: int | None = None,
         total_cost_usd: float | None = None,
+        increment_turns: bool = False,
     ) -> Session | None:
-        """Update a session.
+        """Update a session with distributed locking.
+
+        Locks are applied at the business operation level (not infrastructure)
+        to prevent race conditions during read-modify-write cycles.
 
         Args:
             session_id: Session ID to update.
             status: New status.
-            total_turns: Updated turn count.
+            total_turns: Updated turn count (or None to keep/increment).
             total_cost_usd: Updated cost.
+            increment_turns: If True, atomically increment total_turns by 1.
 
         Returns:
             Updated session or None if not found.
         """
-        session = await self.get_session(session_id)
-        if not session:
-            return None
+        from uuid import UUID
 
-        # Apply updates
-        if status is not None:
-            session.status = status
-        if total_turns is not None:
-            session.total_turns = total_turns
-        if total_cost_usd is not None:
-            session.total_cost_usd = total_cost_usd
+        async def _do_update() -> Session | None:
+            session = await self.get_session(session_id)
+            if not session:
+                return None
 
-        session.updated_at = datetime.now(UTC)
+            # Apply updates
+            if status is not None:
+                session.status = status
+            if total_turns is not None:
+                session.total_turns = total_turns
+            if increment_turns:
+                session.total_turns += 1
+            if total_cost_usd is not None:
+                session.total_cost_usd = total_cost_usd
 
-        # Update cache
-        await self._cache_session(session)
+            session.updated_at = datetime.now(UTC)
 
-        logger.info(
-            "Session updated",
-            session_id=session_id,
-            status=session.status,
-            total_turns=session.total_turns,
+            # Update cache (no lock here - outer lock covers the whole operation)
+            await self._cache_session(session)
+
+            # Update database if configured
+            if self._db_repo:
+                await self._db_repo.update(
+                    session_id=UUID(session_id),
+                    status=session.status,
+                    total_turns=session.total_turns,
+                    total_cost_usd=session.total_cost_usd,
+                )
+
+            logger.info(
+                "Session updated",
+                session_id=session_id,
+                status=session.status,
+                total_turns=session.total_turns,
+            )
+
+            return session
+
+        # Apply distributed lock at BUSINESS OPERATION level (not cache level)
+        # This ensures the entire read-modify-write cycle is atomic
+        return await self._with_session_lock(
+            session_id,
+            "update_session",
+            _do_update,
         )
-
-        return session
 
     async def delete_session(self, session_id: str) -> bool:
         """Delete a session.
