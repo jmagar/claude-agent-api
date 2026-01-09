@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol, cast
 
 import redis.asyncio as redis
 import structlog
@@ -12,11 +12,72 @@ from apps.api.config import get_settings
 
 logger = structlog.get_logger(__name__)
 
+
+class RedisClientProtocol(Protocol):
+    """Protocol for Redis client with typed eval method."""
+
+    async def eval(
+        self,
+        script: str,
+        numkeys: int,
+        *keys_and_args: str,
+    ) -> int:
+        """Execute Lua script atomically."""
+        ...
+
+    async def get(self, name: str) -> bytes | None:
+        """Get value."""
+        ...
+
+    async def set(
+        self,
+        name: str,
+        value: bytes,
+        ex: int | None = None,
+        px: int | None = None,
+        nx: bool = False,
+        xx: bool = False,
+    ) -> bool | None:
+        """Set value."""
+        ...
+
+    async def delete(self, *names: str) -> int:
+        """Delete keys."""
+        ...
+
+    async def exists(self, *names: str) -> int:
+        """Check if keys exist."""
+        ...
+
+    async def ping(self) -> bool:
+        """Ping server."""
+        ...
+
+    async def smembers(self, name: str) -> AbstractSet[bytes]:
+        """Get set members."""
+        ...
+
+    async def sadd(self, name: str, *values: bytes) -> int:
+        """Add to set."""
+        ...
+
+    async def srem(self, name: str, *values: bytes) -> int:
+        """Remove from set."""
+        ...
+
+    async def incr(self, name: str, amount: int = 1) -> int:
+        """Increment."""
+        ...
+
+
 if TYPE_CHECKING:
+    from collections.abc import Set as AbstractSet
+
     # Use generic type only during type checking
     RedisClient = redis.Redis[bytes]
 else:
     # At runtime, just use the base type to avoid subscript error
+    AbstractSet = set
     RedisClient = redis.Redis
 
 
@@ -47,6 +108,9 @@ class RedisCache:
             redis_url,
             encoding="utf-8",
             decode_responses=False,
+            max_connections=settings.redis_max_connections,
+            socket_connect_timeout=settings.redis_socket_connect_timeout,
+            socket_timeout=settings.redis_socket_timeout,
         )
         return cls(client)
 
@@ -83,10 +147,13 @@ class RedisCache:
             Parsed JSON dict or None.
         """
         value = await self.get(key)
-        if value is None:
+        if value is None or not value.strip():
             return None
-        parsed: dict[str, object] = json.loads(value)
-        return parsed
+        try:
+            parsed: dict[str, object] = json.loads(value)
+            return parsed
+        except (json.JSONDecodeError, ValueError):
+            return None
 
     async def cache_set(
         self,
@@ -154,8 +221,7 @@ class RedisCache:
 
             # Decode and add keys
             batch = [
-                k.decode() if isinstance(k, bytes) else str(k)
-                for k in cursor_result[1]
+                k.decode() if isinstance(k, bytes) else str(k) for k in cursor_result[1]
             ]
             all_keys.extend(batch)
 
@@ -236,6 +302,21 @@ class RedisCache:
         members = await self._client.smembers(key)
         return {m.decode("utf-8") for m in members}
 
+    async def _eval_script(self, script: str, num_keys: int, *args: str) -> int:
+        """Typed wrapper for Redis eval command.
+
+        Args:
+            script: Lua script to execute.
+            num_keys: Number of keys in the script.
+            *args: Keys and arguments for the script.
+
+        Returns:
+            Integer result from the script (1 for success, 0 for failure).
+        """
+        # Type-safe wrapper using RedisClientProtocol
+        client = cast("RedisClientProtocol", self._client)
+        return await client.eval(script, num_keys, *args)
+
     async def acquire_lock(
         self,
         key: str,
@@ -253,6 +334,7 @@ class RedisCache:
             Lock value if acquired, None otherwise.
         """
         import uuid
+
         lock_value = value or str(uuid.uuid4())
         result = await self._client.set(
             f"lock:{key}",
@@ -280,8 +362,8 @@ class RedisCache:
             return 0
         end
         """
-        # Redis eval returns int (1 or 0) - type stubs are incomplete
-        result: int = await self._client.eval(script, 1, f"lock:{key}", value)  # type: ignore[no-untyped-call]
+        # Use typed wrapper to execute Lua script
+        result = await self._eval_script(script, 1, f"lock:{key}", value)
         return bool(result == 1)
 
     async def ping(self) -> bool:
