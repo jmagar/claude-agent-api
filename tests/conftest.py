@@ -2,17 +2,19 @@
 
 import logging
 import os
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Generator
+from unittest.mock import MagicMock
 
 import pytest
 from httpx import ASGITransport, AsyncClient
 
 # Set test environment variables before importing app
 os.environ.setdefault("API_KEY", "test-api-key-12345")
+# Note: Use localhost for default test env, override via DATABASE_URL/REDIS_URL for specific environments
 os.environ.setdefault(
-    "DATABASE_URL", "postgresql+asyncpg://test:test@100.120.242.29:53432/test"
+    "DATABASE_URL", "postgresql+asyncpg://test:test@localhost:53432/test"
 )
-os.environ.setdefault("REDIS_URL", "redis://100.120.242.29:53380/0")
+os.environ.setdefault("REDIS_URL", "redis://localhost:53380/0")
 os.environ.setdefault("DEBUG", "true")
 
 from apps.api.config import get_settings
@@ -20,6 +22,14 @@ from apps.api.dependencies import close_cache, close_db, init_cache, init_db
 from apps.api.main import create_app
 
 logger = logging.getLogger(__name__)
+ALLOW_REAL_CLAUDE_ENV = "ALLOW_REAL_CLAUDE_API"
+
+
+def _is_truthy(value: str | None) -> bool:
+    """Return True when an env var is set to a truthy value."""
+    if value is None:
+        return False
+    return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
 @pytest.fixture
@@ -98,6 +108,31 @@ async def _async_client(async_client: AsyncClient) -> AsyncClient:
     """Underscore-prefixed alias for skipped tests."""
     return async_client
 
+
+@pytest.fixture(autouse=True)
+def enforce_claude_sdk_policy(request: pytest.FixtureRequest) -> Generator[None, None, None]:
+    """Mock Claude SDK for non-e2e tests and guard against real calls."""
+    is_e2e = request.node.get_closest_marker("e2e") is not None
+    allow_real = _is_truthy(os.environ.get(ALLOW_REAL_CLAUDE_ENV))
+
+    if is_e2e:
+        if not allow_real:
+            pytest.skip(
+                f"Set {ALLOW_REAL_CLAUDE_ENV}=true to run e2e tests that call Claude."
+            )
+        yield
+        return
+
+    request.getfixturevalue("mock_claude_sdk")
+    yield
+
+    import claude_agent_sdk
+
+    if not isinstance(claude_agent_sdk.ClaudeSDKClient, MagicMock):
+        pytest.fail(
+            "Real Claude SDK client detected outside e2e. "
+            f"Mark the test with @pytest.mark.e2e and set {ALLOW_REAL_CLAUDE_ENV}=true."
+        )
 
 @pytest.fixture
 def sample_query_request() -> dict[str, str | list[str]]:

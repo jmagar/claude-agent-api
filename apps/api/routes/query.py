@@ -61,10 +61,26 @@ async def query_stream(
         session_id: str | None = query.session_id  # Only set if resuming
         is_error = False
         num_turns = 0
+        total_cost_usd: float | None = None
         try:
             async for event in agent_service.query_stream(query):
                 event_type = event.get("event", "")
                 event_data = event.get("data", "{}")
+
+                # Track turns and errors from events
+                if event_type == "message":
+                    num_turns += 1
+                if event_type == "error":
+                    is_error = True
+                if event_type == "result":
+                    try:
+                        result_data = json.loads(event_data)
+                        if "turns" in result_data:
+                            num_turns = result_data["turns"]
+                        if "total_cost_usd" in result_data:
+                            total_cost_usd = result_data["total_cost_usd"]
+                    except json.JSONDecodeError:
+                        pass
 
                 # Extract session_id from init event for tracking
                 if session_id is None and event_type == "init":
@@ -105,12 +121,6 @@ async def query_stream(
                         await agent_service.interrupt(session_id)
                     break
 
-                # Track turns and errors from events
-                if event_type == "message":
-                    num_turns += 1
-                if event_type == "error":
-                    is_error = True
-
                 yield event
 
         except asyncio.CancelledError:
@@ -128,6 +138,7 @@ async def query_stream(
                     session_id=session_id,
                     status=status,
                     total_turns=num_turns,
+                    total_cost_usd=total_cost_usd,
                 )
 
     return EventSourceResponse(
@@ -182,6 +193,7 @@ async def query_single(
                 session_id=session_id,
                 status=status,
                 total_turns=result["num_turns"],
+                total_cost_usd=result.get("total_cost_usd"),
             )
         except Exception as e:
             logger.error(

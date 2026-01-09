@@ -182,6 +182,13 @@ class TestRateLimitError:
         assert error.status_code == 429
         assert error.details["retry_after"] == 60
 
+    def test_with_zero_retry_after(self) -> None:
+        """Test rate limit error with zero retry info (immediate retry)."""
+        error = RateLimitError(retry_after=0)
+
+        assert error.status_code == 429
+        assert error.details["retry_after"] == 0
+
 
 class TestToolNotAllowedError:
     """Tests for ToolNotAllowedError."""

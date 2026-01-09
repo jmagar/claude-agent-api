@@ -111,7 +111,10 @@ class TestAgentService:
 
     def test_query_request_with_hooks(self) -> None:
         """Test QueryRequest with webhook hooks."""
-        from apps.api.schemas.requests.config import HooksConfigSchema, HookWebhookSchema
+        from apps.api.schemas.requests.config import (
+            HooksConfigSchema,
+            HookWebhookSchema,
+        )
 
         request = QueryRequest(
             prompt="Test",

@@ -1,6 +1,6 @@
 """Claude Agent API - HTTP API wrapper for Claude Agent Python SDK."""
 
-from importlib.metadata import version, PackageNotFoundError
+from importlib.metadata import PackageNotFoundError, version
 
 try:
     __version__ = version("claude-agent-api")

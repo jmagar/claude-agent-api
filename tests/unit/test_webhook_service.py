@@ -4,14 +4,12 @@ These tests verify the webhook service that handles HTTP callbacks
 for hook events (PreToolUse, PostToolUse, Stop, etc.).
 """
 
-import asyncio
 from typing import Literal
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
-from pydantic import HttpUrl
 
-from apps.api.schemas.requests.config import HookWebhookSchema, HooksConfigSchema
+from apps.api.schemas.requests.config import HooksConfigSchema, HookWebhookSchema
 
 
 # Type definitions for webhook payloads
@@ -283,7 +281,7 @@ class TestWebhookTimeoutHandling:
         )
 
         with patch.object(service, "_make_request") as mock_request:
-            mock_request.side_effect = asyncio.TimeoutError()
+            mock_request.side_effect = TimeoutError()
 
             result = await service.execute_hook(
                 hook_event="PreToolUse",
@@ -375,7 +373,7 @@ class TestWebhookErrorHandling:
     @pytest.mark.anyio
     async def test_http_error_status_returns_default(self) -> None:
         """Test handling HTTP error status codes from webhook."""
-        from apps.api.services.webhook import WebhookService, WebhookHttpError
+        from apps.api.services.webhook import WebhookHttpError, WebhookService
 
         service = WebhookService()
         hook_config = HookWebhookSchema(

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 import redis.asyncio as redis
 import structlog
@@ -13,8 +13,6 @@ from apps.api.config import get_settings
 logger = structlog.get_logger(__name__)
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable
-
     # Use generic type only during type checking
     RedisClient = redis.Redis[bytes]
 else:
@@ -59,10 +57,7 @@ class RedisCache:
         use close(). We use getattr to safely call the async close method.
         """
         close_method = getattr(self._client, "aclose", self._client.close)
-        awaitable = close_method()
-        if TYPE_CHECKING:
-            awaitable = cast("Awaitable[None]", awaitable)
-        await awaitable
+        await close_method()
 
     async def get(self, key: str) -> str | None:
         """Get a value from cache.

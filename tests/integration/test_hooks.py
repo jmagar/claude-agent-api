@@ -490,13 +490,13 @@ class TestHookInvalidConfigurations:
 
     @pytest.mark.integration
     @pytest.mark.anyio
-    async def test_invalid_hook_type_rejected(
+    async def test_invalid_hook_type_is_ignored(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
         mock_claude_sdk: None,
     ) -> None:
-        """Test that invalid hook types are rejected."""
+        """Test that invalid hook types are ignored by Pydantic."""
         response = await async_client.post(
             "/api/v1/query",
             json={
@@ -510,6 +510,5 @@ class TestHookInvalidConfigurations:
             },
             headers=auth_headers,
         )
-        # Should either reject with 422 or ignore unknown field
-        # The exact behavior depends on Pydantic's extra field handling
-        assert response.status_code in (200, 422)
+        # Pydantic ignores unknown fields by default
+        assert response.status_code == 200

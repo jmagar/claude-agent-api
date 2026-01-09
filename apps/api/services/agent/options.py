@@ -5,8 +5,6 @@ Extracts options building logic from AgentService for better separation of conce
 
 from typing import TYPE_CHECKING, cast
 
-from apps.api.services.agent.utils import resolve_env_dict
-
 if TYPE_CHECKING:
     from claude_agent_sdk import AgentDefinition, ClaudeAgentOptions
     from claude_agent_sdk.types import (
@@ -130,18 +128,15 @@ class OptionsBuilder:
 
         mcp_configs: dict[str, dict[str, str | list[str] | dict[str, str] | None]] = {}
         for name, config in self.request.mcp_servers.items():
-            # Resolve ${VAR:-default} syntax in env and headers
-            resolved_env = resolve_env_dict(config.env) if config.env else {}
-            resolved_headers = (
-                resolve_env_dict(config.headers) if config.headers else {}
-            )
+            # T140: SEC - Do NOT resolve environment variables from user input
+            # This prevents server-side secret leakage through ${VAR} syntax
             mcp_configs[name] = {
                 "command": config.command,
                 "args": config.args,
                 "type": config.type,
                 "url": config.url,
-                "headers": resolved_headers,
-                "env": resolved_env,
+                "headers": dict(config.headers) if config.headers else {},
+                "env": dict(config.env) if config.env else {},
             }
         return mcp_configs
 

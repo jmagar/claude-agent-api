@@ -1,6 +1,7 @@
 """Agent service wrapping Claude Agent SDK."""
 
 import asyncio
+import json
 import time
 from collections.abc import AsyncGenerator
 from typing import TYPE_CHECKING, Literal
@@ -389,11 +390,30 @@ class AgentService:
         )
 
         try:
-            async for _event in self._execute_query(request, ctx):
-                # Parse event to extract content
-                pass
+            async for event in self._execute_query(request, ctx):
+                event_type = event.get("event")
+                if event_type == "message":
+                    try:
+                        event_data = json.loads(event.get("data", "{}"))
+                        # Accumulate assistant message content
+                        if event_data.get("type") == "assistant":
+                            content_blocks.extend(event_data.get("content", []))
+                            # Track usage (typically latest message has cumulative or we sum)
+                            if event_data.get("usage"):
+                                msg_usage = event_data["usage"]
+                                if usage_data is None:
+                                    usage_data = msg_usage.copy()
+                                else:
+                                    # Accumulate tokens across turns
+                                    for k, v in msg_usage.items():
+                                        if isinstance(v, int):
+                                            usage_data[k] = usage_data.get(k, 0) + v
+                    except json.JSONDecodeError:
+                        logger.error("Failed to parse event data", event=event)
+                elif event_type == "error":
+                    is_error = True
 
-            is_error = ctx.is_error
+            is_error = is_error or ctx.is_error
             num_turns = ctx.num_turns
             total_cost_usd = ctx.total_cost_usd
             result_text = ctx.result_text
