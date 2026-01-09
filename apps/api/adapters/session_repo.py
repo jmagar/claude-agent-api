@@ -1,7 +1,7 @@
 """Session repository implementation using SQLAlchemy."""
 
 from collections.abc import Sequence
-from datetime import UTC, datetime
+from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
@@ -30,6 +30,7 @@ class SessionRepository:
         working_directory: str | None = None,
         parent_session_id: UUID | None = None,
         metadata: dict[str, object] | None = None,
+        owner_api_key: str | None = None,
     ) -> Session:
         """Create a new session record.
 
@@ -39,6 +40,7 @@ class SessionRepository:
             working_directory: Working directory path.
             parent_session_id: Parent session ID for forks.
             metadata: Additional session metadata.
+            owner_api_key: Owning API key for authorization checks.
 
         Returns:
             Created session.
@@ -49,6 +51,7 @@ class SessionRepository:
             working_directory=working_directory,
             parent_session_id=parent_session_id,
             metadata_=metadata,
+            owner_api_key=owner_api_key,
         )
         self._db.add(session)
         await self._db.commit()
@@ -89,7 +92,7 @@ class SessionRepository:
         from sqlalchemy import update as sql_update
 
         # Build update values
-        update_values: dict[str, object] = {"updated_at": datetime.now(UTC)}
+        update_values: dict[str, object] = {"updated_at": datetime.now()}
 
         if status is not None:
             update_values["status"] = status

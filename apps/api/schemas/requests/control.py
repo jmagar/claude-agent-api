@@ -8,7 +8,9 @@ from pydantic import BaseModel, Field, model_validator
 class RewindRequest(BaseModel):
     """Request to rewind session to a checkpoint."""
 
-    checkpoint_id: str = Field(..., min_length=1, description="ID of checkpoint to rewind to")
+    checkpoint_id: str = Field(
+        ..., min_length=1, description="ID of checkpoint to rewind to"
+    )
 
 
 class ControlRequest(BaseModel):
@@ -21,8 +23,10 @@ class ControlRequest(BaseModel):
     type: Literal["permission_mode_change"] = Field(
         ..., description="Type of control event"
     )
-    permission_mode: Literal["default", "acceptEdits", "plan", "bypassPermissions"] | None = (
-        Field(None, description="New permission mode (required for permission_mode_change)")
+    permission_mode: (
+        Literal["default", "acceptEdits", "plan", "bypassPermissions"] | None
+    ) = Field(
+        None, description="New permission mode (required for permission_mode_change)"
     )
 
     @model_validator(mode="after")

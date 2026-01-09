@@ -1,22 +1,20 @@
 """Base exception class for the API."""
 
-from typing import TypedDict
+from typing import NotRequired, Required, TypedDict
 
 
-class ErrorDetailsDict(TypedDict, total=False):
+class ErrorDetailsDict(TypedDict):
     """Error details structure.
 
-    All fields are optional (total=False).
-
     Attributes:
-        code: Machine-readable error code (optional).
-        message: Human-readable error message (optional).
+        code: Machine-readable error code - required.
+        message: Human-readable error message - required.
         details: Additional error details (optional).
     """
 
-    code: str
-    message: str
-    details: dict[str, str | int | float | bool | list[str] | None] | None
+    code: Required[str]
+    message: Required[str]
+    details: NotRequired[dict[str, str | int | float | bool | list[str] | None] | None]
 
 
 class ErrorResponseDict(TypedDict):

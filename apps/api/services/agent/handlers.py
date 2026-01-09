@@ -423,9 +423,7 @@ class MessageHandler:
             )
         return None
 
-    def format_sse(
-        self, event_type: str, data: dict[str, object]
-    ) -> dict[str, str]:
+    def format_sse(self, event_type: str, data: dict[str, object]) -> dict[str, str]:
         """Format data as SSE event dict for EventSourceResponse.
 
         Args:

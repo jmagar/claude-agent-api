@@ -1,32 +1,27 @@
 """Agent service wrapping Claude Agent SDK."""
 
-import asyncio
-import json
 import time
-from collections.abc import AsyncGenerator, AsyncIterable
+from collections.abc import AsyncGenerator
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, cast
+from typing import TYPE_CHECKING, Literal
 from uuid import uuid4
 
 import structlog
 
 from apps.api.config import get_settings
-from apps.api.exceptions import AgentError
 from apps.api.schemas.responses import (
     CommandInfoSchema,
-    DoneEvent,
-    DoneEventData,
     ErrorEvent,
     ErrorEventData,
-    InitEvent,
-    InitEventData,
-    ResultEvent,
-    ResultEventData,
-    UsageSchema,
 )
 from apps.api.services.agent.handlers import MessageHandler
+from apps.api.services.agent.hook_facade import HookFacade
 from apps.api.services.agent.hooks import HookExecutor
 from apps.api.services.agent.options import OptionsBuilder
+from apps.api.services.agent.query_executor import QueryExecutor
+from apps.api.services.agent.session_tracker import AgentSessionTracker
+from apps.api.services.agent.single_query_aggregator import SingleQueryAggregator
+from apps.api.services.agent.stream_orchestrator import StreamOrchestrator
 from apps.api.services.agent.types import QueryResponseDict, StreamContext
 from apps.api.services.commands import CommandsService
 from apps.api.services.webhook import WebhookService
@@ -48,6 +43,8 @@ class AgentService:
         webhook_service: WebhookService | None = None,
         checkpoint_service: "CheckpointService | None" = None,
         cache: "Cache | None" = None,
+        session_tracker: AgentSessionTracker | None = None,
+        query_executor: QueryExecutor | None = None,
     ) -> None:
         """Initialize agent service.
 
@@ -63,8 +60,12 @@ class AgentService:
         self._webhook_service = webhook_service or WebhookService()
         self._checkpoint_service = checkpoint_service
         self._cache = cache
+        self._session_tracker = session_tracker or AgentSessionTracker(cache=cache)
         self._message_handler = MessageHandler()
         self._hook_executor = HookExecutor(self._webhook_service)
+        self._hook_facade = HookFacade(self._hook_executor)
+        self._query_executor = query_executor or QueryExecutor(self._message_handler)
+        self._stream_orchestrator = StreamOrchestrator(self._message_handler)
 
     async def _register_active_session(self, session_id: str) -> None:
         """Register session as active in Redis for distributed tracking.
@@ -79,16 +80,7 @@ class AgentService:
         Sessions are tracked with a TTL to auto-cleanup stale entries.
         Redis is REQUIRED - no in-memory fallback to prevent split-brain in multi-instance.
         """
-        if not self._cache:
-            raise RuntimeError("Cache is required for distributed session tracking")
-
-        key = f"active_session:{session_id}"
-        await self._cache.cache_set(
-            key,
-            "true",  # Value doesn't matter, existence = active
-            ttl=7200,  # 2 hours TTL for auto-cleanup
-        )
-        logger.info("Registered active session", session_id=session_id, storage="redis")
+        await self._session_tracker.register(session_id)
 
     async def _is_session_active(self, session_id: str) -> bool:
         """Check if session is active across all instances.
@@ -102,11 +94,7 @@ class AgentService:
         Raises:
             RuntimeError: If cache is not configured.
         """
-        if not self._cache:
-            raise RuntimeError("Cache is required for distributed session tracking")
-
-        key = f"active_session:{session_id}"
-        return await self._cache.exists(key)
+        return await self._session_tracker.is_active(session_id)
 
     async def _unregister_active_session(self, session_id: str) -> None:
         """Remove session from active tracking.
@@ -117,12 +105,7 @@ class AgentService:
         Raises:
             RuntimeError: If cache is not configured.
         """
-        if not self._cache:
-            raise RuntimeError("Cache is required for distributed session tracking")
-
-        key = f"active_session:{session_id}"
-        await self._cache.delete(key)
-        logger.info("Unregistered active session", session_id=session_id, storage="redis")
+        await self._session_tracker.unregister(session_id)
 
     async def _check_interrupt(self, session_id: str) -> bool:
         """Check if session was interrupted (works across instances).
@@ -136,12 +119,7 @@ class AgentService:
         Raises:
             RuntimeError: If cache is not configured.
         """
-        if not self._cache:
-            raise RuntimeError("Cache is required for distributed interrupt checking")
-
-        # Check Redis interrupt marker
-        interrupt_key = f"interrupted:{session_id}"
-        return await self._cache.exists(interrupt_key)
+        return await self._session_tracker.is_interrupted(session_id)
 
     @property
     def checkpoint_service(self) -> "CheckpointService | None":
@@ -197,20 +175,16 @@ class AgentService:
             ]
 
             # Emit init event
-            init_event = InitEvent(
-                data=InitEventData(
-                    session_id=session_id,
-                    model=model,
-                    tools=request.allowed_tools or [],
-                    mcp_servers=[],
-                    plugins=plugin_names,
-                    commands=command_schemas,
-                    permission_mode=request.permission_mode,
-                )
+            init_event = self._stream_orchestrator.build_init_event(
+                session_id=session_id,
+                model=model,
+                tools=request.allowed_tools or [],
+                plugins=plugin_names,
+                commands=command_schemas,
+                permission_mode=request.permission_mode,
+                mcp_servers=[],
             )
-            yield self._message_handler.format_sse(
-                init_event.event, init_event.data.model_dump()
-            )
+            yield init_event
 
             # Execute query using SDK
             async for event in self._execute_query(request, ctx, commands_service):
@@ -225,38 +199,11 @@ class AgentService:
             # Emit result event
             duration_ms = int((time.perf_counter() - ctx.start_time) * 1000)
 
-            # Convert model_usage to UsageSchema format (T110)
-            model_usage_converted: dict[str, UsageSchema] | None = None
-            if ctx.model_usage:
-                model_usage_converted = {}
-                for model_name, usage_dict in ctx.model_usage.items():
-                    if isinstance(usage_dict, dict):
-                        model_usage_converted[model_name] = UsageSchema(
-                            input_tokens=usage_dict.get("input_tokens", 0),
-                            output_tokens=usage_dict.get("output_tokens", 0),
-                            cache_read_input_tokens=usage_dict.get(
-                                "cache_read_input_tokens", 0
-                            ),
-                            cache_creation_input_tokens=usage_dict.get(
-                                "cache_creation_input_tokens", 0
-                            ),
-                        )
-
-            result_event = ResultEvent(
-                data=ResultEventData(
-                    session_id=session_id,
-                    is_error=ctx.is_error,
-                    duration_ms=duration_ms,
-                    num_turns=ctx.num_turns,
-                    total_cost_usd=ctx.total_cost_usd,
-                    model_usage=model_usage_converted,
-                    result=ctx.result_text,
-                    structured_output=ctx.structured_output,
-                )
+            result_event = self._stream_orchestrator.build_result_event(
+                ctx=ctx,
+                duration_ms=duration_ms,
             )
-            yield self._message_handler.format_sse(
-                result_event.event, result_event.data.model_dump()
-            )
+            yield result_event
 
             # Emit done event
             reason: Literal["completed", "interrupted", "error"]
@@ -266,10 +213,8 @@ class AgentService:
                 reason = "error"
             else:
                 reason = "completed"
-            done_event = DoneEvent(data=DoneEventData(reason=reason))
-            yield self._message_handler.format_sse(
-                done_event.event, done_event.data.model_dump()
-            )
+            done_event = self._stream_orchestrator.build_done_event(reason=reason)
+            yield done_event
 
         except Exception as e:
             logger.exception("Query stream error", session_id=session_id, error=str(e))
@@ -285,10 +230,7 @@ class AgentService:
             )
 
             # Emit done with error
-            done_event = DoneEvent(data=DoneEventData(reason="error"))
-            yield self._message_handler.format_sse(
-                done_event.event, done_event.data.model_dump()
-            )
+            yield self._stream_orchestrator.build_done_event(reason="error")
 
         finally:
             # Cleanup: unregister from Redis
@@ -310,160 +252,8 @@ class AgentService:
         Yields:
             SSE event dicts with 'event' and 'data' keys.
         """
-        try:
-            # Detect slash commands in prompt for observability logging
-            parsed_command = commands_service.parse_command(request.prompt)
-
-            if parsed_command:
-                # Slash command detected - SDK will handle execution
-                # Just log for observability
-                logger.info(
-                    "slash_command_detected",
-                    session_id=ctx.session_id,
-                    command=parsed_command["command"],
-                    args=parsed_command["args"],
-                )
-
-            # Import SDK here to avoid import errors if not installed
-            from claude_agent_sdk import (
-                ClaudeSDKClient,
-                ClaudeSDKError,
-                CLIConnectionError,
-                CLIJSONDecodeError,
-                CLINotFoundError,
-                ProcessError,
-            )
-
-            # Build options using OptionsBuilder
-            options = OptionsBuilder(request).build()
-
-            logger.info(
-                "Creating SDK client",
-                session_id=ctx.session_id,
-                model=ctx.model,
-                enable_file_checkpointing=request.enable_file_checkpointing,
-                permission_mode=request.permission_mode,
-            )
-
-            # Create client and execute query
-            # Note: Only pass session_id to SDK when resuming an existing SDK session
-            # For new conversations, use the default "default" session_id
-            async with ClaudeSDKClient(options) as client:
-                logger.debug("SDK client connected", session_id=ctx.session_id)
-                # T122: Build query content with images if provided
-                # SDK accepts images as part of multimodal content
-                if request.images:
-                    # Build multimodal content: text + images
-                    content: list[dict[str, str | dict[str, str]]] = []
-
-                    # Add text prompt
-                    content.append({"type": "text", "text": request.prompt})
-
-                    # Add images
-                    for image in request.images:
-                        if image.type == "base64":
-                            content.append({
-                                "type": "image",
-                                "source": {
-                                    "type": "base64",
-                                    "media_type": image.media_type,
-                                    "data": image.data,
-                                },
-                            })
-                        else:
-                            # URL type
-                            content.append({
-                                "type": "image",
-                                "source": {
-                                    "type": "url",
-                                    "url": image.data,
-                                },
-                            })
-
-                    logger.info(
-                        "Multimodal query with images",
-                        session_id=ctx.session_id,
-                        image_count=len(request.images),
-                    )
-                    # Pass multimodal content to SDK
-                    # SDK type hints require AsyncIterable but accepts lists at runtime
-                    multimodal_content = cast(
-                        AsyncIterable[dict[str, Any]],
-                        content
-                    )
-                    await client.query(multimodal_content)
-                else:
-                    # Standard text-only prompt
-                    await client.query(request.prompt)
-
-                logger.debug("Query sent to SDK", session_id=ctx.session_id)
-
-                async for message in client.receive_response():
-                    # Update context
-                    ctx.num_turns += 1
-
-                    logger.debug(
-                        "Received SDK message",
-                        session_id=ctx.session_id,
-                        message_type=type(message).__name__,
-                    )
-
-                    # Map SDK message to API event using MessageHandler
-                    event_str = self._message_handler.map_sdk_message(message, ctx)
-                    if event_str:
-                        yield event_str
-
-                logger.debug("SDK client disconnecting", session_id=ctx.session_id)
-
-        except ImportError:
-            # SDK not installed - emit mock response for development
-            logger.warning("Claude Agent SDK not installed, using mock response")
-            async for event in self._mock_response(request, ctx):
-                yield event
-
-        except CLINotFoundError as e:
-            logger.error("Claude Code CLI not found", error=str(e))
-            ctx.is_error = True
-            raise AgentError(
-                "Claude Code CLI is not installed. Install with: npm install -g @anthropic-ai/claude-code",
-                original_error=str(e),
-            ) from e
-
-        except CLIConnectionError as e:
-            logger.error("Failed to connect to Claude Code", error=str(e))
-            ctx.is_error = True
-            raise AgentError(
-                f"Connection to Claude Code failed: {e}", original_error=str(e)
-            ) from e
-
-        except ProcessError as e:
-            exit_code = getattr(e, "exit_code", None)
-            stderr = getattr(e, "stderr", None)
-            logger.error(
-                "Claude Code process failed", exit_code=exit_code, stderr=stderr
-            )
-            ctx.is_error = True
-            raise AgentError(f"Process failed: {e}", original_error=str(e)) from e
-
-        except CLIJSONDecodeError as e:
-            line = getattr(e, "line", None)
-            logger.error("Failed to parse SDK response", line=line)
-            ctx.is_error = True
-            raise AgentError(
-                f"SDK response parsing failed: {e}", original_error=str(e)
-            ) from e
-
-        except ClaudeSDKError as e:
-            logger.error("SDK error", error=str(e))
-            ctx.is_error = True
-            raise AgentError(f"SDK error: {e}", original_error=str(e)) from e
-
-        except Exception as e:
-            logger.error("SDK execution error", error=str(e))
-            ctx.is_error = True
-            raise AgentError(
-                f"Agent execution failed: {e}", original_error=str(e)
-            ) from e
+        async for event in self._query_executor.execute(request, ctx, commands_service):
+            yield event
 
     async def _mock_response(
         self,
@@ -479,53 +269,8 @@ class AgentService:
         Yields:
             SSE event dicts with 'event' and 'data' keys.
         """
-        from apps.api.schemas.responses import (
-            ContentBlockSchema,
-            MessageEvent,
-            MessageEventData,
-        )
-
-        # Simulate thinking delay
-        await asyncio.sleep(0.1)
-
-        # Emit assistant message
-        ctx.num_turns = 1
-        event = MessageEvent(
-            data=MessageEventData(
-                type="assistant",
-                content=[
-                    ContentBlockSchema(
-                        type="text",
-                        text=f"[Mock Response] Received prompt: {request.prompt[:100]}...",
-                    )
-                ],
-                model=ctx.model,
-                usage=UsageSchema(
-                    input_tokens=100,
-                    output_tokens=50,
-                ),
-            )
-        )
-        yield self._message_handler.format_sse(event.event, event.data.model_dump())
-
-        ctx.result_text = "Mock response completed"
-        ctx.total_cost_usd = 0.001
-
-        # Generate mock structured output if output_format was specified
-        if request.output_format:
-            if request.output_format.type == "json":
-                # For json type, return a simple mock JSON object
-                ctx.structured_output = {
-                    "message": "Mock structured response",
-                    "status": "success",
-                }
-            elif request.output_format.type == "json_schema":
-                # For json_schema, generate a mock response matching the schema
-                # In production, the SDK would validate against the schema
-                ctx.structured_output = {
-                    "message": "Mock structured response matching schema",
-                    "validated": True,
-                }
+        async for event in self._query_executor.mock_response(request, ctx):
+            yield event
 
     async def query_single(self, request: "QueryRequest") -> "QueryResponseDict":
         """Execute non-streaming query.
@@ -539,14 +284,7 @@ class AgentService:
         session_id = request.session_id or str(uuid4())
         model = request.model or "sonnet"
         start_time = time.perf_counter()
-
-        content_blocks: list[dict[str, object]] = []
-        is_error = False
-        num_turns = 0
-        total_cost_usd: float | None = None
-        result_text: str | None = None
-        usage_data: dict[str, int] | None = None
-        structured_output: dict[str, object] | None = None
+        aggregator = SingleQueryAggregator()
 
         # Collect all events from stream
         ctx = StreamContext(
@@ -563,52 +301,20 @@ class AgentService:
 
         try:
             async for event in self._execute_query(request, ctx, commands_service):
-                event_type = event.get("event")
-                if event_type == "message":
-                    try:
-                        event_data = json.loads(event.get("data", "{}"))
-                        # Accumulate assistant message content
-                        if event_data.get("type") == "assistant":
-                            content_blocks.extend(event_data.get("content", []))
-                            # Track usage (typically latest message has cumulative or we sum)
-                            if event_data.get("usage"):
-                                msg_usage = event_data["usage"]
-                                if usage_data is None:
-                                    usage_data = msg_usage.copy()
-                                else:
-                                    # Accumulate tokens across turns
-                                    for k, v in msg_usage.items():
-                                        if isinstance(v, int):
-                                            usage_data[k] = usage_data.get(k, 0) + v
-                    except json.JSONDecodeError:
-                        logger.error("Failed to parse event data", event=event)
-                elif event_type == "error":
-                    is_error = True
-
-            is_error = is_error or ctx.is_error
-            num_turns = ctx.num_turns
-            total_cost_usd = ctx.total_cost_usd
-            result_text = ctx.result_text
-            structured_output = ctx.structured_output
-
+                aggregator.handle_event(event)
         except Exception as e:
-            is_error = True
-            content_blocks = [{"type": "text", "text": f"Error: {e}"}]
+            ctx.is_error = True
+            aggregator.content_blocks.clear()
+            aggregator.content_blocks.append({"type": "text", "text": f"Error: {e}"})
 
         duration_ms = int((time.perf_counter() - start_time) * 1000)
 
-        return {
-            "session_id": session_id,
-            "model": model,
-            "content": content_blocks,
-            "is_error": is_error,
-            "duration_ms": duration_ms,
-            "num_turns": num_turns,
-            "total_cost_usd": total_cost_usd,
-            "usage": usage_data,
-            "result": result_text,
-            "structured_output": structured_output,
-        }
+        return aggregator.finalize(
+            session_id=session_id,
+            model=model,
+            ctx=ctx,
+            duration_ms=duration_ms,
+        )
 
     async def interrupt(self, session_id: str) -> bool:
         """Interrupt a running agent session (distributed).
@@ -625,9 +331,6 @@ class AgentService:
         This now works across multiple API instances via Redis.
         Redis is REQUIRED - no in-memory fallback to prevent split-brain.
         """
-        if not self._cache:
-            raise RuntimeError("Cache is required for distributed interrupt signaling")
-
         # Check if session is active (across all instances)
         is_active = await self._is_session_active(session_id)
         if not is_active:
@@ -640,12 +343,7 @@ class AgentService:
         logger.info("Interrupting session", session_id=session_id)
 
         # Mark session as interrupted in Redis (visible to all instances)
-        interrupt_key = f"interrupted:{session_id}"
-        await self._cache.cache_set(
-            interrupt_key,
-            "true",
-            ttl=300,  # 5 minutes TTL for interrupt marker
-        )
+        await self._session_tracker.mark_interrupted(session_id)
 
         logger.info(
             "Interrupt signal sent",
@@ -790,7 +488,7 @@ class AgentService:
         Returns:
             Webhook response with decision (allow/deny/ask).
         """
-        return await self._hook_executor.execute_pre_tool_use(
+        return await self._hook_facade.execute_pre_tool_use(
             hooks_config, session_id, tool_name, tool_input
         )
 
@@ -814,7 +512,7 @@ class AgentService:
         Returns:
             Webhook response.
         """
-        return await self._hook_executor.execute_post_tool_use(
+        return await self._hook_facade.execute_post_tool_use(
             hooks_config, session_id, tool_name, tool_input, tool_result
         )
 
@@ -838,7 +536,7 @@ class AgentService:
         Returns:
             Webhook response.
         """
-        return await self._hook_executor.execute_stop(
+        return await self._hook_facade.execute_stop(
             hooks_config, session_id, is_error, duration_ms, result
         )
 
@@ -862,7 +560,7 @@ class AgentService:
         Returns:
             Webhook response.
         """
-        return await self._hook_executor.execute_subagent_stop(
+        return await self._hook_facade.execute_subagent_stop(
             hooks_config, session_id, subagent_name, is_error, result
         )
 
@@ -882,7 +580,7 @@ class AgentService:
         Returns:
             Webhook response with potential modified prompt.
         """
-        return await self._hook_executor.execute_user_prompt_submit(
+        return await self._hook_facade.execute_user_prompt_submit(
             hooks_config, session_id, prompt
         )
 
@@ -892,7 +590,9 @@ class AgentService:
         """Build SDK options - delegates to OptionsBuilder for testing."""
         return OptionsBuilder(request).build()
 
-    def _map_sdk_message(self, message: object, ctx: StreamContext) -> dict[str, str] | None:
+    def _map_sdk_message(
+        self, message: object, ctx: StreamContext
+    ) -> dict[str, str] | None:
         """Map SDK message to SSE event - delegates to MessageHandler for testing."""
         return self._message_handler.map_sdk_message(message, ctx)
 

@@ -88,7 +88,9 @@ class WebhookService:
         self._default_timeout = default_timeout
         self._logger = logger.bind(service="webhook")
 
-    def _error_response(self, hook_event: HookEventType, reason: str) -> dict[str, object]:
+    def _error_response(
+        self, hook_event: HookEventType, reason: str
+    ) -> dict[str, object]:
         """Return appropriate error response based on hook event type.
 
         PreToolUse hooks fail closed (deny), all others fail open (allow).

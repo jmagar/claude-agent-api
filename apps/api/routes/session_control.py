@@ -44,7 +44,10 @@ async def resume_session(
         SessionNotFoundError: If session doesn't exist.
     """
     # Verify session exists
-    session = await session_service.get_session(session_id)
+    session = await session_service.get_session(
+        session_id,
+        current_api_key=_api_key,
+    )
     if not session:
         raise SessionNotFoundError(session_id)
 
@@ -100,7 +103,10 @@ async def fork_session(
         SessionNotFoundError: If parent session doesn't exist.
     """
     # Verify parent session exists
-    parent_session = await session_service.get_session(session_id)
+    parent_session = await session_service.get_session(
+        session_id,
+        current_api_key=_api_key,
+    )
     if not parent_session:
         raise SessionNotFoundError(session_id)
 
@@ -109,6 +115,7 @@ async def fork_session(
     forked_session = await session_service.create_session(
         model=model,
         parent_session_id=session_id,
+        owner_api_key=_api_key,
     )
 
     # Build query request with fork flag and NEW session_id

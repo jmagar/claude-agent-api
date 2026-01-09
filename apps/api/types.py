@@ -2,18 +2,12 @@
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Literal, TypeAlias, TypedDict
+from typing import Literal, NotRequired, Required, TypeAlias, TypedDict
 from uuid import UUID
 
 # JSON value type (recursive union for proper type safety)
 JsonValue: TypeAlias = (
-    None
-    | bool
-    | int
-    | float
-    | str
-    | list["JsonValue"]
-    | dict[str, "JsonValue"]
+    None | bool | int | float | str | list["JsonValue"] | dict[str, "JsonValue"]
 )
 
 # Session status values
@@ -68,13 +62,11 @@ McpTransportType = Literal["stdio", "sse", "http"]
 HookDecision = Literal["allow", "deny", "ask"]
 
 
-class ContentBlockDict(TypedDict, total=False):
+class ContentBlockDict(TypedDict):
     """Content block dictionary structure.
 
-    All fields are optional (total=False).
-
     Attributes:
-        type: The content block type (text, thinking, tool_use, tool_result).
+        type: The content block type (text, thinking, tool_use, tool_result) - required.
         text: Text content for text blocks (optional).
         thinking: Thinking content for thinking blocks (optional).
         id: Unique identifier for tool_use blocks (optional).
@@ -85,21 +77,19 @@ class ContentBlockDict(TypedDict, total=False):
         is_error: Whether tool_result represents an error (optional).
     """
 
-    type: ContentBlockType
-    text: str | None
-    thinking: str | None
-    id: str | None
-    name: str | None
-    input: dict[str, object] | None
-    tool_use_id: str | None
-    content: str | list[object] | None
-    is_error: bool | None
+    type: Required[ContentBlockType]
+    text: NotRequired[str | None]
+    thinking: NotRequired[str | None]
+    id: NotRequired[str | None]
+    name: NotRequired[str | None]
+    input: NotRequired[dict[str, object] | None]
+    tool_use_id: NotRequired[str | None]
+    content: NotRequired[str | list[object] | None]
+    is_error: NotRequired[bool | None]
 
 
-class UsageDict(TypedDict, total=False):
+class UsageDict(TypedDict):
     """Token usage dictionary.
-
-    All fields are optional (total=False).
 
     Attributes:
         input_tokens: Number of input tokens consumed (optional).
@@ -108,10 +98,10 @@ class UsageDict(TypedDict, total=False):
         cache_creation_input_tokens: Number of input tokens used for cache creation (optional).
     """
 
-    input_tokens: int
-    output_tokens: int
-    cache_read_input_tokens: int
-    cache_creation_input_tokens: int
+    input_tokens: NotRequired[int]
+    output_tokens: NotRequired[int]
+    cache_read_input_tokens: NotRequired[int]
+    cache_creation_input_tokens: NotRequired[int]
 
 
 class InitEventDataDict(TypedDict):
@@ -125,44 +115,40 @@ class InitEventDataDict(TypedDict):
     commands: list[str]
 
 
-class McpServerStatusDict(TypedDict, total=False):
+class McpServerStatusDict(TypedDict):
     """MCP server status dictionary."""
 
-    name: str
-    status: Literal["connected", "failed"]
-    error: str | None
+    name: Required[str]
+    status: Required[Literal["connected", "failed"]]
+    error: NotRequired[str | None]
 
 
-class MessageEventDataDict(TypedDict, total=False):
+class MessageEventDataDict(TypedDict):
     """Message event data structure.
 
-    All fields are optional (total=False).
-
     Attributes:
-        type: Message type (user, assistant, system, result) (optional).
-        content: List of content blocks in the message (optional).
+        type: Message type (user, assistant, system, result) - required.
+        content: List of content blocks in the message - required.
         model: Model identifier used for this message (optional).
         uuid: Unique identifier for the message (optional).
         usage: Token usage statistics for this message (optional).
         parent_tool_use_id: Parent tool use ID for nested tool calls (optional).
     """
 
-    type: MessageType
-    content: list[ContentBlockDict]
-    model: str | None
-    uuid: str | None
-    usage: UsageDict | None
-    parent_tool_use_id: str | None
+    type: Required[MessageType]
+    content: Required[list[ContentBlockDict]]
+    model: NotRequired[str | None]
+    uuid: NotRequired[str | None]
+    usage: NotRequired[UsageDict | None]
+    parent_tool_use_id: NotRequired[str | None]
 
 
-class ResultEventDataDict(TypedDict, total=False):
+class ResultEventDataDict(TypedDict):
     """Result event data structure.
 
-    All fields are optional (total=False).
-
     Attributes:
-        session_id: Session identifier (optional).
-        is_error: Whether the session ended with an error (optional).
+        session_id: Session identifier - required.
+        is_error: Whether the session ended with an error - required.
         duration_ms: Session duration in milliseconds (optional).
         num_turns: Number of conversation turns (optional).
         total_cost_usd: Total estimated cost in USD (optional).
@@ -172,15 +158,15 @@ class ResultEventDataDict(TypedDict, total=False):
         structured_output: Structured output if requested (optional).
     """
 
-    session_id: str
-    is_error: bool
-    duration_ms: int
-    num_turns: int
-    total_cost_usd: float | None
-    usage: UsageDict | None
-    model_usage: dict[str, UsageDict] | None
-    result: str | None
-    structured_output: dict[str, object] | None
+    session_id: Required[str]
+    is_error: Required[bool]
+    duration_ms: NotRequired[int]
+    num_turns: NotRequired[int]
+    total_cost_usd: NotRequired[float | None]
+    usage: NotRequired[UsageDict | None]
+    model_usage: NotRequired[dict[str, UsageDict] | None]
+    result: NotRequired[str | None]
+    structured_output: NotRequired[dict[str, object] | None]
 
 
 class ErrorEventDataDict(TypedDict):
@@ -191,52 +177,46 @@ class ErrorEventDataDict(TypedDict):
     details: dict[str, object] | None
 
 
-class DoneEventDataDict(TypedDict, total=False):
+class DoneEventDataDict(TypedDict):
     """Done event data structure.
 
-    All fields are optional (total=False).
-
     Attributes:
-        reason: Reason for session completion (completed, interrupted, error) (optional).
+        reason: Reason for session completion (completed, interrupted, error) - required.
     """
 
-    reason: Literal["completed", "interrupted", "error"]
+    reason: Required[Literal["completed", "interrupted", "error"]]
 
 
-class HookPayloadDict(TypedDict, total=False):
+class HookPayloadDict(TypedDict):
     """Webhook hook payload structure.
 
-    All fields are optional (total=False).
-
     Attributes:
-        hook_event: Type of hook event being triggered (optional).
-        session_id: Session identifier (optional).
+        hook_event: Type of hook event being triggered - required.
+        session_id: Session identifier - required.
         tool_name: Name of tool being invoked (optional).
         tool_input: Input parameters for the tool (optional).
         tool_result: Result from tool execution (optional).
     """
 
-    hook_event: HookEventType
-    session_id: str
-    tool_name: str | None
-    tool_input: dict[str, object] | None
-    tool_result: dict[str, object] | None
+    hook_event: Required[HookEventType]
+    session_id: Required[str]
+    tool_name: NotRequired[str | None]
+    tool_input: NotRequired[dict[str, object] | None]
+    tool_result: NotRequired[dict[str, object] | None]
 
 
-class HookResponseDict(TypedDict, total=False):
+class HookResponseDict(TypedDict):
     """Webhook hook response structure.
 
-    All fields are optional (total=False).
-
     Attributes:
-        decision: Hook decision (allow, deny, ask) (optional).
+        decision: Hook decision (allow, deny, ask) - required.
         reason: Human-readable reason for the decision (optional).
         modified_input: Modified tool input parameters (optional).
     """
 
-    decision: HookDecision
-    reason: str | None
-    modified_input: dict[str, object] | None
+    decision: Required[HookDecision]
+    reason: NotRequired[str | None]
+    modified_input: NotRequired[dict[str, object] | None]
 
 
 # Data Classes

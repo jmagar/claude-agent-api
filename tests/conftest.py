@@ -3,9 +3,14 @@
 import logging
 import os
 from collections.abc import AsyncGenerator, Generator
+from contextlib import contextmanager
+import fcntl
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
+from alembic import command
+from alembic.config import Config
 from httpx import ASGITransport, AsyncClient
 
 # Set test environment variables before importing app
@@ -30,6 +35,29 @@ def _is_truthy(value: str | None) -> bool:
     if value is None:
         return False
     return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+@pytest.fixture(scope="session", autouse=True)
+def apply_migrations() -> None:
+    """Apply alembic migrations for the test database."""
+    lock_path = Path(".cache/pytest-migrations.lock")
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+
+    with _migration_lock(lock_path):
+        config = Config(str(Path("alembic.ini")))
+        config.set_main_option("sqlalchemy.url", get_settings().database_url)
+        command.upgrade(config, "head")
+
+
+@contextmanager
+def _migration_lock(lock_path: Path) -> Generator[None, None, None]:
+    """Serialize migrations across pytest-xdist workers."""
+    with lock_path.open("w") as lock_file:
+        fcntl.flock(lock_file, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lock_file, fcntl.LOCK_UN)
 
 
 @pytest.fixture

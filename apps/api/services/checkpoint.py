@@ -187,9 +187,7 @@ class CheckpointService:
 
         return checkpoints
 
-    async def validate_checkpoint(
-        self, session_id: str, checkpoint_id: str
-    ) -> bool:
+    async def validate_checkpoint(self, session_id: str, checkpoint_id: str) -> bool:
         """Validate that a checkpoint exists and belongs to a session.
 
         Args:
@@ -289,9 +287,7 @@ class CheckpointService:
         index_key = self._uuid_index_key(checkpoint.user_message_uuid)
         await self._cache.cache_set(index_key, checkpoint.id, self._ttl)
 
-    def _parse_checkpoint_data(
-        self, data: dict[str, object]
-    ) -> Checkpoint | None:
+    def _parse_checkpoint_data(self, data: dict[str, object]) -> Checkpoint | None:
         """Parse checkpoint data from cache format.
 
         Args:

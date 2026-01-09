@@ -25,7 +25,7 @@ class MockCache:
         """Get string value from cache."""
         return self._string_store.get(key)
 
-    async def cache_set(self, key: str, value: str, _ttl: int | None = None) -> bool:
+    async def cache_set(self, key: str, value: str, ttl: int | None = None) -> bool:
         """Set string value in cache."""
         self._string_store[key] = value
         return True
@@ -35,7 +35,7 @@ class MockCache:
         return self._json_store.get(key)
 
     async def set_json(
-        self, key: str, value: dict[str, object], _ttl: int | None = None
+        self, key: str, value: dict[str, object], ttl: int | None = None
     ) -> bool:
         """Set JSON value in cache."""
         self._json_store[key] = value
@@ -62,25 +62,25 @@ class MockCache:
         all_keys = list(self._json_store.keys()) + list(self._string_store.keys())
         return [k for k in all_keys if k.startswith(prefix)]
 
-    async def add_to_set(self, _key: str, _value: str) -> bool:
+    async def add_to_set(self, key: str, value: str) -> bool:
         """Add value to set (not implemented for tests)."""
         return True
 
-    async def remove_from_set(self, _key: str, _value: str) -> bool:
+    async def remove_from_set(self, key: str, value: str) -> bool:
         """Remove value from set (not implemented for tests)."""
         return True
 
-    async def set_members(self, _key: str) -> set[str]:
+    async def set_members(self, key: str) -> set[str]:
         """Get set members (not implemented for tests)."""
         return set()
 
     async def acquire_lock(
-        self, _key: str, _ttl: int = 300, _value: str | None = None
+        self, key: str, ttl: int = 300, value: str | None = None
     ) -> str | None:
         """Acquire lock (not implemented for tests)."""
         return "mock-lock-value"
 
-    async def release_lock(self, _key: str, _value: str) -> bool:
+    async def release_lock(self, key: str, value: str) -> bool:
         """Release lock (not implemented for tests)."""
         return True
 
@@ -359,3 +359,247 @@ class TestCheckpointServiceGetByUserMessageUuid:
         )
 
         assert result is None
+
+
+class TestCheckpointServiceEdgeCases:
+    """Edge case tests for CheckpointService (Priority 10)."""
+
+    @pytest.mark.anyio
+    async def test_create_checkpoint_generates_uuid(
+        self,
+        checkpoint_service: CheckpointService,
+    ) -> None:
+        """Test that create_checkpoint generates a UUID for the checkpoint ID."""
+        session_id = str(uuid4())
+        user_message_uuid = f"msg-{uuid4().hex[:8]}"
+
+        checkpoint = await checkpoint_service.create_checkpoint(
+            session_id=session_id,
+            user_message_uuid=user_message_uuid,
+            files_modified=["/path/to/file.py"],
+        )
+
+        # Check that ID is a valid UUID format (8-4-4-4-12)
+        assert checkpoint.id is not None
+        parts = checkpoint.id.split("-")
+        assert len(parts) == 5
+        assert len(parts[0]) == 8
+        assert len(parts[1]) == 4
+        assert len(parts[2]) == 4
+        assert len(parts[3]) == 4
+        assert len(parts[4]) == 12
+
+    @pytest.mark.anyio
+    async def test_create_checkpoint_persists_to_cache(
+        self,
+        checkpoint_service: CheckpointService,
+        mock_cache: MockCache,
+    ) -> None:
+        """Test that checkpoint is persisted to cache."""
+        session_id = str(uuid4())
+        user_message_uuid = f"msg-{uuid4().hex[:8]}"
+
+        checkpoint = await checkpoint_service.create_checkpoint(
+            session_id=session_id,
+            user_message_uuid=user_message_uuid,
+            files_modified=["/path/to/file.py"],
+        )
+
+        # Verify it's in cache
+        checkpoint_key = f"checkpoint:{checkpoint.id}"
+        assert await mock_cache.exists(checkpoint_key) is True
+
+        # Verify index is created
+        index_key = f"checkpoint_uuid_index:{user_message_uuid}"
+        assert await mock_cache.exists(index_key) is True
+
+    @pytest.mark.anyio
+    async def test_create_checkpoint_with_metadata(
+        self,
+        checkpoint_service: CheckpointService,
+    ) -> None:
+        """Test that checkpoint stores all metadata correctly."""
+        session_id = str(uuid4())
+        user_message_uuid = f"msg-{uuid4().hex[:8]}"
+        files_modified = [
+            "/path/to/file1.py",
+            "/path/to/file2.py",
+            "/path/to/file3.py",
+        ]
+
+        checkpoint = await checkpoint_service.create_checkpoint(
+            session_id=session_id,
+            user_message_uuid=user_message_uuid,
+            files_modified=files_modified,
+        )
+
+        assert checkpoint.session_id == session_id
+        assert checkpoint.user_message_uuid == user_message_uuid
+        assert checkpoint.files_modified == files_modified
+        assert checkpoint.created_at is not None
+
+        # Verify retrieval maintains data integrity
+        retrieved = await checkpoint_service.get_checkpoint(checkpoint.id)
+        assert retrieved is not None
+        assert retrieved.files_modified == files_modified
+
+    @pytest.mark.anyio
+    async def test_list_checkpoints_returns_ordered_list(
+        self,
+        checkpoint_service: CheckpointService,
+    ) -> None:
+        """Test that checkpoints are returned in ascending created_at order."""
+        import asyncio
+
+        session_id = str(uuid4())
+
+        # Create 3 checkpoints with small delays
+        checkpoint1 = await checkpoint_service.create_checkpoint(
+            session_id=session_id,
+            user_message_uuid=f"msg-1-{uuid4().hex[:8]}",
+            files_modified=["/path/1.py"],
+        )
+        await asyncio.sleep(0.01)
+
+        checkpoint2 = await checkpoint_service.create_checkpoint(
+            session_id=session_id,
+            user_message_uuid=f"msg-2-{uuid4().hex[:8]}",
+            files_modified=["/path/2.py"],
+        )
+        await asyncio.sleep(0.01)
+
+        checkpoint3 = await checkpoint_service.create_checkpoint(
+            session_id=session_id,
+            user_message_uuid=f"msg-3-{uuid4().hex[:8]}",
+            files_modified=["/path/3.py"],
+        )
+
+        # List checkpoints
+        result = await checkpoint_service.list_checkpoints(session_id=session_id)
+
+        assert len(result) == 3
+        # Oldest first (checkpoint1, checkpoint2, checkpoint3)
+        assert result[0].id == checkpoint1.id
+        assert result[1].id == checkpoint2.id
+        assert result[2].id == checkpoint3.id
+
+    @pytest.mark.anyio
+    async def test_get_checkpoint_by_uuid(
+        self,
+        checkpoint_service: CheckpointService,
+    ) -> None:
+        """Test UUID index lookup works correctly."""
+        session_id = str(uuid4())
+        user_message_uuid = f"msg-{uuid4().hex[:8]}"
+
+        checkpoint = await checkpoint_service.create_checkpoint(
+            session_id=session_id,
+            user_message_uuid=user_message_uuid,
+            files_modified=["/path/to/file.py"],
+        )
+
+        # Retrieve by UUID
+        retrieved = await checkpoint_service.get_checkpoint_by_user_message_uuid(
+            user_message_uuid=user_message_uuid,
+        )
+
+        assert retrieved is not None
+        assert retrieved.id == checkpoint.id
+        assert retrieved.user_message_uuid == user_message_uuid
+
+    @pytest.mark.anyio
+    async def test_get_checkpoint_returns_none_for_nonexistent(
+        self,
+        checkpoint_service: CheckpointService,
+    ) -> None:
+        """Test that get_checkpoint returns None for nonexistent checkpoint."""
+        result = await checkpoint_service.get_checkpoint("nonexistent-id-12345")
+        assert result is None
+
+    @pytest.mark.anyio
+    async def test_validate_checkpoint_with_valid_checkpoint(
+        self,
+        checkpoint_service: CheckpointService,
+    ) -> None:
+        """Test checkpoint validation with valid checkpoint."""
+        session_id = str(uuid4())
+        user_message_uuid = f"msg-{uuid4().hex[:8]}"
+
+        checkpoint = await checkpoint_service.create_checkpoint(
+            session_id=session_id,
+            user_message_uuid=user_message_uuid,
+            files_modified=["/path/to/file.py"],
+        )
+
+        is_valid = await checkpoint_service.validate_checkpoint(
+            session_id=session_id,
+            checkpoint_id=checkpoint.id,
+        )
+
+        assert is_valid is True
+
+    @pytest.mark.anyio
+    async def test_validate_checkpoint_rejects_wrong_session(
+        self,
+        checkpoint_service: CheckpointService,
+    ) -> None:
+        """Test that validate_checkpoint rejects checkpoint from wrong session."""
+        session_id_1 = str(uuid4())
+        session_id_2 = str(uuid4())
+
+        checkpoint = await checkpoint_service.create_checkpoint(
+            session_id=session_id_1,
+            user_message_uuid=f"msg-{uuid4().hex[:8]}",
+            files_modified=["/path/to/file.py"],
+        )
+
+        # Try to validate with different session
+        is_valid = await checkpoint_service.validate_checkpoint(
+            session_id=session_id_2,
+            checkpoint_id=checkpoint.id,
+        )
+
+        assert is_valid is False
+
+    @pytest.mark.anyio
+    async def test_list_checkpoints_handles_empty_session(
+        self,
+        checkpoint_service: CheckpointService,
+    ) -> None:
+        """Test that list_checkpoints handles sessions with no checkpoints."""
+        session_id = str(uuid4())
+
+        result = await checkpoint_service.list_checkpoints(session_id=session_id)
+
+        assert isinstance(result, list)
+        assert len(result) == 0
+
+    @pytest.mark.anyio
+    async def test_checkpoint_stores_multiple_files(
+        self,
+        checkpoint_service: CheckpointService,
+    ) -> None:
+        """Test that checkpoint can store multiple modified file paths."""
+        session_id = str(uuid4())
+        user_message_uuid = f"msg-{uuid4().hex[:8]}"
+        files = [
+            "/path/to/file1.py",
+            "/path/to/file2.py",
+            "/path/to/file3.py",
+            "/path/to/nested/file4.py",
+            "/path/to/nested/deep/file5.py",
+        ]
+
+        checkpoint = await checkpoint_service.create_checkpoint(
+            session_id=session_id,
+            user_message_uuid=user_message_uuid,
+            files_modified=files,
+        )
+
+        assert checkpoint.files_modified == files
+
+        # Verify persistence
+        retrieved = await checkpoint_service.get_checkpoint(checkpoint.id)
+        assert retrieved is not None
+        assert len(retrieved.files_modified) == 5
+        assert retrieved.files_modified == files

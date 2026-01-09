@@ -282,6 +282,15 @@ class TestAgentService:
         assert "sse-server" in request.mcp_servers
         assert "http-server" in request.mcp_servers
 
+    def test_agent_service_public_api_stable(self) -> None:
+        """Test AgentService public methods remain available."""
+        service = AgentService(cache=None)
+        assert hasattr(service, "query_stream")
+        assert hasattr(service, "query_single")
+        assert hasattr(service, "interrupt")
+        assert hasattr(service, "submit_answer")
+        assert hasattr(service, "update_permission_mode")
+
 
 class TestEnvVarResolution:
     """Tests for environment variable resolution functions."""
@@ -740,7 +749,7 @@ class TestCheckpointUuidTracking:
         service = AgentService()
 
         # Create content blocks for Write tool directly
-        content_blocks = [
+        content_blocks: list[object] = [
             ContentBlockSchema(
                 type="tool_use",
                 id="tool-123",
@@ -770,7 +779,7 @@ class TestCheckpointUuidTracking:
         service = AgentService()
 
         # Create content blocks for Edit tool directly
-        content_blocks = [
+        content_blocks: list[object] = [
             ContentBlockSchema(
                 type="tool_use",
                 id="tool-456",
@@ -922,6 +931,49 @@ async def test_agent_service_accepts_cache_parameter() -> None:
     assert service._cache is mock_cache
 
 
+def test_agent_service_accepts_session_tracker_dependency() -> None:
+    """Test that AgentService can be initialized with a session tracker."""
+    from unittest.mock import MagicMock
+
+    from apps.api.services.agent.session_tracker import AgentSessionTracker
+
+    tracker = MagicMock(spec=AgentSessionTracker)
+    service = AgentService(session_tracker=tracker)
+
+    assert service._session_tracker is tracker
+
+
+@pytest.mark.anyio
+async def test_execute_query_delegates_to_executor() -> None:
+    """Test that _execute_query delegates to the query executor."""
+    from pathlib import Path
+
+    from apps.api.services.agent.types import StreamContext
+    from apps.api.services.commands import CommandsService
+
+    class StubExecutor:
+        """Minimal stub for QueryExecutor."""
+
+        def __init__(self) -> None:
+            self.called = False
+
+        async def execute(self, _request, _ctx, _commands_service):
+            self.called = True
+            if False:  # pragma: no cover - generator requires a yield path
+                yield {"event": "noop", "data": "{}"}
+
+    executor = StubExecutor()
+    service = AgentService(query_executor=executor)
+    ctx = StreamContext(session_id="sid", model="sonnet", start_time=0.0)
+    commands_service = CommandsService(project_path=Path.cwd())
+    request = QueryRequest(prompt="test")
+
+    async for _ in service._execute_query(request, ctx, commands_service):
+        pass
+
+    assert executor.called is True
+
+
 class TestSlashCommandDetection:
     """Unit tests for slash command detection (T115a)."""
 
@@ -969,3 +1021,223 @@ class TestSlashCommandDetection:
         assert detect_slash_command("/feature123") == "feature123"
         assert detect_slash_command("/v2-release") == "v2-release"
         assert detect_slash_command("/test_case_1") == "test_case_1"
+
+
+class TestAgentServiceCoreEdgeCases:
+    """Core edge case tests for AgentService (Priority 11)."""
+
+    @pytest.mark.anyio
+    async def test_register_active_session(self) -> None:
+        """Test registering a session as active in Redis."""
+        from unittest.mock import AsyncMock
+
+        from apps.api.adapters.cache import RedisCache
+
+        mock_cache = AsyncMock(spec=RedisCache)
+        mock_cache.cache_set = AsyncMock(return_value=True)
+
+        service = AgentService(cache=mock_cache)
+        session_id = "test-session-123"
+
+        await service._register_active_session(session_id)
+
+        # Verify cache_set was called with correct parameters
+        mock_cache.cache_set.assert_called_once()
+        call_args = mock_cache.cache_set.call_args
+        assert call_args[0][0] == f"active_session:{session_id}"
+        assert call_args[0][1] == "true"
+
+    @pytest.mark.anyio
+    async def test_register_active_session_raises_without_cache(self) -> None:
+        """Test that registering session without cache raises RuntimeError."""
+        service = AgentService(cache=None)
+
+        with pytest.raises(RuntimeError) as exc_info:
+            await service._register_active_session("test-session-123")
+
+        assert "Cache is required" in str(exc_info.value)
+
+    @pytest.mark.anyio
+    async def test_is_session_active_returns_true(self) -> None:
+        """Test checking if session is active returns True when registered."""
+        from unittest.mock import AsyncMock
+
+        from apps.api.adapters.cache import RedisCache
+
+        mock_cache = AsyncMock(spec=RedisCache)
+        mock_cache.exists = AsyncMock(return_value=True)
+
+        service = AgentService(cache=mock_cache)
+        session_id = "active-session"
+
+        result = await service._is_session_active(session_id)
+
+        assert result is True
+        mock_cache.exists.assert_called_once_with(f"active_session:{session_id}")
+
+    @pytest.mark.anyio
+    async def test_is_session_active_returns_false(self) -> None:
+        """Test checking if session is active returns False when not registered."""
+        from unittest.mock import AsyncMock
+
+        from apps.api.adapters.cache import RedisCache
+
+        mock_cache = AsyncMock(spec=RedisCache)
+        mock_cache.exists = AsyncMock(return_value=False)
+
+        service = AgentService(cache=mock_cache)
+        session_id = "inactive-session"
+
+        result = await service._is_session_active(session_id)
+
+        assert result is False
+
+    @pytest.mark.anyio
+    async def test_unregister_active_session(self) -> None:
+        """Test unregistering a session from Redis."""
+        from unittest.mock import AsyncMock
+
+        from apps.api.adapters.cache import RedisCache
+
+        mock_cache = AsyncMock(spec=RedisCache)
+        mock_cache.delete = AsyncMock(return_value=True)
+
+        service = AgentService(cache=mock_cache)
+        session_id = "test-session-123"
+
+        await service._unregister_active_session(session_id)
+
+        mock_cache.delete.assert_called_once_with(f"active_session:{session_id}")
+
+    @pytest.mark.anyio
+    async def test_interrupt_sends_signal(self) -> None:
+        """Test sending interrupt signal to a session."""
+        from unittest.mock import AsyncMock
+
+        from apps.api.adapters.cache import RedisCache
+
+        mock_cache = AsyncMock(spec=RedisCache)
+        mock_cache.cache_set = AsyncMock(return_value=True)
+        mock_cache.exists = AsyncMock(return_value=True)  # Session is active
+
+        service = AgentService(cache=mock_cache)
+        session_id = "test-session-123"
+
+        result = await service.interrupt(session_id)
+
+        # Verify interrupt flag was set in Redis
+        assert result is True
+        mock_cache.cache_set.assert_called_once()
+        call_args = mock_cache.cache_set.call_args
+        assert call_args[0][0] == f"interrupted:{session_id}"
+
+    @pytest.mark.anyio
+    async def test_check_interrupt_returns_true(self) -> None:
+        """Test checking interrupt flag returns True when set."""
+        from unittest.mock import AsyncMock
+
+        from apps.api.adapters.cache import RedisCache
+
+        mock_cache = AsyncMock(spec=RedisCache)
+        mock_cache.exists = AsyncMock(return_value=True)
+
+        service = AgentService(cache=mock_cache)
+        session_id = "interrupted-session"
+
+        result = await service._check_interrupt(session_id)
+
+        assert result is True
+
+    @pytest.mark.anyio
+    async def test_check_interrupt_returns_false(self) -> None:
+        """Test checking interrupt flag returns False when not set."""
+        from unittest.mock import AsyncMock
+
+        from apps.api.adapters.cache import RedisCache
+
+        mock_cache = AsyncMock(spec=RedisCache)
+        mock_cache.exists = AsyncMock(return_value=False)
+
+        service = AgentService(cache=mock_cache)
+        session_id = "running-session"
+
+        result = await service._check_interrupt(session_id)
+
+        assert result is False
+
+    @pytest.mark.anyio
+    async def test_create_checkpoint_from_context_success(self) -> None:
+        """Test creating checkpoint from context with all required data."""
+        from unittest.mock import AsyncMock
+
+        from apps.api.services.agent import StreamContext
+        from apps.api.services.checkpoint import CheckpointService
+
+        mock_checkpoint = MagicMock()
+        mock_checkpoint.id = "checkpoint-123"
+
+        mock_checkpoint_service = AsyncMock(spec=CheckpointService)
+        mock_checkpoint_service.create_checkpoint = AsyncMock(
+            return_value=mock_checkpoint
+        )
+
+        service = AgentService(checkpoint_service=mock_checkpoint_service)
+
+        ctx = StreamContext(
+            session_id="test-session",
+            model="sonnet",
+            start_time=0.0,
+        )
+        ctx.enable_file_checkpointing = True
+        ctx.last_user_message_uuid = "msg-uuid-123"
+        ctx.files_modified = ["/path/file1.py", "/path/file2.py"]
+
+        result = await service.create_checkpoint_from_context(ctx)
+
+        assert result is not None
+        assert result.id == "checkpoint-123"
+        mock_checkpoint_service.create_checkpoint.assert_called_once_with(
+            session_id="test-session",
+            user_message_uuid="msg-uuid-123",
+            files_modified=["/path/file1.py", "/path/file2.py"],
+        )
+
+    @pytest.mark.anyio
+    async def test_create_checkpoint_skipped_when_no_checkpoint_service(self) -> None:
+        """Test checkpoint creation skipped when checkpoint service not configured."""
+        from apps.api.services.agent import StreamContext
+
+        service = AgentService(checkpoint_service=None)
+
+        ctx = StreamContext(
+            session_id="test-session",
+            model="sonnet",
+            start_time=0.0,
+        )
+        ctx.enable_file_checkpointing = True
+        ctx.last_user_message_uuid = "msg-uuid-123"
+        ctx.files_modified = ["/path/file.py"]
+
+        result = await service.create_checkpoint_from_context(ctx)
+
+        assert result is None
+
+    def test_agent_service_has_checkpoint_service_property(self) -> None:
+        """Test that AgentService exposes checkpoint_service property."""
+        from apps.api.services.checkpoint import CheckpointService
+
+        checkpoint_service = CheckpointService(cache=None)
+        service = AgentService(checkpoint_service=checkpoint_service)
+
+        assert service.checkpoint_service is checkpoint_service
+
+    def test_agent_service_has_cache_property(self) -> None:
+        """Test that AgentService exposes cache property."""
+        from unittest.mock import MagicMock
+
+        from apps.api.adapters.cache import RedisCache
+
+        mock_cache = MagicMock(spec=RedisCache)
+        service = AgentService(cache=mock_cache)
+
+        assert service._cache is mock_cache

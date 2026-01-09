@@ -68,7 +68,10 @@ async def get_session(
     Raises:
         SessionNotFoundError: If session doesn't exist.
     """
-    session = await session_service.get_session(session_id)
+    session = await session_service.get_session(
+        session_id,
+        current_api_key=_api_key,
+    )
     if not session:
         raise SessionNotFoundError(session_id)
 
