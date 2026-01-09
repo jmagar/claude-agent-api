@@ -66,6 +66,15 @@ class Settings(BaseSettings):
         default="agent:sessions",
         description="Redis pub/sub channel for session lifecycle events",
     )
+    redis_max_connections: int = Field(
+        default=50, ge=5, le=200, description="Redis max connections"
+    )
+    redis_socket_connect_timeout: int = Field(
+        default=5, ge=1, le=30, description="Redis socket connect timeout (seconds)"
+    )
+    redis_socket_timeout: int = Field(
+        default=5, ge=1, le=30, description="Redis socket timeout (seconds)"
+    )
 
     # Logging
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(

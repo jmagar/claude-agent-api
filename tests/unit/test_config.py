@@ -38,6 +38,9 @@ class TestSettings:
             assert settings.rate_limit_burst == 20
             assert settings.request_timeout == 300
             assert settings.max_prompt_length == 100000
+            assert settings.redis_max_connections == 50
+            assert settings.redis_socket_connect_timeout == 5
+            assert settings.redis_socket_timeout == 5
 
     def test_required_fields(self) -> None:
         """Test that required fields raise error when missing."""
