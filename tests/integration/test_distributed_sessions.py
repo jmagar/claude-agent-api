@@ -72,7 +72,7 @@ async def test_session_fallback_to_database_when_cache_miss(_async_client: Async
         repo = SessionRepository(db_session)
         service = SessionService(cache=cache, db_repo=repo)
 
-        # Create session directly in database
+        # Create session directly in database (bypassing service layer)
         session_id = uuid4()
         db_record = await repo.create(
             session_id=session_id,
@@ -82,15 +82,7 @@ async def test_session_fallback_to_database_when_cache_miss(_async_client: Async
             metadata=None,
         )
 
-        # Cache it (simulating normal operation)
-        session = await service.create_session(
-            model="sonnet",
-            session_id=str(session_id),
-        )
-
-        # Evict from Redis cache (simulating cache expiration)
-        cache_key = f"session:{session_id}"
-        await cache.delete(cache_key)
+        # Note: Session is NOT in Redis cache (simulating cache expiration or cold start)
 
         # Should still retrieve from PostgreSQL
         retrieved = await service.get_session(str(session_id))
@@ -100,7 +92,42 @@ async def test_session_fallback_to_database_when_cache_miss(_async_client: Async
         assert retrieved.model == "sonnet"
 
         # Verify it was re-cached after retrieval
+        cache_key = f"session:{session_id}"
         cached_after = await cache.get_json(cache_key)
         assert cached_after is not None
+
+        break
+
+
+@pytest.mark.integration
+@pytest.mark.anyio
+async def test_session_create_writes_to_both_db_and_cache(_async_client: AsyncClient):
+    """Test that creating a session writes to both PostgreSQL and Redis."""
+    from apps.api.dependencies import get_db
+
+    cache = await get_cache()
+
+    async for db_session in get_db():
+        repo = SessionRepository(db_session)
+        service = SessionService(cache=cache, db_repo=repo)
+
+        # Create session
+        session = await service.create_session(
+            model="opus",
+            session_id=None,
+        )
+        session_id = session.id
+
+        # Verify it's in Redis cache
+        cache_key = f"session:{session_id}"
+        cached = await cache.get_json(cache_key)
+        assert cached is not None
+        assert cached["model"] == "opus"
+
+        # Verify it's in PostgreSQL
+        from uuid import UUID
+        db_session_result = await repo.get(UUID(session_id))
+        assert db_session_result is not None
+        assert db_session_result.model == "opus"
 
         break

@@ -84,43 +84,84 @@ class SessionService:
         session_id: str | None = None,
         parent_session_id: str | None = None,
     ) -> Session:
-        """Create a new session.
+        """Create a new session with dual-write to PostgreSQL and Redis.
 
         Args:
             model: Claude model name.
-            session_id: Optional custom session ID.
+            session_id: Optional session ID (generates UUID if None).
             parent_session_id: ID of parent session if forked.
 
         Returns:
             Created session.
 
-        Raises:
-            ValueError: If cache instance is not provided.
-        """
-        if not self._cache:
-            raise ValueError("SessionService requires a cache instance")
+        Implementation:
+        1. Write to PostgreSQL first (source of truth)
+        2. Write to Redis cache (performance)
+        3. If Redis write fails, log but don't fail (cache is optional)
 
+        This ensures sessions are durable even if Redis fails (P0-2).
+        """
+        from uuid import UUID
+
+        # Generate session ID if not provided
+        if session_id is None:
+            session_id = str(uuid4())
+
+        # Create session object
         now = datetime.now(UTC)
         session = Session(
-            id=session_id or str(uuid4()),
+            id=session_id,
             model=model,
             status="active",
-            created_at=now,
-            updated_at=now,
             total_turns=0,
             total_cost_usd=None,
             parent_session_id=parent_session_id,
+            created_at=now,
+            updated_at=now,
         )
 
-        # Cache the session
-        await self._cache_session(session)
+        # Write to PostgreSQL first (source of truth)
+        if self._db_repo:
+            try:
+                await self._db_repo.create(
+                    session_id=UUID(session_id),
+                    model=model,
+                )
+                logger.info(
+                    "Session created in database",
+                    session_id=session_id,
+                    model=model,
+                )
+            except Exception as e:
+                logger.error(
+                    "Failed to create session in database",
+                    session_id=session_id,
+                    error=str(e),
+                    exc_info=True,
+                )
+                raise
 
-        logger.info(
-            "Session created",
-            session_id=session.id,
-            model=model,
-            parent_session_id=parent_session_id,
-        )
+        # Write to Redis cache (best-effort)
+        # TRANSACTION BOUNDARY NOTE: No distributed transaction between DB and Redis.
+        # If cache write fails after DB succeeds:
+        # - Session exists in PostgreSQL (source of truth) - data is DURABLE
+        # - Cache-aside pattern will repopulate Redis on next get_session() call
+        # - This is acceptable eventual consistency, not data loss
+        try:
+            await self._cache_session(session)
+            logger.info(
+                "Session cached in Redis",
+                session_id=session_id,
+                model=model,
+            )
+        except Exception as e:
+            # Cache write failure is non-fatal - DB is source of truth
+            # Cache-aside pattern in get_session() will repopulate on next read
+            logger.warning(
+                "Failed to cache session in Redis (continuing - cache-aside will recover)",
+                session_id=session_id,
+                error=str(e),
+            )
 
         return session
 
