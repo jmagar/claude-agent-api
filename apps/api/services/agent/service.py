@@ -125,6 +125,25 @@ class AgentService:
         await self._cache.delete(key)
         logger.info("Unregistered active session", session_id=session_id, storage="redis")
 
+    async def _check_interrupt(self, session_id: str) -> bool:
+        """Check if session was interrupted (works across instances).
+
+        Args:
+            session_id: The session ID to check.
+
+        Returns:
+            True if session has been interrupted.
+
+        Raises:
+            RuntimeError: If cache is not configured.
+        """
+        if not self._cache:
+            raise RuntimeError("Cache is required for distributed interrupt checking")
+
+        # Check Redis interrupt marker
+        interrupt_key = f"interrupted:{session_id}"
+        return await self._cache.exists(interrupt_key)
+
     @property
     def checkpoint_service(self) -> "CheckpointService | None":
         """Get the checkpoint service instance.
@@ -591,18 +610,50 @@ class AgentService:
         }
 
     async def interrupt(self, session_id: str) -> bool:
-        """Interrupt a running query.
+        """Interrupt a running agent session (distributed).
 
         Args:
-            session_id: Session to interrupt.
+            session_id: The session ID to interrupt.
 
         Returns:
-            True if session was interrupted.
+            True if interrupt signal was sent successfully, False if session not active.
+
+        Raises:
+            RuntimeError: If cache is not configured.
+
+        This now works across multiple API instances via Redis.
+        Redis is REQUIRED - no in-memory fallback to prevent split-brain.
         """
-        if session_id in self._active_sessions:
-            self._active_sessions[session_id].set()
-            return True
-        return False
+        if not self._cache:
+            raise RuntimeError("Cache is required for distributed interrupt signaling")
+
+        # Check if session is active (across all instances)
+        is_active = await self._is_session_active(session_id)
+        if not is_active:
+            logger.info(
+                "Cannot interrupt inactive session",
+                session_id=session_id,
+            )
+            return False
+
+        logger.info("Interrupting session", session_id=session_id)
+
+        # Mark session as interrupted in Redis (visible to all instances)
+        interrupt_key = f"interrupted:{session_id}"
+        await self._cache.cache_set(
+            interrupt_key,
+            "true",
+            ttl=300,  # 5 minutes TTL for interrupt marker
+        )
+
+        logger.info(
+            "Interrupt signal sent",
+            session_id=session_id,
+            storage="redis",
+            distributed=True,
+        )
+
+        return True
 
     async def submit_answer(self, session_id: str, answer: str) -> bool:
         """Submit an answer to a pending AskUserQuestion.

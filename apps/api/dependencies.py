@@ -166,13 +166,13 @@ def get_agent_service() -> AgentService:
     that instance is returned instead to allow test fixtures to share state.
 
     Returns:
-        AgentService instance.
+        AgentService instance with cache configured.
     """
     # Use singleton if set (for tests)
     if _agent_service is not None:
         return _agent_service
-    # Otherwise create new instance per request
-    return AgentService()
+    # Otherwise create new instance per request with cache
+    return AgentService(cache=_redis_cache)
 
 
 def set_agent_service_singleton(service: AgentService | None) -> None:
