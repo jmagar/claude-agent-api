@@ -1,4 +1,18 @@
-"""Session management service."""
+"""Session management service with distributed state support.
+
+This service implements a dual-storage architecture:
+- PostgreSQL: Source of truth for session data (durability)
+- Redis: Cache layer for performance (fast reads)
+
+Key Features:
+- Cache-aside pattern: Read from cache, fallback to DB
+- Dual-write on create: Write to DB first, then cache
+- Distributed locking: Prevent race conditions
+- Graceful degradation: Works without Redis (single-instance mode)
+
+Enables horizontal scaling by using Redis for shared state.
+See ADR-001 for architecture details.
+"""
 
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass

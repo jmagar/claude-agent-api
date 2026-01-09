@@ -35,6 +35,31 @@ apps/api/
 └── adapters/            # Protocol implementations
 ```
 
+### Distributed Session Management
+
+The API uses a **dual-storage architecture** for sessions:
+
+1. **PostgreSQL** - Source of truth for all session data
+2. **Redis** - Cache layer + active session tracking
+
+**Benefits:**
+- ✅ Horizontal scaling (deploy N instances)
+- ✅ Data durability (survives Redis restarts)
+- ✅ Performance (Redis caching for hot path)
+
+**Active Session Tracking:**
+- Active sessions tracked in Redis: `active_session:{session_id}`
+- Visible across all API instances
+- Auto-cleanup via TTL (2 hours)
+
+**Session Lifecycle:**
+1. Create: Write to PostgreSQL → Cache in Redis
+2. Read: Check Redis → Fallback to PostgreSQL
+3. Update: Distributed lock → Update both stores
+4. Delete: Remove from both Redis and PostgreSQL
+
+See [ADR-001](docs/adr/0001-distributed-session-state.md) for details.
+
 ## Quick Start
 
 ### Prerequisites
