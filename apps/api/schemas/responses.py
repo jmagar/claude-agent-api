@@ -233,6 +233,7 @@ class SkillResponse(BaseModel):
 
     name: str
     description: str | None = None
+    path: str | None = None
 
 
 class SkillDiscoveryResponse(BaseModel):

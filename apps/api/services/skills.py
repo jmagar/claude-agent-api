@@ -4,6 +4,10 @@ import re
 from pathlib import Path
 from typing import TypedDict
 
+import structlog
+
+logger = structlog.get_logger(__name__)
+
 
 class SkillInfo(TypedDict):
     """Information about a discovered skill."""
@@ -60,6 +64,11 @@ class SkillsService:
             )
 
             if not frontmatter_match:
+                logger.warning(
+                    "skill_file_skipped_no_frontmatter",
+                    file_path=str(file_path),
+                    reason="missing_frontmatter",
+                )
                 return None
 
             frontmatter = frontmatter_match.group(1)
@@ -69,6 +78,13 @@ class SkillsService:
             desc_match = re.search(r"^description:\s*(.+)$", frontmatter, re.MULTILINE)
 
             if not name_match or not desc_match:
+                logger.warning(
+                    "skill_file_skipped_missing_fields",
+                    file_path=str(file_path),
+                    reason="missing_required_fields",
+                    has_name=bool(name_match),
+                    has_description=bool(desc_match),
+                )
                 return None
 
             return SkillInfo(
@@ -77,5 +93,11 @@ class SkillsService:
                 path=str(file_path),
             )
 
-        except Exception:
+        except (OSError, UnicodeDecodeError, ValueError) as e:
+            logger.error(
+                "skill_file_parse_error",
+                file_path=str(file_path),
+                error_type=type(e).__name__,
+                error_message=str(e),
+            )
             return None
