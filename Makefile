@@ -39,7 +39,7 @@ test-fast:
 	uv run pytest tests/unit tests/contract -v
 
 test-cov:
-	uv run pytest --cov=apps/api --cov-report=term-missing --cov-report=html --cov-fail-under=80
+	uv run pytest tests/ -v --cov=apps.api --cov-report=term-missing --cov-report=html --cov-fail-under=80
 
 # Code quality
 lint:
@@ -65,7 +65,11 @@ db-migrate:
 	uv run alembic upgrade head
 
 db-reset: db-down db-up
-	@sleep 5
+	@echo "Waiting for PostgreSQL to be ready..."
+	@for i in $$(seq 1 60); do \
+		docker compose exec -T postgres pg_isready -U postgres >/dev/null 2>&1 && break || sleep 1; \
+	done
+	@docker compose exec -T postgres pg_isready -U postgres >/dev/null 2>&1 || (echo "PostgreSQL not ready after 60s" >&2 && exit 1)
 	$(MAKE) db-migrate
 
 # Cleanup
