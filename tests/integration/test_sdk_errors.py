@@ -1,6 +1,6 @@
 """Integration tests for SDK error handling."""
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -97,8 +97,8 @@ class TestSDKErrorHandling:
 
             # Create a ProcessError with exit_code and stderr attributes
             error = ProcessError("Process exited with code 1")
-            error.exit_code = 1  # type: ignore[attr-defined]
-            error.stderr = "Fatal error occurred"  # type: ignore[attr-defined]
+            error.exit_code = 1
+            error.stderr = "Fatal error occurred"
 
             mock_sdk_client.side_effect = error
 
@@ -131,11 +131,11 @@ class TestSDKErrorHandling:
             # Create error with line attribute
             try:
                 # Try with both arguments
-                error = CLIJSONDecodeError("Failed to parse JSON", "original error")
+                error = CLIJSONDecodeError("Failed to parse JSON", Exception("original error"))
             except TypeError:
                 # Fall back to single argument
                 error = CLIJSONDecodeError("Failed to parse JSON")  # type: ignore[call-arg]
-            error.line = '{"incomplete": '  # type: ignore[attr-defined]
+            error.line = '{"incomplete": '
 
             mock_sdk_client.side_effect = error
 

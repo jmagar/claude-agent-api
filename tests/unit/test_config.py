@@ -19,6 +19,7 @@ class TestSettings:
             {
                 "API_KEY": "test-key",
                 "ANTHROPIC_API_KEY": "test-anthropic-key",
+                "DEBUG": "true",
             },
             clear=True,
         ):
