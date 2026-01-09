@@ -3,7 +3,10 @@
 Extracts options building logic from AgentService for better separation of concerns.
 """
 
+from pathlib import Path
 from typing import TYPE_CHECKING, cast
+
+import structlog
 
 if TYPE_CHECKING:
     from claude_agent_sdk import AgentDefinition, ClaudeAgentOptions
@@ -26,6 +29,8 @@ if TYPE_CHECKING:
         | McpHttpServerConfig
         | McpSdkServerConfig
     )
+
+logger = structlog.get_logger(__name__)
 
 
 class OptionsBuilder:
@@ -82,6 +87,9 @@ class OptionsBuilder:
         setting_sources_typed: list[str] | None = None
         if request.setting_sources:
             setting_sources_typed = list(request.setting_sources)
+
+        # Validate Skill tool if present
+        self._validate_skill_tool(allowed_tools, request.cwd if request.cwd else None)
 
         # Build complex configs using helper methods
         mcp_configs = self._build_mcp_configs()
@@ -187,10 +195,12 @@ class OptionsBuilder:
         if self.request.plugins:
             for plugin_config in self.request.plugins:
                 if plugin_config.enabled:  # Only include enabled plugins
-                    plugins_list.append({
-                        "name": plugin_config.name,
-                        "path": plugin_config.path,
-                    })
+                    plugins_list.append(
+                        {
+                            "name": plugin_config.name,
+                            "path": plugin_config.path,
+                        }
+                    )
         return plugins_list
 
     def _build_sandbox_config(
@@ -228,3 +238,31 @@ class OptionsBuilder:
             return self.request.system_prompt_append
 
         return system_prompt
+
+    def _validate_skill_tool(
+        self, allowed_tools: list[str] | None, cwd: str | None
+    ) -> None:
+        """Validate Skill tool configuration.
+
+        Args:
+            allowed_tools: List of allowed tool names
+            cwd: Working directory for skill discovery
+        """
+        if not allowed_tools or "Skill" not in allowed_tools:
+            return
+
+        from apps.api.services.skills import SkillsService
+
+        # Check if skills are discoverable
+        project_path = Path(cwd) if cwd else Path.cwd()
+        skills_service = SkillsService(project_path=project_path)
+        discovered_skills = skills_service.discover_skills()
+
+        # Skills will be loaded by SDK if setting_sources includes project/user
+        # We just validate that Skill tool is properly configured
+        if not discovered_skills:
+            # Log warning but don't fail - skills might be in user directory
+            logger.warning(
+                "skill_tool_enabled_but_no_skills_found",
+                project_path=str(project_path),
+            )
