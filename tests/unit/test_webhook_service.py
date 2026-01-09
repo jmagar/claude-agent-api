@@ -271,7 +271,7 @@ class TestWebhookTimeoutHandling:
 
     @pytest.mark.anyio
     async def test_timeout_returns_default_allow(self) -> None:
-        """Test that timeout defaults to allow (fail-open for PreToolUse)."""
+        """Test that timeout defaults to deny (fail-closed for PreToolUse)."""
         from apps.api.services.webhook import WebhookService
 
         service = WebhookService()
@@ -290,9 +290,8 @@ class TestWebhookTimeoutHandling:
                 tool_name="Read",
             )
 
-            # Default behavior on timeout should be configurable
-            # For now, we expect it to return allow (fail-open)
-            assert result["decision"] == "allow"
+            # Default behavior on timeout for PreToolUse is fail-closed (deny)
+            assert result["decision"] == "deny"
             assert "timeout" in result.get("reason", "").lower()
 
     @pytest.mark.anyio
@@ -344,8 +343,8 @@ class TestWebhookErrorHandling:
                 tool_name="Read",
             )
 
-            # Should return allow on connection error (fail-open)
-            assert result["decision"] == "allow"
+            # Should return deny on connection error (fail-closed for PreToolUse)
+            assert result["decision"] == "deny"
             assert "error" in result.get("reason", "").lower()
 
     @pytest.mark.anyio
@@ -368,7 +367,7 @@ class TestWebhookErrorHandling:
                 tool_name="Read",
             )
 
-            assert result["decision"] == "allow"
+            assert result["decision"] == "deny"
 
     @pytest.mark.anyio
     async def test_http_error_status_returns_default(self) -> None:
@@ -390,7 +389,7 @@ class TestWebhookErrorHandling:
                 tool_name="Read",
             )
 
-            assert result["decision"] == "allow"
+            assert result["decision"] == "deny"
 
 
 class TestMatcherFiltering:

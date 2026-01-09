@@ -6,7 +6,7 @@ for agent lifecycle hooks (PreToolUse, PostToolUse, Stop, etc.).
 
 import asyncio
 import re
-from typing import Literal
+from typing import Literal, cast
 
 import httpx
 import structlog
@@ -88,6 +88,24 @@ class WebhookService:
         self._default_timeout = default_timeout
         self._logger = logger.bind(service="webhook")
 
+    def _error_response(self, hook_event: HookEventType, reason: str) -> dict[str, object]:
+        """Return appropriate error response based on hook event type.
+
+        PreToolUse hooks fail closed (deny), all others fail open (allow).
+
+        Args:
+            hook_event: Type of hook event that encountered an error.
+            reason: Description of the error that occurred.
+
+        Returns:
+            Dictionary with 'decision' and 'reason' fields.
+        """
+        decision: DecisionType = "deny" if hook_event == "PreToolUse" else "allow"
+        return {
+            "decision": decision,
+            "reason": reason,
+        }
+
     async def execute_hook(
         self,
         hook_event: HookEventType,
@@ -142,10 +160,10 @@ class WebhookService:
                 url=str(hook_config.url),
                 timeout=hook_config.timeout,
             )
-            return {
-                "decision": "allow",
-                "reason": f"Webhook timeout after {hook_config.timeout}s",
-            }
+            return self._error_response(
+                hook_event,
+                f"Webhook timeout after {hook_config.timeout}s",
+            )
         except (ConnectionError, httpx.RequestError) as e:
             self._logger.warning(
                 "webhook_connection_error",
@@ -153,10 +171,10 @@ class WebhookService:
                 url=str(hook_config.url),
                 error=str(e),
             )
-            return {
-                "decision": "allow",
-                "reason": f"Webhook connection error: {e!s}",
-            }
+            return self._error_response(
+                hook_event,
+                f"Webhook connection error: {e!s}",
+            )
         except WebhookHttpError as e:
             self._logger.warning(
                 "webhook_http_error",
@@ -165,10 +183,10 @@ class WebhookService:
                 status_code=e.status_code,
                 error=e.message,
             )
-            return {
-                "decision": "allow",
-                "reason": f"Webhook HTTP error: {e.message}",
-            }
+            return self._error_response(
+                hook_event,
+                f"Webhook HTTP error: {e.message}",
+            )
         except ValueError as e:
             self._logger.warning(
                 "webhook_json_error",
@@ -176,10 +194,10 @@ class WebhookService:
                 url=str(hook_config.url),
                 error=str(e),
             )
-            return {
-                "decision": "allow",
-                "reason": f"Invalid JSON response: {e!s}",
-            }
+            return self._error_response(
+                hook_event,
+                f"Invalid JSON response: {e!s}",
+            )
 
     def should_execute_hook(
         self,
@@ -332,7 +350,9 @@ class WebhookService:
             raise WebhookHttpError(response.status_code, response.text)
 
         try:
-            return response.json()  # type: ignore[no-any-return]
+            # httpx.Response.json() returns Any, explicitly cast to expected type
+            json_response = response.json()
+            return cast("dict[str, object]", json_response)
         except ValueError as e:
             raise ValueError(f"Invalid JSON response: {e}") from e
 
