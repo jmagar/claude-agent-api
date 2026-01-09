@@ -162,3 +162,98 @@ async def test_agent_service_uses_distributed_session_tracking(_async_client: As
 
         # This proves sessions are visible across instances
         break
+
+
+@pytest.mark.integration
+@pytest.mark.anyio
+async def test_multi_instance_session_lifecycle(_async_client: AsyncClient):
+    """Test complete session lifecycle across multiple API instances.
+
+    Simulates a load-balanced environment with 2 API pods.
+    Verifies that sessions are visible and manageable across instances.
+    """
+    from apps.api.dependencies import get_db
+
+    cache = await get_cache()
+
+    async for db_session in get_db():
+        repo = SessionRepository(db_session)
+
+        # Create two service instances (simulating two API pods behind load balancer)
+        session_service_1 = SessionService(cache=cache, db_repo=repo)
+        session_service_2 = SessionService(cache=cache, db_repo=repo)
+
+        agent_service_1 = AgentService(cache=cache)
+        agent_service_2 = AgentService(cache=cache)
+
+        # Step 1: Instance 1 creates a session
+        session = await session_service_1.create_session(model="sonnet")
+        session_id = session.id
+
+        # Step 2: Instance 1 registers it as active
+        await agent_service_1._register_active_session(session_id)
+
+        # Step 3: Instance 2 can see the session
+        retrieved = await session_service_2.get_session(session_id)
+        assert retrieved is not None
+        assert retrieved.id == session_id
+
+        # Step 4: Instance 2 can see it's active
+        is_active = await agent_service_2._is_session_active(session_id)
+        assert is_active is True
+
+        # Step 5: Instance 2 interrupts the session
+        interrupted = await agent_service_2.interrupt(session_id)
+        assert interrupted is True
+
+        # Step 6: Instance 1 can detect the interrupt
+        is_interrupted = await agent_service_1._check_interrupt(session_id)
+        assert is_interrupted is True
+
+        # Step 7: Instance 1 unregisters the session
+        await agent_service_1._unregister_active_session(session_id)
+
+        # Step 8: Instance 2 can see it's no longer active
+        is_active_after = await agent_service_2._is_session_active(session_id)
+        assert is_active_after is False
+
+        # Step 9: Both instances can still retrieve the session from DB
+        retrieved_1 = await session_service_1.get_session(session_id)
+        retrieved_2 = await session_service_2.get_session(session_id)
+        assert retrieved_1 is not None
+        assert retrieved_2 is not None
+
+        break
+
+
+@pytest.mark.integration
+@pytest.mark.anyio
+async def test_session_survives_redis_restart(_async_client: AsyncClient):
+    """Test that sessions survive Redis restart (via PostgreSQL fallback)."""
+    from apps.api.dependencies import get_db
+
+    cache = await get_cache()
+
+    async for db_session in get_db():
+        repo = SessionRepository(db_session)
+        service = SessionService(cache=cache, db_repo=repo)
+
+        # Create session (writes to both DB and Redis)
+        session = await service.create_session(model="opus")
+        session_id = session.id
+
+        # Simulate Redis restart by flushing all keys
+        await cache._client.flushdb()
+
+        # Session should still be retrievable from PostgreSQL
+        retrieved = await service.get_session(session_id)
+        assert retrieved is not None
+        assert retrieved.id == session_id
+        assert retrieved.model == "opus"
+
+        # Should be re-cached after retrieval
+        cache_key = f"session:{session_id}"
+        cached = await cache.get_json(cache_key)
+        assert cached is not None
+
+        break
