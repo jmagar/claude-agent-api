@@ -45,9 +45,9 @@ class Settings(BaseSettings):
         default="postgresql+asyncpg://user:password@localhost:53432/claude_agent",
         description="PostgreSQL connection string",
     )
-    db_pool_size: int = Field(default=5, ge=1, le=20, description="Database pool size")
+    db_pool_size: int = Field(default=10, ge=5, le=50, description="Database pool size")
     db_max_overflow: int = Field(
-        default=10, ge=0, le=50, description="Database max overflow"
+        default=20, ge=10, le=100, description="Database max overflow"
     )
 
     # Redis
@@ -57,6 +57,14 @@ class Settings(BaseSettings):
     )
     redis_session_ttl: int = Field(
         default=3600, ge=60, le=86400, description="Session cache TTL in seconds"
+    )
+    redis_interrupt_channel: str = Field(
+        default="agent:interrupts",
+        description="Redis pub/sub channel for interrupt signals",
+    )
+    redis_session_channel: str = Field(
+        default="agent:sessions",
+        description="Redis pub/sub channel for session lifecycle events",
     )
 
     # Logging
