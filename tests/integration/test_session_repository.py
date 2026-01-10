@@ -30,9 +30,12 @@ async def db_session(_async_client: AsyncClient) -> AsyncGenerator[AsyncSession,
         Async database session.
     """
     # Get database session from dependencies
-    async for session in get_db():
+    agen = get_db()
+    session = await anext(agen)
+    try:
         yield session
-        break
+    finally:
+        await agen.aclose()
 
 
 @pytest.fixture
@@ -272,8 +275,8 @@ class TestSessionList:
         await repository.update(id1, status="completed")
         await repository.update(id2, status="completed")
 
-        # Filter by completed
-        sessions, total = await repository.list_sessions(status="completed")
+        # Filter by completed with large limit to ensure our sessions are included
+        sessions, total = await repository.list_sessions(status="completed", limit=1000)
 
         # Total may be higher due to parallel tests, but should be at least initial + 2
         assert total >= initial_completed + 2

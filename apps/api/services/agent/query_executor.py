@@ -1,8 +1,8 @@
-"""<summary>Query execution helpers for AgentService.</summary>"""
+"""Query execution helpers for AgentService."""
 
 import asyncio
 from collections.abc import AsyncGenerator, AsyncIterable
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, cast
 
 import structlog
 
@@ -19,10 +19,14 @@ logger = structlog.get_logger(__name__)
 
 
 class QueryExecutor:
-    """<summary>Executes queries against the Claude Agent SDK.</summary>"""
+    """Executes queries against the Claude Agent SDK."""
 
     def __init__(self, message_handler: "MessageHandler") -> None:
-        """<summary>Initialize executor.</summary>"""
+        """Initialize query executor.
+
+        Args:
+            message_handler: MessageHandler instance for SDK message mapping.
+        """
         self._message_handler = message_handler
 
     async def execute(
@@ -31,7 +35,19 @@ class QueryExecutor:
         ctx: StreamContext,
         commands_service: "CommandsService",
     ) -> AsyncGenerator[dict[str, str], None]:
-        """<summary>Execute query using Claude Agent SDK.</summary>"""
+        """Execute query using Claude Agent SDK.
+
+        Args:
+            request: Query request containing prompt and options.
+            ctx: Stream context for tracking execution state.
+            commands_service: Service for parsing slash commands.
+
+        Yields:
+            SSE-formatted event dictionaries.
+
+        Raises:
+            AgentError: If SDK execution fails.
+        """
         try:
             # Detect slash commands in prompt for observability logging
             parsed_command = commands_service.parse_command(request.prompt)
@@ -114,7 +130,7 @@ class QueryExecutor:
                     # Pass multimodal content to SDK
                     # SDK type hints require AsyncIterable but accepts lists at runtime
                     multimodal_content = cast(
-                        "AsyncIterable[dict[str, Any]]",
+                        "AsyncIterable[dict[str, str | dict[str, str]]]",
                         content,
                     )
                     await client.query(multimodal_content)
@@ -150,16 +166,20 @@ class QueryExecutor:
         except CLINotFoundError as e:
             logger.error("Claude Code CLI not found", error=str(e))
             ctx.is_error = True
+            # Store full error details in original_error for logging
+            # but use generic message for security
             raise AgentError(
-                "Claude Code CLI is not installed. Install with: npm install -g @anthropic-ai/claude-code",
+                "Claude Code CLI is not installed",
                 original_error=str(e),
             ) from e
 
         except CLIConnectionError as e:
             logger.error("Failed to connect to Claude Code", error=str(e))
             ctx.is_error = True
+            # Store full error details in original_error for logging
+            # but use generic message for security
             raise AgentError(
-                f"Connection to Claude Code failed: {e}", original_error=str(e)
+                "Connection to Claude Code failed", original_error=str(e)
             ) from e
 
         except ProcessError as e:
@@ -169,34 +189,52 @@ class QueryExecutor:
                 "Claude Code process failed", exit_code=exit_code, stderr=stderr
             )
             ctx.is_error = True
-            raise AgentError(f"Process failed: {e}", original_error=str(e)) from e
+            # Store full error details in original_error for logging
+            # but use generic message for security
+            raise AgentError("Process failed", original_error=str(e)) from e
 
         except CLIJSONDecodeError as e:
             line = getattr(e, "line", None)
             logger.error("Failed to parse SDK response", line=line)
             ctx.is_error = True
+            # Store full error details in original_error for logging
+            # but use generic message for security
             raise AgentError(
-                f"SDK response parsing failed: {e}", original_error=str(e)
+                "SDK response parsing failed", original_error=str(e)
             ) from e
 
         except ClaudeSDKError as e:
             logger.error("SDK error", error=str(e))
             ctx.is_error = True
-            raise AgentError(f"SDK error: {e}", original_error=str(e)) from e
+            # Store full error details in original_error for logging
+            # but use generic message for security
+            raise AgentError("SDK error", original_error=str(e)) from e
+
+        except asyncio.CancelledError:
+            logger.info("SDK execution cancelled", session_id=ctx.session_id)
+            raise
 
         except Exception as e:
             logger.error("SDK execution error", error=str(e))
             ctx.is_error = True
-            raise AgentError(
-                f"Agent execution failed: {e}", original_error=str(e)
-            ) from e
+            # Store full error details in original_error for logging
+            # but use generic message for security
+            raise AgentError("Agent execution failed", original_error=str(e)) from e
 
     async def mock_response(
         self,
         request: "QueryRequest",
         ctx: StreamContext,
     ) -> AsyncGenerator[dict[str, str], None]:
-        """<summary>Generate mock response for development without SDK.</summary>"""
+        """Generate mock response for development without SDK.
+
+        Args:
+            request: Query request containing prompt and options.
+            ctx: Stream context for tracking execution state.
+
+        Yields:
+            SSE-formatted event dictionaries.
+        """
         from apps.api.schemas.responses import (
             ContentBlockSchema,
             MessageEvent,

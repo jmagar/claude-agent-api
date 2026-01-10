@@ -1,4 +1,4 @@
-"""<summary>Aggregates streaming events for single-query responses.</summary>"""
+"""Aggregates streaming events for single-query responses."""
 
 import json
 from typing import TYPE_CHECKING
@@ -14,31 +14,39 @@ logger = structlog.get_logger(__name__)
 
 
 class SingleQueryAggregator:
-    """<summary>Collects events and builds single-query response payloads.</summary>"""
+    """Collects events and builds single-query response payloads."""
 
     def __init__(self) -> None:
-        """<summary>Initialize aggregator state.</summary>"""
+        """Initialize aggregator state."""
         self._content_blocks: list[dict[str, object]] = []
         self._usage_data: dict[str, int] | None = None
         self._is_error = False
 
     @property
     def content_blocks(self) -> list[dict[str, object]]:
-        """<summary>Return collected content blocks.</summary>"""
+        """Return collected content blocks."""
         return self._content_blocks
 
     @property
     def usage_data(self) -> dict[str, int] | None:
-        """<summary>Return collected usage data.</summary>"""
+        """Return collected usage data."""
         return self._usage_data
 
     @property
     def is_error(self) -> bool:
-        """<summary>Return True if an error event was observed.</summary>"""
+        """Return True if an error event was observed."""
         return self._is_error
 
     def handle_event(self, event: dict[str, str]) -> None:
-        """<summary>Handle a streaming event.</summary>"""
+        """Handle a streaming event.
+
+        Only processes 'message' events for content aggregation and 'error'
+        events for error state tracking. Other events (init, done, result)
+        are intentionally ignored as they're handled elsewhere in the pipeline.
+
+        Args:
+            event: SSE event dict with 'event' and 'data' keys.
+        """
         event_type = event.get("event")
         if event_type == "message":
             try:
@@ -67,7 +75,17 @@ class SingleQueryAggregator:
         ctx: StreamContext,
         duration_ms: int,
     ) -> "QueryResponseDict":
-        """<summary>Build the final single-query response payload.</summary>"""
+        """Build the final single-query response payload.
+
+        Args:
+            session_id: The session identifier.
+            model: The model name used for the query.
+            ctx: Stream context containing aggregated metadata.
+            duration_ms: Total query duration in milliseconds.
+
+        Returns:
+            A dictionary containing the complete query response.
+        """
         return {
             "session_id": session_id,
             "model": model,

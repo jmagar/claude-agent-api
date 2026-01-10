@@ -22,6 +22,42 @@
 
 ---
 
+### Task 0: Public API stability test (guard before refactor)
+
+**Files:**
+- Modify: `tests/unit/test_agent_service.py`
+
+**Step 1: Write the failing test**
+
+Add to `tests/unit/test_agent_service.py` (if not already present):
+
+```python
+def test_agent_service_public_api_stable() -> None:
+    service = AgentService(cache=None)
+    assert hasattr(service, "query_stream")
+    assert hasattr(service, "query_single")
+    assert hasattr(service, "interrupt")
+    assert hasattr(service, "submit_answer")
+    assert hasattr(service, "update_permission_mode")
+    assert hasattr(service, "_execute_query")
+    assert hasattr(service, "_map_sdk_message")
+    assert hasattr(service, "_track_file_modifications")
+```
+
+**Step 2: Run test to verify baseline guard**
+
+Run: `uv run pytest tests/unit/test_agent_service.py::TestAgentService::test_agent_service_public_api_stable -v`
+Expected: PASS (NOTE: this is a pre-existing API guard test, not a TDD RED step).
+
+**Step 3: Commit (if desired)**
+
+```bash
+git add tests/unit/test_agent_service.py
+git commit -m "test: add agent service api stability guard"
+```
+
+---
+
 ### Task 1: Extract command discovery into a helper
 
 **Files:**
@@ -52,7 +88,7 @@ def test_command_discovery_returns_schema_objects(tmp_path: Path) -> None:
 Run: `uv run pytest tests/unit/services/agent/test_command_discovery.py -v`
 Expected: FAIL (module not found).
 
-**Step 3: Write minimal implementation**
+**Step 3: Write minimal implementation (create file only)**
 
 Create `apps/api/services/agent/command_discovery.py`:
 
@@ -109,14 +145,18 @@ git commit -m "refactor: add command discovery helper"
 **Files:**
 - Create: `apps/api/services/agent/stream_query_runner.py`
 - Modify: `apps/api/services/agent/service.py`
+- Modify: `apps/api/services/agent/stream_orchestrator.py`
 - Test: `tests/unit/services/agent/test_stream_query_runner.py`
 
-**Step 1: Write the failing test**
+**Step 1: Write the failing test (query execution delegation)**
 
 Create `tests/unit/services/agent/test_stream_query_runner.py`:
 
 ```python
 """Unit tests for StreamQueryRunner delegation."""
+
+from collections.abc import AsyncGenerator
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -125,41 +165,62 @@ from apps.api.services.agent.stream_query_runner import StreamQueryRunner
 
 
 @pytest.mark.anyio
-async def test_stream_query_runner_yields_init_event() -> None:
-    runner = StreamQueryRunner()
+async def test_stream_query_runner_executes_query() -> None:
+    session_tracker = AsyncMock()
+    session_tracker.is_interrupted.return_value = False
+    query_executor = AsyncMock()
+    stream_orchestrator = AsyncMock()
+    stream_orchestrator.build_result_event.return_value = {
+        "event": "result",
+        "data": "{}",
+    }
+    stream_orchestrator.build_done_event.return_value = {
+        "event": "done",
+        "data": "{}",
+    }
+
+    async def _execute(
+        _request: QueryRequest, _ctx: object, _commands: object
+    ) -> AsyncGenerator[dict[str, str], None]:
+        yield {"event": "message", "data": "{}"}
+
+    query_executor.execute.side_effect = _execute
+
+    commands_service = MagicMock()
+    runner = StreamQueryRunner(
+        session_tracker=session_tracker,
+        query_executor=query_executor,
+        stream_orchestrator=stream_orchestrator,
+    )
     request = QueryRequest(prompt="test")
 
     events = []
-    async for event in runner.run(request):
+    async for event in runner.run(request, commands_service):
         events.append(event)
-        break
 
-    assert events
-    assert events[0]["event"] == "init"
+    assert {"event": "message", "data": "{}"} in events
+    query_executor.execute.assert_called_once()
 ```
 
 **Step 2: Run test to verify it fails**
 
 Run: `uv run pytest tests/unit/services/agent/test_stream_query_runner.py -v`
-Expected: FAIL (module not found).
+Expected: FAIL with `ModuleNotFoundError: No module named 'apps.api.services.agent.stream_query_runner'`.
 
-**Step 3: Write minimal implementation**
+**Step 3: Write minimal implementation (query loop only)**
 
-Create `apps/api/services/agent/stream_query_runner.py`:
+Create `apps/api/services/agent/stream_query_runner.py` with the smallest code to satisfy Step 1:
 
 ```python
 """<summary>Run streaming queries for AgentService.</summary>"""
 
 import time
 from collections.abc import AsyncGenerator
-from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 from uuid import uuid4
 
 import structlog
 
-from apps.api.schemas.responses import ErrorEvent, ErrorEventData
-from apps.api.services.agent.command_discovery import CommandDiscovery
 from apps.api.services.agent.stream_orchestrator import StreamOrchestrator
 from apps.api.services.agent.types import StreamContext
 from apps.api.services.agent.query_executor import QueryExecutor
@@ -167,6 +228,7 @@ from apps.api.services.agent.session_tracker import AgentSessionTracker
 
 if TYPE_CHECKING:
     from apps.api.schemas.requests.query import QueryRequest
+    from apps.api.services.commands import CommandsService
 
 logger = structlog.get_logger(__name__)
 
@@ -186,7 +248,7 @@ class StreamQueryRunner:
         self._stream_orchestrator = stream_orchestrator
 
     async def run(
-        self, request: "QueryRequest"
+        self, request: "QueryRequest", commands_service: "CommandsService"
     ) -> AsyncGenerator[dict[str, str], None]:
         """<summary>Execute the streaming query flow.</summary>"""
         if not self._session_tracker or not self._query_executor or not self._stream_orchestrator:
@@ -202,76 +264,176 @@ class StreamQueryRunner:
             include_partial_messages=request.include_partial_messages,
         )
 
-        await self._session_tracker.register(session_id)
-
-        try:
-            project_path = Path(request.cwd) if request.cwd else Path.cwd()
-            discovery = CommandDiscovery(project_path)
-            command_schemas = discovery.discover_commands()
-
-            init_event = self._stream_orchestrator.build_init_event(
-                session_id=session_id,
-                model=model,
-                tools=request.allowed_tools or [],
-                plugins=[p.name for p in request.plugins or [] if p.enabled],
-                commands=command_schemas,
-                permission_mode=request.permission_mode,
-                mcp_servers=[],
-            )
-            yield init_event
-
-            async for event in self._query_executor.execute(
-                request, ctx, discovery.commands_service
-            ):
-                yield event
-                if await self._session_tracker.is_interrupted(session_id):
-                    logger.info("Session interrupted", session_id=session_id)
-                    ctx.is_error = False
-                    break
-
-            duration_ms = int((time.perf_counter() - ctx.start_time) * 1000)
-            yield self._stream_orchestrator.build_result_event(
-                ctx=ctx,
-                duration_ms=duration_ms,
-            )
-
-            reason: Literal["completed", "interrupted", "error"]
-            if await self._session_tracker.is_interrupted(session_id):
-                reason = "interrupted"
-            elif ctx.is_error:
-                reason = "error"
-            else:
-                reason = "completed"
-            yield self._stream_orchestrator.build_done_event(reason=reason)
-
-        except Exception as exc:
-            logger.exception("Query stream error", session_id=session_id, error=str(exc))
-            error_event = ErrorEvent(
-                data=ErrorEventData(
-                    code="AGENT_ERROR",
-                    message=str(exc),
-                )
-            )
-            yield self._stream_orchestrator._message_handler.format_sse(
-                error_event.event, error_event.data.model_dump()
-            )
-            yield self._stream_orchestrator.build_done_event(reason="error")
-
-        finally:
-            await self._session_tracker.unregister(session_id)
+        async for event in self._query_executor.execute(
+            request, ctx, commands_service
+        ):
+            yield event
 ```
-
-Modify `apps/api/services/agent/service.py`:
-- Add `stream_runner: StreamQueryRunner | None = None` to `__init__`.
-- Instantiate `self._stream_runner = stream_runner or StreamQueryRunner(...)` with existing deps.
-- Replace `query_stream` body with `async for event in self._stream_runner.run(request): yield event`.
 
 **Step 4: Run test to verify it passes**
 
 Run: `uv run pytest tests/unit/services/agent/test_stream_query_runner.py -v`
 Expected: PASS.
 
-**Step 5: Commit (if desired)**
+**Step 5: Run full unit suite before adding next test**
+
+Run: `uv run pytest tests/unit -v`
+Expected: PASS.
+
+**Step 6: Write the failing test (interruption handling)**
+
+Extend `tests/unit/services/agent/test_stream_query_runner.py`:
+
+```python
+@pytest.mark.anyio
+async def test_stream_query_runner_interrupts_session() -> None:
+    session_tracker = AsyncMock()
+    session_tracker.is_interrupted.return_value = True
+    query_executor = AsyncMock()
+    stream_orchestrator = AsyncMock()
+    stream_orchestrator.build_result_event.return_value = {
+        "event": "result",
+        "data": "{}",
+    }
+    stream_orchestrator.build_done_event.return_value = {
+        "event": "done",
+        "data": "{}",
+    }
+
+    async def _execute(
+        _request: QueryRequest, _ctx: object, _commands: object
+    ) -> AsyncGenerator[dict[str, str], None]:
+        yield {"event": "message", "data": "{}"}
+
+    query_executor.execute.side_effect = _execute
+
+    commands_service = MagicMock()
+    runner = StreamQueryRunner(
+        session_tracker=session_tracker,
+        query_executor=query_executor,
+        stream_orchestrator=stream_orchestrator,
+    )
+    request = QueryRequest(prompt="test")
+
+    events = []
+    async for event in runner.run(request, commands_service):
+        events.append(event)
+
+    assert events[-1]["event"] == "done"
+    stream_orchestrator.build_done_event.assert_called_once_with(reason="interrupted")
+```
+
+**Step 7: Run test to verify it fails**
+
+Run: `uv run pytest tests/unit/services/agent/test_stream_query_runner.py::test_stream_query_runner_interrupts_session -v`
+Expected: FAIL (missing interruption handling).
+
+**Step 8: Write minimal implementation**
+
+Update `StreamQueryRunner.run` in `apps/api/services/agent/stream_query_runner.py` to register/unregister the session, check interruption in the query loop, and emit result/done events on early break.
+
+**Step 9: Run test to verify it passes**
+
+Run: `uv run pytest tests/unit/services/agent/test_stream_query_runner.py::test_stream_query_runner_interrupts_session -v`
+Expected: PASS.
+
+**Step 10: Run full unit suite before adding next test**
+
+Run: `uv run pytest tests/unit -v`
+Expected: PASS.
+
+**Step 11: Write the failing test (exception path)**
+
+Extend `tests/unit/services/agent/test_stream_query_runner.py`:
+
+```python
+@pytest.mark.anyio
+async def test_stream_query_runner_emits_error_on_exception() -> None:
+    session_tracker = AsyncMock()
+    session_tracker.is_interrupted.return_value = False
+    query_executor = AsyncMock()
+    stream_orchestrator = AsyncMock()
+    stream_orchestrator.build_done_event.return_value = {
+        "event": "done",
+        "data": "{}",
+    }
+    stream_orchestrator.build_error_event.return_value = {
+        "event": "error",
+        "data": "{}",
+    }
+
+    async def _execute(
+        _request: QueryRequest, _ctx: object, _commands: object
+    ) -> AsyncGenerator[dict[str, str], None]:
+        raise RuntimeError("boom")
+        yield {"event": "never", "data": "{}"}
+
+    query_executor.execute.side_effect = _execute
+
+    commands_service = MagicMock()
+    runner = StreamQueryRunner(
+        session_tracker=session_tracker,
+        query_executor=query_executor,
+        stream_orchestrator=stream_orchestrator,
+    )
+    request = QueryRequest(prompt="test")
+
+    events = []
+    async for event in runner.run(request, commands_service):
+        events.append(event)
+
+    assert events[-1]["event"] == "done"
+    assert {"event": "error", "data": "{}"} in events
+```
+
+**Step 12: Run test to verify it fails**
+
+Run: `uv run pytest tests/unit/services/agent/test_stream_query_runner.py::test_stream_query_runner_emits_error_on_exception -v`
+Expected: FAIL (missing exception handling).
+
+**Step 13: Write minimal implementation**
+
+Write minimal implementation:
+- In `apps/api/services/agent/stream_orchestrator.py`, add a new public method `build_error_event(code: str, message: str) -> dict[str, str]` that formats an `ErrorEvent` via `MessageHandler.format_sse`.
+- In `apps/api/services/agent/stream_query_runner.py`, wrap the execute loop in a `try/except/finally` inside `StreamQueryRunner.run`, call `stream_orchestrator.build_error_event("AGENT_ERROR", "Internal error")` on exception, and always emit `build_done_event(...)` in `finally`.
+
+Example method:
+
+```python
+from apps.api.schemas.responses import ErrorEvent, ErrorEventData
+
+    def build_error_event(self, code: str, message: str) -> dict[str, str]:
+        """<summary>Build error event SSE payload.</summary>"""
+        error_event = ErrorEvent(data=ErrorEventData(code=code, message=message))
+        return self._message_handler.format_sse(
+            error_event.event, error_event.data.model_dump()
+        )
+```
+
+**Step 14: Run test to verify it passes**
+
+Run: `uv run pytest tests/unit/services/agent/test_stream_query_runner.py::test_stream_query_runner_emits_error_on_exception -v`
+Expected: PASS.
+
+**Step 15: Wire StreamQueryRunner into AgentService and verify**
+
+Modify `apps/api/services/agent/service.py`:
+- Add `stream_runner: StreamQueryRunner | None = None` to `__init__`.
+- Instantiate `self._stream_runner = stream_runner or StreamQueryRunner(...)` with existing deps.
+- Move command discovery here (no duplication):
+  - Instantiate `CommandDiscovery` in `query_stream` using `Path(request.cwd)` or `Path.cwd()`.
+  - Call `discover_commands()` once to build `command_schemas`.
+  - Build the init event in `query_stream` using `stream_orchestrator.build_init_event(...)` and `command_schemas`.
+  - Pass `discovery.commands_service` into `self._stream_runner.run(request, commands_service)`.
+
+Replace `query_stream` body with:
+- Emit init event first (`yield init_event`).
+- Then `async for event in self._stream_runner.run(request, commands_service): yield event`.
+
+Run: `uv run pytest tests/unit/test_agent_service.py -v`
+Expected: PASS.
+
+**Step 16: Commit (if desired)**
 
 ```bash
 git add apps/api/services/agent/stream_query_runner.py apps/api/services/agent/service.py tests/unit/services/agent/test_stream_query_runner.py
@@ -287,12 +449,15 @@ git commit -m "refactor: extract stream query runner"
 - Modify: `apps/api/services/agent/service.py`
 - Test: `tests/unit/services/agent/test_single_query_runner.py`
 
-**Step 1: Write the failing test**
+**Step 1: Write the failing test (aggregates message events)**
 
 Create `tests/unit/services/agent/test_single_query_runner.py`:
 
 ```python
 """Unit tests for SingleQueryRunner delegation."""
+
+from collections.abc import AsyncGenerator
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -301,22 +466,34 @@ from apps.api.services.agent.single_query_runner import SingleQueryRunner
 
 
 @pytest.mark.anyio
-async def test_single_query_runner_returns_response_dict() -> None:
-    runner = SingleQueryRunner()
+async def test_single_query_runner_aggregates_assistant_content() -> None:
+    query_executor = AsyncMock()
+
+    async def _execute(
+        _request: QueryRequest, _ctx: object, _commands: object
+    ) -> AsyncGenerator[dict[str, str], None]:
+        yield {
+            "event": "message",
+            "data": "{\"type\": \"assistant\", \"content\": [{\"type\": \"text\", \"text\": \"hi\"}]}",
+        }
+
+    query_executor.execute.side_effect = _execute
+
+    commands_service = MagicMock()
+    runner = SingleQueryRunner(query_executor=query_executor)
     request = QueryRequest(prompt="test")
+    result = await runner.run(request, commands_service)
 
-    result = await runner.run(request)
-
-    assert result["session_id"]
-    assert result["model"]
+    assert result["content"] == [{"type": "text", "text": "hi"}]
+    assert result["is_error"] is False
 ```
 
 **Step 2: Run test to verify it fails**
 
 Run: `uv run pytest tests/unit/services/agent/test_single_query_runner.py -v`
-Expected: FAIL (module not found).
+Expected: FAIL with `ModuleNotFoundError: No module named 'apps.api.services.agent.single_query_runner'`.
 
-**Step 3: Write minimal implementation**
+**Step 3: Write minimal implementation (aggregation path only)**
 
 Create `apps/api/services/agent/single_query_runner.py`:
 
@@ -324,11 +501,11 @@ Create `apps/api/services/agent/single_query_runner.py`:
 """<summary>Run single-shot queries for AgentService.</summary>"""
 
 import time
-from pathlib import Path
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
-from apps.api.services.agent.command_discovery import CommandDiscovery
+import structlog
+
 from apps.api.services.agent.query_executor import QueryExecutor
 from apps.api.services.agent.single_query_aggregator import SingleQueryAggregator
 from apps.api.services.agent.types import StreamContext
@@ -336,6 +513,9 @@ from apps.api.services.agent.types import StreamContext
 if TYPE_CHECKING:
     from apps.api.schemas.requests.query import QueryRequest
     from apps.api.services.agent.types import QueryResponseDict
+    from apps.api.services.commands import CommandsService
+
+logger = structlog.get_logger(__name__)
 
 
 class SingleQueryRunner:
@@ -345,7 +525,9 @@ class SingleQueryRunner:
         """<summary>Initialize dependencies.</summary>"""
         self._query_executor = query_executor
 
-    async def run(self, request: "QueryRequest") -> "QueryResponseDict":
+    async def run(
+        self, request: "QueryRequest", commands_service: "CommandsService"
+    ) -> "QueryResponseDict":
         """<summary>Execute a single query and aggregate results.</summary>"""
         if not self._query_executor:
             raise RuntimeError("SingleQueryRunner dependency not configured")
@@ -363,18 +545,10 @@ class SingleQueryRunner:
             include_partial_messages=request.include_partial_messages,
         )
 
-        project_path = Path(request.cwd) if request.cwd else Path.cwd()
-        discovery = CommandDiscovery(project_path)
-
-        try:
-            async for event in self._query_executor.execute(
-                request, ctx, discovery.commands_service
-            ):
-                aggregator.handle_event(event)
-        except Exception as exc:
-            ctx.is_error = True
-            aggregator.content_blocks.clear()
-            aggregator.content_blocks.append({"type": "text", "text": f"Error: {exc}"})
+        async for event in self._query_executor.execute(
+            request, ctx, commands_service
+        ):
+            aggregator.handle_event(event)
 
         duration_ms = int((time.perf_counter() - start_time) * 1000)
 
@@ -386,17 +560,90 @@ class SingleQueryRunner:
         )
 ```
 
+**Step 4: Run test to verify it passes**
+
+Run: `uv run pytest tests/unit/services/agent/test_single_query_runner.py::test_single_query_runner_aggregates_assistant_content -v`
+Expected: PASS.
+
+**Step 5: Run full unit suite before adding next test**
+
+Run: `uv run pytest tests/unit -v`
+Expected: PASS.
+
+**Step 6: Write the failing test (exception handling)**
+
+Extend `tests/unit/services/agent/test_single_query_runner.py`:
+
+```python
+@pytest.mark.anyio
+async def test_single_query_runner_handles_executor_error() -> None:
+    query_executor = AsyncMock()
+
+    async def _execute(
+        _request: QueryRequest, _ctx: object, _commands: object
+    ) -> AsyncGenerator[dict[str, str], None]:
+        raise RuntimeError("boom")
+        yield {"event": "never", "data": "{}"}
+
+    query_executor.execute.side_effect = _execute
+
+    commands_service = MagicMock()
+    runner = SingleQueryRunner(query_executor=query_executor)
+    request = QueryRequest(prompt="test")
+    result = await runner.run(request, commands_service)
+
+    assert result["is_error"] is True
+    assert result["content"] == [{"type": "text", "text": "Error: Internal error"}]
+```
+
+**Step 7: Run test to verify it fails**
+
+Run: `uv run pytest tests/unit/services/agent/test_single_query_runner.py::test_single_query_runner_handles_executor_error -v`
+Expected: FAIL (no exception handling).
+
+**Step 8: Write minimal implementation**
+
+Write minimal implementation: update `SingleQueryRunner.run` in `apps/api/services/agent/single_query_runner.py` to wrap the execute loop with `try/except`, log before simplifying the response, and set sanitized error content (`"Error: Internal error"`):
+
+```python
+        try:
+            async for event in self._query_executor.execute(
+                request, ctx, commands_service
+            ):
+                aggregator.handle_event(event)
+        except Exception as exc:
+            logger.error(
+                "Single query execution failed",
+                session_id=session_id,
+                error=str(exc),
+            )
+            ctx.is_error = True
+            aggregator.content_blocks.clear()
+            aggregator.content_blocks.append(
+                {"type": "text", "text": "Error: Internal error"}
+            )
+```
+
+**Step 9: Run test to verify it passes**
+
+Run: `uv run pytest tests/unit/services/agent/test_single_query_runner.py::test_single_query_runner_handles_executor_error -v`
+Expected: PASS.
+
+**Step 10: Wire SingleQueryRunner into AgentService and verify**
+
 Modify `apps/api/services/agent/service.py`:
 - Add `single_query_runner: SingleQueryRunner | None = None` to `__init__`.
 - Instantiate `self._single_query_runner = single_query_runner or SingleQueryRunner(self._query_executor)`.
-- Replace `query_single` body with `return await self._single_query_runner.run(request)`.
+- Move command discovery here (no duplication):
+  - Instantiate `CommandDiscovery` in `query_single` using `Path(request.cwd)` or `Path.cwd()`.
+  - Pass `discovery.commands_service` into `self._single_query_runner.run(request, commands_service)`.
 
-**Step 4: Run test to verify it passes**
+Replace `query_single` body with `return await self._single_query_runner.run(request, commands_service)`.
 
-Run: `uv run pytest tests/unit/services/agent/test_single_query_runner.py -v`
+Run: `uv run pytest tests/unit/test_agent_service.py -v`
 Expected: PASS.
 
-**Step 5: Commit (if desired)**
+**Step 11: Commit (if desired)**
 
 ```bash
 git add apps/api/services/agent/single_query_runner.py apps/api/services/agent/service.py tests/unit/services/agent/test_single_query_runner.py
@@ -420,7 +667,7 @@ Create `tests/unit/services/agent/test_session_control.py`:
 """Unit tests for SessionControl."""
 
 import pytest
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 from apps.api.services.agent.session_control import SessionControl
 from apps.api.services.agent.session_tracker import AgentSessionTracker
@@ -466,21 +713,71 @@ class SessionControl:
         """<summary>Initialize with a session tracker.</summary>"""
         self._session_tracker = session_tracker
 
-    async def interrupt(self, session_id: str) -> bool:
-        """<summary>Interrupt a running session.</summary>"""
+    async def _require_active(self, session_id: str) -> bool:
+        """<summary>Return True if session is active, log otherwise.</summary>"""
         is_active = await self._session_tracker.is_active(session_id)
         if not is_active:
-            logger.info("Cannot interrupt inactive session", session_id=session_id)
+            logger.info("Session is not active", session_id=session_id)
+            return False
+        return True
+
+    async def interrupt(self, session_id: str) -> bool:
+        """<summary>Interrupt a running session.</summary>"""
+        if not await self._require_active(session_id):
             return False
 
         await self._session_tracker.mark_interrupted(session_id)
         logger.info("Interrupt signal sent", session_id=session_id)
         return True
+```
 
+**Step 4: Run test to verify it passes**
+
+Run: `uv run pytest tests/unit/services/agent/test_session_control.py -v`
+Expected: PASS.
+
+**Step 5: Write the failing tests for other actions**
+
+Extend `tests/unit/services/agent/test_session_control.py`:
+
+```python
+@pytest.mark.anyio
+async def test_session_control_submit_answer_requires_active_session() -> None:
+    tracker = AsyncMock(spec=AgentSessionTracker)
+    tracker.is_active.return_value = False
+    control = SessionControl(session_tracker=tracker)
+
+    result = await control.submit_answer("sid", "answer")
+
+    assert result is False
+    tracker.is_active.assert_called_once_with("sid")
+
+
+@pytest.mark.anyio
+async def test_session_control_update_permission_mode_requires_active_session() -> None:
+    tracker = AsyncMock(spec=AgentSessionTracker)
+    tracker.is_active.return_value = False
+    control = SessionControl(session_tracker=tracker)
+
+    result = await control.update_permission_mode("sid", "default")
+
+    assert result is False
+    tracker.is_active.assert_called_once_with("sid")
+```
+
+**Step 6: Run tests to verify they fail**
+
+Run: `uv run pytest tests/unit/services/agent/test_session_control.py -v`
+Expected: FAIL (missing methods).
+
+**Step 7: Implement the remaining methods**
+
+Add methods to `SessionControl` using `_require_active`:
+
+```python
     async def submit_answer(self, session_id: str, answer: str) -> bool:
         """<summary>Submit an answer to a pending question.</summary>"""
-        is_active = await self._session_tracker.is_active(session_id)
-        if not is_active:
+        if not await self._require_active(session_id):
             return False
 
         logger.info(
@@ -496,8 +793,7 @@ class SessionControl:
         permission_mode: Literal["default", "acceptEdits", "plan", "bypassPermissions"],
     ) -> bool:
         """<summary>Update permission mode for an active session.</summary>"""
-        is_active = await self._session_tracker.is_active(session_id)
-        if not is_active:
+        if not await self._require_active(session_id):
             return False
 
         logger.info(
@@ -508,17 +804,24 @@ class SessionControl:
         return True
 ```
 
+**Step 8: Run tests to verify they pass**
+
+Run: `uv run pytest tests/unit/services/agent/test_session_control.py -v`
+Expected: PASS.
+
+**Step 9: Wire SessionControl into AgentService and verify**
+
 Modify `apps/api/services/agent/service.py`:
 - Add `session_control: SessionControl | None = None` to `__init__`.
 - Instantiate `self._session_control = session_control or SessionControl(self._session_tracker)`.
 - Replace `interrupt`, `submit_answer`, `update_permission_mode` bodies with delegation to `self._session_control`.
 
-**Step 4: Run test to verify it passes**
+**Step 10: Verify AgentService tests after wiring**
 
-Run: `uv run pytest tests/unit/services/agent/test_session_control.py -v`
+Run: `uv run pytest tests/unit/test_agent_service.py -v`
 Expected: PASS.
 
-**Step 5: Commit (if desired)**
+**Step 11: Commit (if desired)**
 
 ```bash
 git add apps/api/services/agent/session_control.py apps/api/services/agent/service.py tests/unit/services/agent/test_session_control.py
@@ -542,7 +845,7 @@ Create `tests/unit/services/agent/test_checkpoint_manager.py`:
 """Unit tests for CheckpointManager."""
 
 import pytest
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 from apps.api.services.agent.checkpoint_manager import CheckpointManager
 from apps.api.services.agent.types import StreamContext
@@ -604,6 +907,63 @@ class CheckpointManager:
             )
             return None
 
+        checkpoint = await self._checkpoint_service.create_checkpoint(
+            session_id=ctx.session_id,
+            user_message_uuid=ctx.last_user_message_uuid,
+            files_modified=ctx.files_modified.copy(),
+        )
+        return checkpoint
+```
+
+**Step 4: Run test to verify it passes**
+
+Run: `uv run pytest tests/unit/services/agent/test_checkpoint_manager.py::test_checkpoint_manager_skips_when_disabled -v`
+Expected: PASS.
+
+**Step 5: Run full unit suite before adding next test**
+
+Run: `uv run pytest tests/unit -v`
+Expected: PASS.
+
+**Step 6: Write the failing test (enabled checkpoint creation)**
+
+Extend `tests/unit/services/agent/test_checkpoint_manager.py`:
+
+```python
+@pytest.mark.anyio
+async def test_checkpoint_manager_creates_checkpoint_when_enabled() -> None:
+    checkpoint_service = AsyncMock()
+    checkpoint_service.create_checkpoint.return_value = MagicMock(id="chk-1")
+    manager = CheckpointManager(checkpoint_service=checkpoint_service)
+    ctx = StreamContext(
+        session_id="sid",
+        model="sonnet",
+        start_time=0.0,
+        enable_file_checkpointing=True,
+    )
+    ctx.last_user_message_uuid = "uuid-1"
+    ctx.files_modified = ["a.txt"]
+
+    result = await manager.create_from_context(ctx)
+
+    assert result is not None
+    checkpoint_service.create_checkpoint.assert_called_once_with(
+        session_id="sid",
+        user_message_uuid="uuid-1",
+        files_modified=["a.txt"],
+    )
+```
+
+**Step 7: Run test to verify it fails**
+
+Run: `uv run pytest tests/unit/services/agent/test_checkpoint_manager.py::test_checkpoint_manager_creates_checkpoint_when_enabled -v`
+Expected: FAIL (missing enabled path or incomplete wiring).
+
+**Step 8: Write minimal implementation**
+
+Write minimal implementation: in `apps/api/services/agent/checkpoint_manager.py` inside `create_from_context` (around the checkpoint creation block), wrap `self._checkpoint_service.create_checkpoint(...)` in `try/except`, log success with the checkpoint ID, and log failure with the error message; return the checkpoint on success or `None` on error.
+
+```python
         try:
             checkpoint = await self._checkpoint_service.create_checkpoint(
                 session_id=ctx.session_id,
@@ -627,17 +987,22 @@ class CheckpointManager:
             return None
 ```
 
+**Step 9: Run test to verify it passes**
+
+Run: `uv run pytest tests/unit/services/agent/test_checkpoint_manager.py -v`
+Expected: PASS.
+
+**Step 10: Wire CheckpointManager into AgentService and verify**
+
 Modify `apps/api/services/agent/service.py`:
 - Add `checkpoint_manager: CheckpointManager | None = None` to `__init__`.
 - Instantiate `self._checkpoint_manager = checkpoint_manager or CheckpointManager(self._checkpoint_service)`.
 - Replace `create_checkpoint_from_context` body with `return await self._checkpoint_manager.create_from_context(ctx)`.
 
-**Step 4: Run test to verify it passes**
-
-Run: `uv run pytest tests/unit/services/agent/test_checkpoint_manager.py -v`
+Run: `uv run pytest tests/unit/test_agent_service.py -v`
 Expected: PASS.
 
-**Step 5: Commit (if desired)**
+**Step 11: Commit (if desired)**
 
 ```bash
 git add apps/api/services/agent/checkpoint_manager.py apps/api/services/agent/service.py tests/unit/services/agent/test_checkpoint_manager.py
@@ -672,11 +1037,13 @@ def test_file_modification_tracker_converts_dicts() -> None:
     tracker = FileModificationTracker(handler)
     ctx = StreamContext(session_id="sid", model="sonnet", start_time=0.0)
 
-    tracker.track([{ "type": "text", "text": "hi" }], ctx)
+    tracker.track([{"type": "text", "text": "hi"}], ctx)
 
     handler.track_file_modifications.assert_called_once()
     args, _ = handler.track_file_modifications.call_args
     assert isinstance(args[0][0], ContentBlockSchema)
+    assert args[0][0].type == "text"
+    assert args[0][0].text == "hi"
 ```
 
 **Step 2: Run test to verify it fails**
@@ -691,18 +1058,25 @@ Create `apps/api/services/agent/file_modification_tracker.py`:
 ```python
 """<summary>Track file modifications from content blocks.</summary>"""
 
+from typing import TYPE_CHECKING
+
 from apps.api.schemas.responses import ContentBlockSchema
 from apps.api.services.agent.types import StreamContext
+
+if TYPE_CHECKING:
+    from apps.api.services.agent.handlers import MessageHandler
 
 
 class FileModificationTracker:
     """<summary>Converts blocks and forwards to MessageHandler.</summary>"""
 
-    def __init__(self, message_handler: object) -> None:
+    def __init__(self, message_handler: "MessageHandler") -> None:
         """<summary>Initialize with a message handler.</summary>"""
         self._message_handler = message_handler
 
-    def track(self, content_blocks: list[object], ctx: StreamContext) -> None:
+    def track(
+        self, content_blocks: list[ContentBlockSchema | dict[str, object]], ctx: StreamContext
+    ) -> None:
         """<summary>Convert blocks and forward tracking.</summary>"""
         typed_blocks: list[ContentBlockSchema] = []
         for block in content_blocks:
@@ -714,17 +1088,56 @@ class FileModificationTracker:
         self._message_handler.track_file_modifications(typed_blocks, ctx)
 ```
 
-Modify `apps/api/services/agent/service.py`:
-- Add `file_modification_tracker: FileModificationTracker | None = None` to `__init__`.
-- Instantiate `self._file_modification_tracker = file_modification_tracker or FileModificationTracker(self._message_handler)`.
-- Replace `_track_file_modifications` body with `self._file_modification_tracker.track(content_blocks, ctx)`.
-
 **Step 4: Run test to verify it passes**
 
 Run: `uv run pytest tests/unit/services/agent/test_file_modification_tracker.py -v`
 Expected: PASS.
 
-**Step 5: Commit (if desired)**
+**Step 5: Write the failing AgentService delegation test**
+
+Add to `tests/unit/test_agent_service.py`:
+
+```python
+from unittest.mock import MagicMock
+
+from apps.api.services.agent.file_modification_tracker import FileModificationTracker
+from apps.api.services.agent.service import AgentService
+from apps.api.services.agent.types import StreamContext
+
+def test_track_file_modifications_delegates() -> None:
+    handler = MagicMock()
+    tracker = FileModificationTracker(handler)
+    service = AgentService(cache=None, file_modification_tracker=tracker)
+    ctx = StreamContext(session_id="sid", model="sonnet", start_time=0.0)
+
+    service._track_file_modifications([{"type": "text", "text": "hi"}], ctx)
+
+    handler.track_file_modifications.assert_called_once()
+```
+
+**Step 6: Run test to verify it fails**
+
+Run: `uv run pytest tests/unit/test_agent_service.py::test_track_file_modifications_delegates -v`
+Expected: FAIL (AgentService not wired).
+
+**Step 7: Wire FileModificationTracker into AgentService**
+
+Modify `apps/api/services/agent/service.py`:
+- Add `file_modification_tracker: FileModificationTracker | None = None` to `__init__`.
+- Instantiate `self._file_modification_tracker = file_modification_tracker or FileModificationTracker(self._message_handler)`.
+- Replace `_track_file_modifications` body with `self._file_modification_tracker.track(content_blocks, ctx)`.
+
+**Step 8: Run test to verify it passes**
+
+Run: `uv run pytest tests/unit/test_agent_service.py::test_track_file_modifications_delegates -v`
+Expected: PASS.
+
+**Step 9: Verify AgentService tests after wiring**
+
+Run: `uv run pytest tests/unit/test_agent_service.py -v`
+Expected: PASS.
+
+**Step 10: Commit (if desired)**
 
 ```bash
 git add apps/api/services/agent/file_modification_tracker.py apps/api/services/agent/service.py tests/unit/services/agent/test_file_modification_tracker.py
@@ -733,49 +1146,7 @@ git commit -m "refactor: extract file modification tracker"
 
 ---
 
-### Task 7: Public API stability test (keep façade intact)
-
-**Files:**
-- Modify: `tests/unit/test_agent_service.py`
-
-**Step 1: Write the failing test**
-
-Add to `tests/unit/test_agent_service.py` (if not already present):
-
-```python
-def test_agent_service_public_api_stable() -> None:
-    service = AgentService(cache=None)
-    assert hasattr(service, "query_stream")
-    assert hasattr(service, "query_single")
-    assert hasattr(service, "interrupt")
-    assert hasattr(service, "submit_answer")
-    assert hasattr(service, "update_permission_mode")
-```
-
-**Step 2: Run test to verify it fails**
-
-Run: `uv run pytest tests/unit/test_agent_service.py::test_agent_service_public_api_stable -v`
-Expected: FAIL if any refactor breaks method exposure.
-
-**Step 3: Write minimal implementation**
-
-Ensure `AgentService` keeps the public methods and delegates to helpers.
-
-**Step 4: Run test to verify it passes**
-
-Run: `uv run pytest tests/unit/test_agent_service.py::test_agent_service_public_api_stable -v`
-Expected: PASS.
-
-**Step 5: Commit (if desired)**
-
-```bash
-git add tests/unit/test_agent_service.py apps/api/services/agent/service.py
-git commit -m "test: guard agent service public api"
-```
-
----
-
-### Task 8: Full validation
+### Task 7: Full validation (verification-only, not a TDD cycle)
 
 **Files:**
 - None

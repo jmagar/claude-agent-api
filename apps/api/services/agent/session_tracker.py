@@ -4,6 +4,8 @@ from typing import TYPE_CHECKING
 
 import structlog
 
+from apps.api.config import Settings, get_settings
+
 if TYPE_CHECKING:
     from apps.api.protocols import Cache
 
@@ -13,16 +15,17 @@ logger = structlog.get_logger(__name__)
 class AgentSessionTracker:
     """<summary>Tracks active sessions and interrupts in Redis.</summary>"""
 
-    def __init__(self, cache: "Cache | None") -> None:
+    def __init__(self, cache: "Cache | None", settings: Settings | None = None) -> None:
         """<summary>Initialize tracker.</summary>"""
         self._cache = cache
+        self._settings = settings if settings is not None else get_settings()
 
     async def register(self, session_id: str) -> None:
         """<summary>Register session as active.</summary>"""
         if not self._cache:
             raise RuntimeError("Cache is required for distributed session tracking")
         key = f"active_session:{session_id}"
-        await self._cache.cache_set(key, "true", ttl=7200)
+        await self._cache.cache_set(key, "true", ttl=self._settings.redis_session_ttl)
         logger.info("Registered active session", session_id=session_id, storage="redis")
 
     async def is_active(self, session_id: str) -> bool:
@@ -54,4 +57,9 @@ class AgentSessionTracker:
         if not self._cache:
             raise RuntimeError("Cache is required for distributed interrupt signaling")
         interrupt_key = f"interrupted:{session_id}"
-        await self._cache.cache_set(interrupt_key, "true", ttl=300)
+        await self._cache.cache_set(
+            interrupt_key, "true", ttl=self._settings.redis_interrupt_ttl
+        )
+        logger.info(
+            "Marked session as interrupted", session_id=session_id, storage="redis"
+        )

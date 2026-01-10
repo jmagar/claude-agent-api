@@ -12,7 +12,7 @@ from apps.api.adapters.session_repo import SessionRepository
 
 @pytest.mark.integration
 @pytest.mark.anyio
-async def test_active_session_registered_in_redis(_async_client: AsyncClient):
+async def test_active_session_registered_in_redis(async_client: AsyncClient):
     """Test that active sessions are tracked in Redis, not in-memory."""
     cache = await get_cache()
     service = AgentService(cache=cache)
@@ -34,7 +34,7 @@ async def test_active_session_registered_in_redis(_async_client: AsyncClient):
 
 @pytest.mark.integration
 @pytest.mark.anyio
-async def test_interrupt_signal_propagates_across_instances(_async_client: AsyncClient):
+async def test_interrupt_signal_propagates_across_instances(async_client: AsyncClient):
     """Test that interrupt signals propagate via Redis pub/sub."""
     cache = await get_cache()
 
@@ -62,7 +62,7 @@ async def test_interrupt_signal_propagates_across_instances(_async_client: Async
 
 @pytest.mark.integration
 @pytest.mark.anyio
-async def test_session_fallback_to_database_when_cache_miss(_async_client: AsyncClient):
+async def test_session_fallback_to_database_when_cache_miss(async_client: AsyncClient):
     """Test that sessions fall back to PostgreSQL when not in Redis cache."""
     from uuid import UUID
 
@@ -101,7 +101,7 @@ async def test_session_fallback_to_database_when_cache_miss(_async_client: Async
 
 @pytest.mark.integration
 @pytest.mark.anyio
-async def test_session_create_writes_to_both_db_and_cache(_async_client: AsyncClient):
+async def test_session_create_writes_to_both_db_and_cache(async_client: AsyncClient):
     """Test that creating a session writes to both PostgreSQL and Redis."""
     from apps.api.dependencies import get_db
 
@@ -135,7 +135,7 @@ async def test_session_create_writes_to_both_db_and_cache(_async_client: AsyncCl
 
 @pytest.mark.integration
 @pytest.mark.anyio
-async def test_agent_service_uses_distributed_session_tracking(_async_client: AsyncClient):
+async def test_agent_service_uses_distributed_session_tracking(async_client: AsyncClient):
     """Test that AgentService registers sessions in Redis during query execution."""
     from apps.api.dependencies import get_db
 
@@ -166,7 +166,7 @@ async def test_agent_service_uses_distributed_session_tracking(_async_client: As
 
 @pytest.mark.integration
 @pytest.mark.anyio
-async def test_multi_instance_session_lifecycle(_async_client: AsyncClient):
+async def test_multi_instance_session_lifecycle(async_client: AsyncClient):
     """Test complete session lifecycle across multiple API instances.
 
     Simulates a load-balanced environment with 2 API pods.
@@ -228,7 +228,7 @@ async def test_multi_instance_session_lifecycle(_async_client: AsyncClient):
 
 @pytest.mark.integration
 @pytest.mark.anyio
-async def test_session_survives_redis_restart(_async_client: AsyncClient):
+async def test_session_survives_redis_restart(async_client: AsyncClient):
     """Test that sessions survive Redis restart (via PostgreSQL fallback)."""
     from apps.api.dependencies import get_db
 
@@ -243,7 +243,7 @@ async def test_session_survives_redis_restart(_async_client: AsyncClient):
         session_id = session.id
 
         # Simulate Redis restart by flushing all keys
-        await cache._client.flushdb()
+        await cache.clear()
 
         # Session should still be retrievable from PostgreSQL
         retrieved = await service.get_session(session_id)

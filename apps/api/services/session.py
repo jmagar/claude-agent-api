@@ -14,6 +14,8 @@ Enables horizontal scaling by using Redis for shared state.
 See ADR-001 for architecture details.
 """
 
+import asyncio
+import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -24,6 +26,7 @@ import structlog
 
 from apps.api.config import get_settings
 from apps.api.exceptions.session import SessionNotFoundError
+from apps.api.types import JsonValue
 
 T = TypeVar("T")
 
@@ -77,6 +80,10 @@ class SessionListResult:
 class SessionService:
     """Service for managing agent sessions."""
 
+    # Lock retry configuration
+    _LOCK_INITIAL_RETRY_DELAY = 0.01  # Start with 10ms
+    _LOCK_MAX_RETRY_DELAY = 0.5  # Cap at 500ms
+
     def __init__(
         self,
         cache: "Cache | None" = None,
@@ -103,7 +110,8 @@ class SessionService:
         session_id: str,
         operation: str,
         func: Callable[[], Awaitable[T]],
-        timeout: int = 5,
+        acquire_timeout: float = 5.0,
+        lock_ttl: int = 30,
     ) -> T:
         """Execute operation with distributed lock on session.
 
@@ -111,17 +119,17 @@ class SessionService:
             session_id: The session ID to lock.
             operation: Description of operation (for logging).
             func: Async function to execute while holding lock.
-            timeout: Lock acquisition timeout in seconds.
+            acquire_timeout: How long to wait to acquire the lock (seconds).
+            lock_ttl: How long the lock remains valid (seconds).
+                     Must be > expected operation duration to prevent
+                     concurrent access if operation runs long.
 
         Returns:
             Result from func.
 
         Raises:
-            TimeoutError: If lock cannot be acquired within timeout.
+            TimeoutError: If lock cannot be acquired within acquire_timeout.
         """
-        import asyncio
-        import time
-
         if not self._cache:
             # No cache = no distributed locking needed (single-instance mode)
             return await func()
@@ -131,14 +139,14 @@ class SessionService:
         start_time = time.monotonic()
 
         # Retry loop with exponential backoff
-        retry_delay = 0.01  # Start with 10ms
-        max_retry_delay = 0.5  # Cap at 500ms
+        retry_delay = self._LOCK_INITIAL_RETRY_DELAY
+        max_retry_delay = self._LOCK_MAX_RETRY_DELAY
 
         while True:
             # Try to acquire lock
             lock_value = await self._cache.acquire_lock(
                 lock_key,
-                ttl=timeout,
+                ttl=lock_ttl,
             )
 
             if lock_value is not None:
@@ -147,12 +155,12 @@ class SessionService:
 
             # Check if we've exceeded timeout
             elapsed = time.monotonic() - start_time
-            if elapsed >= timeout:
+            if elapsed >= acquire_timeout:
                 logger.warning(
                     "Failed to acquire session lock after timeout",
                     session_id=session_id,
                     operation=operation,
-                    timeout=timeout,
+                    timeout=acquire_timeout,
                     elapsed=elapsed,
                 )
                 raise TimeoutError(f"Could not acquire lock for session {session_id}")
@@ -233,12 +241,16 @@ class SessionService:
                 await self._db_repo.create(
                     session_id=UUID(session_id),
                     model=model,
+                    parent_session_id=UUID(parent_session_id)
+                    if parent_session_id
+                    else None,
                     owner_api_key=owner_api_key,
                 )
                 logger.info(
                     "Session created in database",
                     session_id=session_id,
                     model=model,
+                    parent_session_id=parent_session_id,
                 )
             except Exception as e:
                 logger.error(
@@ -354,12 +366,15 @@ class SessionService:
         self,
         page: int = 1,
         page_size: int = 20,
+        current_api_key: str | None = None,
     ) -> SessionListResult:
         """List sessions with pagination using bulk cache reads.
 
         Args:
             page: Page number (1-indexed).
             page_size: Number of sessions per page.
+            current_api_key: API key for ownership filtering.
+                           If provided, only returns sessions owned by this key.
 
         Returns:
             Paginated session list.
@@ -380,6 +395,10 @@ class SessionService:
                 session = self._parse_cached_session(parsed)
                 if session:
                     sessions.append(session)
+
+        # Filter by ownership if current_api_key is provided
+        if current_api_key is not None:
+            sessions = [s for s in sessions if s.owner_api_key == current_api_key]
 
         # Sort by created_at descending
         sessions.sort(key=lambda s: s.created_at, reverse=True)
@@ -404,6 +423,7 @@ class SessionService:
         total_turns: int | None = None,
         total_cost_usd: float | None = None,
         increment_turns: bool = False,
+        current_api_key: str | None = None,
     ) -> Session | None:
         """Update a session with distributed locking.
 
@@ -416,14 +436,20 @@ class SessionService:
             total_turns: Updated turn count (or None to keep/increment).
             total_cost_usd: Updated cost.
             increment_turns: If True, atomically increment total_turns by 1.
+            current_api_key: API key for ownership enforcement.
 
         Returns:
             Updated session or None if not found.
+
+        Raises:
+            SessionNotFoundError: If session not owned by current_api_key.
         """
         from uuid import UUID
 
         async def _do_update() -> Session | None:
-            session = await self.get_session(session_id)
+            session = await self.get_session(
+                session_id, current_api_key=current_api_key
+            )
             if not session:
                 return None
 
@@ -439,10 +465,7 @@ class SessionService:
 
             session.updated_at = datetime.now(UTC)
 
-            # Update cache (no lock here - outer lock covers the whole operation)
-            await self._cache_session(session)
-
-            # Update database if configured
+            # Update database first (source of truth)
             if self._db_repo:
                 await self._db_repo.update(
                     session_id=UUID(session_id),
@@ -450,6 +473,9 @@ class SessionService:
                     total_turns=session.total_turns,
                     total_cost_usd=session.total_cost_usd,
                 )
+
+            # Update cache only after DB write succeeds
+            await self._cache_session(session)
 
             logger.info(
                 "Session updated",
@@ -510,7 +536,7 @@ class SessionService:
             return
 
         key = self._cache_key(session.id)
-        data: dict[str, object] = {
+        data: dict[str, JsonValue] = {
             "id": session.id,
             "model": session.model,
             "status": session.status,
@@ -546,7 +572,7 @@ class SessionService:
 
     def _parse_cached_session(
         self,
-        parsed: dict[str, object],
+        parsed: dict[str, JsonValue],
     ) -> Session | None:
         """Parse cached session data into Session object.
 
@@ -656,7 +682,9 @@ class SessionService:
             status=status_val,
             total_turns=db_session.total_turns,
             total_cost_usd=(
-                float(db_session.total_cost_usd) if db_session.total_cost_usd else None
+                float(db_session.total_cost_usd)
+                if db_session.total_cost_usd is not None
+                else None
             ),
             parent_session_id=(
                 str(db_session.parent_session_id)

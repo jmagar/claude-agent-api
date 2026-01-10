@@ -1,11 +1,13 @@
 """Unit tests for CheckpointService (T098)."""
 
+import asyncio
 from typing import TYPE_CHECKING, cast
 from uuid import uuid4
 
 import pytest
 
 from apps.api.services.checkpoint import CheckpointService
+from apps.api.types import JsonValue
 
 if TYPE_CHECKING:
     from apps.api.protocols import Cache
@@ -18,7 +20,7 @@ class MockCache:
     """
 
     def __init__(self) -> None:
-        self._json_store: dict[str, dict[str, object]] = {}
+        self._json_store: dict[str, dict[str, JsonValue]] = {}
         self._string_store: dict[str, str] = {}
 
     async def get(self, key: str) -> str | None:
@@ -30,12 +32,12 @@ class MockCache:
         self._string_store[key] = value
         return True
 
-    async def get_json(self, key: str) -> dict[str, object] | None:
+    async def get_json(self, key: str) -> dict[str, JsonValue] | None:
         """Get JSON value from cache."""
         return self._json_store.get(key)
 
     async def set_json(
-        self, key: str, value: dict[str, object], ttl: int | None = None
+        self, key: str, value: dict[str, JsonValue], ttl: int | None = None
     ) -> bool:
         """Set JSON value in cache."""
         self._json_store[key] = value
@@ -62,6 +64,12 @@ class MockCache:
         all_keys = list(self._json_store.keys()) + list(self._string_store.keys())
         return [k for k in all_keys if k.startswith(prefix)]
 
+    async def clear(self) -> bool:
+        """Clear all cached values."""
+        self._json_store.clear()
+        self._string_store.clear()
+        return True
+
     async def add_to_set(self, key: str, value: str) -> bool:
         """Add value to set (not implemented for tests)."""
         return True
@@ -87,6 +95,12 @@ class MockCache:
     async def ping(self) -> bool:
         """Check connectivity."""
         return True
+
+    async def get_many_json(
+        self, keys: list[str]
+    ) -> list[dict[str, JsonValue] | None]:
+        """Get multiple JSON values from cache."""
+        return [await self.get_json(key) for key in keys]
 
 
 @pytest.fixture
@@ -449,8 +463,6 @@ class TestCheckpointServiceEdgeCases:
         checkpoint_service: CheckpointService,
     ) -> None:
         """Test that checkpoints are returned in ascending created_at order."""
-        import asyncio
-
         session_id = str(uuid4())
 
         # Create 3 checkpoints with small delays

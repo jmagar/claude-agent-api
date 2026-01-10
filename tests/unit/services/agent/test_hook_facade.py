@@ -1,5 +1,7 @@
 """Unit tests for HookFacade."""
 
+from unittest.mock import AsyncMock
+
 import pytest
 
 from apps.api.services.agent.hook_facade import HookFacade
@@ -10,6 +12,18 @@ from apps.api.services.webhook import WebhookService
 @pytest.mark.anyio
 async def test_hook_facade_forwards_pre_tool_use() -> None:
     """Test hook facade delegates pre-tool-use hooks."""
-    facade = HookFacade(executor=HookExecutor(WebhookService()))
+    mock_webhook_service = AsyncMock(spec=WebhookService)
+    mock_executor: HookExecutor = AsyncMock(spec=HookExecutor)
+    mock_executor._webhook_service = mock_webhook_service
+    mock_executor.execute_pre_tool_use.return_value = {"decision": "allow"}
+
+    facade = HookFacade(executor=mock_executor)
     result = await facade.execute_pre_tool_use(None, "sid", "Tool")
-    assert isinstance(result, dict)
+
+    mock_executor.execute_pre_tool_use.assert_called_once_with(
+        None,
+        "sid",
+        "Tool",
+        None,
+    )
+    assert result == {"decision": "allow"}

@@ -3,14 +3,13 @@
 import logging
 import os
 from collections.abc import AsyncGenerator, Generator
-from contextlib import contextmanager
-import fcntl
 from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
 from alembic import command
 from alembic.config import Config
+from filelock import FileLock
 from httpx import ASGITransport, AsyncClient
 
 # Set test environment variables before importing app
@@ -39,25 +38,17 @@ def _is_truthy(value: str | None) -> bool:
 
 @pytest.fixture(scope="session", autouse=True)
 def apply_migrations() -> None:
-    """Apply alembic migrations for the test database."""
+    """Apply alembic migrations for the test database.
+
+    Uses FileLock for cross-platform serialization across pytest-xdist workers.
+    """
     lock_path = Path(".cache/pytest-migrations.lock")
     lock_path.parent.mkdir(parents=True, exist_ok=True)
 
-    with _migration_lock(lock_path):
+    with FileLock(lock_path):
         config = Config(str(Path("alembic.ini")))
         config.set_main_option("sqlalchemy.url", get_settings().database_url)
         command.upgrade(config, "head")
-
-
-@contextmanager
-def _migration_lock(lock_path: Path) -> Generator[None, None, None]:
-    """Serialize migrations across pytest-xdist workers."""
-    with lock_path.open("w") as lock_file:
-        fcntl.flock(lock_file, fcntl.LOCK_EX)
-        try:
-            yield
-        finally:
-            fcntl.flock(lock_file, fcntl.LOCK_UN)
 
 
 @pytest.fixture
@@ -178,7 +169,7 @@ def sample_session_id() -> str:
 
 
 @pytest.fixture
-async def mock_session_id(_async_client: AsyncClient) -> str:
+async def mock_session_id(_async_client: AsyncClient, test_api_key: str) -> str:
     """Create a mock session that exists in the system.
 
     Creates a real session by making a query, then returns its ID.
@@ -189,19 +180,20 @@ async def mock_session_id(_async_client: AsyncClient) -> str:
     cache = await get_cache()
     service = SessionService(cache=cache)
     session = await service.create_session(
-        model="sonnet", session_id="mock-existing-session-001"
+        model="sonnet",
+        session_id="mock-existing-session-001",
+        owner_api_key=test_api_key,
     )
     return session.id
 
 
 @pytest.fixture
-async def mock_active_session_id(_async_client: AsyncClient) -> str:
+async def mock_active_session_id(_async_client: AsyncClient) -> AsyncGenerator[str, None]:
     """Create a mock active session that can be interrupted.
 
     Creates a session and registers it with the agent service as active.
+    Cleans up the active session registration after the test completes.
     """
-    import asyncio
-
     from apps.api.dependencies import (
         get_cache,
         set_agent_service_singleton,
@@ -222,7 +214,14 @@ async def mock_active_session_id(_async_client: AsyncClient) -> str:
     await agent_service._register_active_session(session.id)
     set_agent_service_singleton(agent_service)
 
-    return session.id
+    try:
+        yield session.id
+    finally:
+        # Cleanup: Unregister session to prevent interference with other tests
+        try:
+            await agent_service._unregister_active_session(session.id)
+        except Exception as e:
+            logger.debug("Failed to unregister active session: %s", str(e))
 
 
 @pytest.fixture

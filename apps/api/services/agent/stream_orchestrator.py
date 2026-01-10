@@ -1,4 +1,4 @@
-"""<summary>Stream event orchestration helpers for AgentService.</summary>"""
+"""Stream event orchestration helpers for AgentService."""
 
 from typing import TYPE_CHECKING, Literal
 
@@ -6,6 +6,8 @@ from apps.api.schemas.responses import (
     CommandInfoSchema,
     DoneEvent,
     DoneEventData,
+    ErrorEvent,
+    ErrorEventData,
     InitEvent,
     InitEventData,
     ResultEvent,
@@ -19,10 +21,14 @@ if TYPE_CHECKING:
 
 
 class StreamOrchestrator:
-    """<summary>Builds init/result/done events for streaming responses.</summary>"""
+    """Builds init/result/done events for streaming responses."""
 
     def __init__(self, message_handler: "MessageHandler") -> None:
-        """<summary>Initialize orchestrator.</summary>"""
+        """Initialize orchestrator.
+
+        Args:
+            message_handler: Handler for formatting SSE messages.
+        """
         self._message_handler = message_handler
 
     def build_init_event(
@@ -35,7 +41,20 @@ class StreamOrchestrator:
         permission_mode: str | None,
         mcp_servers: list[dict[str, object]] | None = None,
     ) -> dict[str, str]:
-        """<summary>Build init event SSE payload.</summary>"""
+        """Build init event SSE payload.
+
+        Args:
+            session_id: The session identifier.
+            model: The model name.
+            tools: List of available tool names.
+            plugins: List of enabled plugin names.
+            commands: List of available command schemas.
+            permission_mode: Permission mode setting, if any.
+            mcp_servers: Optional list of MCP server configurations.
+
+        Returns:
+            SSE-formatted dict with event type and JSON data.
+        """
         init_event = InitEvent(
             data=InitEventData(
                 session_id=session_id,
@@ -56,7 +75,15 @@ class StreamOrchestrator:
         ctx: "StreamContext",
         duration_ms: int,
     ) -> dict[str, str]:
-        """<summary>Build result event SSE payload.</summary>"""
+        """Build result event SSE payload.
+
+        Args:
+            ctx: Stream context containing session metadata and usage stats.
+            duration_ms: Total duration in milliseconds.
+
+        Returns:
+            SSE-formatted dict with event type and JSON data.
+        """
         model_usage_converted: dict[str, UsageSchema] | None = None
         if ctx.model_usage:
             model_usage_converted = {}
@@ -93,8 +120,30 @@ class StreamOrchestrator:
         self,
         reason: Literal["completed", "interrupted", "error"],
     ) -> dict[str, str]:
-        """<summary>Build done event SSE payload.</summary>"""
+        """Build done event SSE payload.
+
+        Args:
+            reason: Completion reason (completed, interrupted, or error).
+
+        Returns:
+            SSE-formatted dict with event type and JSON data.
+        """
         done_event = DoneEvent(data=DoneEventData(reason=reason))
         return self._message_handler.format_sse(
             done_event.event, done_event.data.model_dump()
+        )
+
+    def build_error_event(self, code: str, message: str) -> dict[str, str]:
+        """Build error event SSE payload.
+
+        Args:
+            code: Error code identifier.
+            message: Error message to surface.
+
+        Returns:
+            SSE-formatted dict with event type and JSON data.
+        """
+        error_event = ErrorEvent(data=ErrorEventData(code=code, message=message))
+        return self._message_handler.format_sse(
+            error_event.event, error_event.data.model_dump()
         )

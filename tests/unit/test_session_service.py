@@ -4,6 +4,7 @@ import pytest
 
 from apps.api.exceptions import SessionNotFoundError
 from apps.api.services.session import SessionService
+from apps.api.types import JsonValue
 
 
 class MockCache:
@@ -13,7 +14,7 @@ class MockCache:
     """
 
     def __init__(self) -> None:
-        self._store: dict[str, dict[str, object]] = {}
+        self._store: dict[str, dict[str, JsonValue]] = {}
         self.get_many_calls = 0
 
     async def get(self, key: str) -> str | None:
@@ -32,12 +33,12 @@ class MockCache:
         self._store[key] = json.loads(value)
         return True
 
-    async def get_json(self, key: str) -> dict[str, object] | None:
+    async def get_json(self, key: str) -> dict[str, JsonValue] | None:
         """Get JSON value from cache."""
         return self._store.get(key)
 
     async def set_json(
-        self, key: str, value: dict[str, object], ttl: int | None = None
+        self, key: str, value: dict[str, JsonValue], ttl: int | None = None
     ) -> bool:
         """Set JSON value in cache."""
         self._store[key] = value
@@ -60,6 +61,11 @@ class MockCache:
         if pattern == "session:*":
             return [k for k in self._store if k.startswith("session:")]
         return list(self._store.keys())
+
+    async def clear(self) -> bool:
+        """Clear all cached values."""
+        self._store.clear()
+        return True
 
     async def add_to_set(self, key: str, value: str) -> bool:
         """Add value to set (not implemented for tests)."""
@@ -87,7 +93,9 @@ class MockCache:
         """Check connectivity."""
         return True
 
-    async def get_many_json(self, keys: list[str]) -> list[dict[str, object] | None]:
+    async def get_many_json(
+        self, keys: list[str]
+    ) -> list[dict[str, JsonValue] | None]:
         """Get multiple JSON values (tracks call count)."""
         self.get_many_calls += 1
         return [self._store.get(key) for key in keys]

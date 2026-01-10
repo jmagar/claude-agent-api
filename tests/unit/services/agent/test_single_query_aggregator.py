@@ -17,3 +17,12 @@ def test_single_query_aggregator_finalizes_result() -> None:
     )
 
     assert result["session_id"] == "sid"
+    assert result["model"] == "sonnet"
+    assert result["duration_ms"] == 10
+    assert result["num_turns"] == 0
+    assert result["is_error"] is False
+    assert result["content"] == []
+    assert result["usage"] is None
+    assert result["total_cost_usd"] is None
+    assert result["result"] is None
+    assert result["structured_output"] is None

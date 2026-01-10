@@ -27,7 +27,11 @@ async def list_sessions(
     Returns:
         Paginated list of sessions.
     """
-    result = await session_service.list_sessions(page=page, page_size=page_size)
+    result = await session_service.list_sessions(
+        page=page,
+        page_size=page_size,
+        current_api_key=_api_key,
+    )
 
     return SessionListResponse(
         sessions=[

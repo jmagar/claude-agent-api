@@ -8,6 +8,7 @@ from uuid import uuid4
 import structlog
 
 from apps.api.config import get_settings
+from apps.api.types import JsonValue
 
 if TYPE_CHECKING:
     from apps.api.protocols import Cache
@@ -222,7 +223,7 @@ class CheckpointService:
             "files_modified": checkpoint.files_modified,
         }
 
-        await self._cache.set_json(key, cast("dict[str, object]", data), self._ttl)
+        await self._cache.set_json(key, cast("dict[str, JsonValue]", data), self._ttl)
 
     async def _get_cached_checkpoint(self, checkpoint_id: str) -> Checkpoint | None:
         """Get a checkpoint from cache.
@@ -270,7 +271,7 @@ class CheckpointService:
             "created_at": checkpoint.created_at.isoformat(),
             "files_modified": checkpoint.files_modified,
         }
-        checkpoints_raw.append(checkpoint_data)
+        checkpoints_raw.append(cast("JsonValue", checkpoint_data))
 
         data["checkpoints"] = checkpoints_raw
         await self._cache.set_json(key, data, self._ttl)
@@ -287,7 +288,7 @@ class CheckpointService:
         index_key = self._uuid_index_key(checkpoint.user_message_uuid)
         await self._cache.cache_set(index_key, checkpoint.id, self._ttl)
 
-    def _parse_checkpoint_data(self, data: dict[str, object]) -> Checkpoint | None:
+    def _parse_checkpoint_data(self, data: dict[str, JsonValue]) -> Checkpoint | None:
         """Parse checkpoint data from cache format.
 
         Args:

@@ -147,6 +147,7 @@ async def interrupt_session(
     session_id: str,
     _api_key: ApiKey,
     agent_service: AgentSvc,
+    session_service: SessionSvc,
 ) -> StatusResponse:
     """Interrupt a running session.
 
@@ -157,6 +158,7 @@ async def interrupt_session(
         session_id: Session ID to interrupt.
         _api_key: Validated API key (via dependency).
         agent_service: Agent service instance.
+        session_service: Session service instance.
 
     Returns:
         Status response indicating interrupt was sent.
@@ -164,6 +166,11 @@ async def interrupt_session(
     Raises:
         SessionNotFoundError: If session doesn't exist or isn't active.
     """
+    # Verify session exists and user owns it
+    session = await session_service.get_session(session_id, current_api_key=_api_key)
+    if not session:
+        raise SessionNotFoundError(session_id)
+
     success = await agent_service.interrupt(session_id)
 
     if not success:
@@ -178,6 +185,7 @@ async def send_control_event(
     request: ControlRequest,
     _api_key: ApiKey,
     agent_service: AgentSvc,
+    session_service: SessionSvc,
 ) -> ControlEventResponse:
     """Send a control event to an active session (FR-015).
 
@@ -189,6 +197,7 @@ async def send_control_event(
         request: Control request with event type and data.
         _api_key: Validated API key (via dependency).
         agent_service: Agent service instance.
+        session_service: Session service instance.
 
     Returns:
         Status response indicating control event was processed.
@@ -196,6 +205,11 @@ async def send_control_event(
     Raises:
         SessionNotFoundError: If session doesn't exist or isn't active.
     """
+    # Verify session exists and user owns it
+    session = await session_service.get_session(session_id, current_api_key=_api_key)
+    if not session:
+        raise SessionNotFoundError(session_id)
+
     if request.type == "permission_mode_change" and request.permission_mode is not None:
         success = await agent_service.update_permission_mode(
             session_id, request.permission_mode

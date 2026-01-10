@@ -16,9 +16,19 @@ def parse_sse_data(data: str | None) -> dict[str, object]:
 
     try:
         result = json.loads(data)
-        return cast("dict[str, object]", result)
     except json.JSONDecodeError:
         return {"raw": data}
+
+    if isinstance(result, dict):
+        return cast(dict[str, object], result)
+    return {"raw": data}
+
+
+def test_parse_sse_data_wraps_non_dict_json() -> None:
+    """Ensure non-dict JSON payloads are wrapped as raw data."""
+    data = '["not-a-dict"]'
+
+    assert parse_sse_data(data) == {"raw": data}
 
 
 @pytest.mark.integration

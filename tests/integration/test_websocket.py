@@ -18,6 +18,29 @@ from starlette.websockets import WebSocketState
 from tests.mocks.claude_sdk import AssistantMessage
 
 
+async def wait_for_condition(
+    condition_fn: callable,
+    timeout: float = 1.0,
+    poll_interval: float = 0.01,
+) -> bool:
+    """Wait until a condition is met or timeout occurs.
+
+    Args:
+        condition_fn: Callable that returns True when condition is met.
+        timeout: Maximum time to wait in seconds.
+        poll_interval: Time between condition checks in seconds.
+
+    Returns:
+        True if condition was met, False if timeout occurred.
+    """
+    start = asyncio.get_event_loop().time()
+    while asyncio.get_event_loop().time() - start < timeout:
+        if condition_fn():
+            return True
+        await asyncio.sleep(poll_interval)
+    return False
+
+
 class MockWebSocket:
     """Mock WebSocket for testing."""
 
@@ -43,6 +66,14 @@ class MockWebSocket:
             message: Message dict to be JSON-encoded.
         """
         self._received_messages.append(json.dumps(message))
+
+    def add_raw_message(self, raw_message: str) -> None:
+        """Add a raw message string to be received by the handler.
+
+        Args:
+            raw_message: Raw message string (not JSON-encoded).
+        """
+        self._received_messages.append(raw_message)
 
     async def accept(self) -> None:
         """Accept the WebSocket connection."""
@@ -235,8 +266,11 @@ class TestWebSocketMessageHandling:
         # Run in background task
         task = asyncio.create_task(websocket_query(cast(WebSocket, websocket), agent_service))
 
-        # Wait briefly for processing
-        await asyncio.sleep(0.1)
+        # Wait for ack message with timeout
+        await wait_for_condition(
+            lambda: any(msg.get("type") == "ack" for msg in websocket.sent_messages),
+            timeout=2.0,
+        )
 
         # Cancel task to stop
         task.cancel()
@@ -277,8 +311,11 @@ class TestWebSocketMessageHandling:
         # Run in background task
         task = asyncio.create_task(websocket_query(cast(WebSocket, websocket), agent_service))
 
-        # Wait briefly for processing
-        await asyncio.sleep(0.1)
+        # Wait for error message with timeout
+        await wait_for_condition(
+            lambda: any(msg.get("type") == "error" for msg in websocket.sent_messages),
+            timeout=2.0,
+        )
 
         # Cancel task to stop
         task.cancel()
@@ -320,8 +357,11 @@ class TestWebSocketMessageHandling:
         # Run in background task
         task = asyncio.create_task(websocket_query(cast(WebSocket, websocket), agent_service))
 
-        # Wait briefly for processing
-        await asyncio.sleep(0.1)
+        # Wait for error message with timeout
+        await wait_for_condition(
+            lambda: any(msg.get("type") == "error" for msg in websocket.sent_messages),
+            timeout=2.0,
+        )
 
         # Cancel task to stop
         task.cancel()
@@ -363,8 +403,11 @@ class TestWebSocketMessageHandling:
         # Run in background task
         task = asyncio.create_task(websocket_query(cast(WebSocket, websocket), agent_service))
 
-        # Wait briefly for processing
-        await asyncio.sleep(0.1)
+        # Wait for error message with timeout
+        await wait_for_condition(
+            lambda: any(msg.get("type") == "error" for msg in websocket.sent_messages),
+            timeout=2.0,
+        )
 
         # Cancel task to stop
         task.cancel()
@@ -394,14 +437,20 @@ class TestWebSocketMessageHandling:
         websocket = MockWebSocket(headers={"x-api-key": test_api_key})
         agent_service = AgentService()
 
-        # Add invalid JSON
-        websocket._received_messages.append("not valid json {")
+        # Add invalid JSON using public API
+        websocket.add_raw_message("not valid json {")
 
         # Run in background task
         task = asyncio.create_task(websocket_query(cast(WebSocket, websocket), agent_service))
 
-        # Wait briefly for processing
-        await asyncio.sleep(0.1)
+        # Wait for error message with timeout
+        await wait_for_condition(
+            lambda: any(
+                msg.get("type") == "error" and "Invalid JSON" in str(msg.get("message"))
+                for msg in websocket.sent_messages
+            ),
+            timeout=2.0,
+        )
 
         # Cancel task to stop
         task.cancel()
@@ -440,8 +489,14 @@ class TestWebSocketMessageHandling:
         # Run in background task
         task = asyncio.create_task(websocket_query(cast(WebSocket, websocket), agent_service))
 
-        # Wait briefly for processing
-        await asyncio.sleep(0.1)
+        # Wait for error message with timeout
+        await wait_for_condition(
+            lambda: any(
+                msg.get("type") == "error" and "Unknown message type" in str(msg.get("message"))
+                for msg in websocket.sent_messages
+            ),
+            timeout=2.0,
+        )
 
         # Cancel task to stop
         task.cancel()
@@ -498,8 +553,11 @@ class TestWebSocketStreaming:
         # Run in background task
         task = asyncio.create_task(websocket_query(cast(WebSocket, websocket), agent_service))
 
-        # Wait for processing
-        await asyncio.sleep(0.2)
+        # Wait for ack or SSE events with timeout
+        await wait_for_condition(
+            lambda: len(websocket.sent_messages) > 0,
+            timeout=2.0,
+        )
 
         # Cancel task to stop
         task.cancel()
@@ -582,8 +640,11 @@ class TestWebSocketStreaming:
         # Run in background and cancel quickly
         task = asyncio.create_task(websocket_query(cast(WebSocket, websocket), agent_service))
 
-        # Wait for query to start
-        await asyncio.sleep(0.1)
+        # Wait for connection to be accepted before canceling
+        await wait_for_condition(
+            lambda: websocket.was_accepted,
+            timeout=2.0,
+        )
 
         # Cancel to simulate disconnect
         task.cancel()

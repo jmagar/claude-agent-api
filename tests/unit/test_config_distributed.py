@@ -16,7 +16,6 @@ def test_env_example_has_distributed_session_settings():
     # Verify required settings are documented
     assert "REDIS_URL" in content, ".env.example should have REDIS_URL"
     assert "REDIS_SESSION_TTL" in content, ".env.example should have REDIS_SESSION_TTL"
-    assert "REDIS_INTERRUPT_CHANNEL" in content, ".env.example should have REDIS_INTERRUPT_CHANNEL"
 
 
 @pytest.mark.unit
@@ -27,10 +26,8 @@ def test_settings_loads_distributed_session_config():
     # Create settings with distributed session config
     settings = Settings(
         redis_url="redis://localhost:53380/0",
-        redis_interrupt_channel="test:interrupts",
         database_url="postgresql+asyncpg://localhost:53432/test",
         api_key="test-key",
     )
 
-    assert settings.redis_interrupt_channel == "test:interrupts"
     assert settings.redis_session_ttl > 0  # Has default

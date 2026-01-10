@@ -3,13 +3,13 @@
 Tests message handling, content extraction, and SSE formatting.
 """
 
+import json
 from dataclasses import dataclass
-from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
 
-from apps.api.schemas.responses import ContentBlockSchema, UsageSchema
+from apps.api.schemas.responses import ContentBlockSchema
 from apps.api.services.agent.handlers import MessageHandler
 from apps.api.services.agent.types import StreamContext
 
@@ -199,8 +199,6 @@ class TestPartialMessages:
         result = handler._handle_partial_start(start_msg, stream_context)
 
         assert result["event"] == "partial"
-        import json
-
         data = json.loads(result["data"])
         assert data["type"] == "content_block_start"
         assert data["index"] == 0
@@ -222,8 +220,6 @@ class TestPartialMessages:
         result = handler._handle_partial_delta(delta_msg, stream_context)
 
         assert result["event"] == "partial"
-        import json
-
         data = json.loads(result["data"])
         assert data["type"] == "content_block_delta"
         assert data["index"] == 0
@@ -244,8 +240,6 @@ class TestPartialMessages:
         result = handler._handle_partial_stop(stop_msg, stream_context)
 
         assert result["event"] == "partial"
-        import json
-
         data = json.loads(result["data"])
         assert data["type"] == "content_block_stop"
         assert data["index"] == 0
@@ -277,8 +271,6 @@ class TestSpecialToolUses:
 
         assert result is not None
         assert result["event"] == "question"
-        import json
-
         data = json.loads(result["data"])
         assert data["question"] == "Should I proceed?"
         assert data["tool_use_id"] == "tool-123"

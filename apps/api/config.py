@@ -58,13 +58,8 @@ class Settings(BaseSettings):
     redis_session_ttl: int = Field(
         default=3600, ge=60, le=86400, description="Session cache TTL in seconds"
     )
-    redis_interrupt_channel: str = Field(
-        default="agent:interrupts",
-        description="Redis pub/sub channel for interrupt signals",
-    )
-    redis_session_channel: str = Field(
-        default="agent:sessions",
-        description="Redis pub/sub channel for session lifecycle events",
+    redis_interrupt_ttl: int = Field(
+        default=300, ge=60, le=3600, description="Interrupt marker TTL in seconds"
     )
     redis_max_connections: int = Field(
         default=50, ge=5, le=200, description="Redis max connections"

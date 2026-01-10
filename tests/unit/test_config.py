@@ -180,36 +180,6 @@ class TestSettings:
             assert settings.redis_url.startswith("redis://")
             assert "53380" in settings.redis_url
 
-    def test_redis_pubsub_channels_configured(self) -> None:
-        """Test that Redis pub/sub channel names are configurable."""
-        with patch.dict(
-            os.environ,
-            {
-                "API_KEY": "test-key",
-                "ANTHROPIC_API_KEY": "test-anthropic-key",
-                "CORS_ORIGINS": '["http://localhost:3000"]',
-                "REDIS_URL": "redis://localhost:53380/0",
-                "REDIS_INTERRUPT_CHANNEL": "custom:interrupts",
-            },
-            clear=True,
-        ):
-            settings = Settings(_env_file=None)
-            assert settings.redis_interrupt_channel == "custom:interrupts"
-
-    def test_redis_pubsub_channel_defaults(self) -> None:
-        """Test default Redis pub/sub channel names."""
-        with patch.dict(
-            os.environ,
-            {
-                "API_KEY": "test-key",
-                "ANTHROPIC_API_KEY": "test-anthropic-key",
-                "CORS_ORIGINS": '["http://localhost:3000"]',
-                "REDIS_URL": "redis://localhost:53380/0",
-            },
-            clear=True,
-        ):
-            settings = Settings(_env_file=None)
-            assert settings.redis_interrupt_channel == "agent:interrupts"
 
 
 class TestGetSettings:

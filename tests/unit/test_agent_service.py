@@ -12,6 +12,8 @@ from apps.api.services.agent import (
     resolve_env_dict,
     resolve_env_var,
 )
+from apps.api.services.agent.file_modification_tracker import FileModificationTracker
+from apps.api.services.agent.types import StreamContext
 
 
 class TestAgentService:
@@ -290,6 +292,20 @@ class TestAgentService:
         assert hasattr(service, "interrupt")
         assert hasattr(service, "submit_answer")
         assert hasattr(service, "update_permission_mode")
+        assert hasattr(service, "_execute_query")
+        assert hasattr(service, "_map_sdk_message")
+        assert hasattr(service, "_track_file_modifications")
+
+    def test_track_file_modifications_delegates(self) -> None:
+        """Test _track_file_modifications delegates to FileModificationTracker."""
+        handler = MagicMock()
+        tracker = FileModificationTracker(handler)
+        service = AgentService(cache=None, file_modification_tracker=tracker)
+        ctx = StreamContext(session_id="sid", model="sonnet", start_time=0.0)
+
+        service._track_file_modifications([{"type": "text", "text": "hi"}], ctx)
+
+        handler.track_file_modifications.assert_called_once()
 
 
 class TestEnvVarResolution:

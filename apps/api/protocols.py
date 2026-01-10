@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from apps.api.types import (
         AgentMessage,
         CheckpointData,
+        JsonValue,
         MessageData,
         SessionData,
     )
@@ -284,7 +285,15 @@ class Cache(Protocol):
         """
         ...
 
-    async def get_json(self, key: str) -> dict[str, object] | None:
+    async def clear(self) -> bool:
+        """Clear all cached entries.
+
+        Returns:
+            True if the cache was cleared.
+        """
+        ...
+
+    async def get_json(self, key: str) -> dict[str, "JsonValue"] | None:
         """Get a JSON value from cache.
 
         Args:
@@ -295,21 +304,23 @@ class Cache(Protocol):
         """
         ...
 
-    async def get_many_json(self, keys: list[str]) -> list[dict[str, object] | None]:
+    async def get_many_json(
+        self, keys: list[str]
+    ) -> list[dict[str, "JsonValue"] | None]:
         """Get multiple JSON values from cache.
 
         Args:
             keys: List of cache keys.
 
         Returns:
-            List of parsed JSON dicts (None for missing/invalid keys).
+            List of parsed JSON dicts aligned with keys order (None for missing/invalid keys).
         """
         ...
 
     async def set_json(
         self,
         key: str,
-        value: dict[str, object],
+        value: dict[str, "JsonValue"],
         ttl: int | None = None,
     ) -> bool:
         """Set a JSON value in cache.

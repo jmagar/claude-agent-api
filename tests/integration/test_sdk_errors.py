@@ -45,8 +45,9 @@ class TestSDKErrorHandling:
                 async for _ in service._execute_query(request, ctx, commands_service):
                     pass
 
+            # Error message is now sanitized for security (no installation details exposed)
             assert "Claude Code CLI is not installed" in str(exc_info.value)
-            assert "npm install -g @anthropic-ai/claude-code" in str(exc_info.value)
+            # Detailed error is logged but not exposed to client for security
 
     @pytest.mark.anyio
     async def test_cli_connection_error_handling(self) -> None:

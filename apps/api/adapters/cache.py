@@ -10,6 +10,9 @@ import structlog
 
 from apps.api.config import get_settings
 
+if TYPE_CHECKING:
+    from apps.api.types import JsonValue
+
 logger = structlog.get_logger(__name__)
 
 
@@ -149,7 +152,7 @@ class RedisCache:
             return None
         return value.decode("utf-8")
 
-    async def get_json(self, key: str) -> dict[str, object] | None:
+    async def get_json(self, key: str) -> dict[str, JsonValue] | None:
         """Get a JSON value from cache.
 
         Args:
@@ -162,12 +165,12 @@ class RedisCache:
         if value is None or not value.strip():
             return None
         try:
-            parsed: dict[str, object] = json.loads(value)
+            parsed: dict[str, JsonValue] = json.loads(value)
             return parsed
         except (json.JSONDecodeError, ValueError):
             return None
 
-    async def get_many_json(self, keys: list[str]) -> list[dict[str, object] | None]:
+    async def get_many_json(self, keys: list[str]) -> list[dict[str, JsonValue] | None]:
         """Get multiple JSON values from cache using Redis mget.
 
         Args:
@@ -181,7 +184,7 @@ class RedisCache:
             return []
 
         values = await self._client.mget(*keys)
-        results: list[dict[str, object] | None] = []
+        results: list[dict[str, JsonValue] | None] = []
 
         for raw in values:
             if raw is None:
@@ -190,7 +193,12 @@ class RedisCache:
             try:
                 decoded = raw.decode("utf-8")
                 results.append(json.loads(decoded))
-            except (UnicodeDecodeError, json.JSONDecodeError, ValueError):
+            except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as e:
+                logger.debug(
+                    "get_many_json decode error",
+                    key=keys[len(results)],
+                    error=str(e) or type(e).__name__,
+                )
                 results.append(None)
 
         return results
@@ -220,7 +228,7 @@ class RedisCache:
     async def set_json(
         self,
         key: str,
-        value: dict[str, object],
+        value: dict[str, JsonValue],
         ttl: int | None = None,
     ) -> bool:
         """Set a JSON value in cache.
@@ -279,6 +287,15 @@ class RedisCache:
                 break
 
         return all_keys[:max_keys]
+
+    async def clear(self) -> bool:
+        """Clear all cached entries.
+
+        Returns:
+            True if the cache was cleared.
+        """
+        result = await self._client.flushdb()
+        return bool(result)
 
     async def delete(self, key: str) -> bool:
         """Delete a value from cache.

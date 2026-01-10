@@ -150,6 +150,7 @@ async def query_stream(
                     status=status,
                     total_turns=num_turns,
                     total_cost_usd=total_cost_usd,
+                    current_api_key=_api_key,
                 )
 
     return EventSourceResponse(
@@ -207,6 +208,7 @@ async def query_single(
                 status=status,
                 total_turns=result["num_turns"],
                 total_cost_usd=result.get("total_cost_usd"),
+                current_api_key=_api_key,
             )
         except Exception as e:
             logger.error(

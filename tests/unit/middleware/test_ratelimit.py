@@ -41,12 +41,12 @@ def mock_settings_trusted_proxy(monkeypatch: pytest.MonkeyPatch) -> None:
     from apps.api.config import Settings
 
     def mock_get_settings() -> Settings:
-        settings = MagicMock()
-        settings.trust_proxy_headers = True
-        settings.rate_limit_query_per_minute = 10
-        settings.rate_limit_session_per_minute = 30
-        settings.rate_limit_general_per_minute = 100
-        return settings
+        return Settings.model_construct(
+            trust_proxy_headers=True,
+            rate_limit_query_per_minute=10,
+            rate_limit_session_per_minute=30,
+            rate_limit_general_per_minute=100,
+        )
 
     monkeypatch.setattr(
         "apps.api.middleware.ratelimit.get_settings", mock_get_settings
@@ -63,12 +63,12 @@ def mock_settings_no_proxy(monkeypatch: pytest.MonkeyPatch) -> None:
     from apps.api.config import Settings
 
     def mock_get_settings() -> Settings:
-        settings = MagicMock()
-        settings.trust_proxy_headers = False
-        settings.rate_limit_query_per_minute = 10
-        settings.rate_limit_session_per_minute = 30
-        settings.rate_limit_general_per_minute = 100
-        return settings
+        return Settings.model_construct(
+            trust_proxy_headers=False,
+            rate_limit_query_per_minute=10,
+            rate_limit_session_per_minute=30,
+            rate_limit_general_per_minute=100,
+        )
 
     monkeypatch.setattr(
         "apps.api.middleware.ratelimit.get_settings", mock_get_settings
