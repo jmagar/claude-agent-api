@@ -48,6 +48,8 @@
 - [X] T020 [P] Implement correlation ID middleware in apps/web/lib/middleware/correlation-id.ts
 - [X] T021 [P] Create logging utilities with structlog pattern in apps/web/lib/logger.ts
 - [X] T022 Setup test utilities and mocks in apps/web/tests/utils/
+- [ ] T022a [P] Create EmptyState component with icon, title, description, CTA in apps/web/components/ui/EmptyState.tsx
+- [ ] T022b [P] Create LoadingState component with skeleton and spinner variants in apps/web/components/ui/LoadingState.tsx
 
 **Checkpoint**: Foundation ready - user story implementation can now begin in parallel
 
@@ -267,6 +269,8 @@
 - [ ] T120 [US6] Create BFF MCP share route in apps/web/app/api/mcp-servers/[name]/share/route.ts (POST)
 - [ ] T121 [US6] Implement inline /mcp connect command handler in Composer
 - [ ] T122 [US6] Implement @mcp-server-name autocomplete mention handler
+- [ ] T122a [P] [US6] Create ShareModal component with copy link and public/private toggle in apps/web/components/modals/ShareModal.tsx
+- [ ] T122b [US6] Implement share link generation and copy-to-clipboard functionality in ShareModal
 - [ ] T123 [US6] Add credential sanitization for shared MCP configs
 - [ ] T124 [US6] Create MCP settings page in apps/web/app/settings/mcp-servers/page.tsx
 - [ ] T125 [US6] Run all US6 tests and verify they PASS (GREEN checkpoint complete)
