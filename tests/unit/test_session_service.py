@@ -1,5 +1,9 @@
 """Unit tests for SessionService (T042)."""
 
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from uuid import UUID, uuid4
+
 import pytest
 
 from apps.api.exceptions import SessionNotFoundError
@@ -15,6 +19,7 @@ class MockCache:
 
     def __init__(self) -> None:
         self._store: dict[str, dict[str, JsonValue]] = {}
+        self._sets: dict[str, set[str]] = {}
         self.get_many_calls = 0
 
     async def get(self, key: str) -> str | None:
@@ -69,15 +74,20 @@ class MockCache:
 
     async def add_to_set(self, key: str, value: str) -> bool:
         """Add value to set (not implemented for tests)."""
+        if key not in self._sets:
+            self._sets[key] = set()
+        self._sets[key].add(value)
         return True
 
     async def remove_from_set(self, key: str, value: str) -> bool:
         """Remove value from set (not implemented for tests)."""
+        if key in self._sets:
+            self._sets[key].discard(value)
         return True
 
     async def set_members(self, key: str) -> set[str]:
         """Get set members (not implemented for tests)."""
-        return set()
+        return set(self._sets.get(key, set()))
 
     async def acquire_lock(
         self, key: str, ttl: int = 300, value: str | None = None
@@ -213,6 +223,86 @@ class TestSessionServiceList:
         assert result.page == 1
         assert result.page_size == 10
         assert len(result.sessions) == 0
+
+    @pytest.mark.anyio
+    async def test_list_sessions_filters_by_owner_without_scanning_all_keys(
+        self,
+    ) -> None:
+        """Test that owner filtering avoids full cache scans."""
+
+        class NoScanCache(MockCache):
+            async def scan_keys(self, pattern: str) -> list[str]:
+                pytest.fail("scan_keys should not be used for owner-filtered list")
+
+        cache = NoScanCache()
+        service = SessionService(cache=cache)
+
+        await service.create_session(
+            model="sonnet",
+            session_id="owned-session-1",
+            owner_api_key="owner-key",
+        )
+
+        result = await service.list_sessions(current_api_key="owner-key")
+
+        assert result.total == 1
+        assert result.sessions[0].id == "owned-session-1"
+
+
+@dataclass
+class FakeSessionModel:
+    """Minimal session model for repository list tests."""
+
+    id: UUID
+    model: str
+    status: str
+    total_turns: int
+    total_cost_usd: float | None
+    parent_session_id: UUID | None
+    owner_api_key: str | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class TestSessionServiceListDbRepo:
+    """Tests for DB-backed session listing."""
+
+    @pytest.mark.anyio
+    async def test_list_sessions_uses_db_repo_for_owner_filter(self) -> None:
+        """Test that owner-filtered list uses repository when available."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        class NoScanCache(MockCache):
+            async def scan_keys(self, pattern: str) -> list[str]:
+                pytest.fail("scan_keys should not be used when db_repo is available")
+
+            async def get_many_json(
+                self, keys: list[str]
+            ) -> list[dict[str, JsonValue] | None]:
+                pytest.fail("get_many_json should not be used when db_repo is available")
+
+        now = datetime.now(UTC)
+        fake_session = FakeSessionModel(
+            id=uuid4(),
+            model="sonnet",
+            status="active",
+            total_turns=0,
+            total_cost_usd=None,
+            parent_session_id=None,
+            owner_api_key="owner-key",
+            created_at=now,
+            updated_at=now,
+        )
+
+        repo = MagicMock()
+        repo.list_sessions = AsyncMock(return_value=([fake_session], 1))
+
+        service = SessionService(cache=NoScanCache(), db_repo=repo)
+        result = await service.list_sessions(current_api_key="owner-key")
+
+        assert result.total == 1
+        assert result.sessions[0].id == str(fake_session.id)
+        repo.list_sessions.assert_called_once()
 
 
 class TestSessionServiceUpdate:

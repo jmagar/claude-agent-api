@@ -8,6 +8,7 @@ HTTP API service wrapping the Claude Agent Python SDK with full feature parity.
 - **Framework**: FastAPI + claude-agent-sdk
 - **Database**: PostgreSQL (sessions, audit) + Redis (cache, pub/sub)
 - **Testing**: pytest, pytest-asyncio, httpx-sse
+- **Type Checking**: ty (Astral's fast type checker)
 
 ## Project Structure
 
@@ -69,7 +70,7 @@ uv run ruff check .
 uv run ruff format .
 
 # Type check
-uv run mypy apps/api
+uv run ty check
 ```
 
 ## Code Style
@@ -100,14 +101,16 @@ uv run mypy apps/api
 **Enforcement:**
 
 ```bash
-# mypy must pass with strict mode
-uv run mypy apps/api --strict
+# ty must pass with strict error rules
+uv run ty check
 
 # ruff will catch Any usage
 uv run ruff check . --select=ANN401
 ```
 
 If external libraries return `Any`, wrap them in typed adapter functions.
+
+**Note:** mypy configuration is retained during migration but ty is the primary type checker.
 
 ## Key Patterns
 

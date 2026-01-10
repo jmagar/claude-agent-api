@@ -174,17 +174,26 @@ async def mock_session_id(_async_client: AsyncClient, test_api_key: str) -> str:
 
     Creates a real session by making a query, then returns its ID.
     """
-    from apps.api.dependencies import get_cache
+    from uuid import uuid4
+
+    from apps.api.adapters.session_repo import SessionRepository
+    from apps.api.dependencies import get_cache, get_db
     from apps.api.services.session import SessionService
 
     cache = await get_cache()
-    service = SessionService(cache=cache)
-    session = await service.create_session(
-        model="sonnet",
-        session_id="mock-existing-session-001",
-        owner_api_key=test_api_key,
-    )
-    return session.id
+    db_gen = get_db()
+    db_session = await anext(db_gen)
+    try:
+        repo = SessionRepository(db_session)
+        service = SessionService(cache=cache, db_repo=repo)
+        session = await service.create_session(
+            model="sonnet",
+            session_id=str(uuid4()),
+            owner_api_key=test_api_key,
+        )
+        return session.id
+    finally:
+        await db_gen.aclose()
 
 
 @pytest.fixture
@@ -194,18 +203,25 @@ async def mock_active_session_id(_async_client: AsyncClient) -> AsyncGenerator[s
     Creates a session and registers it with the agent service as active.
     Cleans up the active session registration after the test completes.
     """
+    from apps.api.adapters.session_repo import SessionRepository
     from apps.api.dependencies import (
         get_cache,
+        get_db,
         set_agent_service_singleton,
     )
     from apps.api.services.agent import AgentService
     from apps.api.services.session import SessionService
+    from uuid import uuid4
 
     # Create session in session service
     cache = await get_cache()
-    service = SessionService(cache=cache)
+    db_gen = get_db()
+    db_session = await anext(db_gen)
+    repo = SessionRepository(db_session)
+    service = SessionService(cache=cache, db_repo=repo)
     session = await service.create_session(
-        model="sonnet", session_id="mock-active-session-001"
+        model="sonnet",
+        session_id=str(uuid4()),
     )
 
     # Create agent service singleton with cache and register session as active
@@ -217,6 +233,7 @@ async def mock_active_session_id(_async_client: AsyncClient) -> AsyncGenerator[s
     try:
         yield session.id
     finally:
+        await db_gen.aclose()
         # Cleanup: Unregister session to prevent interference with other tests
         try:
             await agent_service._unregister_active_session(session.id)
@@ -235,14 +252,18 @@ async def mock_session_with_checkpoints(
     from datetime import UTC, datetime
     from uuid import uuid4
 
-    from apps.api.dependencies import get_cache
+    from apps.api.adapters.session_repo import SessionRepository
+    from apps.api.dependencies import get_cache, get_db
     from apps.api.services.session import SessionService
 
     cache = await get_cache()
-    service = SessionService(cache=cache)
+    db_gen = get_db()
+    db_session = await anext(db_gen)
+    repo = SessionRepository(db_session)
+    service = SessionService(cache=cache, db_repo=repo)
 
     # Create session
-    session_id = f"mock-session-with-checkpoints-{uuid4().hex[:8]}"
+    session_id = str(uuid4())
     await service.create_session(model="sonnet", session_id=session_id)
 
     # Add checkpoints directly to cache
@@ -263,6 +284,7 @@ async def mock_session_with_checkpoints(
     checkpoints_key = f"checkpoints:{session_id}"
     await cache.set_json(checkpoints_key, {"checkpoints": [checkpoint_data]}, 3600)
 
+    await db_gen.aclose()
     return session_id
 
 
@@ -299,14 +321,18 @@ async def mock_checkpoint_from_other_session(
     from datetime import UTC, datetime
     from uuid import uuid4
 
-    from apps.api.dependencies import get_cache
+    from apps.api.adapters.session_repo import SessionRepository
+    from apps.api.dependencies import get_cache, get_db
     from apps.api.services.session import SessionService
 
     cache = await get_cache()
-    service = SessionService(cache=cache)
+    db_gen = get_db()
+    db_session = await anext(db_gen)
+    repo = SessionRepository(db_session)
+    service = SessionService(cache=cache, db_repo=repo)
 
     # Create another session
-    other_session_id = f"other-session-{uuid4().hex[:8]}"
+    other_session_id = str(uuid4())
     await service.create_session(model="sonnet", session_id=other_session_id)
 
     # Add checkpoint to that other session
@@ -327,6 +353,7 @@ async def mock_checkpoint_from_other_session(
     checkpoints_key = f"checkpoints:{other_session_id}"
     await cache.set_json(checkpoints_key, {"checkpoints": [checkpoint_data]}, 3600)
 
+    await db_gen.aclose()
     return checkpoint_id
 
 

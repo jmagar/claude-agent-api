@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wireframe: Settings Panel</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        .wireframe-container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .wireframe-header {
+            background: #333;
+            color: white;
+            padding: 15px 20px;
+            font-size: 18px;
+            font-weight: 600;
+            border-radius: 8px 8px 0 0;
+        }
+        .scene-container {
+            position: relative;
+            background: white;
+            border: 2px solid #333;
+            border-top: none;
+            border-radius: 0 0 8px 8px;
+            height: 800px;
+            overflow: hidden;
+        }
+        .background-app {
+            opacity: 0.2;
+            padding: 40px;
+            height: 100%;
+        }
+        .settings-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+        }
+        .settings-modal {
+            background: white;
+            border-radius: 12px;
+            width: 100%;
+            max-width: 900px;
+            max-height: 90%;
+            display: flex;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+        .settings-sidebar {
+            width: 240px;
+            background: #fafafa;
+            border-right: 1px solid #ddd;
+            padding: 20px 0;
+        }
+        .settings-nav-item {
+            padding: 12px 20px;
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .settings-nav-item:hover {
+            background: #f0f0f0;
+        }
+        .settings-nav-item.active {
+            background: #e5e5e5;
+            border-left: 3px solid #333;
+            font-weight: 600;
+        }
+        .settings-nav-icon {
+            font-size: 18px;
+            width: 24px;
+        }
+        .settings-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        .settings-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid #ddd;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .settings-title {
+            font-size: 20px;
+            font-weight: 600;
+        }
+        .close-btn {
+            width: 32px;
+            height: 32px;
+            border: none;
+            background: #f5f5f5;
+            border-radius: 6px;
+            font-size: 18px;
+            cursor: pointer;
+        }
+        .settings-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px;
+        }
+        .settings-section {
+            margin-bottom: 32px;
+        }
+        .section-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #e5e5e5;
+        }
+        .setting-item {
+            padding: 16px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .setting-item:last-child {
+            border-bottom: none;
+        }
+        .setting-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .setting-label {
+            font-size: 14px;
+            font-weight: 500;
+        }
+        .setting-description {
+            font-size: 13px;
+            color: #666;
+            line-height: 1.5;
+        }
+        .toggle-switch {
+            width: 44px;
+            height: 24px;
+            background: #333;
+            border-radius: 12px;
+            position: relative;
+            cursor: pointer;
+        }
+        .toggle-switch::after {
+            content: '';
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background: white;
+            border-radius: 50%;
+            top: 2px;
+            right: 2px;
+        }
+        .toggle-switch.off {
+            background: #ccc;
+        }
+        .toggle-switch.off::after {
+            left: 2px;
+            right: auto;
+        }
+        .select-input {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            min-width: 200px;
+        }
+        .text-input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            margin-top: 8px;
+        }
+        .button-group {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+        }
+        .btn {
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 13px;
+            cursor: pointer;
+            border: 1px solid #ddd;
+            background: white;
+        }
+        .btn-primary {
+            background: #333;
+            color: white;
+            border-color: #333;
+        }
+        .kbd {
+            padding: 3px 8px;
+            background: #f5f5f5;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .usage-stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+            margin-top: 12px;
+        }
+        .stat-card {
+            background: #f8f9fa;
+            padding: 16px;
+            border-radius: 8px;
+            border: 1px solid #e5e5e5;
+        }
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 4px;
+        }
+        .stat-value {
+            font-size: 24px;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="wireframe-container">
+        <div class="wireframe-header">
+            Wireframe: Settings Panel (All 8 Sections)
+        </div>
+        <div class="scene-container">
+            <div class="background-app">
+                <div style="border: 1px solid #ddd; border-radius: 8px; height: 100%; background: #fafafa;"></div>
+            </div>
+
+            <div class="settings-overlay">
+                <div class="settings-modal">
+                    <!-- Sidebar Navigation -->
+                    <div class="settings-sidebar">
+                        <div class="settings-nav-item active">
+                            <div class="settings-nav-icon">👤</div>
+                            <span>Account</span>
+                        </div>
+                        <div class="settings-nav-item">
+                            <div class="settings-nav-icon">🎨</div>
+                            <span>Appearance</span>
+                        </div>
+                        <div class="settings-nav-item">
+                            <div class="settings-nav-icon">🔀</div>
+                            <span>Visualization</span>
+                        </div>
+                        <div class="settings-nav-item">
+                            <div class="settings-nav-icon">⚙️</div>
+                            <span>Defaults</span>
+                        </div>
+                        <div class="settings-nav-item">
+                            <div class="settings-nav-icon">🔌</div>
+                            <span>MCP Servers</span>
+                        </div>
+                        <div class="settings-nav-item">
+                            <div class="settings-nav-icon">🤖</div>
+                            <span>Agents & Skills</span>
+                        </div>
+                        <div class="settings-nav-item">
+                            <div class="settings-nav-icon">⌨️</div>
+                            <span>Keyboard Shortcuts</span>
+                        </div>
+                        <div class="settings-nav-item">
+                            <div class="settings-nav-icon">🔧</div>
+                            <span>Advanced</span>
+                        </div>
+                    </div>
+
+                    <!-- Content Area -->
+                    <div class="settings-content">
+                        <div class="settings-header">
+                            <div class="settings-title">Account</div>
+                            <button class="close-btn">✕</button>
+                        </div>
+
+                        <div class="settings-body">
+                            <!-- Account Section -->
+                            <div class="settings-section">
+                                <div class="section-title">API Key</div>
+
+                                <div class="setting-item">
+                                    <div class="setting-header">
+                                        <div class="setting-label">API Key</div>
+                                    </div>
+                                    <div class="setting-description">
+                                        Your Claude API key for authentication
+                                    </div>
+                                    <input type="password" class="text-input" value="sk-ant-api03-..." readonly />
+                                    <div class="button-group">
+                                        <button class="btn">Reveal</button>
+                                        <button class="btn btn-primary">Update Key</button>
+                                    </div>
+                                </div>
+
+                                <div class="setting-item">
+                                    <div class="setting-header">
+                                        <div class="setting-label">Usage Statistics</div>
+                                    </div>
+                                    <div class="usage-stats">
+                                        <div class="stat-card">
+                                            <div class="stat-label">This Month</div>
+                                            <div class="stat-value">2.4M</div>
+                                            <div style="font-size: 11px; color: #666; margin-top: 4px;">tokens</div>
+                                        </div>
+                                        <div class="stat-card">
+                                            <div class="stat-label">Sessions</div>
+                                            <div class="stat-value">47</div>
+                                            <div style="font-size: 11px; color: #666; margin-top: 4px;">conversations</div>
+                                        </div>
+                                        <div class="stat-card">
+                                            <div class="stat-label">Tool Calls</div>
+                                            <div class="stat-value">312</div>
+                                            <div style="font-size: 11px; color: #666; margin-top: 4px;">executions</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Appearance Section Preview -->
+                            <div class="settings-section">
+                                <div class="section-title">Appearance</div>
+
+                                <div class="setting-item">
+                                    <div class="setting-header">
+                                        <div class="setting-label">Theme</div>
+                                        <select class="select-input">
+                                            <option>Light</option>
+                                            <option>Dark</option>
+                                            <option>System</option>
+                                        </select>
+                                    </div>
+                                    <div class="setting-description">
+                                        Choose your interface theme. System will match your OS preference.
+                                    </div>
+                                </div>
+
+                                <div class="setting-item">
+                                    <div class="setting-header">
+                                        <div class="setting-label">Font Size</div>
+                                        <select class="select-input">
+                                            <option>Small</option>
+                                            <option selected>Medium</option>
+                                            <option>Large</option>
+                                        </select>
+                                    </div>
+                                    <div class="setting-description">
+                                        Adjust the text size throughout the interface.
+                                    </div>
+                                </div>
+
+                                <div class="setting-item">
+                                    <div class="setting-header">
+                                        <div class="setting-label">Message Density</div>
+                                        <select class="select-input">
+                                            <option>Compact</option>
+                                            <option selected>Comfortable</option>
+                                            <option>Spacious</option>
+                                        </select>
+                                    </div>
+                                    <div class="setting-description">
+                                        Control spacing between messages in the chat.
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Visualization Section Preview -->
+                            <div class="settings-section">
+                                <div class="section-title">Visualization</div>
+
+                                <div class="setting-item">
+                                    <div class="setting-header">
+                                        <div class="setting-label">Threading Display</div>
+                                        <select class="select-input">
+                                            <option selected>Always Visible</option>
+                                            <option>Hover to Show</option>
+                                            <option>Toggleable</option>
+                                            <option>Adaptive (Smart)</option>
+                                        </select>
+                                    </div>
+                                    <div class="setting-description">
+                                        Control when connection lines between messages and tools are shown.
+                                    </div>
+                                </div>
+
+                                <div class="setting-item">
+                                    <div class="setting-header">
+                                        <div class="setting-label">Show Thinking Blocks</div>
+                                        <div class="toggle-switch"></div>
+                                    </div>
+                                    <div class="setting-description">
+                                        Display agent reasoning process in collapsible sections.
+                                    </div>
+                                </div>
+
+                                <div class="setting-item">
+                                    <div class="setting-header">
+                                        <div class="setting-label">Auto-Expand Tool Cards</div>
+                                        <div class="toggle-switch off"></div>
+                                    </div>
+                                    <div class="setting-description">
+                                        Automatically expand tool call cards to show parameters and results.
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Defaults Section Preview -->
+                            <div class="settings-section">
+                                <div class="section-title">Defaults</div>
+
+                                <div class="setting-item">
+                                    <div class="setting-header">
+                                        <div class="setting-label">Default Permissions Mode</div>
+                                        <select class="select-input">
+                                            <option>Plan Mode</option>
+                                            <option selected>Edit Automatically</option>
+                                            <option>Ask before Edits</option>
+                                            <option>YOLO</option>
+                                        </select>
+                                    </div>
+                                    <div class="setting-description">
+                                        Default permission level for new conversations.
+                                    </div>
+                                </div>
+
+                                <div class="setting-item">
+                                    <div class="setting-header">
+                                        <div class="setting-label">Default Tool Preset</div>
+                                        <select class="select-input">
+                                            <option selected>All Tools</option>
+                                            <option>Read-Only Tools</option>
+                                            <option>Development Tools</option>
+                                        </select>
+                                    </div>
+                                    <div class="setting-description">
+                                        Default tool configuration for new sessions.
+                                    </div>
+                                </div>
+
+                                <div class="setting-item">
+                                    <div class="setting-header">
+                                        <div class="setting-label">Workspace Base Directory</div>
+                                    </div>
+                                    <div class="setting-description">
+                                        Base directory for Code mode projects. All projects will be sandboxed here.
+                                    </div>
+                                    <input type="text" class="text-input" value="/home/user/workspace" />
+                                    <div class="button-group">
+                                        <button class="btn">Browse</button>
+                                        <button class="btn btn-primary">Save</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Keyboard Shortcuts Preview -->
+                            <div class="settings-section">
+                                <div class="section-title">Keyboard Shortcuts</div>
+
+                                <div class="setting-item">
+                                    <div class="setting-header">
+                                        <div class="setting-label">Command Palette</div>
+                                        <div class="kbd">⌘K</div>
+                                    </div>
+                                </div>
+
+                                <div class="setting-item">
+                                    <div class="setting-header">
+                                        <div class="setting-label">New Chat</div>
+                                        <div class="kbd">⌘N</div>
+                                    </div>
+                                </div>
+
+                                <div class="setting-item">
+                                    <div class="setting-header">
+                                        <div class="setting-label">Search in Session</div>
+                                        <div class="kbd">⌘F</div>
+                                    </div>
+                                </div>
+
+                                <div class="setting-item">
+                                    <div class="setting-header">
+                                        <div class="setting-label">Toggle Sidebar</div>
+                                        <div class="kbd">⌘B</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div style="margin-top: 20px; padding: 20px; background: white; border-radius: 8px; max-width: 1400px; margin-left: auto; margin-right: auto;">
+        <h3 style="margin-bottom: 12px;">Settings Panel - All 8 Sections:</h3>
+        <ul style="line-height: 1.8; color: #333;">
+            <li><strong>1. Account:</strong> API key management, usage statistics dashboard</li>
+            <li><strong>2. Appearance:</strong> Light/Dark/System theme, font size, message density</li>
+            <li><strong>3. Visualization:</strong> Threading display mode, thinking blocks, tool card auto-expand</li>
+            <li><strong>4. Defaults:</strong> Default permissions mode, tool preset, workspace directory</li>
+            <li><strong>5. MCP Servers:</strong> Links to admin panel for server configuration</li>
+            <li><strong>6. Agents & Skills:</strong> Browse, create, edit agents/skills/commands</li>
+            <li><strong>7. Keyboard Shortcuts:</strong> View and customize all hotkeys</li>
+            <li><strong>8. Advanced:</strong> Debug mode, logs viewer, reset settings, telemetry</li>
+        </ul>
+
+        <h3 style="margin-top: 24px; margin-bottom: 12px;">Key Features:</h3>
+        <ul style="line-height: 1.8; color: #333;">
+            <li>Two-panel layout: sidebar navigation + content area</li>
+            <li>Accessible via Cmd+K → "Settings" or gear icon</li>
+            <li>Live preview of setting changes where applicable</li>
+            <li>Organized into logical sections with clear descriptions</li>
+            <li>Toggle switches for binary options, dropdowns for multi-choice</li>
+        </ul>
+    </div>
+</body>
+</html>

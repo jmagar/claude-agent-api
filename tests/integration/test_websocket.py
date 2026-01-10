@@ -15,6 +15,8 @@ from httpx import AsyncClient
 from starlette.datastructures import Headers
 from starlette.websockets import WebSocketState
 
+from apps.api.services.session import SessionService
+from apps.api.types import JsonValue
 from tests.mocks.claude_sdk import AssistantMessage
 
 
@@ -155,6 +157,85 @@ class MockWebSocket:
         return self._close_reason
 
 
+class InMemoryCache:
+    """Simple in-memory cache for WebSocket tests."""
+
+    def __init__(self) -> None:
+        self._store: dict[str, dict[str, JsonValue]] = {}
+        self._sets: dict[str, set[str]] = {}
+
+    async def get_json(self, key: str) -> dict[str, JsonValue] | None:
+        """Get JSON value from cache."""
+        return self._store.get(key)
+
+    async def set_json(
+        self, key: str, value: dict[str, JsonValue], ttl: int | None = None
+    ) -> bool:
+        """Set JSON value in cache."""
+        self._store[key] = value
+        return True
+
+    async def get_many_json(
+        self, keys: list[str]
+    ) -> list[dict[str, JsonValue] | None]:
+        """Get multiple JSON values from cache."""
+        return [self._store.get(key) for key in keys]
+
+    async def scan_keys(self, pattern: str) -> list[str]:
+        """Scan for keys matching pattern."""
+        if pattern == "session:*":
+            return [k for k in self._store if k.startswith("session:")]
+        return list(self._store.keys())
+
+    async def add_to_set(self, key: str, value: str) -> bool:
+        """Add value to set."""
+        if key not in self._sets:
+            self._sets[key] = set()
+        self._sets[key].add(value)
+        return True
+
+    async def remove_from_set(self, key: str, value: str) -> bool:
+        """Remove value from set."""
+        if key in self._sets:
+            self._sets[key].discard(value)
+        return True
+
+    async def set_members(self, key: str) -> set[str]:
+        """Get set members."""
+        return set(self._sets.get(key, set()))
+
+    async def delete(self, key: str) -> bool:
+        """Delete key from cache."""
+        if key in self._store:
+            del self._store[key]
+            return True
+        return False
+
+    async def exists(self, key: str) -> bool:
+        """Check if key exists."""
+        return key in self._store
+
+    async def acquire_lock(
+        self, key: str, ttl: int = 300, value: str | None = None
+    ) -> str | None:
+        """Acquire lock (no-op for tests)."""
+        return "mock-lock"
+
+    async def release_lock(self, key: str, value: str) -> bool:
+        """Release lock (no-op for tests)."""
+        return True
+
+    async def ping(self) -> bool:
+        """Check connectivity."""
+        return True
+
+
+@pytest.fixture
+def session_service() -> SessionService:
+    """Create SessionService with in-memory cache."""
+    return SessionService(cache=InMemoryCache())
+
+
 class TestWebSocketAuthentication:
     """Tests for WebSocket authentication."""
 
@@ -162,6 +243,7 @@ class TestWebSocketAuthentication:
     async def test_websocket_rejects_missing_api_key(
         self,
         async_client: AsyncClient,  # noqa: ARG002
+        session_service: SessionService,
     ) -> None:
         """Test WebSocket rejects connection without API key.
 
@@ -173,7 +255,7 @@ class TestWebSocketAuthentication:
         websocket = MockWebSocket(headers={})
         agent_service = AgentService()
 
-        await websocket_query(cast(WebSocket, websocket), agent_service)
+        await websocket_query(cast(WebSocket, websocket), agent_service, session_service)
 
         # Should reject connection
         assert not websocket.was_accepted
@@ -184,6 +266,7 @@ class TestWebSocketAuthentication:
     async def test_websocket_rejects_invalid_api_key(
         self,
         async_client: AsyncClient,  # noqa: ARG002
+        session_service: SessionService,
     ) -> None:
         """Test WebSocket rejects connection with invalid API key.
 
@@ -195,7 +278,7 @@ class TestWebSocketAuthentication:
         websocket = MockWebSocket(headers={"x-api-key": "invalid-key"})
         agent_service = AgentService()
 
-        await websocket_query(cast(WebSocket, websocket), agent_service)
+        await websocket_query(cast(WebSocket, websocket), agent_service, session_service)
 
         # Should reject connection
         assert not websocket.was_accepted
@@ -207,6 +290,7 @@ class TestWebSocketAuthentication:
         self,
         async_client: AsyncClient,  # noqa: ARG002
         test_api_key: str,
+        session_service: SessionService,
     ) -> None:
         """Test WebSocket accepts connection with valid API key.
 
@@ -221,7 +305,7 @@ class TestWebSocketAuthentication:
         # Add a message to trigger disconnect after accept
         websocket.add_received_message({"type": "unknown"})
 
-        await websocket_query(cast(WebSocket, websocket), agent_service)
+        await websocket_query(cast(WebSocket, websocket), agent_service, session_service)
 
         # Should accept connection
         assert websocket.was_accepted
@@ -236,6 +320,7 @@ class TestWebSocketMessageHandling:
         async_client: AsyncClient,  # noqa: ARG002
         test_api_key: str,
         mock_claude_sdk: MagicMock,
+        session_service: SessionService,
     ) -> None:
         """Test WebSocket handles prompt message correctly.
 
@@ -264,7 +349,7 @@ class TestWebSocketMessageHandling:
         )
 
         # Run in background task
-        task = asyncio.create_task(websocket_query(cast(WebSocket, websocket), agent_service))
+        task = asyncio.create_task(websocket_query(cast(WebSocket, websocket), agent_service, session_service))
 
         # Wait for ack message with timeout
         await wait_for_condition(
@@ -289,6 +374,7 @@ class TestWebSocketMessageHandling:
         self,
         async_client: AsyncClient,  # noqa: ARG002
         test_api_key: str,
+        session_service: SessionService,
     ) -> None:
         """Test WebSocket handles interrupt message correctly.
 
@@ -309,7 +395,7 @@ class TestWebSocketMessageHandling:
         )
 
         # Run in background task
-        task = asyncio.create_task(websocket_query(cast(WebSocket, websocket), agent_service))
+        task = asyncio.create_task(websocket_query(cast(WebSocket, websocket), agent_service, session_service))
 
         # Wait for error message with timeout
         await wait_for_condition(
@@ -330,10 +416,63 @@ class TestWebSocketMessageHandling:
         assert any(msg.get("type") == "error" for msg in messages)
 
     @pytest.mark.anyio
+    async def test_websocket_rejects_interrupt_for_unowned_session(
+        self,
+        async_client: AsyncClient,  # noqa: ARG002
+        test_api_key: str,
+        session_service: SessionService,
+    ) -> None:
+        """Test interrupt is rejected for sessions owned by other API keys."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        from apps.api.routes.websocket import websocket_query
+
+        await session_service.create_session(
+            model="sonnet",
+            session_id="owned-session-999",
+            owner_api_key="other-owner",
+        )
+
+        websocket = MockWebSocket(headers={"x-api-key": test_api_key})
+        agent_service = MagicMock()
+        agent_service.interrupt = AsyncMock(return_value=True)
+
+        websocket.add_received_message(
+            {
+                "type": "interrupt",
+                "session_id": "owned-session-999",
+            }
+        )
+
+        task = asyncio.create_task(
+            websocket_query(cast(WebSocket, websocket), agent_service, session_service)
+        )
+
+        await wait_for_condition(
+            lambda: any(msg.get("type") == "error" for msg in websocket.sent_messages),
+            timeout=2.0,
+        )
+
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+        assert websocket.was_accepted
+        assert any(
+            msg.get("type") == "error"
+            and "authorized" in str(msg.get("message", "")).lower()
+            for msg in websocket.sent_messages
+        )
+        agent_service.interrupt.assert_not_awaited()
+
+    @pytest.mark.anyio
     async def test_websocket_handles_answer_message(
         self,
         async_client: AsyncClient,  # noqa: ARG002
         test_api_key: str,
+        session_service: SessionService,
     ) -> None:
         """Test WebSocket handles answer message correctly.
 
@@ -355,7 +494,7 @@ class TestWebSocketMessageHandling:
         )
 
         # Run in background task
-        task = asyncio.create_task(websocket_query(cast(WebSocket, websocket), agent_service))
+        task = asyncio.create_task(websocket_query(cast(WebSocket, websocket), agent_service, session_service))
 
         # Wait for error message with timeout
         await wait_for_condition(
@@ -380,6 +519,7 @@ class TestWebSocketMessageHandling:
         self,
         async_client: AsyncClient,  # noqa: ARG002
         test_api_key: str,
+        session_service: SessionService,
     ) -> None:
         """Test WebSocket handles control message correctly.
 
@@ -401,7 +541,7 @@ class TestWebSocketMessageHandling:
         )
 
         # Run in background task
-        task = asyncio.create_task(websocket_query(cast(WebSocket, websocket), agent_service))
+        task = asyncio.create_task(websocket_query(cast(WebSocket, websocket), agent_service, session_service))
 
         # Wait for error message with timeout
         await wait_for_condition(
@@ -426,6 +566,7 @@ class TestWebSocketMessageHandling:
         self,
         async_client: AsyncClient,  # noqa: ARG002
         test_api_key: str,
+        session_service: SessionService,
     ) -> None:
         """Test WebSocket handles invalid JSON gracefully.
 
@@ -441,7 +582,7 @@ class TestWebSocketMessageHandling:
         websocket.add_raw_message("not valid json {")
 
         # Run in background task
-        task = asyncio.create_task(websocket_query(cast(WebSocket, websocket), agent_service))
+        task = asyncio.create_task(websocket_query(cast(WebSocket, websocket), agent_service, session_service))
 
         # Wait for error message with timeout
         await wait_for_condition(
@@ -472,6 +613,7 @@ class TestWebSocketMessageHandling:
         self,
         async_client: AsyncClient,  # noqa: ARG002
         test_api_key: str,
+        session_service: SessionService,
     ) -> None:
         """Test WebSocket handles unknown message types.
 
@@ -487,7 +629,7 @@ class TestWebSocketMessageHandling:
         websocket.add_received_message({"type": "unknown_type"})
 
         # Run in background task
-        task = asyncio.create_task(websocket_query(cast(WebSocket, websocket), agent_service))
+        task = asyncio.create_task(websocket_query(cast(WebSocket, websocket), agent_service, session_service))
 
         # Wait for error message with timeout
         await wait_for_condition(
@@ -523,6 +665,7 @@ class TestWebSocketStreaming:
         async_client: AsyncClient,  # noqa: ARG002
         test_api_key: str,
         mock_claude_sdk: MagicMock,
+        session_service: SessionService,
     ) -> None:
         """Test WebSocket streams SSE events correctly.
 
@@ -551,7 +694,7 @@ class TestWebSocketStreaming:
         )
 
         # Run in background task
-        task = asyncio.create_task(websocket_query(cast(WebSocket, websocket), agent_service))
+        task = asyncio.create_task(websocket_query(cast(WebSocket, websocket), agent_service, session_service))
 
         # Wait for ack or SSE events with timeout
         await wait_for_condition(
@@ -582,6 +725,7 @@ class TestWebSocketStreaming:
         self,
         async_client: AsyncClient,  # noqa: ARG002
         test_api_key: str,
+        session_service: SessionService,
     ) -> None:
         """Test WebSocket handles disconnect gracefully.
 
@@ -595,7 +739,7 @@ class TestWebSocketStreaming:
 
         # Don't add any messages - will trigger disconnect immediately
 
-        await websocket_query(cast(WebSocket, websocket), agent_service)
+        await websocket_query(cast(WebSocket, websocket), agent_service, session_service)
 
         # Should have accepted and then disconnected cleanly
         assert websocket.was_accepted
@@ -606,6 +750,7 @@ class TestWebSocketStreaming:
         async_client: AsyncClient,  # noqa: ARG002
         test_api_key: str,
         mock_claude_sdk: MagicMock,
+        session_service: SessionService,
     ) -> None:
         """Test WebSocket cancels query task on disconnect.
 
@@ -638,7 +783,7 @@ class TestWebSocketStreaming:
         )
 
         # Run in background and cancel quickly
-        task = asyncio.create_task(websocket_query(cast(WebSocket, websocket), agent_service))
+        task = asyncio.create_task(websocket_query(cast(WebSocket, websocket), agent_service, session_service))
 
         # Wait for connection to be accepted before canceling
         await wait_for_condition(

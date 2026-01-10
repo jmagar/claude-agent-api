@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wireframe: Thinking Blocks & Subagent Cards</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        .wireframe-container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .wireframe-header {
+            background: #333;
+            color: white;
+            padding: 15px 20px;
+            font-size: 18px;
+            font-weight: 600;
+            border-radius: 8px 8px 0 0;
+        }
+        .scene-container {
+            background: white;
+            border: 2px solid #333;
+            border-top: none;
+            border-radius: 0 0 8px 8px;
+            padding: 20px;
+            min-height: 800px;
+        }
+        .message-flow {
+            max-width: 800px;
+        }
+        .message {
+            margin-bottom: 24px;
+        }
+        .message-bubble {
+            padding: 12px 16px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            background: #f5f5f5;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        .connection-line {
+            width: 2px;
+            height: 12px;
+            background: #ccc;
+            margin-left: 40px;
+        }
+
+        /* Thinking Block Styles */
+        .thinking-block {
+            margin-top: 12px;
+            margin-left: 20px;
+            border: 1px solid #9575cd;
+            border-radius: 8px;
+            background: #f3e5f5;
+            overflow: hidden;
+        }
+        .thinking-header {
+            padding: 10px 14px;
+            background: #ede7f6;
+            border-bottom: 1px solid #9575cd;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+        }
+        .thinking-header:hover {
+            background: #e1d5f0;
+        }
+        .thinking-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: #5e35b1;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .thinking-icon {
+            font-size: 16px;
+        }
+        .collapse-icon {
+            font-size: 12px;
+            color: #9575cd;
+        }
+        .thinking-content {
+            padding: 14px;
+            font-size: 13px;
+            color: #4a148c;
+            line-height: 1.6;
+            font-style: italic;
+        }
+        .thinking-content.collapsed {
+            display: none;
+        }
+
+        /* Subagent Card Styles */
+        .subagent-card {
+            margin-top: 12px;
+            margin-left: 20px;
+            border: 1px solid #42a5f5;
+            border-radius: 8px;
+            background: #e3f2fd;
+            overflow: hidden;
+        }
+        .subagent-header {
+            padding: 12px 14px;
+            background: #e1f5fe;
+            border-bottom: 1px solid #42a5f5;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+        }
+        .subagent-header:hover {
+            background: #d0ebf7;
+        }
+        .subagent-info {
+            flex: 1;
+        }
+        .subagent-name {
+            font-size: 14px;
+            font-weight: 600;
+            color: #1565c0;
+            margin-bottom: 4px;
+        }
+        .subagent-task {
+            font-size: 12px;
+            color: #0277bd;
+        }
+        .subagent-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .status-badge {
+            font-size: 11px;
+            padding: 3px 8px;
+            border-radius: 10px;
+            font-weight: 500;
+        }
+        .status-running {
+            background: #fff3cd;
+            color: #856404;
+        }
+        .status-success {
+            background: #d4edda;
+            color: #155724;
+        }
+        .status-error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .subagent-content {
+            padding: 14px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .subagent-content.collapsed {
+            display: none;
+        }
+        .subagent-summary {
+            padding: 10px 14px;
+            background: #bbdefb;
+            border-top: 1px solid #42a5f5;
+            font-size: 12px;
+            color: #0d47a1;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        /* Nested execution within subagent */
+        .nested-message {
+            margin-bottom: 12px;
+            padding: 10px;
+            background: white;
+            border: 1px solid #90caf9;
+            border-radius: 6px;
+            font-size: 13px;
+        }
+        .nested-label {
+            font-size: 11px;
+            color: #1976d2;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        .nested-tool {
+            margin-left: 12px;
+            margin-top: 8px;
+            padding: 8px;
+            background: #e8f5e9;
+            border: 1px solid #81c784;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        .tool-header {
+            font-weight: 600;
+            color: #2e7d32;
+            margin-bottom: 4px;
+        }
+
+        /* Combined Example */
+        .example-section {
+            margin-top: 40px;
+            padding-top: 32px;
+            border-top: 2px solid #e5e5e5;
+        }
+        .section-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="wireframe-container">
+        <div class="wireframe-header">
+            Wireframe: Thinking Blocks & Subagent Cards
+        </div>
+        <div class="scene-container">
+            <div class="message-flow">
+                <!-- User Message -->
+                <div class="message">
+                    <div class="message-bubble" style="background: #e8f4ff; border-color: #b3d9ff; max-width: 70%; margin-left: auto;">
+                        Review the authentication code for security vulnerabilities
+                    </div>
+                </div>
+
+                <!-- Assistant with Thinking Block -->
+                <div class="message">
+                    <div class="message-bubble">
+                        I'll review your authentication implementation for security issues.
+                    </div>
+
+                    <div class="connection-line"></div>
+
+                    <!-- Thinking Block (Collapsed) -->
+                    <div class="thinking-block">
+                        <div class="thinking-header">
+                            <div class="thinking-title">
+                                <span class="thinking-icon">💭</span>
+                                <span>Thinking...</span>
+                            </div>
+                            <div class="collapse-icon">▼</div>
+                        </div>
+                        <div class="thinking-content">
+                            I need to check for common authentication vulnerabilities:
+                            1. Token storage and validation
+                            2. Password hashing strength
+                            3. Session management
+                            4. Rate limiting on login attempts
+                            5. CSRF protection
+
+                            Let me start by reading the auth middleware to understand the implementation.
+                        </div>
+                    </div>
+
+                    <div class="connection-line"></div>
+
+                    <!-- Subagent Card (Expanded) -->
+                    <div class="subagent-card">
+                        <div class="subagent-header">
+                            <div class="subagent-info">
+                                <div class="subagent-name">🤖 code-reviewer</div>
+                                <div class="subagent-task">Security audit of authentication system</div>
+                            </div>
+                            <div class="subagent-status">
+                                <div class="status-badge status-success">✓ Completed</div>
+                                <div class="collapse-icon">▲</div>
+                            </div>
+                        </div>
+                        <div class="subagent-content">
+                            <!-- Nested execution trace -->
+                            <div class="nested-message">
+                                <div class="nested-label">Subagent</div>
+                                I'll analyze the authentication middleware for security issues.
+                            </div>
+
+                            <div class="nested-tool">
+                                <div class="tool-header">Read: apps/api/middleware/auth.py</div>
+                                <div style="color: #666; font-size: 11px;">Duration: 0.3s</div>
+                            </div>
+
+                            <div class="nested-message">
+                                <div class="nested-label">Subagent</div>
+                                Found several security concerns. Let me check the password hashing implementation.
+                            </div>
+
+                            <div class="nested-tool">
+                                <div class="tool-header">Grep: "bcrypt|hashlib"</div>
+                                <div style="color: #666; font-size: 11px;">4 matches found</div>
+                            </div>
+
+                            <div class="nested-message">
+                                <div class="nested-label">Subagent Result</div>
+                                <strong style="color: #d32f2f;">Critical Issues Found (2):</strong><br>
+                                1. JWT secret key hardcoded in source<br>
+                                2. No rate limiting on login endpoint<br><br>
+                                <strong style="color: #f57c00;">Warnings (3):</strong><br>
+                                1. Session timeout too long (7 days)<br>
+                                2. No CSRF token validation<br>
+                                3. Password minimum length only 6 characters
+                            </div>
+                        </div>
+                        <div class="subagent-summary">
+                            <span>3 tool calls • 1.2s total</span>
+                            <span style="font-weight: 600;">2 critical, 3 warnings</span>
+                        </div>
+                    </div>
+
+                    <div class="connection-line"></div>
+
+                    <div class="message-bubble" style="margin-top: 12px;">
+                        Based on the code review, I found <strong>2 critical security issues</strong> and <strong>3 warnings</strong>:
+
+                        <div style="margin-top: 12px; padding: 12px; background: #ffebee; border-left: 4px solid #d32f2f; border-radius: 4px;">
+                            <strong>🚨 Critical:</strong><br>
+                            • JWT secret key hardcoded (apps/api/middleware/auth.py:15)<br>
+                            • No rate limiting on /login endpoint
+                        </div>
+
+                        <div style="margin-top: 8px; padding: 12px; background: #fff3e0; border-left: 4px solid #f57c00; border-radius: 4px;">
+                            <strong>⚠️ Warnings:</strong><br>
+                            • Session timeout too long (7 days instead of 24 hours)<br>
+                            • Missing CSRF token validation<br>
+                            • Weak password policy (min 6 chars, should be 12+)
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Example Section: Collapsed States -->
+                <div class="example-section">
+                    <div class="section-title">Collapsed States</div>
+
+                    <div class="thinking-block">
+                        <div class="thinking-header">
+                            <div class="thinking-title">
+                                <span class="thinking-icon">💭</span>
+                                <span>Thinking...</span>
+                            </div>
+                            <div class="collapse-icon">▶</div>
+                        </div>
+                        <div class="thinking-content collapsed"></div>
+                    </div>
+
+                    <div style="height: 16px;"></div>
+
+                    <div class="subagent-card">
+                        <div class="subagent-header">
+                            <div class="subagent-info">
+                                <div class="subagent-name">🤖 test-runner</div>
+                                <div class="subagent-task">Running test suite with coverage</div>
+                            </div>
+                            <div class="subagent-status">
+                                <div class="status-badge status-running">⏳ Running...</div>
+                                <div class="collapse-icon">▶</div>
+                            </div>
+                        </div>
+                        <div class="subagent-content collapsed"></div>
+                        <div class="subagent-summary">
+                            <span>Executing tests...</span>
+                            <span style="font-weight: 600;">34/120 complete</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div style="margin-top: 20px; padding: 20px; background: white; border-radius: 8px; max-width: 1400px; margin-left: auto; margin-right: auto;">
+        <h3 style="margin-bottom: 12px;">Thinking Blocks Features:</h3>
+        <ul style="line-height: 1.8; color: #333;">
+            <li><strong>Purple Theme:</strong> Distinct color (#9575cd) for reasoning sections</li>
+            <li><strong>Collapsible:</strong> Click header to expand/collapse thinking content</li>
+            <li><strong>Italic Text:</strong> Distinguishes internal reasoning from responses</li>
+            <li><strong>Inline Integration:</strong> Appears in message flow with connection lines</li>
+            <li><strong>Settings Toggle:</strong> Can be disabled in Visualization settings</li>
+        </ul>
+
+        <h3 style="margin-top: 24px; margin-bottom: 12px;">Subagent Card Features:</h3>
+        <ul style="line-height: 1.8; color: #333;">
+            <li><strong>Blue Theme:</strong> Distinct color (#42a5f5) for subagent execution</li>
+            <li><strong>Collapsed by Default:</strong> Don't spam main thread with subagent details</li>
+            <li><strong>Status Badges:</strong> Running (yellow), Completed (green), Error (red)</li>
+            <li><strong>Nested Execution Trace:</strong> Shows subagent's full message/tool flow when expanded</li>
+            <li><strong>Summary Bar:</strong> Tool count, duration, key metrics without expanding</li>
+            <li><strong>Click to Expand:</strong> View full subagent execution details</li>
+        </ul>
+
+        <h3 style="margin-top: 24px; margin-bottom: 12px;">Visual Hierarchy:</h3>
+        <ul style="line-height: 1.8; color: #333;">
+            <li>User messages: Blue bubbles, right-aligned</li>
+            <li>Assistant messages: Gray bubbles, left-aligned</li>
+            <li>Thinking blocks: Purple, indented, collapsible</li>
+            <li>Tool calls: White cards, indented, with status</li>
+            <li>Subagents: Blue cards, indented, collapsed by default</li>
+            <li>Connection lines: Show causal flow between all elements</li>
+        </ul>
+
+        <h3 style="margin-top: 24px; margin-bottom: 12px;">Performance Considerations:</h3>
+        <ul style="line-height: 1.8; color: #333;">
+            <li>Collapsed by default reduces initial render overhead</li>
+            <li>Lazy-load subagent details on expand</li>
+            <li>Virtualize long subagent execution traces</li>
+            <li>Settings option to completely hide thinking/subagents</li>
+        </ul>
+    </div>
+</body>
+</html>

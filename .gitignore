@@ -67,8 +67,30 @@ secrets.json
 # Docker
 docker-compose.override.yml
 
-# Node (if any tooling uses it)
+# Node.js / Next.js / TypeScript
 node_modules/
+.next/
+out/
+dist/
+build/
+*.tsbuildinfo
+.turbo/
+.vercel/
+
+# Next.js specific
+.next/
+out/
+build/
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
+
+# Package managers
+pnpm-lock.yaml
+yarn.lock
+package-lock.json
+.pnpm-store/
 
 # Temporary files
 *.tmp

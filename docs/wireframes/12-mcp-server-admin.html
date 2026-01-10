@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wireframe: MCP Server Admin Panel</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        .wireframe-container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .wireframe-header {
+            background: #333;
+            color: white;
+            padding: 15px 20px;
+            font-size: 18px;
+            font-weight: 600;
+            border-radius: 8px 8px 0 0;
+        }
+        .scene-container {
+            background: white;
+            border: 2px solid #333;
+            border-top: none;
+            border-radius: 0 0 8px 8px;
+            min-height: 800px;
+            padding: 24px;
+        }
+        .admin-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 2px solid #e5e5e5;
+        }
+        .admin-title {
+            font-size: 24px;
+            font-weight: 600;
+        }
+        .btn {
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            font-weight: 500;
+            border: none;
+        }
+        .btn-primary {
+            background: #333;
+            color: white;
+        }
+        .server-grid {
+            display: grid;
+            gap: 16px;
+        }
+        .server-card {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            background: white;
+            transition: all 0.2s ease;
+        }
+        .server-card:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        .server-card.connected {
+            border-left: 4px solid #28a745;
+        }
+        .server-card.failed {
+            border-left: 4px solid #dc3545;
+        }
+        .server-card.idle {
+            border-left: 4px solid #ffc107;
+        }
+        .server-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 16px;
+        }
+        .server-info {
+            flex: 1;
+        }
+        .server-name {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        .server-type {
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 8px;
+        }
+        .server-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .status-connected {
+            background: #d4edda;
+            color: #155724;
+        }
+        .status-failed {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .status-idle {
+            background: #fff3cd;
+            color: #856404;
+        }
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: currentColor;
+        }
+        .server-actions {
+            display: flex;
+            gap: 8px;
+        }
+        .icon-btn {
+            width: 32px;
+            height: 32px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .icon-btn:hover {
+            background: #f5f5f5;
+        }
+        .server-details {
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid #f0f0f0;
+        }
+        .detail-section {
+            margin-bottom: 16px;
+        }
+        .detail-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #666;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+        .detail-content {
+            font-size: 14px;
+            color: #333;
+        }
+        .tools-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 8px;
+        }
+        .tool-item {
+            padding: 8px 12px;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            font-size: 13px;
+        }
+        .tool-name {
+            font-weight: 500;
+            margin-bottom: 2px;
+        }
+        .tool-description {
+            font-size: 11px;
+            color: #666;
+        }
+        .config-preview {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            padding: 12px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            overflow-x: auto;
+        }
+        .health-metrics {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+            margin-top: 12px;
+        }
+        .metric-card {
+            padding: 12px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            text-align: center;
+        }
+        .metric-value {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        .metric-label {
+            font-size: 11px;
+            color: #666;
+            text-transform: uppercase;
+        }
+        .empty-state {
+            padding: 60px 20px;
+            text-align: center;
+        }
+        .empty-icon {
+            font-size: 64px;
+            margin-bottom: 16px;
+            opacity: 0.3;
+        }
+        .empty-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        .empty-description {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="wireframe-container">
+        <div class="wireframe-header">
+            Wireframe: MCP Server Admin Panel
+        </div>
+        <div class="scene-container">
+            <div class="admin-header">
+                <div class="admin-title">MCP Servers</div>
+                <button class="btn btn-primary">+ Add Server</button>
+            </div>
+
+            <div class="server-grid">
+                <!-- Server 1: Connected -->
+                <div class="server-card connected">
+                    <div class="server-header">
+                        <div class="server-info">
+                            <div class="server-name">mcp-postgres</div>
+                            <div class="server-type">stdio • PostgreSQL Database Tools</div>
+                            <div class="server-status status-connected">
+                                <div class="status-indicator"></div>
+                                Connected
+                            </div>
+                        </div>
+                        <div class="server-actions">
+                            <div class="icon-btn" title="Test Connection">🔍</div>
+                            <div class="icon-btn" title="Edit">✏️</div>
+                            <div class="icon-btn" title="Delete">🗑️</div>
+                        </div>
+                    </div>
+
+                    <div class="server-details">
+                        <div class="detail-section">
+                            <div class="detail-label">Exposed Tools (4)</div>
+                            <div class="tools-list">
+                                <div class="tool-item">
+                                    <div class="tool-name">mcp__postgres__query</div>
+                                    <div class="tool-description">Execute SQL queries</div>
+                                </div>
+                                <div class="tool-item">
+                                    <div class="tool-name">mcp__postgres__list_tables</div>
+                                    <div class="tool-description">List database tables</div>
+                                </div>
+                                <div class="tool-item">
+                                    <div class="tool-name">mcp__postgres__describe_table</div>
+                                    <div class="tool-description">Show table schema</div>
+                                </div>
+                                <div class="tool-item">
+                                    <div class="tool-name">mcp__postgres__execute_file</div>
+                                    <div class="tool-description">Run SQL script file</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="detail-section">
+                            <div class="detail-label">Health Metrics</div>
+                            <div class="health-metrics">
+                                <div class="metric-card">
+                                    <div class="metric-value">47</div>
+                                    <div class="metric-label">Requests</div>
+                                </div>
+                                <div class="metric-card">
+                                    <div class="metric-value">98.2%</div>
+                                    <div class="metric-label">Success Rate</div>
+                                </div>
+                                <div class="metric-card">
+                                    <div class="metric-value">124ms</div>
+                                    <div class="metric-label">Avg Response</div>
+                                </div>
+                                <div class="metric-card">
+                                    <div class="metric-value">2h 15m</div>
+                                    <div class="metric-label">Uptime</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="detail-section">
+                            <div class="detail-label">Configuration</div>
+                            <div class="config-preview">{
+  "command": "mcp-server-postgres",
+  "args": ["--db", "postgresql://localhost:53432/app"],
+  "env": {
+    "PGDATABASE": "app"
+  }
+}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Server 2: Failed -->
+                <div class="server-card failed">
+                    <div class="server-header">
+                        <div class="server-info">
+                            <div class="server-name">mcp-browser</div>
+                            <div class="server-type">stdio • Browser Automation</div>
+                            <div class="server-status status-failed">
+                                <div class="status-indicator"></div>
+                                Connection Failed
+                            </div>
+                        </div>
+                        <div class="server-actions">
+                            <div class="icon-btn" title="Test Connection">🔍</div>
+                            <div class="icon-btn" title="Edit">✏️</div>
+                            <div class="icon-btn" title="Delete">🗑️</div>
+                        </div>
+                    </div>
+
+                    <div class="server-details">
+                        <div class="detail-section">
+                            <div class="detail-label">Error Message</div>
+                            <div class="detail-content" style="color: #721c24; background: #f8d7da; padding: 12px; border-radius: 6px; font-size: 13px;">
+                                <strong>ENOENT:</strong> Command not found: mcp-server-browser<br>
+                                <span style="font-size: 12px;">Last attempt: 2 minutes ago</span>
+                            </div>
+                        </div>
+
+                        <div class="detail-section">
+                            <div class="detail-label">Exposed Tools (3)</div>
+                            <div class="tools-list" style="opacity: 0.5;">
+                                <div class="tool-item">
+                                    <div class="tool-name">mcp__browser__navigate</div>
+                                    <div class="tool-description">Navigate to URL</div>
+                                </div>
+                                <div class="tool-item">
+                                    <div class="tool-name">mcp__browser__screenshot</div>
+                                    <div class="tool-description">Capture screenshot</div>
+                                </div>
+                                <div class="tool-item">
+                                    <div class="tool-name">mcp__browser__extract</div>
+                                    <div class="tool-description">Extract page content</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Server 3: Idle -->
+                <div class="server-card idle">
+                    <div class="server-header">
+                        <div class="server-info">
+                            <div class="server-name">mcp-github</div>
+                            <div class="server-type">SSE • GitHub API Integration</div>
+                            <div class="server-status status-idle">
+                                <div class="status-indicator"></div>
+                                Idle
+                            </div>
+                        </div>
+                        <div class="server-actions">
+                            <div class="icon-btn" title="Test Connection">🔍</div>
+                            <div class="icon-btn" title="Edit">✏️</div>
+                            <div class="icon-btn" title="Delete">🗑️</div>
+                        </div>
+                    </div>
+
+                    <div class="server-details">
+                        <div class="detail-section">
+                            <div class="detail-label">Exposed Tools (6)</div>
+                            <div class="tools-list">
+                                <div class="tool-item">
+                                    <div class="tool-name">mcp__github__search_repos</div>
+                                    <div class="tool-description">Search repositories</div>
+                                </div>
+                                <div class="tool-item">
+                                    <div class="tool-name">mcp__github__get_issues</div>
+                                    <div class="tool-description">List issues</div>
+                                </div>
+                                <div class="tool-item">
+                                    <div class="tool-name">mcp__github__create_pr</div>
+                                    <div class="tool-description">Create pull request</div>
+                                </div>
+                                <div class="tool-item">
+                                    <div class="tool-name">mcp__github__get_commits</div>
+                                    <div class="tool-description">Fetch commit history</div>
+                                </div>
+                                <div class="tool-item">
+                                    <div class="tool-name">mcp__github__merge_pr</div>
+                                    <div class="tool-description">Merge pull request</div>
+                                </div>
+                                <div class="tool-item">
+                                    <div class="tool-name">mcp__github__create_issue</div>
+                                    <div class="tool-description">Create new issue</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="detail-section">
+                            <div class="detail-label">Configuration</div>
+                            <div class="config-preview">{
+  "url": "https://github-mcp.example.com/sse",
+  "headers": {
+    "Authorization": "Bearer ghp_••••••••••••••••"
+  }
+}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div style="margin-top: 20px; padding: 20px; background: white; border-radius: 8px; max-width: 1400px; margin-left: auto; margin-right: auto;">
+        <h3 style="margin-bottom: 12px;">MCP Server Admin Panel Features:</h3>
+        <ul style="line-height: 1.8; color: #333;">
+            <li><strong>Server List View:</strong> All configured MCP servers with status indicators</li>
+            <li><strong>Status Badges:</strong> Connected (green), Failed (red), Idle (yellow) with indicator dots</li>
+            <li><strong>Server Types:</strong> stdio, SSE, HTTP displayed with connection method</li>
+            <li><strong>Quick Actions:</strong> Test connection, Edit config, Delete server</li>
+            <li><strong>Exposed Tools:</strong> Grid view of all tools/resources provided by server</li>
+            <li><strong>Health Metrics:</strong> Request count, success rate, avg response time, uptime</li>
+            <li><strong>Error Messages:</strong> Clear failure reasons with last attempt timestamp</li>
+            <li><strong>Configuration Preview:</strong> JSON config with sanitized credentials (•••)</li>
+            <li><strong>Add Server Button:</strong> Opens PlateJS editor for new server configuration</li>
+        </ul>
+
+        <h3 style="margin-top: 24px; margin-bottom: 12px;">Accessible From:</h3>
+        <ul style="line-height: 1.8; color: #333;">
+            <li>Settings → MCP Servers section</li>
+            <li>Cmd+K → "MCP Servers"</li>
+            <li>Main navigation (for power users)</li>
+        </ul>
+    </div>
+</body>
+</html>

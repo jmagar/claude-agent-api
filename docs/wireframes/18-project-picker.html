@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wireframe: Project Picker</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        .wireframe-container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .wireframe-header {
+            background: #333;
+            color: white;
+            padding: 15px 20px;
+            font-size: 18px;
+            font-weight: 600;
+            border-radius: 8px 8px 0 0;
+        }
+        .scene-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+            background: white;
+            border: 2px solid #333;
+            border-top: none;
+            padding: 20px;
+        }
+        .scene {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            overflow: hidden;
+            background: white;
+        }
+        .scene-title {
+            padding: 12px 16px;
+            background: #f5f5f5;
+            border-bottom: 1px solid #ddd;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        .scene-content {
+            padding: 20px;
+            min-height: 400px;
+        }
+
+        /* Modal Overlay */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .modal {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            width: 100%;
+            max-width: 700px;
+            max-height: 90vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .modal-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid #e5e5e5;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .modal-title {
+            font-size: 20px;
+            font-weight: 600;
+        }
+        .close-btn {
+            width: 32px;
+            height: 32px;
+            border-radius: 6px;
+            border: none;
+            background: #f5f5f5;
+            cursor: pointer;
+            font-size: 18px;
+            color: #666;
+        }
+        .modal-search {
+            padding: 16px 24px;
+            border-bottom: 1px solid #e5e5e5;
+        }
+        .search-input {
+            width: 100%;
+            padding: 10px 16px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        .modal-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px 24px;
+        }
+        .modal-footer {
+            padding: 16px 24px;
+            border-top: 1px solid #e5e5e5;
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+        }
+
+        /* Project List */
+        .project-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .project-card {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 16px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .project-card:hover {
+            border-color: #333;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        .project-card.active {
+            border-color: #007bff;
+            background: #f0f8ff;
+        }
+        .project-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 8px;
+        }
+        .project-info {
+            flex: 1;
+        }
+        .project-name {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .project-path {
+            font-size: 12px;
+            color: #666;
+            font-family: monospace;
+            margin-bottom: 8px;
+        }
+        .project-meta {
+            display: flex;
+            gap: 16px;
+            font-size: 12px;
+            color: #666;
+        }
+        .project-meta-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .project-badges {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+        .badge {
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 500;
+        }
+        .badge-git {
+            background: #e8f5e9;
+            color: #2e7d32;
+            border: 1px solid #a5d6a7;
+        }
+        .badge-node {
+            background: #e3f2fd;
+            color: #1565c0;
+            border: 1px solid #90caf9;
+        }
+        .badge-python {
+            background: #fff3e0;
+            color: #ef6c00;
+            border: 1px solid #ffb74d;
+        }
+        .badge-docker {
+            background: #e1f5fe;
+            color: #0277bd;
+            border: 1px solid #81d4fa;
+        }
+
+        /* Buttons */
+        .btn {
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            border: none;
+            transition: background 0.2s;
+        }
+        .btn-primary {
+            background: #333;
+            color: white;
+        }
+        .btn-primary:hover {
+            background: #555;
+        }
+        .btn-secondary {
+            background: #f5f5f5;
+            color: #333;
+            border: 1px solid #ddd;
+        }
+        .btn-secondary:hover {
+            background: #e5e5e5;
+        }
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+        .btn-icon {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        /* Empty State */
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 60px 20px;
+            text-align: center;
+        }
+        .empty-icon {
+            font-size: 64px;
+            margin-bottom: 16px;
+            opacity: 0.3;
+        }
+        .empty-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        .empty-description {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 20px;
+            max-width: 400px;
+            line-height: 1.5;
+        }
+
+        /* Create Project Form */
+        .form-group {
+            margin-bottom: 16px;
+        }
+        .form-label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            margin-bottom: 6px;
+        }
+        .form-input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        .form-textarea {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            min-height: 80px;
+            resize: vertical;
+        }
+        .form-select {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        .form-help {
+            font-size: 12px;
+            color: #666;
+            margin-top: 4px;
+        }
+
+        /* Inline Picker (Code Mode Topbar) */
+        .topbar-picker {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 12px;
+            background: #f5f5f5;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .topbar-picker:hover {
+            background: #e5e5e5;
+        }
+        .picker-label {
+            font-size: 12px;
+            color: #666;
+            margin-right: 4px;
+        }
+        .picker-value {
+            font-weight: 500;
+        }
+        .picker-icon {
+            color: #999;
+        }
+
+        /* Recent Projects Section */
+        .section-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #666;
+            text-transform: uppercase;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #e5e5e5;
+        }
+    </style>
+</head>
+<body>
+    <div class="wireframe-container">
+        <div class="wireframe-header">
+            Wireframe: Project Picker (Code Mode)
+        </div>
+        <div class="scene-grid">
+            <!-- Scene 1: Project Picker Modal - Select Existing -->
+            <div class="scene">
+                <div class="scene-title">Project Picker Modal - Select Project</div>
+                <div class="scene-content" style="padding: 0; position: relative; background: rgba(0, 0, 0, 0.1);">
+                    <div class="modal-overlay" style="position: absolute;">
+                        <div class="modal">
+                            <div class="modal-header">
+                                <div class="modal-title">Select Project</div>
+                                <button class="close-btn">×</button>
+                            </div>
+                            <div class="modal-search">
+                                <input type="text" class="search-input" placeholder="Search projects..." />
+                            </div>
+                            <div class="modal-body">
+                                <div class="section-title">Recent Projects</div>
+                                <div class="project-list">
+                                    <div class="project-card active">
+                                        <div class="project-header">
+                                            <div class="project-info">
+                                                <div class="project-name">
+                                                    <span>claude-agent-api</span>
+                                                    <span style="font-size: 14px;">✓</span>
+                                                </div>
+                                                <div class="project-path">~/workspace/claude-agent-api</div>
+                                                <div class="project-meta">
+                                                    <div class="project-meta-item">📁 124 files</div>
+                                                    <div class="project-meta-item">🕒 2 hours ago</div>
+                                                    <div class="project-meta-item">🌿 main</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="project-badges">
+                                            <span class="badge badge-git">Git</span>
+                                            <span class="badge badge-python">Python</span>
+                                            <span class="badge badge-docker">Docker</span>
+                                        </div>
+                                    </div>
+
+                                    <div class="project-card">
+                                        <div class="project-header">
+                                            <div class="project-info">
+                                                <div class="project-name">ai-chat-frontend</div>
+                                                <div class="project-path">~/workspace/ai-chat-frontend</div>
+                                                <div class="project-meta">
+                                                    <div class="project-meta-item">📁 89 files</div>
+                                                    <div class="project-meta-item">🕒 3 days ago</div>
+                                                    <div class="project-meta-item">🌿 feature/dark-mode</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="project-badges">
+                                            <span class="badge badge-git">Git</span>
+                                            <span class="badge badge-node">Next.js</span>
+                                        </div>
+                                    </div>
+
+                                    <div class="project-card">
+                                        <div class="project-header">
+                                            <div class="project-info">
+                                                <div class="project-name">mcp-server-tools</div>
+                                                <div class="project-path">~/workspace/mcp-server-tools</div>
+                                                <div class="project-meta">
+                                                    <div class="project-meta-item">📁 45 files</div>
+                                                    <div class="project-meta-item">🕒 1 week ago</div>
+                                                    <div class="project-meta-item">🌿 main</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="project-badges">
+                                            <span class="badge badge-git">Git</span>
+                                            <span class="badge badge-node">TypeScript</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button class="btn btn-secondary">Cancel</button>
+                                <button class="btn btn-primary btn-icon">
+                                    <span>➕</span>
+                                    <span>New Project</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scene 2: Create New Project Modal -->
+            <div class="scene">
+                <div class="scene-title">Create New Project Modal</div>
+                <div class="scene-content" style="padding: 0; position: relative; background: rgba(0, 0, 0, 0.1);">
+                    <div class="modal-overlay" style="position: absolute;">
+                        <div class="modal">
+                            <div class="modal-header">
+                                <div class="modal-title">Create New Project</div>
+                                <button class="close-btn">×</button>
+                            </div>
+                            <div class="modal-body">
+                                <form>
+                                    <div class="form-group">
+                                        <label class="form-label">Project Name</label>
+                                        <input type="text" class="form-input" placeholder="my-awesome-project" />
+                                        <div class="form-help">Lowercase, hyphens allowed. Used for directory name.</div>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label class="form-label">Location</label>
+                                        <input type="text" class="form-input" value="~/workspace/" />
+                                        <div class="form-help">Where to create the project directory.</div>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label class="form-label">Template (Optional)</label>
+                                        <select class="form-select">
+                                            <option>Blank Project</option>
+                                            <option>Next.js + TypeScript</option>
+                                            <option>FastAPI + Python</option>
+                                            <option>React Library</option>
+                                            <option>Express.js API</option>
+                                        </select>
+                                        <div class="form-help">Start with a template or create a blank project.</div>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label class="form-label">Description (Optional)</label>
+                                        <textarea class="form-textarea" placeholder="What is this project about?"></textarea>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                            <input type="checkbox" checked />
+                                            <span style="font-size: 14px;">Initialize Git repository</span>
+                                        </label>
+                                    </div>
+                                </form>
+                            </div>
+                            <div class="modal-footer">
+                                <button class="btn btn-secondary">Cancel</button>
+                                <button class="btn btn-success">Create Project</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scene 3: Inline Picker (Code Mode Topbar) -->
+            <div class="scene">
+                <div class="scene-title">Inline Picker (Code Mode Topbar)</div>
+                <div class="scene-content">
+                    <div style="padding: 16px; background: #fafafa; border: 1px solid #ddd; border-radius: 8px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                            <div style="display: flex; align-items: center; gap: 12px;">
+                                <div class="topbar-picker">
+                                    <span class="picker-label">Project:</span>
+                                    <span class="picker-value">claude-agent-api</span>
+                                    <span class="picker-icon">▼</span>
+                                </div>
+                                <div style="font-size: 12px; color: #666; font-family: monospace;">
+                                    ~/workspace/claude-agent-api
+                                </div>
+                            </div>
+                            <div style="font-size: 12px; color: #28a745; display: flex; align-items: center; gap: 4px;">
+                                <span>●</span>
+                                <span>main</span>
+                            </div>
+                        </div>
+                        <div style="font-size: 12px; color: #666;">
+                            Click the dropdown to switch projects or create a new one.
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 24px; padding: 16px; background: #fff; border: 1px solid #ddd; border-radius: 8px;">
+                        <div style="font-weight: 600; margin-bottom: 12px; font-size: 14px;">Quick Actions</div>
+                        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                            <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;">Open in VS Code</button>
+                            <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;">Open in Terminal</button>
+                            <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;">Project Settings</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scene 4: Empty State - No Projects -->
+            <div class="scene">
+                <div class="scene-title">Empty State - First Project</div>
+                <div class="scene-content" style="padding: 0; position: relative; background: rgba(0, 0, 0, 0.1);">
+                    <div class="modal-overlay" style="position: absolute;">
+                        <div class="modal">
+                            <div class="modal-header">
+                                <div class="modal-title">Select Project</div>
+                                <button class="close-btn">×</button>
+                            </div>
+                            <div class="modal-search">
+                                <input type="text" class="search-input" placeholder="Search projects..." disabled />
+                            </div>
+                            <div class="modal-body">
+                                <div class="empty-state">
+                                    <div class="empty-icon">📁</div>
+                                    <div class="empty-title">No projects yet</div>
+                                    <div class="empty-description">
+                                        Create your first project to start coding with filesystem access. Projects give Claude context about your codebase.
+                                    </div>
+                                    <button class="btn btn-primary btn-icon">
+                                        <span>➕</span>
+                                        <span>Create Your First Project</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scene 5: Project Card Hover State -->
+            <div class="scene">
+                <div class="scene-title">Project Card - Hover with Actions</div>
+                <div class="scene-content">
+                    <div class="project-card" style="position: relative;">
+                        <div class="project-header">
+                            <div class="project-info">
+                                <div class="project-name">claude-agent-api</div>
+                                <div class="project-path">~/workspace/claude-agent-api</div>
+                                <div class="project-meta">
+                                    <div class="project-meta-item">📁 124 files</div>
+                                    <div class="project-meta-item">🕒 2 hours ago</div>
+                                    <div class="project-meta-item">🌿 main</div>
+                                </div>
+                            </div>
+                            <div style="display: flex; gap: 4px;">
+                                <button class="close-btn" style="width: 28px; height: 28px; font-size: 14px;" title="Edit">✏️</button>
+                                <button class="close-btn" style="width: 28px; height: 28px; font-size: 14px;" title="Delete">🗑️</button>
+                            </div>
+                        </div>
+                        <div class="project-badges">
+                            <span class="badge badge-git">Git</span>
+                            <span class="badge badge-python">Python</span>
+                            <span class="badge badge-docker">Docker</span>
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 20px; padding: 16px; background: #f8f9fa; border-radius: 8px; font-size: 13px; line-height: 1.6; color: #666;">
+                        <strong>Hover Behavior:</strong><br>
+                        • Border changes to dark gray<br>
+                        • Shadow appears<br>
+                        • Action buttons (edit/delete) appear in top right
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scene 6: Search Results -->
+            <div class="scene">
+                <div class="scene-title">Project Search Results</div>
+                <div class="scene-content" style="padding: 0; position: relative; background: rgba(0, 0, 0, 0.1);">
+                    <div class="modal-overlay" style="position: absolute;">
+                        <div class="modal">
+                            <div class="modal-header">
+                                <div class="modal-title">Select Project</div>
+                                <button class="close-btn">×</button>
+                            </div>
+                            <div class="modal-search">
+                                <input type="text" class="search-input" value="api" placeholder="Search projects..." />
+                            </div>
+                            <div class="modal-body">
+                                <div style="font-size: 12px; color: #666; margin-bottom: 12px;">
+                                    2 projects matching "api"
+                                </div>
+                                <div class="project-list">
+                                    <div class="project-card">
+                                        <div class="project-header">
+                                            <div class="project-info">
+                                                <div class="project-name">claude-agent-<mark style="background: #ffeb3b;">api</mark></div>
+                                                <div class="project-path">~/workspace/claude-agent-api</div>
+                                                <div class="project-meta">
+                                                    <div class="project-meta-item">📁 124 files</div>
+                                                    <div class="project-meta-item">🕒 2 hours ago</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="project-badges">
+                                            <span class="badge badge-python">Python</span>
+                                        </div>
+                                    </div>
+
+                                    <div class="project-card">
+                                        <div class="project-header">
+                                            <div class="project-info">
+                                                <div class="project-name">rest-<mark style="background: #ffeb3b;">api</mark>-starter</div>
+                                                <div class="project-path">~/workspace/rest-api-starter</div>
+                                                <div class="project-meta">
+                                                    <div class="project-meta-item">📁 56 files</div>
+                                                    <div class="project-meta-item">🕒 2 weeks ago</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="project-badges">
+                                            <span class="badge badge-node">Node.js</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button class="btn btn-secondary">Cancel</button>
+                                <button class="btn btn-primary btn-icon">
+                                    <span>➕</span>
+                                    <span>New Project</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div style="margin-top: 20px; padding: 20px; background: white; border-radius: 8px; max-width: 1400px; margin-left: auto; margin-right: auto;">
+        <h3 style="margin-bottom: 12px;">Project Picker Features:</h3>
+        <ul style="line-height: 1.8; color: #333;">
+            <li><strong>Modal Picker:</strong> Full-screen modal for selecting/creating projects</li>
+            <li><strong>Search:</strong> Real-time filtering of projects by name or path</li>
+            <li><strong>Project Cards:</strong> Rich metadata including file count, last accessed, git branch</li>
+            <li><strong>Technology Badges:</strong> Visual indicators for Git, Python, Node.js, Docker, etc.</li>
+            <li><strong>Inline Picker:</strong> Dropdown in Code mode topbar for quick switching</li>
+            <li><strong>Quick Actions:</strong> Open in VS Code, Terminal, or Project Settings</li>
+            <li><strong>Create New:</strong> Templated project creation with optional Git init</li>
+            <li><strong>Empty State:</strong> Friendly onboarding for first-time users</li>
+            <li><strong>Hover Actions:</strong> Edit and delete buttons appear on hover</li>
+            <li><strong>Active Indicator:</strong> Checkmark shows currently selected project</li>
+        </ul>
+
+        <h3 style="margin-top: 24px; margin-bottom: 12px;">UX Flow:</h3>
+        <ul style="line-height: 1.8; color: #333;">
+            <li>User switches to Code mode → Project picker modal appears (if no project selected)</li>
+            <li>User clicks inline picker dropdown → Modal opens with search and recent projects</li>
+            <li>User searches for project → Real-time filtering with highlighted matches</li>
+            <li>User clicks project card → Modal closes, project loads, filesystem tools become available</li>
+            <li>User clicks "New Project" → Create project form with template options</li>
+            <li>Project metadata updates automatically (last accessed, file count)</li>
+        </ul>
+
+        <h3 style="margin-top: 24px; margin-bottom: 12px;">Technical Notes:</h3>
+        <ul style="line-height: 1.8; color: #333;">
+            <li>Project metadata stored in PostgreSQL (name, path, last_accessed, file_count, git_branch)</li>
+            <li>File count updated via filesystem watcher or periodic scan</li>
+            <li>Git status checked via git CLI commands (current branch, dirty state)</li>
+            <li>Technology badges detected from package.json, pyproject.toml, Dockerfile, etc.</li>
+            <li>Templates scaffold new projects with sensible defaults</li>
+        </ul>
+    </div>
+</body>
+</html>

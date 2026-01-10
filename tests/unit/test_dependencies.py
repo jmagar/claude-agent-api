@@ -268,12 +268,14 @@ class TestServiceDependencies:
         """
         # Mock cache
         mock_cache = Mock(spec=RedisCache)
+        mock_repo = Mock(spec=SessionRepository)
 
         # Get service
-        service = await get_session_service(mock_cache)
+        service = await get_session_service(mock_cache, mock_repo)
 
         assert isinstance(service, SessionService)
         assert service._cache is mock_cache
+        assert service._db_repo is mock_repo
 
     @pytest.mark.anyio
     async def test_get_checkpoint_service_creates_instance(self) -> None:
@@ -347,6 +349,17 @@ class TestAuthenticationDependencies:
 
         with pytest.raises(AuthenticationError, match="Missing API key"):
             verify_api_key(mock_request, x_api_key=None)
+
+    @pytest.mark.anyio
+    async def test_verify_api_key_uses_request_state_when_available(self) -> None:
+        """Test API key uses request.state when middleware has validated."""
+        mock_request = Mock(spec=Request)
+        mock_request.state = Mock()
+        mock_request.state.api_key = "validated-key"
+
+        result = verify_api_key(mock_request, x_api_key=None)
+
+        assert result == "validated-key"
 
     @pytest.mark.anyio
     async def test_verify_api_key_from_header(self) -> None:
@@ -487,10 +500,12 @@ class TestDependencyIntegration:
         cache = await get_cache()
 
         # Get service
-        service = await get_session_service(cache)
+        mock_repo = Mock(spec=SessionRepository)
+        service = await get_session_service(cache, mock_repo)
 
         assert isinstance(service, SessionService)
         assert service._cache is cache
+        assert service._db_repo is mock_repo
 
         # Cleanup
         await close_cache()

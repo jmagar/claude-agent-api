@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wireframe: Artifacts Editor</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        .wireframe-container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .wireframe-header {
+            background: #333;
+            color: white;
+            padding: 15px 20px;
+            font-size: 18px;
+            font-weight: 600;
+            border-radius: 8px 8px 0 0;
+        }
+        .scene-container {
+            position: relative;
+            background: white;
+            border: 2px solid #333;
+            border-top: none;
+            border-radius: 0 0 8px 8px;
+            height: 800px;
+            overflow: hidden;
+        }
+        .background-chat {
+            opacity: 0.2;
+            padding: 20px;
+            height: 100%;
+        }
+        .artifacts-panel {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 55%;
+            height: 100%;
+            background: white;
+            box-shadow: -4px 0 24px rgba(0, 0, 0, 0.15);
+            display: flex;
+            flex-direction: column;
+        }
+        .artifacts-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid #ddd;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .artifacts-title {
+            font-size: 16px;
+            font-weight: 600;
+        }
+        .header-actions {
+            display: flex;
+            gap: 8px;
+        }
+        .icon-btn {
+            width: 32px;
+            height: 32px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .btn {
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 13px;
+            cursor: pointer;
+            font-weight: 500;
+            border: none;
+        }
+        .btn-primary {
+            background: #333;
+            color: white;
+        }
+        .btn-secondary {
+            background: white;
+            border: 1px solid #ddd;
+            color: #333;
+        }
+        .tabs-container {
+            display: flex;
+            align-items: center;
+            padding: 8px 20px;
+            border-bottom: 1px solid #ddd;
+            background: #fafafa;
+            overflow-x: auto;
+        }
+        .tab {
+            padding: 8px 16px;
+            border-radius: 6px 6px 0 0;
+            font-size: 13px;
+            background: #e5e5e5;
+            border: 1px solid #ddd;
+            border-bottom: none;
+            cursor: pointer;
+            margin-right: 4px;
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .tab.active {
+            background: white;
+            border-color: #ddd;
+            font-weight: 600;
+        }
+        .tab-close {
+            font-size: 14px;
+            opacity: 0.6;
+            cursor: pointer;
+        }
+        .tab-close:hover {
+            opacity: 1;
+        }
+        .editor-toolbar {
+            padding: 12px 20px;
+            border-bottom: 1px solid #ddd;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #f8f9fa;
+        }
+        .toolbar-left {
+            display: flex;
+            gap: 8px;
+        }
+        .toolbar-btn {
+            padding: 6px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background: white;
+            font-size: 12px;
+            cursor: pointer;
+        }
+        .language-selector {
+            padding: 6px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 12px;
+            background: white;
+        }
+        .editor-content {
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+        }
+        .editor-pane {
+            flex: 1;
+            padding: 20px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+            background: #f8f9fa;
+            overflow: auto;
+        }
+        .preview-pane {
+            flex: 1;
+            padding: 20px;
+            background: white;
+            border-left: 1px solid #ddd;
+            overflow: auto;
+        }
+        .code-line {
+            display: flex;
+            gap: 12px;
+        }
+        .line-number {
+            color: #999;
+            user-select: none;
+            text-align: right;
+            min-width: 30px;
+        }
+        .line-content {
+            flex: 1;
+        }
+        .syntax-keyword { color: #d73a49; }
+        .syntax-string { color: #032f62; }
+        .syntax-comment { color: #6a737d; font-style: italic; }
+        .syntax-function { color: #6f42c1; }
+        .preview-title {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: #333;
+        }
+        .preview-description {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 20px;
+            line-height: 1.6;
+        }
+        .preview-component {
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: #fafafa;
+        }
+        .status-bar {
+            padding: 8px 20px;
+            border-top: 1px solid #ddd;
+            background: #f8f9fa;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+            color: #666;
+        }
+        .status-left {
+            display: flex;
+            gap: 16px;
+        }
+        .mode-toggle {
+            display: flex;
+            gap: 4px;
+            background: #e5e5e5;
+            border-radius: 4px;
+            padding: 2px;
+        }
+        .mode-btn {
+            padding: 4px 12px;
+            border: none;
+            border-radius: 3px;
+            background: transparent;
+            font-size: 11px;
+            cursor: pointer;
+        }
+        .mode-btn.active {
+            background: white;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="wireframe-container">
+        <div class="wireframe-header">
+            Wireframe: Artifacts Editor (Generated Content)
+        </div>
+        <div class="scene-container">
+            <div class="background-chat">
+                <div style="border: 1px solid #ddd; border-radius: 8px; height: 100%; background: #fafafa;"></div>
+            </div>
+
+            <div class="artifacts-panel">
+                <div class="artifacts-header">
+                    <div class="artifacts-title">Artifacts (3)</div>
+                    <div class="header-actions">
+                        <button class="btn btn-secondary">Download</button>
+                        <button class="btn btn-secondary">Copy Code</button>
+                        <button class="btn btn-primary">Save to Project</button>
+                        <div class="icon-btn" title="Close">✕</div>
+                    </div>
+                </div>
+
+                <div class="tabs-container">
+                    <div class="tab active">
+                        <span>Dashboard.tsx</span>
+                        <span class="tab-close">×</span>
+                    </div>
+                    <div class="tab">
+                        <span>api-client.ts</span>
+                        <span class="tab-close">×</span>
+                    </div>
+                    <div class="tab">
+                        <span>schema.sql</span>
+                        <span class="tab-close">×</span>
+                    </div>
+                </div>
+
+                <div class="editor-toolbar">
+                    <div class="toolbar-left">
+                        <select class="language-selector">
+                            <option>TypeScript React</option>
+                            <option>JavaScript</option>
+                            <option>Python</option>
+                            <option>SQL</option>
+                        </select>
+                        <div class="mode-toggle">
+                            <button class="mode-btn active">Editor</button>
+                            <button class="mode-btn">Preview</button>
+                            <button class="mode-btn">Split</button>
+                        </div>
+                    </div>
+                    <div>
+                        <button class="toolbar-btn">Format</button>
+                        <button class="toolbar-btn">Lint</button>
+                    </div>
+                </div>
+
+                <div class="editor-content">
+                    <!-- Split View: Editor + Preview -->
+                    <div class="editor-pane">
+                        <div class="code-line">
+                            <div class="line-number">1</div>
+                            <div class="line-content">
+                                <span class="syntax-keyword">import</span> React <span class="syntax-keyword">from</span> <span class="syntax-string">'react'</span>;
+                            </div>
+                        </div>
+                        <div class="code-line">
+                            <div class="line-number">2</div>
+                            <div class="line-content">
+                                <span class="syntax-keyword">import</span> { Card } <span class="syntax-keyword">from</span> <span class="syntax-string">'@/components/ui/card'</span>;
+                            </div>
+                        </div>
+                        <div class="code-line">
+                            <div class="line-number">3</div>
+                            <div class="line-content"></div>
+                        </div>
+                        <div class="code-line">
+                            <div class="line-number">4</div>
+                            <div class="line-content">
+                                <span class="syntax-keyword">export</span> <span class="syntax-keyword">function</span> <span class="syntax-function">Dashboard</span>() {
+                            </div>
+                        </div>
+                        <div class="code-line">
+                            <div class="line-number">5</div>
+                            <div class="line-content">
+                                &nbsp;&nbsp;<span class="syntax-keyword">return</span> (
+                            </div>
+                        </div>
+                        <div class="code-line">
+                            <div class="line-number">6</div>
+                            <div class="line-content">
+                                &nbsp;&nbsp;&nbsp;&nbsp;&lt;Card&gt;
+                            </div>
+                        </div>
+                        <div class="code-line">
+                            <div class="line-number">7</div>
+                            <div class="line-content">
+                                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&lt;h1&gt;Analytics Dashboard&lt;/h1&gt;
+                            </div>
+                        </div>
+                        <div class="code-line">
+                            <div class="line-number">8</div>
+                            <div class="line-content">
+                                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="syntax-comment">// Render charts and metrics</span>
+                            </div>
+                        </div>
+                        <div class="code-line">
+                            <div class="line-number">9</div>
+                            <div class="line-content">
+                                &nbsp;&nbsp;&nbsp;&nbsp;&lt;/Card&gt;
+                            </div>
+                        </div>
+                        <div class="code-line">
+                            <div class="line-number">10</div>
+                            <div class="line-content">
+                                &nbsp;&nbsp;);
+                            </div>
+                        </div>
+                        <div class="code-line">
+                            <div class="line-number">11</div>
+                            <div class="line-content">}</div>
+                        </div>
+                    </div>
+
+                    <div class="preview-pane">
+                        <div class="preview-title">Live Preview</div>
+                        <div class="preview-description">
+                            This is a real-time preview of your React component. Changes to the editor will update automatically.
+                        </div>
+                        <div class="preview-component">
+                            <h1 style="font-size: 20px; margin-bottom: 12px;">Analytics Dashboard</h1>
+                            <p style="color: #666; font-size: 14px;">Component renders here...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="status-bar">
+                    <div class="status-left">
+                        <span>Line 4, Col 23</span>
+                        <span>•</span>
+                        <span>UTF-8</span>
+                        <span>•</span>
+                        <span>TypeScript React</span>
+                    </div>
+                    <div>
+                        <span>0 errors, 0 warnings</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div style="margin-top: 20px; padding: 20px; background: white; border-radius: 8px; max-width: 1400px; margin-left: auto; margin-right: auto;">
+        <h3 style="margin-bottom: 12px;">Artifacts Editor Features:</h3>
+        <ul style="line-height: 1.8; color: #333;">
+            <li><strong>Right Slide-in Panel:</strong> Covers 55% of screen from right side</li>
+            <li><strong>Multiple Tabs:</strong> Switch between multiple generated artifacts</li>
+            <li><strong>Three View Modes:</strong> Editor only, Preview only, Split view (both)</li>
+            <li><strong>Syntax Highlighting:</strong> Color-coded by language (TS, JS, Python, SQL, etc.)</li>
+            <li><strong>Live Preview:</strong> Real-time rendering for React components, HTML, diagrams</li>
+            <li><strong>Code Actions:</strong> Download, Copy to clipboard, Format, Lint</li>
+            <li><strong>Save to Project:</strong> In Code mode, writes artifact directly to filesystem</li>
+            <li><strong>Language Detection:</strong> Auto-detects language from file extension</li>
+            <li><strong>Status Bar:</strong> Shows cursor position, encoding, language, errors/warnings</li>
+            <li><strong>PlateJS Integration:</strong> Full rich-text editing capabilities</li>
+        </ul>
+
+        <h3 style="margin-top: 24px; margin-bottom: 12px;">Triggered When:</h3>
+        <ul style="line-height: 1.8; color: #333;">
+            <li>Agent generates code, diagrams, or documents</li>
+            <li>User clicks "View" on inline artifact preview in chat</li>
+            <li>User asks to "edit the dashboard component"</li>
+            <li>Multiple artifacts accumulated during session</li>
+        </ul>
+
+        <h3 style="margin-top: 24px; margin-bottom: 12px;">Supported Artifact Types:</h3>
+        <ul style="line-height: 1.8; color: #333;">
+            <li>Code files (React, TypeScript, Python, SQL, etc.)</li>
+            <li>Diagrams (Mermaid, PlantUML)</li>
+            <li>Documents (Markdown with live preview)</li>
+            <li>Configuration files (JSON, YAML)</li>
+        </ul>
+    </div>
+</body>
+</html>

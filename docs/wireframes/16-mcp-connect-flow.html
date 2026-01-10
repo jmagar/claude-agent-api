@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wireframe: Inline /mcp connect Flow</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        .wireframe-container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .wireframe-header {
+            background: #333;
+            color: white;
+            padding: 15px 20px;
+            font-size: 18px;
+            font-weight: 600;
+            border-radius: 8px 8px 0 0;
+        }
+        .scene-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+            background: white;
+            border: 2px solid #333;
+            border-top: none;
+            padding: 20px;
+        }
+        .scene {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            overflow: hidden;
+            background: white;
+        }
+        .scene-title {
+            padding: 12px 16px;
+            background: #f5f5f5;
+            border-bottom: 1px solid #ddd;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        .scene-content {
+            padding: 20px;
+            min-height: 300px;
+            position: relative;
+        }
+        .message-flow {
+            max-width: 700px;
+            margin: 0 auto;
+        }
+        .message-bubble {
+            padding: 12px 16px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            background: #f5f5f5;
+            font-size: 14px;
+            line-height: 1.5;
+            margin-bottom: 16px;
+        }
+        .user-message {
+            background: #e8f4ff;
+            border-color: #b3d9ff;
+            margin-left: auto;
+            max-width: 70%;
+        }
+
+        /* MCP Connect Modal */
+        .mcp-modal {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            width: 90%;
+            max-width: 600px;
+            z-index: 100;
+        }
+        .modal-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid #ddd;
+        }
+        .modal-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        .modal-subtitle {
+            font-size: 13px;
+            color: #666;
+        }
+        .modal-body {
+            padding: 24px;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .form-label {
+            font-size: 13px;
+            font-weight: 500;
+            margin-bottom: 6px;
+            display: block;
+        }
+        .form-input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        .form-select {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            background: white;
+        }
+        .form-textarea {
+            width: 100%;
+            min-height: 80px;
+            padding: 10px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            resize: vertical;
+            font-family: 'Courier New', monospace;
+        }
+        .form-help {
+            font-size: 12px;
+            color: #666;
+            margin-top: 4px;
+        }
+        .radio-group {
+            display: flex;
+            gap: 16px;
+            margin-top: 8px;
+        }
+        .radio-option {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+        }
+        .radio {
+            width: 16px;
+            height: 16px;
+            border: 2px solid #ddd;
+            border-radius: 50%;
+            position: relative;
+        }
+        .radio.checked {
+            border-color: #333;
+        }
+        .radio.checked::after {
+            content: '';
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            background: #333;
+            border-radius: 50%;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+        .checkbox-option {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            margin-top: 12px;
+            cursor: pointer;
+        }
+        .checkbox {
+            width: 18px;
+            height: 18px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            flex-shrink: 0;
+        }
+        .checkbox.checked {
+            background: #333;
+            border-color: #333;
+        }
+        .modal-footer {
+            padding: 16px 24px;
+            border-top: 1px solid #ddd;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .btn {
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            font-weight: 500;
+            border: none;
+        }
+        .btn-secondary {
+            background: white;
+            border: 1px solid #ddd;
+            color: #333;
+        }
+        .btn-primary {
+            background: #333;
+            color: white;
+        }
+        .btn-test {
+            background: #007bff;
+            color: white;
+        }
+
+        /* Connection Status */
+        .connection-status {
+            padding: 12px;
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 6px;
+            font-size: 13px;
+            color: #856404;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .connection-status.success {
+            background: #d4edda;
+            border-color: #28a745;
+            color: #155724;
+        }
+        .connection-status.error {
+            background: #f8d7da;
+            border-color: #dc3545;
+            color: #721c24;
+        }
+        .spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid #f0f0f0;
+            border-top: 2px solid currentColor;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Template Selector */
+        .template-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            margin-top: 8px;
+        }
+        .template-card {
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .template-card:hover {
+            border-color: #333;
+            background: #f8f9fa;
+        }
+        .template-card.selected {
+            border-color: #333;
+            background: #e8f4ff;
+            border-width: 2px;
+        }
+        .template-name {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        .template-desc {
+            font-size: 12px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="wireframe-container">
+        <div class="wireframe-header">
+            Wireframe: Inline /mcp connect Flow
+        </div>
+        <div class="scene-grid">
+            <!-- Scene 1: User types /mcp connect -->
+            <div class="scene">
+                <div class="scene-title">Step 1: User Types /mcp connect</div>
+                <div class="scene-content">
+                    <div class="message-flow">
+                        <div class="message-bubble user-message">
+                            /mcp connect
+                        </div>
+                        <div style="font-size: 13px; color: #666; text-align: center; padding: 20px;">
+                            ↓ Command triggers modal to open ↓
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scene 2: Quick Config Form -->
+            <div class="scene">
+                <div class="scene-title">Step 2: Quick Config Modal (stdio server)</div>
+                <div class="scene-content">
+                    <div class="mcp-modal">
+                        <div class="modal-header">
+                            <div class="modal-title">Connect MCP Server</div>
+                            <div class="modal-subtitle">Configure a new Model Context Protocol server</div>
+                        </div>
+
+                        <div class="modal-body">
+                            <div class="form-group">
+                                <label class="form-label">Server Name *</label>
+                                <input type="text" class="form-input" placeholder="e.g., mcp-postgres" value="mcp-postgres" />
+                                <div class="form-help">Unique identifier for this server</div>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Connection Type *</label>
+                                <div class="radio-group">
+                                    <label class="radio-option">
+                                        <div class="radio checked"></div>
+                                        <span>stdio</span>
+                                    </label>
+                                    <label class="radio-option">
+                                        <div class="radio"></div>
+                                        <span>SSE</span>
+                                    </label>
+                                    <label class="radio-option">
+                                        <div class="radio"></div>
+                                        <span>HTTP</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Command *</label>
+                                <input type="text" class="form-input" placeholder="e.g., mcp-server-postgres" value="mcp-server-postgres" />
+                                <div class="form-help">Executable command or npm package name</div>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Arguments</label>
+                                <input type="text" class="form-input" placeholder="e.g., --db postgresql://..." value="--db postgresql://localhost:53432/app" />
+                                <div class="form-help">Space-separated command-line arguments</div>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Environment Variables</label>
+                                <textarea class="form-textarea" placeholder='{"PGDATABASE": "app", "PGUSER": "admin"}'>{"PGDATABASE": "app"}</textarea>
+                                <div class="form-help">JSON object of environment variables</div>
+                            </div>
+
+                            <div class="checkbox-option">
+                                <div class="checkbox checked"></div>
+                                <div style="flex: 1;">
+                                    <div style="font-size: 13px; font-weight: 500;">Save to library</div>
+                                    <div style="font-size: 12px; color: #666;">Add to permanent server list in settings</div>
+                                </div>
+                            </div>
+
+                            <div class="checkbox-option">
+                                <div class="checkbox"></div>
+                                <div style="flex: 1;">
+                                    <div style="font-size: 13px; font-weight: 500;">Auto-connect in future sessions</div>
+                                    <div style="font-size: 12px; color: #666;">Automatically connect when starting new chats</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="modal-footer">
+                            <button class="btn btn-secondary">Cancel</button>
+                            <div style="display: flex; gap: 8px;">
+                                <button class="btn btn-test">Test Connection</button>
+                                <button class="btn btn-primary">Connect</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scene 3: Template Selection -->
+            <div class="scene">
+                <div class="scene-title">Alternative: Template Selection</div>
+                <div class="scene-content">
+                    <div class="mcp-modal">
+                        <div class="modal-header">
+                            <div class="modal-title">Connect MCP Server</div>
+                            <div class="modal-subtitle">Choose a template or configure manually</div>
+                        </div>
+
+                        <div class="modal-body">
+                            <div class="form-group">
+                                <label class="form-label">Quick Start Templates</label>
+                                <div class="template-grid">
+                                    <div class="template-card selected">
+                                        <div class="template-name">PostgreSQL</div>
+                                        <div class="template-desc">Database query tools</div>
+                                    </div>
+                                    <div class="template-card">
+                                        <div class="template-name">GitHub</div>
+                                        <div class="template-desc">Repo & issue management</div>
+                                    </div>
+                                    <div class="template-card">
+                                        <div class="template-name">Filesystem</div>
+                                        <div class="template-desc">File operations</div>
+                                    </div>
+                                    <div class="template-card">
+                                        <div class="template-name">Custom</div>
+                                        <div class="template-desc">Manual configuration</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Server Name *</label>
+                                <input type="text" class="form-input" value="mcp-postgres" />
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Database URL *</label>
+                                <input type="text" class="form-input" placeholder="postgresql://host:port/database" />
+                                <div class="form-help">PostgreSQL connection string</div>
+                            </div>
+                        </div>
+
+                        <div class="modal-footer">
+                            <button class="btn btn-secondary">Cancel</button>
+                            <button class="btn btn-primary">Connect</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scene 4: Testing Connection -->
+            <div class="scene">
+                <div class="scene-title">Step 3: Testing Connection</div>
+                <div class="scene-content">
+                    <div class="mcp-modal">
+                        <div class="modal-header">
+                            <div class="modal-title">Connect MCP Server</div>
+                            <div class="modal-subtitle">Testing connection to mcp-postgres...</div>
+                        </div>
+
+                        <div class="modal-body">
+                            <div class="connection-status">
+                                <div class="spinner"></div>
+                                <span>Testing connection to mcp-postgres...</span>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Server Name</label>
+                                <input type="text" class="form-input" value="mcp-postgres" disabled />
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Command</label>
+                                <input type="text" class="form-input" value="mcp-server-postgres --db postgresql://localhost:53432/app" disabled />
+                            </div>
+                        </div>
+
+                        <div class="modal-footer">
+                            <button class="btn btn-secondary">Cancel</button>
+                            <button class="btn btn-primary" disabled style="opacity: 0.5;">Connect</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scene 5: Success -->
+            <div class="scene">
+                <div class="scene-title">Step 4: Connection Success</div>
+                <div class="scene-content">
+                    <div class="message-flow">
+                        <div class="message-bubble user-message">
+                            /mcp connect
+                        </div>
+                        <div class="message-bubble">
+                            <div style="margin-bottom: 8px;">
+                                ✓ Successfully connected to <strong>mcp-postgres</strong>
+                            </div>
+                            <div style="background: #d4edda; padding: 12px; border-radius: 6px; border-left: 4px solid #28a745; font-size: 13px;">
+                                <strong>Exposed Tools (4):</strong><br>
+                                • mcp__postgres__query<br>
+                                • mcp__postgres__list_tables<br>
+                                • mcp__postgres__describe_table<br>
+                                • mcp__postgres__execute_file
+                            </div>
+                            <div style="margin-top: 12px; font-size: 13px; color: #666;">
+                                Server added to this session. Use <code>@mcp-postgres</code> or mention specific tools.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scene 6: Error State -->
+            <div class="scene">
+                <div class="scene-title">Error: Connection Failed</div>
+                <div class="scene-content">
+                    <div class="mcp-modal">
+                        <div class="modal-header">
+                            <div class="modal-title">Connect MCP Server</div>
+                            <div class="modal-subtitle">Connection failed</div>
+                        </div>
+
+                        <div class="modal-body">
+                            <div class="connection-status error">
+                                <span>❌</span>
+                                <div>
+                                    <strong>Connection failed:</strong> Command not found: mcp-server-postgres<br>
+                                    <span style="font-size: 12px;">Make sure the package is installed: npm install -g mcp-server-postgres</span>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Command</label>
+                                <input type="text" class="form-input" value="mcp-server-postgres" />
+                            </div>
+                        </div>
+
+                        <div class="modal-footer">
+                            <button class="btn btn-secondary">Cancel</button>
+                            <button class="btn btn-test">Retry</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div style="margin-top: 20px; padding: 20px; background: white; border-radius: 8px; max-width: 1400px; margin-left: auto; margin-right: auto;">
+        <h3 style="margin-bottom: 12px;">Inline /mcp connect Flow Features:</h3>
+        <ul style="line-height: 1.8; color: #333;">
+            <li><strong>Slash Command Trigger:</strong> User types <code>/mcp connect</code> in chat input</li>
+            <li><strong>Quick Config Form:</strong> Minimal fields for fast setup (name, type, command, args)</li>
+            <li><strong>Template Support:</strong> Pre-configured templates for common servers (PostgreSQL, GitHub, etc.)</li>
+            <li><strong>Connection Types:</strong> stdio, SSE, HTTP with type-specific fields</li>
+            <li><strong>Test Connection:</strong> Validate configuration before saving</li>
+            <li><strong>Save to Library:</strong> Optional checkbox to add to permanent server list</li>
+            <li><strong>Auto-Connect:</strong> Optional checkbox to connect in future sessions</li>
+            <li><strong>Inline Feedback:</strong> Success message in chat with exposed tools list</li>
+            <li><strong>Error Handling:</strong> Clear error messages with suggestions</li>
+        </ul>
+
+        <h3 style="margin-top: 24px; margin-bottom: 12px;">Variants:</h3>
+        <ul style="line-height: 1.8; color: #333;">
+            <li><code>/mcp connect postgres</code> - Quick connect with template name</li>
+            <li><code>/mcp connect [URL]</code> - Direct SSE/HTTP connection</li>
+            <li><code>/mcp add</code> - Alias for <code>/mcp connect</code></li>
+            <li><code>/mcp disconnect [name]</code> - Remove from current session</li>
+            <li><code>/mcp list</code> - Show all connected servers</li>
+        </ul>
+
+        <h3 style="margin-top: 24px; margin-bottom: 12px;">Success Criteria:</h3>
+        <ul style="line-height: 1.8; color: #333;">
+            <li>Server connects successfully and exposes tools</li>
+            <li>Tools immediately available via @ autocomplete</li>
+            <li>Session remembers connection (persists to DB)</li>
+            <li>If "Save to library" checked, appears in settings admin panel</li>
+        </ul>
+    </div>
+</body>
+</html>

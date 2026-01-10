@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+.next/
+out/
+dist/
+build/
+coverage/
+
+# Lock files
+pnpm-lock.yaml
+yarn.lock
+package-lock.json
+
+# Generated files
+*.tsbuildinfo
+next-env.d.ts
+
+# Cache
+.cache/
+.turbo/
+
+# Public assets (don't format)
+public/
+
+# Config files (formatted separately)
+*.min.js
+*.min.css

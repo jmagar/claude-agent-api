@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wireframe: Session Forking & Checkpoints</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        .wireframe-container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .wireframe-header {
+            background: #333;
+            color: white;
+            padding: 15px 20px;
+            font-size: 18px;
+            font-weight: 600;
+            border-radius: 8px 8px 0 0;
+        }
+        .scene-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+            background: white;
+            border: 2px solid #333;
+            border-top: none;
+            padding: 20px;
+        }
+        .scene {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            overflow: hidden;
+            background: white;
+        }
+        .scene-title {
+            padding: 12px 16px;
+            background: #f5f5f5;
+            border-bottom: 1px solid #ddd;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        .scene-content {
+            padding: 20px;
+            min-height: 300px;
+        }
+        .message-flow {
+            max-width: 600px;
+        }
+        .message {
+            margin-bottom: 16px;
+        }
+        .message-bubble {
+            padding: 12px 16px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            background: #f5f5f5;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        .checkpoint-marker {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 6px;
+            font-size: 12px;
+            margin-top: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .checkpoint-marker:hover {
+            background: #ffc107;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        .checkpoint-icon {
+            font-size: 14px;
+        }
+        .checkpoint-popup {
+            position: relative;
+            margin-top: 12px;
+            padding: 16px;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+        .popup-header {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .popup-info {
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 12px;
+        }
+        .popup-actions {
+            display: flex;
+            gap: 8px;
+        }
+        .btn {
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 13px;
+            cursor: pointer;
+            font-weight: 500;
+            border: none;
+        }
+        .btn-primary {
+            background: #333;
+            color: white;
+        }
+        .btn-secondary {
+            background: white;
+            border: 1px solid #ddd;
+            color: #333;
+        }
+        .fork-modal {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            width: 90%;
+            max-width: 480px;
+            z-index: 100;
+        }
+        .modal-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 16px;
+        }
+        .form-group {
+            margin-bottom: 16px;
+        }
+        .form-label {
+            font-size: 13px;
+            font-weight: 500;
+            margin-bottom: 6px;
+            display: block;
+        }
+        .form-input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        .form-textarea {
+            width: 100%;
+            min-height: 80px;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            resize: vertical;
+        }
+        .modal-actions {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+        }
+        .sidebar-tree {
+            padding: 12px;
+            background: #fafafa;
+            border-radius: 8px;
+        }
+        .tree-item {
+            padding: 8px 12px;
+            margin-bottom: 4px;
+            border-radius: 4px;
+            font-size: 13px;
+            cursor: pointer;
+        }
+        .tree-item:hover {
+            background: #e5e5e5;
+        }
+        .tree-item.active {
+            background: #e0e0e0;
+            font-weight: 600;
+        }
+        .tree-item.branch {
+            margin-left: 20px;
+            border-left: 2px solid #ddd;
+            padding-left: 12px;
+        }
+        .tree-icon {
+            margin-right: 6px;
+        }
+        .checkpoint-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 2px 6px;
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 10px;
+            font-size: 10px;
+            font-weight: 600;
+            margin-left: 6px;
+        }
+    </style>
+</head>
+<body>
+    <div class="wireframe-container">
+        <div class="wireframe-header">
+            Wireframe: Session Forking & Checkpoint System
+        </div>
+        <div class="scene-grid">
+            <!-- Scene 1: Checkpoint Marker Inline -->
+            <div class="scene">
+                <div class="scene-title">Checkpoint Marker (Inline)</div>
+                <div class="scene-content">
+                    <div class="message-flow">
+                        <div class="message">
+                            <div class="message-bubble">
+                                I've created JWT authentication middleware in <code>apps/api/middleware/auth.py</code>. The middleware validates tokens and attaches user info to requests.
+                            </div>
+                            <div class="checkpoint-marker">
+                                <span class="checkpoint-icon">🔀</span>
+                                <span>Checkpoint</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scene 2: Checkpoint Popup Menu -->
+            <div class="scene">
+                <div class="scene-title">Checkpoint Actions Menu</div>
+                <div class="scene-content">
+                    <div class="checkpoint-popup">
+                        <div class="popup-header">Checkpoint Options</div>
+                        <div class="popup-info">
+                            <strong>Created:</strong> Today at 2:34 PM<br>
+                            <strong>Messages:</strong> 12 messages before this point<br>
+                            <strong>Changes:</strong> 3 files modified
+                        </div>
+                        <div class="popup-actions">
+                            <button class="btn btn-primary">Fork from Here</button>
+                            <button class="btn btn-secondary">Restore</button>
+                            <button class="btn btn-secondary">View Details</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scene 3: Fork Creation Modal -->
+            <div class="scene">
+                <div class="scene-title">Create Fork Modal</div>
+                <div class="scene-content" style="position: relative;">
+                    <div class="fork-modal">
+                        <div class="modal-title">Create Fork</div>
+
+                        <div class="form-group">
+                            <label class="form-label">Fork Name</label>
+                            <input type="text" class="form-input" placeholder="Untitled Fork" value="Try alternate approach" />
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Description (Optional)</label>
+                            <textarea class="form-textarea" placeholder="Describe what you want to try differently...">Explore using Passport.js instead of custom JWT implementation</textarea>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Starting Point</label>
+                            <select class="form-input">
+                                <option>From checkpoint (12 messages)</option>
+                                <option>From beginning (0 messages)</option>
+                                <option>From custom message...</option>
+                            </select>
+                        </div>
+
+                        <div class="modal-actions">
+                            <button class="btn btn-secondary">Cancel</button>
+                            <button class="btn btn-primary">Create Fork</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scene 4: Sidebar with Forked Sessions -->
+            <div class="scene">
+                <div class="scene-title">Sidebar: Session Tree with Forks</div>
+                <div class="scene-content">
+                    <div class="sidebar-tree">
+                        <div class="tree-item active">
+                            <span class="tree-icon">💬</span>
+                            Add authentication middleware
+                            <span class="checkpoint-badge">🔀 2</span>
+                        </div>
+                        <div class="tree-item branch">
+                            <span class="tree-icon">🔀</span>
+                            Fork: Try alternate approach
+                        </div>
+                        <div class="tree-item branch">
+                            <span class="tree-icon">🔀</span>
+                            Fork: Simplify implementation
+                        </div>
+
+                        <div style="height: 16px;"></div>
+
+                        <div class="tree-item">
+                            <span class="tree-icon">💬</span>
+                            PostgreSQL optimization
+                        </div>
+
+                        <div style="height: 16px;"></div>
+
+                        <div class="tree-item">
+                            <span class="tree-icon">💬</span>
+                            Docker networking setup
+                            <span class="checkpoint-badge">🔀 1</span>
+                        </div>
+                        <div class="tree-item branch">
+                            <span class="tree-icon">🔀</span>
+                            Fork: Use host networking
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scene 5: Restore Confirmation -->
+            <div class="scene">
+                <div class="scene-title">Restore Checkpoint Confirmation</div>
+                <div class="scene-content" style="position: relative;">
+                    <div class="fork-modal">
+                        <div class="modal-title">⚠️ Restore Checkpoint?</div>
+
+                        <div style="font-size: 14px; color: #666; margin-bottom: 16px; line-height: 1.6;">
+                            This will restore the session to the state at <strong>2:34 PM (12 messages)</strong>.
+                            All messages and changes after this point will be moved to a new fork called:
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Archive Fork Name</label>
+                            <input type="text" class="form-input" value="Archived: After checkpoint 2:34 PM" />
+                        </div>
+
+                        <div style="background: #f8f9fa; padding: 12px; border-radius: 6px; margin-bottom: 16px;">
+                            <strong style="font-size: 13px;">What will happen:</strong>
+                            <ul style="margin: 8px 0 0 20px; font-size: 13px; color: #666;">
+                                <li>Session restored to 12 messages</li>
+                                <li>4 messages moved to archive fork</li>
+                                <li>File changes preserved in both versions</li>
+                            </ul>
+                        </div>
+
+                        <div class="modal-actions">
+                            <button class="btn btn-secondary">Cancel</button>
+                            <button class="btn btn-primary">Restore & Archive</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scene 6: Checkpoint Timeline View -->
+            <div class="scene">
+                <div class="scene-title">Checkpoint Timeline</div>
+                <div class="scene-content">
+                    <div style="position: relative; padding-left: 40px;">
+                        <!-- Timeline Line -->
+                        <div style="position: absolute; left: 16px; top: 0; bottom: 0; width: 2px; background: #ddd;"></div>
+
+                        <!-- Timeline Items -->
+                        <div style="position: relative; margin-bottom: 20px;">
+                            <div style="position: absolute; left: -28px; width: 12px; height: 12px; background: #333; border-radius: 50%; top: 4px;"></div>
+                            <div style="font-size: 12px; color: #999; margin-bottom: 4px;">2:45 PM</div>
+                            <div style="font-size: 14px; font-weight: 500;">Current State</div>
+                            <div style="font-size: 12px; color: #666;">16 messages</div>
+                        </div>
+
+                        <div style="position: relative; margin-bottom: 20px;">
+                            <div style="position: absolute; left: -28px; width: 12px; height: 12px; background: #ffc107; border-radius: 50%; top: 4px;"></div>
+                            <div style="font-size: 12px; color: #999; margin-bottom: 4px;">2:34 PM</div>
+                            <div style="font-size: 14px; font-weight: 500;">🔀 Checkpoint: Auth Complete</div>
+                            <div style="font-size: 12px; color: #666;">12 messages • 2 forks</div>
+                        </div>
+
+                        <div style="position: relative; margin-bottom: 20px;">
+                            <div style="position: absolute; left: -28px; width: 12px; height: 12px; background: #ffc107; border-radius: 50%; top: 4px;"></div>
+                            <div style="font-size: 12px; color: #999; margin-bottom: 4px;">2:18 PM</div>
+                            <div style="font-size: 14px; font-weight: 500;">🔀 Checkpoint: Initial Planning</div>
+                            <div style="font-size: 12px; color: #666;">5 messages</div>
+                        </div>
+
+                        <div style="position: relative;">
+                            <div style="position: absolute; left: -28px; width: 12px; height: 12px; background: #28a745; border-radius: 50%; top: 4px;"></div>
+                            <div style="font-size: 12px; color: #999; margin-bottom: 4px;">2:15 PM</div>
+                            <div style="font-size: 14px; font-weight: 500;">Session Start</div>
+                            <div style="font-size: 12px; color: #666;">0 messages</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div style="margin-top: 20px; padding: 20px; background: white; border-radius: 8px; max-width: 1400px; margin-left: auto; margin-right: auto;">
+        <h3 style="margin-bottom: 12px;">Session Forking & Checkpoint Features:</h3>
+        <ul style="line-height: 1.8; color: #333;">
+            <li><strong>Inline Checkpoint Markers:</strong> Click 🔀 icon in message flow to access options</li>
+            <li><strong>Fork from Checkpoint:</strong> Create new branch starting from that point in conversation</li>
+            <li><strong>Restore to Checkpoint:</strong> Roll back session, archiving newer messages as fork</li>
+            <li><strong>Sidebar Tree View:</strong> Parent sessions with nested forks (indented branches)</li>
+            <li><strong>Checkpoint Badge:</strong> Shows number of forks created from a session</li>
+            <li><strong>Fork Metadata:</strong> Name, description, starting point, creation timestamp</li>
+            <li><strong>Timeline View:</strong> Visual history of all checkpoints with message counts</li>
+            <li><strong>Safe Restore:</strong> Archives discarded messages instead of deleting</li>
+        </ul>
+
+        <h3 style="margin-top: 24px; margin-bottom: 12px;">Use Cases:</h3>
+        <ul style="line-height: 1.8; color: #333;">
+            <li>Try different implementation approaches without losing work</li>
+            <li>Explore "what if" scenarios mid-conversation</li>
+            <li>Compare multiple solutions to the same problem</li>
+            <li>Roll back when agent went down wrong path</li>
+            <li>Preserve successful intermediate states</li>
+        </ul>
+
+        <h3 style="margin-top: 24px; margin-bottom: 12px;">Technical Implementation:</h3>
+        <ul style="line-height: 1.8; color: #333;">
+            <li>Checkpoints stored as session state snapshots in PostgreSQL</li>
+            <li>Forked sessions share parent messages (copy-on-write)</li>
+            <li>File changes tracked separately for each fork</li>
+            <li>Restore creates archive fork to prevent data loss</li>
+        </ul>
+    </div>
+</body>
+</html>

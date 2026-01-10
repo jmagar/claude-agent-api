@@ -287,6 +287,35 @@ class TestSessionList:
         assert id2 in completed_ids
         assert id3 not in completed_ids
 
+    @pytest.mark.anyio
+    async def test_list_sessions_filter_by_owner_api_key(
+        self,
+        repository: SessionRepository,
+    ) -> None:
+        """Test filtering sessions by owner API key."""
+        owner_a = "owner-a"
+        owner_b = "owner-b"
+
+        id1 = uuid4()
+        id2 = uuid4()
+        id3 = uuid4()
+
+        await repository.create(id1, "sonnet", owner_api_key=owner_a)
+        await repository.create(id2, "sonnet", owner_api_key=owner_a)
+        await repository.create(id3, "sonnet", owner_api_key=owner_b)
+
+        sessions, total = await repository.list_sessions(
+            owner_api_key=owner_a,
+            limit=1000,
+        )
+
+        assert total >= 2
+        assert all(s.owner_api_key == owner_a for s in sessions)
+        found_ids = {s.id for s in sessions}
+        assert id1 in found_ids
+        assert id2 in found_ids
+        assert id3 not in found_ids
+
 
 class TestSessionMessages:
     """Tests for session message operations."""

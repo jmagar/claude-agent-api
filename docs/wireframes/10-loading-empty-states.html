@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wireframe: Loading & Empty States</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        .wireframe-container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .wireframe-header {
+            background: #333;
+            color: white;
+            padding: 15px 20px;
+            font-size: 18px;
+            font-weight: 600;
+            border-radius: 8px 8px 0 0;
+        }
+        .scene-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+            background: white;
+            border: 2px solid #333;
+            border-top: none;
+            padding: 20px;
+        }
+        .scene {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            overflow: hidden;
+            background: white;
+        }
+        .scene-title {
+            padding: 12px 16px;
+            background: #f5f5f5;
+            border-bottom: 1px solid #ddd;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        .scene-content {
+            padding: 20px;
+            min-height: 300px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Skeleton Loading Styles */
+        .skeleton {
+            background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+            background-size: 200% 100%;
+            animation: loading 1.5s ease-in-out infinite;
+            border-radius: 4px;
+        }
+        @keyframes loading {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+        .skeleton-header {
+            height: 48px;
+            margin-bottom: 12px;
+        }
+        .skeleton-line {
+            height: 16px;
+            margin-bottom: 8px;
+        }
+        .skeleton-line.short {
+            width: 60%;
+        }
+        .skeleton-line.medium {
+            width: 80%;
+        }
+        .skeleton-card {
+            height: 120px;
+            margin-bottom: 12px;
+            border-radius: 8px;
+        }
+        .skeleton-circle {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 12px;
+        }
+
+        /* Empty State Styles */
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 40px 20px;
+            height: 100%;
+        }
+        .empty-icon {
+            font-size: 64px;
+            margin-bottom: 16px;
+            opacity: 0.3;
+        }
+        .empty-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #333;
+        }
+        .empty-description {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 20px;
+            max-width: 400px;
+            line-height: 1.5;
+        }
+        .empty-action {
+            padding: 10px 20px;
+            background: #333;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+        .empty-action-secondary {
+            padding: 10px 20px;
+            background: white;
+            color: #333;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            font-weight: 500;
+            margin-left: 8px;
+        }
+
+        /* Spinner */
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f0f0f0;
+            border-top: 4px solid #333;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 16px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Sidebar Skeleton */
+        .sidebar-skeleton {
+            width: 280px;
+            background: #fafafa;
+            border-right: 1px solid #ddd;
+            padding: 16px;
+        }
+        .sidebar-skeleton-item {
+            height: 40px;
+            margin-bottom: 8px;
+        }
+
+        /* Message Skeleton */
+        .message-skeleton {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        .message-skeleton-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+        }
+        .message-skeleton-content {
+            flex: 1;
+        }
+    </style>
+</head>
+<body>
+    <div class="wireframe-container">
+        <div class="wireframe-header">
+            Wireframe: Loading & Empty States
+        </div>
+        <div class="scene-grid">
+            <!-- Scene 1: Loading Skeleton - Sidebar -->
+            <div class="scene">
+                <div class="scene-title">Loading: Session List</div>
+                <div class="scene-content" style="padding: 0; display: flex;">
+                    <div class="sidebar-skeleton">
+                        <div class="skeleton skeleton-header"></div>
+                        <div class="skeleton skeleton-sidebar-item"></div>
+                        <div class="skeleton skeleton-sidebar-item"></div>
+                        <div class="skeleton skeleton-sidebar-item"></div>
+                        <div class="skeleton skeleton-sidebar-item"></div>
+                        <div class="skeleton skeleton-sidebar-item"></div>
+                    </div>
+                    <div style="flex: 1; padding: 20px;">
+                        <div style="font-size: 13px; color: #666;">
+                            Loading sessions...
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scene 2: Loading Skeleton - Messages -->
+            <div class="scene">
+                <div class="scene-title">Loading: Chat Messages</div>
+                <div class="scene-content">
+                    <div class="message-skeleton">
+                        <div class="skeleton message-skeleton-avatar"></div>
+                        <div class="message-skeleton-content">
+                            <div class="skeleton skeleton-line"></div>
+                            <div class="skeleton skeleton-line medium"></div>
+                            <div class="skeleton skeleton-line short"></div>
+                        </div>
+                    </div>
+                    <div class="message-skeleton">
+                        <div class="skeleton message-skeleton-avatar"></div>
+                        <div class="message-skeleton-content">
+                            <div class="skeleton skeleton-line"></div>
+                            <div class="skeleton skeleton-line"></div>
+                        </div>
+                    </div>
+                    <div class="message-skeleton">
+                        <div class="skeleton message-skeleton-avatar"></div>
+                        <div class="message-skeleton-content">
+                            <div class="skeleton skeleton-card"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scene 3: Loading Spinner with Text -->
+            <div class="scene">
+                <div class="scene-title">Loading: Initial Load</div>
+                <div class="scene-content">
+                    <div class="empty-state">
+                        <div class="spinner"></div>
+                        <div class="empty-title">Loading...</div>
+                        <div class="empty-description">
+                            Connecting to Claude Agent API
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scene 4: Empty State - No Sessions -->
+            <div class="scene">
+                <div class="scene-title">Empty: No Sessions</div>
+                <div class="scene-content">
+                    <div class="empty-state">
+                        <div class="empty-icon">💬</div>
+                        <div class="empty-title">No conversations yet</div>
+                        <div class="empty-description">
+                            Start a new chat to get help with research, coding, or any other task. Your conversations will appear here.
+                        </div>
+                        <button class="empty-action">Start New Chat</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scene 5: Empty State - No Search Results -->
+            <div class="scene">
+                <div class="scene-title">Empty: No Search Results</div>
+                <div class="scene-content">
+                    <div class="empty-state">
+                        <div class="empty-icon">🔍</div>
+                        <div class="empty-title">No results found</div>
+                        <div class="empty-description">
+                            We couldn't find any sessions matching "postgres optimization". Try adjusting your search terms.
+                        </div>
+                        <button class="empty-action-secondary">Clear Search</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scene 6: Empty State - No MCP Servers -->
+            <div class="scene">
+                <div class="scene-title">Empty: No MCP Servers</div>
+                <div class="scene-content">
+                    <div class="empty-state">
+                        <div class="empty-icon">🔌</div>
+                        <div class="empty-title">No MCP servers configured</div>
+                        <div class="empty-description">
+                            Model Context Protocol servers extend Claude with custom tools and data sources. Add your first server to get started.
+                        </div>
+                        <button class="empty-action">Add MCP Server</button>
+                        <button class="empty-action-secondary">Learn More</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scene 7: Empty State - First Time User -->
+            <div class="scene">
+                <div class="scene-title">Empty: First-Time User Onboarding</div>
+                <div class="scene-content">
+                    <div class="empty-state">
+                        <div class="empty-icon">👋</div>
+                        <div class="empty-title">Welcome to Claude Code!</div>
+                        <div class="empty-description">
+                            Let's get you started. Enter your API key to begin using Claude for research, coding, and more.
+                        </div>
+                        <input type="password" placeholder="Enter your API key" style="width: 100%; max-width: 400px; padding: 10px 12px; border: 1px solid #ddd; border-radius: 6px; margin-bottom: 12px; font-size: 14px;" />
+                        <button class="empty-action">Get Started</button>
+                        <div style="margin-top: 16px; font-size: 12px; color: #666;">
+                            Don't have an API key? <a href="#" style="color: #007bff;">Get one here</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scene 8: Empty State - No Agents -->
+            <div class="scene">
+                <div class="scene-title">Empty: No Custom Agents</div>
+                <div class="scene-content">
+                    <div class="empty-state">
+                        <div class="empty-icon">🤖</div>
+                        <div class="empty-title">No custom agents yet</div>
+                        <div class="empty-description">
+                            Create specialized agents with custom system prompts, tools, and skills to streamline your workflows.
+                        </div>
+                        <button class="empty-action">Create Agent</button>
+                        <button class="empty-action-secondary">Browse Templates</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scene 9: Loading - Streaming Response -->
+            <div class="scene">
+                <div class="scene-title">Loading: Streaming Response</div>
+                <div class="scene-content">
+                    <div style="padding: 12px 16px; background: #f5f5f5; border-radius: 8px; border: 1px solid #ddd;">
+                        <div style="font-size: 11px; color: #666; margin-bottom: 4px; font-weight: 600;">Assistant</div>
+                        <div style="font-size: 14px; line-height: 1.5;">
+                            Based on my analysis of the codebase, I recommend the following optimizations<span class="skeleton" style="display: inline-block; width: 8px; height: 16px; margin-left: 4px; vertical-align: baseline;"></span>
+                        </div>
+                    </div>
+                    <div style="margin-top: 12px; font-size: 12px; color: #666;">
+                        Streaming tokens...
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scene 10: Loading - Tool Execution -->
+            <div class="scene">
+                <div class="scene-title">Loading: Tool Execution</div>
+                <div class="scene-content">
+                    <div style="border: 1px solid #ddd; border-radius: 8px; padding: 12px; background: #fffbf0; border-color: #ffc107;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <div style="font-weight: 600; font-size: 13px;">Read</div>
+                            <div style="font-size: 11px; padding: 2px 6px; background: #fff3cd; border-radius: 3px; color: #856404;">
+                                Running...
+                            </div>
+                        </div>
+                        <div style="font-size: 12px; color: #666; font-family: monospace;">
+                            File: apps/api/main.py
+                        </div>
+                        <div style="margin-top: 8px;">
+                            <div class="spinner" style="width: 20px; height: 20px; border-width: 2px;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scene 11: Empty State - No Projects (Code Mode) -->
+            <div class="scene">
+                <div class="scene-title">Empty: No Projects (Code Mode)</div>
+                <div class="scene-content">
+                    <div class="empty-state">
+                        <div class="empty-icon">📁</div>
+                        <div class="empty-title">No projects yet</div>
+                        <div class="empty-description">
+                            Switch to Code mode and create your first project to start building with filesystem access.
+                        </div>
+                        <button class="empty-action">Create Project</button>
+                        <button class="empty-action-secondary">Back to Brainstorm</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scene 12: Error State - Connection Failed -->
+            <div class="scene">
+                <div class="scene-title">Error: Connection Failed</div>
+                <div class="scene-content">
+                    <div class="empty-state">
+                        <div class="empty-icon">⚠️</div>
+                        <div class="empty-title">Connection Failed</div>
+                        <div class="empty-description">
+                            Unable to connect to Claude Agent API. Please check your internet connection and API key.
+                        </div>
+                        <button class="empty-action">Retry Connection</button>
+                        <button class="empty-action-secondary">Check Settings</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div style="margin-top: 20px; padding: 20px; background: white; border-radius: 8px; max-width: 1400px; margin-left: auto; margin-right: auto;">
+        <h3 style="margin-bottom: 12px;">Loading & Empty State Patterns:</h3>
+        <ul style="line-height: 1.8; color: #333;">
+            <li><strong>Skeleton Screens:</strong> Animated placeholders for session list, messages, and content areas</li>
+            <li><strong>Spinners:</strong> Circular loading indicators for initial load and tool execution</li>
+            <li><strong>Streaming Indicators:</strong> Blinking cursor/skeleton for live token streaming</li>
+            <li><strong>Empty States:</strong> Friendly messages with clear CTAs for:
+                <ul style="margin-left: 20px; margin-top: 8px;">
+                    <li>No sessions (first-time user)</li>
+                    <li>No search results</li>
+                    <li>No MCP servers configured</li>
+                    <li>No custom agents</li>
+                    <li>No projects in Code mode</li>
+                </ul>
+            </li>
+            <li><strong>Error States:</strong> Connection failures with retry/settings actions</li>
+            <li><strong>Onboarding:</strong> First-time user flow with API key input</li>
+        </ul>
+
+        <h3 style="margin-top: 24px; margin-bottom: 12px;">Design Principles:</h3>
+        <ul style="line-height: 1.8; color: #333;">
+            <li>Use skeleton screens for predictable content structure (lists, messages)</li>
+            <li>Use spinners for indeterminate loading (initial connection)</li>
+            <li>Empty states should be friendly, informative, and actionable</li>
+            <li>All empty states include primary CTA + optional secondary action</li>
+            <li>Error states distinguish between user error (API key) and system error (connection)</li>
+        </ul>
+    </div>
+</body>
+</html>

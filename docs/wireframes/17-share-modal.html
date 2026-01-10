@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wireframe: Share URL Generation Modal</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        .wireframe-container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .wireframe-header {
+            background: #333;
+            color: white;
+            padding: 15px 20px;
+            font-size: 18px;
+            font-weight: 600;
+            border-radius: 8px 8px 0 0;
+        }
+        .scene-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+            background: white;
+            border: 2px solid #333;
+            border-top: none;
+            padding: 20px;
+        }
+        .scene {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            overflow: hidden;
+            background: white;
+        }
+        .scene-title {
+            padding: 12px 16px;
+            background: #f5f5f5;
+            border-bottom: 1px solid #ddd;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        .scene-content {
+            padding: 20px;
+            min-height: 350px;
+            position: relative;
+        }
+        .share-modal {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+            max-width: 500px;
+            margin: 0 auto;
+        }
+        .modal-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid #ddd;
+        }
+        .modal-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        .modal-subtitle {
+            font-size: 13px;
+            color: #666;
+        }
+        .modal-body {
+            padding: 24px;
+        }
+        .share-options {
+            margin-bottom: 20px;
+        }
+        .checkbox-option {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .checkbox-option:hover {
+            background: #f8f9fa;
+            border-color: #999;
+        }
+        .checkbox-option.important {
+            background: #fff3cd;
+            border-color: #ffc107;
+        }
+        .checkbox {
+            width: 18px;
+            height: 18px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+        .checkbox.checked {
+            background: #333;
+            border-color: #333;
+        }
+        .option-content {
+            flex: 1;
+        }
+        .option-title {
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 2px;
+        }
+        .option-description {
+            font-size: 12px;
+            color: #666;
+        }
+        .url-section {
+            margin-bottom: 20px;
+        }
+        .url-label {
+            font-size: 13px;
+            font-weight: 500;
+            margin-bottom: 8px;
+            display: block;
+        }
+        .url-input-group {
+            display: flex;
+            gap: 8px;
+        }
+        .url-input {
+            flex: 1;
+            padding: 10px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 13px;
+            font-family: monospace;
+            background: #f8f9fa;
+        }
+        .btn {
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            font-weight: 500;
+            border: none;
+            white-space: nowrap;
+        }
+        .btn-copy {
+            background: #007bff;
+            color: white;
+        }
+        .btn-secondary {
+            background: white;
+            border: 1px solid #ddd;
+            color: #333;
+        }
+        .btn-primary {
+            background: #333;
+            color: white;
+        }
+        .share-actions {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+        .action-btn {
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            background: white;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s ease;
+        }
+        .action-btn:hover {
+            background: #f8f9fa;
+            border-color: #999;
+        }
+        .action-icon {
+            font-size: 24px;
+        }
+        .action-label {
+            font-size: 13px;
+            font-weight: 500;
+        }
+        .modal-footer {
+            padding: 16px 24px;
+            border-top: 1px solid #ddd;
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+        }
+        .info-box {
+            padding: 12px;
+            background: #e8f4ff;
+            border: 1px solid #b3d9ff;
+            border-radius: 6px;
+            font-size: 13px;
+            color: #0c5460;
+            margin-bottom: 16px;
+        }
+        .warning-box {
+            padding: 12px;
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 6px;
+            font-size: 13px;
+            color: #856404;
+            margin-top: 16px;
+        }
+        .success-message {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px;
+            background: #d4edda;
+            border: 1px solid #28a745;
+            border-radius: 6px;
+            font-size: 14px;
+            color: #155724;
+            margin-bottom: 16px;
+        }
+        .preview-section {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #e5e5e5;
+        }
+        .preview-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #666;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+        .preview-card {
+            padding: 12px;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            font-size: 13px;
+        }
+        .preview-title {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        .preview-description {
+            color: #666;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="wireframe-container">
+        <div class="wireframe-header">
+            Wireframe: Share URL Generation Modal
+        </div>
+        <div class="scene-grid">
+            <!-- Scene 1: Initial Share Modal -->
+            <div class="scene">
+                <div class="scene-title">Initial Share Modal (Agent)</div>
+                <div class="scene-content">
+                    <div class="share-modal">
+                        <div class="modal-header">
+                            <div class="modal-title">Share Agent</div>
+                            <div class="modal-subtitle">code-reviewer</div>
+                        </div>
+
+                        <div class="modal-body">
+                            <div class="info-box">
+                                ℹ️ Share a view-only link to this agent configuration
+                            </div>
+
+                            <div class="share-options">
+                                <div class="checkbox-option important">
+                                    <div class="checkbox checked"></div>
+                                    <div class="option-content">
+                                        <div class="option-title">Sanitize credentials</div>
+                                        <div class="option-description">Remove API keys, tokens, and secrets before sharing</div>
+                                    </div>
+                                </div>
+
+                                <div class="checkbox-option">
+                                    <div class="checkbox checked"></div>
+                                    <div class="option-content">
+                                        <div class="option-title">Include system prompt</div>
+                                        <div class="option-description">Share the full markdown instructions</div>
+                                    </div>
+                                </div>
+
+                                <div class="checkbox-option">
+                                    <div class="checkbox"></div>
+                                    <div class="option-content">
+                                        <div class="option-title">Allow forks</div>
+                                        <div class="option-description">Let others copy and modify this configuration</div>
+                                    </div>
+                                </div>
+
+                                <div class="checkbox-option">
+                                    <div class="checkbox"></div>
+                                    <div class="option-content">
+                                        <div class="option-title">Expiration (7 days)</div>
+                                        <div class="option-description">Automatically delete share link after 7 days</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="modal-footer">
+                            <button class="btn btn-secondary">Cancel</button>
+                            <button class="btn btn-primary">Generate Link</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scene 2: Link Generated -->
+            <div class="scene">
+                <div class="scene-title">Link Generated (Success)</div>
+                <div class="scene-content">
+                    <div class="share-modal">
+                        <div class="modal-header">
+                            <div class="modal-title">Share Agent</div>
+                            <div class="modal-subtitle">code-reviewer</div>
+                        </div>
+
+                        <div class="modal-body">
+                            <div class="success-message">
+                                <span>✓</span>
+                                <span>Shareable link generated!</span>
+                            </div>
+
+                            <div class="url-section">
+                                <label class="url-label">Share URL</label>
+                                <div class="url-input-group">
+                                    <input type="text" class="url-input" value="https://app.example.com/share/agents/code-reviewer-a3f8c2" readonly />
+                                    <button class="btn btn-copy">Copy</button>
+                                </div>
+                            </div>
+
+                            <div class="share-actions">
+                                <div class="action-btn">
+                                    <div class="action-icon">📋</div>
+                                    <div class="action-label">Copy Link</div>
+                                </div>
+                                <div class="action-btn">
+                                    <div class="action-icon">📥</div>
+                                    <div class="action-label">Download .md</div>
+                                </div>
+                                <div class="action-btn">
+                                    <div class="action-icon">📄</div>
+                                    <div class="action-label">Copy Content</div>
+                                </div>
+                                <div class="action-btn">
+                                    <div class="action-icon">👁️</div>
+                                    <div class="action-label">Preview</div>
+                                </div>
+                            </div>
+
+                            <div class="warning-box">
+                                ⚠️ Anyone with this link can view the agent configuration. Credentials have been sanitized.
+                            </div>
+                        </div>
+
+                        <div class="modal-footer">
+                            <button class="btn btn-primary">Done</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scene 3: MCP Config Share -->
+            <div class="scene">
+                <div class="scene-title">Share MCP Config (With Warnings)</div>
+                <div class="scene-content">
+                    <div class="share-modal">
+                        <div class="modal-header">
+                            <div class="modal-title">Share MCP Server</div>
+                            <div class="modal-subtitle">mcp-postgres</div>
+                        </div>
+
+                        <div class="modal-body">
+                            <div class="warning-box" style="margin-bottom: 16px;">
+                                ⚠️ <strong>Credentials detected!</strong> This configuration contains sensitive information that will be sanitized before sharing.
+                            </div>
+
+                            <div class="preview-section">
+                                <div class="preview-label">What Will Be Shared</div>
+                                <div class="preview-card">
+                                    <div class="preview-title">Included:</div>
+                                    <div class="preview-description">
+                                        • Server name and type<br>
+                                        • Command and arguments structure<br>
+                                        • Tool descriptions
+                                    </div>
+                                </div>
+                                <div class="preview-card" style="margin-top: 8px;">
+                                    <div class="preview-title">Sanitized:</div>
+                                    <div class="preview-description">
+                                        • Database connection strings<br>
+                                        • API keys and tokens<br>
+                                        • Environment variables with secrets
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="share-options" style="margin-top: 16px;">
+                                <div class="checkbox-option important">
+                                    <div class="checkbox checked"></div>
+                                    <div class="option-content">
+                                        <div class="option-title">Sanitize credentials (Required)</div>
+                                        <div class="option-description">Cannot be disabled for security</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="modal-footer">
+                            <button class="btn btn-secondary">Cancel</button>
+                            <button class="btn btn-primary">Generate Link</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scene 4: Session Share -->
+            <div class="scene">
+                <div class="scene-title">Share Session (Conversation)</div>
+                <div class="scene-content">
+                    <div class="share-modal">
+                        <div class="modal-header">
+                            <div class="modal-title">Share Session</div>
+                            <div class="modal-subtitle">Add authentication middleware</div>
+                        </div>
+
+                        <div class="modal-body">
+                            <div class="info-box">
+                                ℹ️ Share this conversation as a read-only link
+                            </div>
+
+                            <div class="share-options">
+                                <div class="checkbox-option">
+                                    <div class="checkbox checked"></div>
+                                    <div class="option-content">
+                                        <div class="option-title">Include thinking blocks</div>
+                                        <div class="option-description">Show agent's reasoning process</div>
+                                    </div>
+                                </div>
+
+                                <div class="checkbox-option">
+                                    <div class="checkbox checked"></div>
+                                    <div class="option-content">
+                                        <div class="option-title">Include tool calls</div>
+                                        <div class="option-description">Show all tool executions and results</div>
+                                    </div>
+                                </div>
+
+                                <div class="checkbox-option">
+                                    <div class="checkbox"></div>
+                                    <div class="option-content">
+                                        <div class="option-title">Include subagent activity</div>
+                                        <div class="option-description">Show nested subagent executions</div>
+                                    </div>
+                                </div>
+
+                                <div class="checkbox-option important">
+                                    <div class="checkbox checked"></div>
+                                    <div class="option-content">
+                                        <div class="option-title">Sanitize sensitive data</div>
+                                        <div class="option-description">Remove API keys, passwords, tokens from messages</div>
+                                    </div>
+                                </div>
+
+                                <div class="checkbox-option">
+                                    <div class="checkbox"></div>
+                                    <div class="option-content">
+                                        <div class="option-title">Password protect</div>
+                                        <div class="option-description">Require password to view</div>
+                                    </div>
+                                </div>
+
+                                <div class="checkbox-option">
+                                    <div class="checkbox checked"></div>
+                                    <div class="option-content">
+                                        <div class="option-title">Expiration (30 days)</div>
+                                        <div class="option-description">Link expires after 30 days</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="modal-footer">
+                            <button class="btn btn-secondary">Cancel</button>
+                            <button class="btn btn-primary">Generate Link</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div style="margin-top: 20px; padding: 20px; background: white; border-radius: 8px; max-width: 1400px; margin-left: auto; margin-right: auto;">
+        <h3 style="margin-bottom: 12px;">Share URL Generation Features:</h3>
+        <ul style="line-height: 1.8; color: #333;">
+            <li><strong>Shareable Content:</strong> Agents, skills, slash commands, MCP configs, sessions</li>
+            <li><strong>Credential Sanitization:</strong> Automatically removes API keys, tokens, passwords</li>
+            <li><strong>View-Only Links:</strong> Recipients can view but not edit (unless "Allow forks" enabled)</li>
+            <li><strong>Download Options:</strong> Copy link, download .md/.json, copy raw content</li>
+            <li><strong>Privacy Controls:</strong> Optional password protection, expiration dates</li>
+            <li><strong>Content Options:</strong> Include/exclude thinking blocks, tool calls, subagents</li>
+            <li><strong>Preview:</strong> Shows exactly what will be shared before generating link</li>
+            <li><strong>Security Warnings:</strong> Alerts when credentials detected, requires sanitization</li>
+        </ul>
+
+        <h3 style="margin-top: 24px; margin-bottom: 12px;">Use Cases:</h3>
+        <ul style="line-height: 1.8; color: #333;">
+            <li>Share agent configurations with teammates</li>
+            <li>Distribute MCP server setups (with sanitized credentials)</li>
+            <li>Share conversation examples for documentation</li>
+            <li>Create public library of reusable configs</li>
+            <li>Export sessions for troubleshooting/support</li>
+        </ul>
+
+        <h3 style="margin-top: 24px; margin-bottom: 12px;">Security Features:</h3>
+        <ul style="line-height: 1.8; color: #333;">
+            <li>Credential sanitization mandatory for MCP configs</li>
+            <li>Pattern matching for common secret formats (API keys, tokens, passwords)</li>
+            <li>Preview shows exactly what will be shared</li>
+            <li>Optional password protection for sensitive sessions</li>
+            <li>Expiration dates to limit link lifetime</li>
+        </ul>
+    </div>
+</body>
+</html>
