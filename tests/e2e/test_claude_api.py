@@ -63,23 +63,33 @@ async def test_real_claude_query(
     """
     session_id: str | None = None
     interrupt_sent = False
+    saw_message = False
 
     async def on_stream_event(event: str, data: dict[str, object]) -> None:
-        nonlocal session_id, interrupt_sent
-        if event != "init" or session_id is not None:
+        nonlocal session_id, interrupt_sent, saw_message
+        if event == "error":
+            raise AssertionError(f"Streaming query failed: {data!r}")
+
+        if event == "init" and session_id is None:
+            session_id_value = data.get("session_id")
+            if isinstance(session_id_value, str):
+                session_id = session_id_value
             return
 
-        session_id_value = data.get("session_id")
-        if not isinstance(session_id_value, str):
-            return
+        if event == "message":
+            saw_message = True
 
-        session_id = session_id_value
-        interrupt_response = await async_client.post(
-            f"/api/v1/sessions/{session_id}/interrupt",
-            headers=auth_headers,
-        )
-        assert interrupt_response.status_code == 200
-        interrupt_sent = True
+        if (
+            event == "message"
+            and session_id is not None
+            and not interrupt_sent
+        ):
+            interrupt_response = await async_client.post(
+                f"/api/v1/sessions/{session_id}/interrupt",
+                headers=auth_headers,
+            )
+            assert interrupt_response.status_code == 200
+            interrupt_sent = True
 
     async with async_client.stream(
         "POST",
@@ -92,10 +102,15 @@ async def test_real_claude_query(
 
     assert interrupt_sent
     assert session_id is not None
+    assert saw_message
     assert any(event["event"] == "init" for event in events)
     assert any(event["event"] == "message" for event in events)
     assert any(event["event"] == "result" for event in events)
     assert any(event["event"] == "done" for event in events)
+    done_event = next(
+        event for event in events if event["event"] == "done"
+    )
+    assert done_event["data"].get("reason") == "interrupted"
 
     single_response = await async_client.post(
         "/api/v1/query/single",
