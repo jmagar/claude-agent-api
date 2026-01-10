@@ -35,6 +35,9 @@ const localStorageMock = {
 
 global.localStorage = localStorageMock;
 
+// Mock scrollIntoView for MessageList
+Element.prototype.scrollIntoView = jest.fn();
+
 // Reset mocks before each test
 beforeEach(() => {
   localStorageMock.getItem.mockClear();
