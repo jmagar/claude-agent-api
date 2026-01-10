@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Frontend AI Chat Interface - Wireframes</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #f5f5f5;
+            padding: 40px 20px;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        .header {
+            background: linear-gradient(135deg, #333 0%, #555 100%);
+            color: white;
+            padding: 48px 40px;
+        }
+        .header h1 {
+            font-size: 36px;
+            margin-bottom: 12px;
+        }
+        .header p {
+            font-size: 18px;
+            opacity: 0.9;
+        }
+        .content {
+            padding: 40px;
+        }
+        .intro {
+            margin-bottom: 40px;
+            padding-bottom: 32px;
+            border-bottom: 2px solid #e5e5e5;
+        }
+        .intro h2 {
+            font-size: 24px;
+            margin-bottom: 16px;
+            color: #333;
+        }
+        .intro p {
+            font-size: 16px;
+            color: #666;
+            margin-bottom: 12px;
+        }
+        .wireframe-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 24px;
+            margin-bottom: 40px;
+        }
+        .wireframe-card {
+            border: 2px solid #e5e5e5;
+            border-radius: 12px;
+            overflow: hidden;
+            transition: all 0.2s ease;
+            background: white;
+        }
+        .wireframe-card:hover {
+            border-color: #333;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+            transform: translateY(-2px);
+        }
+        .wireframe-thumbnail {
+            height: 200px;
+            background: linear-gradient(135deg, #f5f5f5 0%, #e5e5e5 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 48px;
+            border-bottom: 2px solid #e5e5e5;
+        }
+        .wireframe-info {
+            padding: 20px;
+        }
+        .wireframe-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #333;
+        }
+        .wireframe-description {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 16px;
+            line-height: 1.5;
+        }
+        .wireframe-link {
+            display: inline-block;
+            padding: 10px 20px;
+            background: #333;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            transition: background 0.2s ease;
+        }
+        .wireframe-link:hover {
+            background: #555;
+        }
+        .feature-section {
+            margin-top: 48px;
+            padding-top: 32px;
+            border-top: 2px solid #e5e5e5;
+        }
+        .feature-section h2 {
+            font-size: 24px;
+            margin-bottom: 24px;
+            color: #333;
+        }
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 20px;
+        }
+        .feature-item {
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #333;
+        }
+        .feature-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #333;
+        }
+        .feature-description {
+            font-size: 14px;
+            color: #666;
+            line-height: 1.5;
+        }
+        .tech-stack {
+            margin-top: 48px;
+            padding-top: 32px;
+            border-top: 2px solid #e5e5e5;
+        }
+        .tech-stack h2 {
+            font-size: 24px;
+            margin-bottom: 24px;
+            color: #333;
+        }
+        .tech-badges {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+        .tech-badge {
+            padding: 8px 16px;
+            background: #333;
+            color: white;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        .footer {
+            margin-top: 48px;
+            padding-top: 32px;
+            border-top: 2px solid #e5e5e5;
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Frontend AI Chat Interface</h1>
+            <p>Interactive wireframes for a beautiful, modern AI assistant powered by Claude Agent SDK</p>
+        </div>
+
+        <div class="content">
+            <div class="intro">
+                <h2>Overview</h2>
+                <p>
+                    These wireframes demonstrate the complete user interface design for an AI chat assistant with full Claude Agent SDK feature parity.
+                    The design emphasizes visual clarity, configurability, and a powerful yet intuitive developer experience.
+                </p>
+                <p>
+                    Built with Next.js 15+, React 19+, shadcn/ui, and Assistant UI for chat primitives. Mobile-first responsive design with touch-optimized controls.
+                </p>
+            </div>
+
+            <h2 style="margin-bottom: 24px; font-size: 28px; color: #333;">Wireframes</h2>
+
+            <div class="wireframe-grid">
+                <!-- Wireframe 1 -->
+                <div class="wireframe-card">
+                    <div class="wireframe-thumbnail">💬</div>
+                    <div class="wireframe-info">
+                        <div class="wireframe-title">Chat Interface - Brainstorm Mode</div>
+                        <div class="wireframe-description">
+                            Main chat view for research and planning. Features date-grouped sidebar, threaded execution visualization, and tool badges.
+                        </div>
+                        <a href="01-chat-brainstorm-mode.html" class="wireframe-link">View Wireframe →</a>
+                    </div>
+                </div>
+
+                <!-- Wireframe 2 -->
+                <div class="wireframe-card">
+                    <div class="wireframe-thumbnail">⚙️</div>
+                    <div class="wireframe-info">
+                        <div class="wireframe-title">Chat Interface - Code Mode</div>
+                        <div class="wireframe-description">
+                            Project-based development view with workspace access. Includes project picker, filesystem tools, and checkpoint markers.
+                        </div>
+                        <a href="02-chat-code-mode.html" class="wireframe-link">View Wireframe →</a>
+                    </div>
+                </div>
+
+                <!-- Wireframe 3 -->
+                <div class="wireframe-card">
+                    <div class="wireframe-thumbnail">🛠️</div>
+                    <div class="wireframe-info">
+                        <div class="wireframe-title">Tool Management Modal</div>
+                        <div class="wireframe-description">
+                            Granular tool control with MCP server grouping, presets, and individual toggles. Search and filter available tools.
+                        </div>
+                        <a href="03-tool-management-modal.html" class="wireframe-link">View Wireframe →</a>
+                    </div>
+                </div>
+
+                <!-- Wireframe 4 -->
+                <div class="wireframe-card">
+                    <div class="wireframe-thumbnail">🔍</div>
+                    <div class="wireframe-info">
+                        <div class="wireframe-title">Autocomplete Menu</div>
+                        <div class="wireframe-description">
+                            Universal @ and / autocomplete for agents, MCP servers, tools, resources, files, skills, and commands. Real-time filtering.
+                        </div>
+                        <a href="04-autocomplete-menu.html" class="wireframe-link">View Wireframe →</a>
+                    </div>
+                </div>
+
+                <!-- Wireframe 5 -->
+                <div class="wireframe-card">
+                    <div class="wireframe-thumbnail">✅</div>
+                    <div class="wireframe-info">
+                        <div class="wireframe-title">Tool Approval & Errors</div>
+                        <div class="wireframe-description">
+                            Inline blocking approvals with detailed parameters. Error cards with stack traces and retry buttons. Permission modes explained.
+                        </div>
+                        <a href="05-tool-approval-and-errors.html" class="wireframe-link">View Wireframe →</a>
+                    </div>
+                </div>
+
+                <!-- Wireframe 6 -->
+                <div class="wireframe-card">
+                    <div class="wireframe-thumbnail">📱</div>
+                    <div class="wireframe-info">
+                        <div class="wireframe-title">Mobile Responsive Views</div>
+                        <div class="wireframe-description">
+                            Mobile-first design with hamburger menu, bottom navigation, full-screen composer, and simplified threading for small screens.
+                        </div>
+                        <a href="06-mobile-responsive.html" class="wireframe-link">View Wireframe →</a>
+                    </div>
+                </div>
+
+                <!-- Wireframe 7 -->
+                <div class="wireframe-card">
+                    <div class="wireframe-thumbnail">⌘</div>
+                    <div class="wireframe-info">
+                        <div class="wireframe-title">Command Palette (Cmd+K)</div>
+                        <div class="wireframe-description">
+                            Unified modal for commands and global search. Navigate sessions, agents, MCP servers, settings, and files with keyboard shortcuts.
+                        </div>
+                        <a href="07-command-palette.html" class="wireframe-link">View Wireframe →</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Key Features -->
+            <div class="feature-section">
+                <h2>Key Features</h2>
+                <div class="feature-grid">
+                    <div class="feature-item">
+                        <div class="feature-title">Two-Mode System</div>
+                        <div class="feature-description">
+                            Brainstorm mode for research/planning with date-grouped sidebar. Code mode for project work with filesystem access and project picker.
+                        </div>
+                    </div>
+
+                    <div class="feature-item">
+                        <div class="feature-title">Threaded Visualization</div>
+                        <div class="feature-description">
+                            Visual execution graph showing causal flow between messages, tool calls, thinking blocks, and subagents with connecting lines.
+                        </div>
+                    </div>
+
+                    <div class="feature-item">
+                        <div class="feature-title">Universal @ Autocomplete</div>
+                        <div class="feature-description">
+                            Mention anything: agents, MCP servers, tools, resources, files, skills, presets. Real-time search filtering with recently used items.
+                        </div>
+                    </div>
+
+                    <div class="feature-item">
+                        <div class="feature-title">Granular Tool Control</div>
+                        <div class="feature-description">
+                            Enable/disable tools individually or by MCP server group. Save tool configurations as reusable presets.
+                        </div>
+                    </div>
+
+                    <div class="feature-item">
+                        <div class="feature-title">PlateJS Integration</div>
+                        <div class="feature-description">
+                            Rich text editor for creating/editing agents, skills, slash commands, and MCP configs. Right-side slide-in for artifacts.
+                        </div>
+                    </div>
+
+                    <div class="feature-item">
+                        <div class="feature-title">Permissions Modes</div>
+                        <div class="feature-description">
+                            Plan Mode, Edit Automatically, Ask before Edits, YOLO. Configurable autonomy levels with inline approval flows.
+                        </div>
+                    </div>
+
+                    <div class="feature-item">
+                        <div class="feature-title">MCP Server Management</div>
+                        <div class="feature-description">
+                            Three access points: admin panel settings, inline /mcp commands, and @ menu integration for dynamic per-session usage.
+                        </div>
+                    </div>
+
+                    <div class="feature-item">
+                        <div class="feature-title">Mobile-First Design</div>
+                        <div class="feature-description">
+                            Touch-optimized controls, bottom navigation, full-screen composer, swipe gestures, and simplified threading on mobile.
+                        </div>
+                    </div>
+
+                    <div class="feature-item">
+                        <div class="feature-title">Sharing System</div>
+                        <div class="feature-description">
+                            Generate view-only shareable URLs for agents, skills, and MCP configs with automatic credential sanitization.
+                        </div>
+                    </div>
+
+                    <div class="feature-item">
+                        <div class="feature-title">Cmd+K Palette</div>
+                        <div class="feature-description">
+                            Unified command palette and global search across all entities. Keyboard-first navigation with categorized results.
+                        </div>
+                    </div>
+
+                    <div class="feature-item">
+                        <div class="feature-title">Checkpoint & Forking</div>
+                        <div class="feature-description">
+                            Inline checkpoint markers for branching sessions. Restore to previous states or fork into new conversation paths.
+                        </div>
+                    </div>
+
+                    <div class="feature-item">
+                        <div class="feature-title">Light & Dark Themes</div>
+                        <div class="feature-description">
+                            Toggle between light and dark modes. Syntax highlighting themes adjust automatically. Smooth theme transitions.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tech Stack -->
+            <div class="tech-stack">
+                <h2>Tech Stack</h2>
+                <div class="tech-badges">
+                    <div class="tech-badge">Next.js 15+</div>
+                    <div class="tech-badge">React 19+</div>
+                    <div class="tech-badge">TypeScript</div>
+                    <div class="tech-badge">shadcn/ui</div>
+                    <div class="tech-badge">Radix UI</div>
+                    <div class="tech-badge">Tailwind v4+</div>
+                    <div class="tech-badge">Assistant UI</div>
+                    <div class="tech-badge">PlateJS</div>
+                    <div class="tech-badge">TanStack Query</div>
+                    <div class="tech-badge">SSE Streaming</div>
+                    <div class="tech-badge">PostgreSQL</div>
+                    <div class="tech-badge">Redis</div>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="footer">
+                <p><strong>Design Document:</strong> <a href="../plans/2026-01-10-frontend-ai-chat-interface-design.md" style="color: #333;">2026-01-10-frontend-ai-chat-interface-design.md</a></p>
+                <p style="margin-top: 8px;">Created: January 10, 2026 • Claude Agent API Frontend Wireframes</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

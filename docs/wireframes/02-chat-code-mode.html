@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wireframe: Chat Interface - Code Mode</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        .wireframe-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border: 2px solid #333;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .wireframe-header {
+            background: #333;
+            color: white;
+            padding: 15px 20px;
+            font-size: 18px;
+            font-weight: 600;
+        }
+        .app-layout {
+            display: flex;
+            height: 800px;
+        }
+        .sidebar {
+            width: 280px;
+            border-right: 2px solid #ddd;
+            background: #fafafa;
+            display: flex;
+            flex-direction: column;
+        }
+        .sidebar-header {
+            padding: 16px;
+            border-bottom: 1px solid #ddd;
+        }
+        .mode-toggle {
+            display: flex;
+            gap: 8px;
+            background: #e5e5e5;
+            border-radius: 6px;
+            padding: 4px;
+        }
+        .mode-btn {
+            flex: 1;
+            padding: 8px;
+            border: 1px solid #999;
+            background: white;
+            border-radius: 4px;
+            text-align: center;
+            font-size: 12px;
+        }
+        .mode-btn.active {
+            background: #333;
+            color: white;
+            border-color: #333;
+        }
+        .sidebar-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px;
+        }
+        .project-group {
+            margin-bottom: 20px;
+        }
+        .project-header {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 8px;
+        }
+        .project-icon {
+            font-size: 14px;
+        }
+        .session-item {
+            padding: 12px;
+            padding-left: 24px;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            margin-bottom: 6px;
+            font-size: 13px;
+        }
+        .session-item.active {
+            border-color: #333;
+            background: #f0f0f0;
+        }
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        .chat-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid #ddd;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .chat-header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .project-picker {
+            padding: 6px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 13px;
+            background: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .chat-title {
+            font-weight: 600;
+            font-size: 16px;
+        }
+        .header-actions {
+            display: flex;
+            gap: 8px;
+        }
+        .icon-btn {
+            width: 32px;
+            height: 32px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+        .message {
+            margin-bottom: 24px;
+        }
+        .message-user {
+            display: flex;
+            justify-content: flex-end;
+        }
+        .message-bubble {
+            max-width: 70%;
+            padding: 12px 16px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+        }
+        .message-user .message-bubble {
+            background: #e8f4ff;
+            border-color: #b3d9ff;
+        }
+        .message-assistant .message-bubble {
+            background: #f5f5f5;
+        }
+        .message-label {
+            font-size: 11px;
+            color: #666;
+            margin-bottom: 4px;
+            font-weight: 600;
+        }
+        .message-content {
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        .connection-line {
+            width: 2px;
+            height: 12px;
+            background: #ccc;
+            margin-left: 40px;
+        }
+        .tool-card {
+            margin-top: 12px;
+            padding: 12px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            background: white;
+            margin-left: 20px;
+        }
+        .tool-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .tool-name {
+            font-weight: 600;
+            font-size: 13px;
+        }
+        .tool-status {
+            font-size: 11px;
+            padding: 2px 6px;
+            border-radius: 3px;
+            background: #d4edda;
+            color: #155724;
+        }
+        .tool-details {
+            font-size: 12px;
+            color: #666;
+            font-family: monospace;
+        }
+        .checkpoint-marker {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 8px;
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 4px;
+            font-size: 11px;
+            margin-top: 8px;
+            cursor: pointer;
+        }
+        .chat-input-area {
+            border-top: 1px solid #ddd;
+            padding: 16px 20px;
+        }
+        .input-controls {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+        .tool-badge {
+            padding: 6px 12px;
+            border: 1px solid #ddd;
+            border-radius: 20px;
+            font-size: 12px;
+            background: white;
+            cursor: pointer;
+        }
+        .permissions-chip {
+            padding: 6px 12px;
+            border: 1px solid #ddd;
+            border-radius: 20px;
+            font-size: 12px;
+            background: #f0f0f0;
+        }
+        .input-wrapper {
+            display: flex;
+            gap: 8px;
+            align-items: flex-end;
+        }
+        .attach-btn {
+            width: 40px;
+            height: 40px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            background: white;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .text-input {
+            flex: 1;
+            min-height: 40px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            padding: 10px 12px;
+            font-size: 14px;
+            resize: vertical;
+            background: white;
+        }
+        .send-btn {
+            width: 40px;
+            height: 40px;
+            background: #333;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 18px;
+        }
+    </style>
+</head>
+<body>
+    <div class="wireframe-container">
+        <div class="wireframe-header">
+            Wireframe: Chat Interface - Code Mode
+        </div>
+        <div class="app-layout">
+            <!-- Sidebar -->
+            <div class="sidebar">
+                <div class="sidebar-header">
+                    <div class="mode-toggle">
+                        <div class="mode-btn">Brainstorm</div>
+                        <div class="mode-btn active">Code</div>
+                    </div>
+                </div>
+                <div class="sidebar-content">
+                    <div class="project-group">
+                        <div class="project-header">
+                            <span class="project-icon">📁</span>
+                            claude-agent-api
+                        </div>
+                        <div class="session-item active">
+                            Add authentication middleware
+                        </div>
+                        <div class="session-item">
+                            Fix PostgreSQL connection pooling
+                        </div>
+                    </div>
+                    <div class="project-group">
+                        <div class="project-header">
+                            <span class="project-icon">📁</span>
+                            frontend-app
+                        </div>
+                        <div class="session-item">
+                            Implement dark mode toggle
+                        </div>
+                        <div class="session-item">
+                            Create user settings page
+                        </div>
+                    </div>
+                    <div class="project-group">
+                        <div class="project-header">
+                            <span class="project-icon">📁</span>
+                            microservices-demo
+                        </div>
+                        <div class="session-item">
+                            Docker networking setup
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Content -->
+            <div class="main-content">
+                <div class="chat-header">
+                    <div class="chat-header-left">
+                        <div class="project-picker">
+                            📁 claude-agent-api ▾
+                        </div>
+                        <div class="chat-title">Add authentication middleware</div>
+                    </div>
+                    <div class="header-actions">
+                        <div class="icon-btn" title="Settings">⚙</div>
+                        <div class="icon-btn" title="Search">🔍</div>
+                    </div>
+                </div>
+
+                <div class="chat-messages">
+                    <!-- User Message -->
+                    <div class="message message-user">
+                        <div class="message-bubble">
+                            <div class="message-label">You</div>
+                            <div class="message-content">
+                                Add JWT authentication middleware to protect our API routes
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Assistant Message with Tool Calls -->
+                    <div class="message message-assistant">
+                        <div class="message-bubble">
+                            <div class="message-label">Assistant</div>
+                            <div class="message-content">
+                                I'll add JWT authentication middleware. Let me first check the current middleware structure.
+                            </div>
+                        </div>
+
+                        <!-- Connection Line -->
+                        <div class="connection-line"></div>
+
+                        <!-- Tool Card: Read -->
+                        <div class="tool-card">
+                            <div class="tool-card-header">
+                                <div class="tool-name">Read</div>
+                                <div class="tool-status">✓ Success</div>
+                            </div>
+                            <div class="tool-details">
+                                File: apps/api/middleware/__init__.py<br>
+                                Lines: 25
+                            </div>
+                        </div>
+
+                        <!-- Connection Line -->
+                        <div class="connection-line"></div>
+
+                        <!-- Tool Card: Write -->
+                        <div class="tool-card">
+                            <div class="tool-card-header">
+                                <div class="tool-name">Write</div>
+                                <div class="tool-status">✓ Success</div>
+                            </div>
+                            <div class="tool-details">
+                                File: apps/api/middleware/auth.py<br>
+                                Created new file
+                            </div>
+                        </div>
+
+                        <!-- Connection Line -->
+                        <div class="connection-line"></div>
+
+                        <!-- Response Bubble -->
+                        <div class="message-bubble" style="margin-top: 12px;">
+                            <div class="message-content">
+                                I've created JWT authentication middleware in <code>apps/api/middleware/auth.py</code>. The middleware validates tokens and attaches user info to requests.
+                            </div>
+                            <div class="checkpoint-marker">
+                                🔀 Checkpoint
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="chat-input-area">
+                    <div class="input-controls">
+                        <div class="tool-badge">🛠 8</div>
+                        <div class="permissions-chip">Ask before Edits</div>
+                    </div>
+                    <div class="input-wrapper">
+                        <div class="attach-btn">📎</div>
+                        <textarea class="text-input" placeholder="Type / for commands, @ to mention..."></textarea>
+                        <button class="send-btn">↑</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div style="margin-top: 20px; padding: 20px; background: white; border-radius: 8px; max-width: 1400px; margin-left: auto; margin-right: auto;">
+        <h3 style="margin-bottom: 12px;">Key Features Shown:</h3>
+        <ul style="line-height: 1.8; color: #333;">
+            <li><strong>Mode Toggle:</strong> Code mode is active (highlighted)</li>
+            <li><strong>Project-Grouped Sessions:</strong> Sidebar groups by project folders</li>
+            <li><strong>Project Picker:</strong> Inline dropdown in header showing current project (claude-agent-api)</li>
+            <li><strong>Filesystem Access:</strong> Tool cards show Read and Write operations on actual files</li>
+            <li><strong>Checkpoint Marker:</strong> Inline branch icon for forking/restoring sessions</li>
+            <li><strong>Permissions Chip:</strong> Set to "Ask before Edits" for safer code changes</li>
+        </ul>
+    </div>
+</body>
+</html>

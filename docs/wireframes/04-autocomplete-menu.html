@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wireframe: Autocomplete Menu</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        .wireframe-container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .wireframe-header {
+            background: #333;
+            color: white;
+            padding: 15px 20px;
+            font-size: 18px;
+            font-weight: 600;
+            border-radius: 8px 8px 0 0;
+        }
+        .scene-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            background: white;
+            border: 2px solid #333;
+            border-top: none;
+            padding: 20px;
+        }
+        .scene {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            overflow: hidden;
+            background: white;
+        }
+        .scene-title {
+            padding: 12px 16px;
+            background: #f5f5f5;
+            border-bottom: 1px solid #ddd;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        .scene-content {
+            padding: 20px;
+            position: relative;
+            min-height: 300px;
+        }
+        .input-area {
+            position: relative;
+        }
+        .text-input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #333;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: inherit;
+        }
+        .input-text {
+            color: #333;
+        }
+        .cursor {
+            display: inline-block;
+            width: 2px;
+            height: 16px;
+            background: #333;
+            margin-left: 2px;
+            animation: blink 1s infinite;
+        }
+        @keyframes blink {
+            50% { opacity: 0; }
+        }
+        .autocomplete-dropdown {
+            position: absolute;
+            top: calc(100% + 4px);
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            max-height: 300px;
+            overflow-y: auto;
+            z-index: 100;
+        }
+        .autocomplete-header {
+            padding: 8px 12px;
+            background: #f9f9f9;
+            border-bottom: 1px solid #eee;
+            font-size: 11px;
+            color: #666;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+        .autocomplete-item {
+            padding: 10px 12px;
+            cursor: pointer;
+            border-bottom: 1px solid #f0f0f0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .autocomplete-item:hover, .autocomplete-item.selected {
+            background: #f5f5f5;
+        }
+        .autocomplete-item:last-child {
+            border-bottom: none;
+        }
+        .item-icon {
+            font-size: 16px;
+            width: 24px;
+            text-align: center;
+        }
+        .item-content {
+            flex: 1;
+        }
+        .item-name {
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 2px;
+        }
+        .item-description {
+            font-size: 12px;
+            color: #666;
+        }
+        .item-category {
+            font-size: 11px;
+            padding: 2px 6px;
+            background: #e5e5e5;
+            border-radius: 4px;
+            color: #666;
+        }
+        .autocomplete-footer {
+            padding: 8px 12px;
+            background: #f9f9f9;
+            border-top: 1px solid #eee;
+            font-size: 11px;
+            color: #999;
+            display: flex;
+            gap: 12px;
+        }
+        .shortcut-hint {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .kbd {
+            padding: 2px 6px;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            font-size: 10px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="wireframe-container">
+        <div class="wireframe-header">
+            Wireframe: Autocomplete Menu (@ and / triggers)
+        </div>
+        <div class="scene-grid">
+            <!-- Scene 1: @ Autocomplete -->
+            <div class="scene">
+                <div class="scene-title">@ Autocomplete (Universal)</div>
+                <div class="scene-content">
+                    <div class="input-area">
+                        <div class="text-input">
+                            <span class="input-text">Use @<span class="cursor"></span></span>
+                        </div>
+                        <div class="autocomplete-dropdown">
+                            <div class="autocomplete-header">Recently Used</div>
+                            <div class="autocomplete-item selected">
+                                <div class="item-icon">🤖</div>
+                                <div class="item-content">
+                                    <div class="item-name">code-reviewer</div>
+                                    <div class="item-description">Reviews code for best practices</div>
+                                </div>
+                                <div class="item-category">Agent</div>
+                            </div>
+                            <div class="autocomplete-item">
+                                <div class="item-icon">🔌</div>
+                                <div class="item-content">
+                                    <div class="item-name">mcp-postgres</div>
+                                    <div class="item-description">PostgreSQL database tools</div>
+                                </div>
+                                <div class="item-category">MCP Server</div>
+                            </div>
+
+                            <div class="autocomplete-header">All Suggestions</div>
+                            <div class="autocomplete-item">
+                                <div class="item-icon">⚙️</div>
+                                <div class="item-content">
+                                    <div class="item-name">mcp__postgres__query</div>
+                                    <div class="item-description">Execute SQL queries</div>
+                                </div>
+                                <div class="item-category">MCP Tool</div>
+                            </div>
+                            <div class="autocomplete-item">
+                                <div class="item-icon">📄</div>
+                                <div class="item-content">
+                                    <div class="item-name">README.md</div>
+                                    <div class="item-description">Project documentation</div>
+                                </div>
+                                <div class="item-category">File</div>
+                            </div>
+                            <div class="autocomplete-item">
+                                <div class="item-icon">✨</div>
+                                <div class="item-content">
+                                    <div class="item-name">debugging</div>
+                                    <div class="item-description">Systematic debugging workflow</div>
+                                </div>
+                                <div class="item-category">Skill</div>
+                            </div>
+
+                            <div class="autocomplete-footer">
+                                <div class="shortcut-hint">
+                                    <span class="kbd">↑↓</span> Navigate
+                                </div>
+                                <div class="shortcut-hint">
+                                    <span class="kbd">Enter</span> Select
+                                </div>
+                                <div class="shortcut-hint">
+                                    <span class="kbd">Esc</span> Close
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scene 2: / Autocomplete -->
+            <div class="scene">
+                <div class="scene-title">/ Autocomplete (Commands & Skills)</div>
+                <div class="scene-content">
+                    <div class="input-area">
+                        <div class="text-input">
+                            <span class="input-text">/<span class="cursor"></span></span>
+                        </div>
+                        <div class="autocomplete-dropdown">
+                            <div class="autocomplete-header">Commands</div>
+                            <div class="autocomplete-item selected">
+                                <div class="item-icon">📡</div>
+                                <div class="item-content">
+                                    <div class="item-name">/mcp connect</div>
+                                    <div class="item-description">Connect to MCP server</div>
+                                </div>
+                            </div>
+                            <div class="autocomplete-item">
+                                <div class="item-icon">🔀</div>
+                                <div class="item-content">
+                                    <div class="item-name">/fork</div>
+                                    <div class="item-description">Fork current session</div>
+                                </div>
+                            </div>
+
+                            <div class="autocomplete-header">Skills</div>
+                            <div class="autocomplete-item">
+                                <div class="item-icon">✨</div>
+                                <div class="item-content">
+                                    <div class="item-name">/brainstorm</div>
+                                    <div class="item-description">Start brainstorming session</div>
+                                </div>
+                            </div>
+                            <div class="autocomplete-item">
+                                <div class="item-icon">🔍</div>
+                                <div class="item-content">
+                                    <div class="item-name">/debug</div>
+                                    <div class="item-description">Systematic debugging workflow</div>
+                                </div>
+                            </div>
+                            <div class="autocomplete-item">
+                                <div class="item-icon">🧪</div>
+                                <div class="item-content">
+                                    <div class="item-name">/test</div>
+                                    <div class="item-description">Run tests with coverage</div>
+                                </div>
+                            </div>
+
+                            <div class="autocomplete-footer">
+                                <div class="shortcut-hint">
+                                    <span class="kbd">↑↓</span> Navigate
+                                </div>
+                                <div class="shortcut-hint">
+                                    <span class="kbd">Enter</span> Select
+                                </div>
+                                <div class="shortcut-hint">
+                                    <span class="kbd">Esc</span> Close
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scene 3: @ with Search -->
+            <div class="scene">
+                <div class="scene-title">@ Autocomplete (Filtered)</div>
+                <div class="scene-content">
+                    <div class="input-area">
+                        <div class="text-input">
+                            <span class="input-text">Use @pos<span class="cursor"></span></span>
+                        </div>
+                        <div class="autocomplete-dropdown">
+                            <div class="autocomplete-header">Matching Results (2)</div>
+                            <div class="autocomplete-item selected">
+                                <div class="item-icon">🔌</div>
+                                <div class="item-content">
+                                    <div class="item-name">mcp-<strong>pos</strong>tgres</div>
+                                    <div class="item-description">PostgreSQL database tools</div>
+                                </div>
+                                <div class="item-category">MCP Server</div>
+                            </div>
+                            <div class="autocomplete-item">
+                                <div class="item-icon">⚙️</div>
+                                <div class="item-content">
+                                    <div class="item-name">mcp__<strong>pos</strong>tgres__query</div>
+                                    <div class="item-description">Execute SQL queries</div>
+                                </div>
+                                <div class="item-category">MCP Tool</div>
+                            </div>
+
+                            <div class="autocomplete-footer">
+                                <div class="shortcut-hint">
+                                    <span class="kbd">↑↓</span> Navigate
+                                </div>
+                                <div class="shortcut-hint">
+                                    <span class="kbd">Enter</span> Select
+                                </div>
+                                <div class="shortcut-hint">
+                                    <span class="kbd">Esc</span> Close
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scene 4: Attach Button Menu -->
+            <div class="scene">
+                <div class="scene-title">Attach Button Menu</div>
+                <div class="scene-content">
+                    <div class="input-area">
+                        <div class="text-input" style="padding-left: 48px;">
+                            <span class="input-text">Tell me about this image<span class="cursor"></span></span>
+                            <div style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); font-size: 20px;">
+                                📎
+                            </div>
+                        </div>
+                        <div class="autocomplete-dropdown">
+                            <div class="autocomplete-item selected">
+                                <div class="item-icon">🖼️</div>
+                                <div class="item-content">
+                                    <div class="item-name">Upload Image</div>
+                                    <div class="item-description">Attach an image file</div>
+                                </div>
+                            </div>
+                            <div class="autocomplete-item">
+                                <div class="item-icon">📄</div>
+                                <div class="item-content">
+                                    <div class="item-name">Upload File</div>
+                                    <div class="item-description">Attach any file type</div>
+                                </div>
+                            </div>
+                            <div class="autocomplete-item">
+                                <div class="item-icon">📁</div>
+                                <div class="item-content">
+                                    <div class="item-name">Select from Project</div>
+                                    <div class="item-description">Choose file from current project</div>
+                                </div>
+                            </div>
+
+                            <div class="autocomplete-footer">
+                                <div class="shortcut-hint">
+                                    <span class="kbd">↑↓</span> Navigate
+                                </div>
+                                <div class="shortcut-hint">
+                                    <span class="kbd">Enter</span> Select
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div style="margin-top: 20px; padding: 20px; background: white; border-radius: 8px; max-width: 1400px; margin-left: auto; margin-right: auto;">
+        <h3 style="margin-bottom: 12px;">Key Features Shown:</h3>
+        <ul style="line-height: 1.8; color: #333;">
+            <li><strong>@ Trigger:</strong> Universal autocomplete for agents, MCP servers, tools, resources, files, skills, presets</li>
+            <li><strong>/ Trigger:</strong> Commands and skills only</li>
+            <li><strong>Categorization:</strong> Items grouped and tagged by type (Agent, MCP Server, MCP Tool, File, Skill)</li>
+            <li><strong>Recently Used:</strong> Frequently accessed items appear at top for quick access</li>
+            <li><strong>Search Filtering:</strong> Type to filter results in real-time (e.g., "@pos" shows postgres items)</li>
+            <li><strong>Keyboard Navigation:</strong> Full keyboard support with shortcuts shown in footer</li>
+            <li><strong>Attach Button:</strong> Opens menu for uploading images/files or selecting from project</li>
+        </ul>
+    </div>
+</body>
+</html>

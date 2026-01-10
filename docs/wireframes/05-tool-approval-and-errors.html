@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wireframe: Tool Approval & Error States</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        .wireframe-container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .wireframe-header {
+            background: #333;
+            color: white;
+            padding: 15px 20px;
+            font-size: 18px;
+            font-weight: 600;
+            border-radius: 8px 8px 0 0;
+        }
+        .scene-container {
+            background: white;
+            border: 2px solid #333;
+            border-top: none;
+            padding: 20px;
+        }
+        .scene {
+            margin-bottom: 40px;
+        }
+        .scene-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #ddd;
+        }
+        .message-flow {
+            max-width: 800px;
+        }
+        .message {
+            margin-bottom: 16px;
+        }
+        .message-bubble {
+            padding: 12px 16px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            background: #f5f5f5;
+        }
+        .message-label {
+            font-size: 11px;
+            color: #666;
+            margin-bottom: 4px;
+            font-weight: 600;
+        }
+        .message-content {
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        .connection-line {
+            width: 2px;
+            height: 12px;
+            background: #ccc;
+            margin-left: 40px;
+        }
+        .tool-card {
+            margin-left: 20px;
+            padding: 16px;
+            border-radius: 8px;
+            background: white;
+        }
+        .tool-card.approval {
+            border: 2px solid #ffc107;
+            background: #fffbf0;
+        }
+        .tool-card.error {
+            border: 2px solid #dc3545;
+            background: #fff5f5;
+        }
+        .tool-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .tool-name {
+            font-weight: 600;
+            font-size: 14px;
+        }
+        .tool-status {
+            font-size: 11px;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+        .status-pending {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffc107;
+        }
+        .status-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #dc3545;
+        }
+        .tool-details {
+            font-size: 13px;
+            margin-bottom: 12px;
+        }
+        .tool-params {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 12px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            margin-bottom: 12px;
+        }
+        .param-line {
+            margin-bottom: 4px;
+        }
+        .param-key {
+            color: #0066cc;
+        }
+        .param-value {
+            color: #d73a49;
+        }
+        .approval-actions {
+            display: flex;
+            gap: 8px;
+        }
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+        .btn-approve {
+            background: #28a745;
+            color: white;
+        }
+        .btn-deny {
+            background: #dc3545;
+            color: white;
+        }
+        .btn-retry {
+            background: #007bff;
+            color: white;
+        }
+        .btn-details {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            color: #333;
+        }
+        .checkbox-option {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            color: #666;
+            margin-top: 8px;
+        }
+        .checkbox {
+            width: 16px;
+            height: 16px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        .error-content {
+            margin-bottom: 12px;
+        }
+        .error-message {
+            font-size: 13px;
+            color: #721c24;
+            margin-bottom: 8px;
+        }
+        .stack-trace {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 12px;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            color: #666;
+            max-height: 120px;
+            overflow-y: auto;
+        }
+        .collapsible-header {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            margin-bottom: 8px;
+        }
+        .collapse-icon {
+            font-size: 12px;
+        }
+        .error-link {
+            color: #007bff;
+            text-decoration: none;
+            font-size: 12px;
+        }
+        .error-link:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="wireframe-container">
+        <div class="wireframe-header">
+            Wireframe: Tool Approval & Error States
+        </div>
+        <div class="scene-container">
+            <!-- Scene 1: Tool Approval -->
+            <div class="scene">
+                <div class="scene-title">Tool Approval Flow (Inline Blocking)</div>
+                <div class="message-flow">
+                    <div class="message">
+                        <div class="message-bubble">
+                            <div class="message-label">Assistant</div>
+                            <div class="message-content">
+                                I'll update the database schema to add the new user_preferences table.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="connection-line"></div>
+
+                    <div class="tool-card approval">
+                        <div class="tool-card-header">
+                            <div class="tool-name">⚠️ Approval Required: Edit File</div>
+                            <div class="tool-status status-pending">Pending</div>
+                        </div>
+
+                        <div class="tool-details">
+                            The assistant wants to modify an existing file.
+                        </div>
+
+                        <div class="tool-params">
+                            <div class="param-line">
+                                <span class="param-key">"file_path"</span>: <span class="param-value">"apps/api/models/database.py"</span>
+                            </div>
+                            <div class="param-line">
+                                <span class="param-key">"old_string"</span>: <span class="param-value">"class User(Base):"</span>
+                            </div>
+                            <div class="param-line">
+                                <span class="param-key">"new_string"</span>: <span class="param-value">"class User(Base):\n    preferences = ..."</span>
+                            </div>
+                        </div>
+
+                        <div class="approval-actions">
+                            <button class="btn btn-approve">✓ Approve</button>
+                            <button class="btn btn-deny">✕ Deny</button>
+                        </div>
+
+                        <div class="checkbox-option">
+                            <div class="checkbox"></div>
+                            <span>Always allow Edit tool for this session</span>
+                        </div>
+                    </div>
+
+                    <div style="margin-left: 20px; margin-top: 12px; padding: 12px; background: #f0f0f0; border-radius: 6px; font-size: 13px; color: #666;">
+                        💡 Chat is blocked until you approve or deny this action
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scene 2: Error State -->
+            <div class="scene">
+                <div class="scene-title">Error State (Inline Error Card)</div>
+                <div class="message-flow">
+                    <div class="message">
+                        <div class="message-bubble">
+                            <div class="message-label">Assistant</div>
+                            <div class="message-content">
+                                Let me install the required dependencies.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="connection-line"></div>
+
+                    <div class="tool-card error">
+                        <div class="tool-card-header">
+                            <div class="tool-name">❌ Bash Command Failed</div>
+                            <div class="tool-status status-error">Error</div>
+                        </div>
+
+                        <div class="error-content">
+                            <div class="error-message">
+                                <strong>Command:</strong> npm install react-query<br>
+                                <strong>Exit Code:</strong> 1
+                            </div>
+
+                            <div class="collapsible-header">
+                                <span class="collapse-icon">▼</span>
+                                <span style="font-size: 12px; font-weight: 600;">Stack Trace</span>
+                            </div>
+
+                            <div class="stack-trace">
+npm ERR! code ERESOLVE<br>
+npm ERR! ERESOLVE unable to resolve dependency tree<br>
+npm ERR!<br>
+npm ERR! While resolving: frontend-app@1.0.0<br>
+npm ERR! Found: react@19.0.0<br>
+npm ERR!<br>
+npm ERR! Could not resolve dependency:<br>
+npm ERR! peer react@"^18.0.0" from react-query@3.39.0
+                            </div>
+                        </div>
+
+                        <div class="approval-actions">
+                            <button class="btn btn-retry">↻ Retry</button>
+                            <button class="btn btn-details">View Details</button>
+                        </div>
+
+                        <div style="margin-top: 12px;">
+                            <a href="#" class="error-link">Report Issue →</a>
+                        </div>
+                    </div>
+
+                    <div class="connection-line"></div>
+
+                    <div class="message">
+                        <div class="message-bubble">
+                            <div class="message-label">Assistant</div>
+                            <div class="message-content">
+                                It looks like there's a peer dependency conflict. React Query 3.x requires React 18, but you have React 19 installed. Let me try installing the latest version of React Query (v5) which supports React 19.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scene 3: Multiple Permissions Modes -->
+            <div class="scene">
+                <div class="scene-title">Permissions Chip Modes</div>
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; max-width: 800px;">
+                    <div style="padding: 16px; border: 2px solid #333; border-radius: 8px;">
+                        <div style="font-weight: 600; margin-bottom: 8px;">Plan Mode</div>
+                        <div style="font-size: 13px; color: #666; line-height: 1.6;">
+                            No auto-execution. Agent shows implementation plan and waits for approval before taking any action.
+                        </div>
+                    </div>
+                    <div style="padding: 16px; border: 2px solid #28a745; border-radius: 8px;">
+                        <div style="font-weight: 600; margin-bottom: 8px;">Edit Automatically</div>
+                        <div style="font-size: 13px; color: #666; line-height: 1.6;">
+                            Auto-approve all tools including file edits and writes. Best for trusted workflows.
+                        </div>
+                    </div>
+                    <div style="padding: 16px; border: 2px solid #ffc107; border-radius: 8px;">
+                        <div style="font-weight: 600; margin-bottom: 8px;">Ask before Edits</div>
+                        <div style="font-size: 13px; color: #666; line-height: 1.6;">
+                            Auto-approve reads. Require approval for writes and modifications. Balanced safety.
+                        </div>
+                    </div>
+                    <div style="padding: 16px; border: 2px solid #dc3545; border-radius: 8px;">
+                        <div style="font-weight: 600; margin-bottom: 8px;">YOLO (Bypass All)</div>
+                        <div style="font-size: 13px; color: #666; line-height: 1.6;">
+                            Auto-approve everything with no confirmations. Use with caution!
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div style="margin-top: 20px; padding: 20px; background: white; border-radius: 8px; max-width: 1400px; margin-left: auto; margin-right: auto;">
+        <h3 style="margin-bottom: 12px;">Key Features Shown:</h3>
+        <ul style="line-height: 1.8; color: #333;">
+            <li><strong>Inline Blocking Approval:</strong> Tool card appears in message flow with Approve/Deny buttons</li>
+            <li><strong>Detailed Parameters:</strong> Shows exactly what the tool will do (file path, changes, etc.)</li>
+            <li><strong>"Always Allow" Option:</strong> Checkbox to auto-approve specific tool for current session</li>
+            <li><strong>Error Cards:</strong> Red-bordered cards with error message, collapsible stack trace, and retry button</li>
+            <li><strong>Contextual Error Messages:</strong> Agent responds to errors with helpful explanations and next steps</li>
+            <li><strong>Four Permissions Modes:</strong> Plan Mode, Edit Automatically, Ask before Edits, YOLO</li>
+        </ul>
+    </div>
+</body>
+</html>

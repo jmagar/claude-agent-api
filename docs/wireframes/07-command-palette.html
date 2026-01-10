@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wireframe: Command Palette (Cmd+K)</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        .wireframe-container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .wireframe-header {
+            background: #333;
+            color: white;
+            padding: 15px 20px;
+            font-size: 18px;
+            font-weight: 600;
+            border-radius: 8px 8px 0 0;
+        }
+        .scene-container {
+            position: relative;
+            background: white;
+            border: 2px solid #333;
+            border-top: none;
+            border-radius: 0 0 8px 8px;
+            height: 800px;
+            overflow: hidden;
+        }
+        .background-app {
+            opacity: 0.2;
+            padding: 40px;
+            height: 100%;
+            overflow: hidden;
+        }
+        .background-content {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            height: 100%;
+            background: #fafafa;
+        }
+        .palette-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.4);
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            padding-top: 120px;
+        }
+        .palette-modal {
+            background: white;
+            border-radius: 12px;
+            width: 100%;
+            max-width: 640px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+        .palette-input-area {
+            padding: 16px 20px;
+            border-bottom: 1px solid #ddd;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .palette-icon {
+            font-size: 20px;
+            color: #666;
+        }
+        .palette-input {
+            flex: 1;
+            border: none;
+            font-size: 16px;
+            outline: none;
+        }
+        .palette-shortcut {
+            font-size: 12px;
+            padding: 4px 8px;
+            background: #f5f5f5;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            color: #666;
+            font-family: monospace;
+        }
+        .palette-content {
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        .palette-section {
+            padding: 8px 0;
+        }
+        .palette-section-title {
+            padding: 8px 20px;
+            font-size: 11px;
+            font-weight: 600;
+            color: #666;
+            text-transform: uppercase;
+            background: #fafafa;
+        }
+        .palette-item {
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+            border-left: 3px solid transparent;
+        }
+        .palette-item:hover, .palette-item.selected {
+            background: #f5f5f5;
+            border-left-color: #333;
+        }
+        .item-icon-large {
+            font-size: 20px;
+            width: 32px;
+            text-align: center;
+        }
+        .item-info {
+            flex: 1;
+        }
+        .item-title {
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 2px;
+        }
+        .item-subtitle {
+            font-size: 12px;
+            color: #666;
+        }
+        .item-badge {
+            font-size: 10px;
+            padding: 3px 8px;
+            background: #e5e5e5;
+            border-radius: 10px;
+            color: #666;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+        .item-shortcut {
+            font-size: 11px;
+            padding: 3px 6px;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            font-family: monospace;
+            color: #666;
+        }
+        .palette-footer {
+            padding: 12px 20px;
+            background: #fafafa;
+            border-top: 1px solid #ddd;
+            display: flex;
+            gap: 20px;
+            font-size: 11px;
+            color: #666;
+        }
+        .footer-hint {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .kbd-small {
+            padding: 2px 6px;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="wireframe-container">
+        <div class="wireframe-header">
+            Wireframe: Command Palette (Cmd+K) - Unified Commands & Search
+        </div>
+        <div class="scene-container">
+            <div class="background-app">
+                <div class="background-content"></div>
+            </div>
+
+            <div class="palette-overlay">
+                <div class="palette-modal">
+                    <div class="palette-input-area">
+                        <div class="palette-icon">🔍</div>
+                        <input
+                            type="text"
+                            class="palette-input"
+                            placeholder="Type to search or run a command..."
+                            value="mcp"
+                        />
+                        <div class="palette-shortcut">⌘K</div>
+                    </div>
+
+                    <div class="palette-content">
+                        <!-- Commands Section -->
+                        <div class="palette-section">
+                            <div class="palette-section-title">Commands</div>
+                            <div class="palette-item selected">
+                                <div class="item-icon-large">📡</div>
+                                <div class="item-info">
+                                    <div class="item-title">Connect MCP Server</div>
+                                    <div class="item-subtitle">Connect to a Model Context Protocol server</div>
+                                </div>
+                                <div class="item-shortcut">/mcp connect</div>
+                            </div>
+                            <div class="palette-item">
+                                <div class="item-icon-large">🔧</div>
+                                <div class="item-info">
+                                    <div class="item-title">Manage MCP Servers</div>
+                                    <div class="item-subtitle">View and configure all MCP server connections</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- MCP Servers Section -->
+                        <div class="palette-section">
+                            <div class="palette-section-title">MCP Servers</div>
+                            <div class="palette-item">
+                                <div class="item-icon-large">🔌</div>
+                                <div class="item-info">
+                                    <div class="item-title">mcp-postgres</div>
+                                    <div class="item-subtitle">PostgreSQL database tools • 4 tools</div>
+                                </div>
+                                <div class="item-badge">Connected</div>
+                            </div>
+                            <div class="palette-item">
+                                <div class="item-icon-large">🔌</div>
+                                <div class="item-info">
+                                    <div class="item-title">mcp-browser</div>
+                                    <div class="item-subtitle">Browser automation tools • 3 tools</div>
+                                </div>
+                                <div class="item-badge" style="background: #f0f0f0;">Idle</div>
+                            </div>
+                        </div>
+
+                        <!-- Agents Section -->
+                        <div class="palette-section">
+                            <div class="palette-section-title">Agents</div>
+                            <div class="palette-item">
+                                <div class="item-icon-large">🤖</div>
+                                <div class="item-info">
+                                    <div class="item-title">code-reviewer</div>
+                                    <div class="item-subtitle">Reviews code for best practices and security</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Sessions Section -->
+                        <div class="palette-section">
+                            <div class="palette-section-title">Recent Sessions</div>
+                            <div class="palette-item">
+                                <div class="item-icon-large">💬</div>
+                                <div class="item-info">
+                                    <div class="item-title">MCP Server Configuration</div>
+                                    <div class="item-subtitle">Brainstorm • Today at 2:45 PM</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Settings Section -->
+                        <div class="palette-section">
+                            <div class="palette-section-title">Settings</div>
+                            <div class="palette-item">
+                                <div class="item-icon-large">🔌</div>
+                                <div class="item-info">
+                                    <div class="item-title">MCP Servers</div>
+                                    <div class="item-subtitle">Manage MCP server configurations</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="palette-footer">
+                        <div class="footer-hint">
+                            <span class="kbd-small">↑↓</span> Navigate
+                        </div>
+                        <div class="footer-hint">
+                            <span class="kbd-small">Enter</span> Select
+                        </div>
+                        <div class="footer-hint">
+                            <span class="kbd-small">Esc</span> Close
+                        </div>
+                        <div class="footer-hint">
+                            <span class="kbd-small">⌘K</span> Toggle
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div style="margin-top: 20px; padding: 20px; background: white; border-radius: 8px; max-width: 1400px; margin-left: auto; margin-right: auto;">
+        <h3 style="margin-bottom: 12px;">Command Palette Features:</h3>
+        <ul style="line-height: 1.8; color: #333;">
+            <li><strong>Unified Interface:</strong> Single `Cmd+K` modal for both commands (actions) and search (finding things)</li>
+            <li><strong>Real-Time Search:</strong> Filter results as you type across all categories</li>
+            <li><strong>Categorized Results:</strong> Commands, MCP Servers, Agents, Sessions, Settings organized into sections</li>
+            <li><strong>Status Indicators:</strong> Shows connection status for MCP servers, badges for entity types</li>
+            <li><strong>Keyboard Shortcuts:</strong> Navigate with arrows, select with Enter, close with Esc</li>
+            <li><strong>Contextual Info:</strong> Each item shows relevant metadata (tool count, timestamps, descriptions)</li>
+            <li><strong>Quick Actions:</strong> Direct access to frequently used commands without leaving current view</li>
+        </ul>
+
+        <h3 style="margin-top: 24px; margin-bottom: 12px;">Search Scope:</h3>
+        <ul style="line-height: 1.8; color: #333;">
+            <li>Commands and slash commands</li>
+            <li>MCP servers and their tools/resources</li>
+            <li>Agents and skills</li>
+            <li>Conversation history (sessions)</li>
+            <li>Settings and configuration pages</li>
+            <li>Files (in Code mode)</li>
+        </ul>
+    </div>
+</body>
+</html>
