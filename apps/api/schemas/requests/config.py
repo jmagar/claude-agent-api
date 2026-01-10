@@ -112,9 +112,7 @@ class HooksConfigSchema(BaseModel):
     post_tool_use: HookWebhookSchema | None = Field(None, alias="PostToolUse")
     stop: HookWebhookSchema | None = Field(None, alias="Stop")
     subagent_stop: HookWebhookSchema | None = Field(None, alias="SubagentStop")
-    user_prompt_submit: HookWebhookSchema | None = Field(
-        None, alias="UserPromptSubmit"
-    )
+    user_prompt_submit: HookWebhookSchema | None = Field(None, alias="UserPromptSubmit")
     pre_compact: HookWebhookSchema | None = Field(None, alias="PreCompact")
     notification: HookWebhookSchema | None = Field(None, alias="Notification")
 

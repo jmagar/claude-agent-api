@@ -35,6 +35,31 @@ apps/api/
 └── adapters/            # Protocol implementations
 ```
 
+### Distributed Session Management
+
+The API uses a **dual-storage architecture** for sessions:
+
+1. **PostgreSQL** - Source of truth for all session data
+2. **Redis** - Cache layer + active session tracking
+
+**Benefits:**
+- ✅ Horizontal scaling (deploy N instances)
+- ✅ Data durability (survives Redis restarts)
+- ✅ Performance (Redis caching for hot path)
+
+**Active Session Tracking:**
+- Active sessions tracked in Redis: `active_session:{session_id}`
+- Visible across all API instances
+- Auto-cleanup via TTL (2 hours)
+
+**Session Lifecycle:**
+1. Create: Write to PostgreSQL → Cache in Redis
+2. Read: Check Redis → Fallback to PostgreSQL
+3. Update: Distributed lock → Update both stores
+4. Delete: Remove from both Redis and PostgreSQL
+
+See [ADR-001](docs/adr/0001-distributed-session-state.md) for details.
+
 ## Quick Start
 
 ### Prerequisites
@@ -160,6 +185,24 @@ uv run ruff format .
 # Type check
 uv run mypy apps/api
 ```
+
+## CI/CD
+
+GitHub Actions runs automated checks on every push and pull request:
+
+- **Linting**: Ruff checks code style and common errors
+- **Type Checking**: mypy verifies type safety with strict mode
+- **Testing**: Fast test suite (unit + contract tests) with PostgreSQL and Redis
+
+The CI pipeline ensures code quality and catches issues before merge. All checks must pass before merging to `main`.
+
+### Branch Protection
+
+To enforce CI checks in your repository:
+1. Go to Settings > Branches > Add rule
+2. Branch name pattern: `main`
+3. Enable "Require status checks to pass before merging"
+4. Select: `test` (the job name from ci.yml)
 
 ## Documentation
 

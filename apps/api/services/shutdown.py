@@ -98,9 +98,7 @@ class ShutdownManager:
         if len(self._active_sessions) == 0:
             self._shutdown_event.set()
 
-    async def wait_for_sessions(
-        self, timeout: int = DEFAULT_SHUTDOWN_TIMEOUT
-    ) -> bool:
+    async def wait_for_sessions(self, timeout: int = DEFAULT_SHUTDOWN_TIMEOUT) -> bool:
         """Wait for active sessions to complete.
 
         Args:

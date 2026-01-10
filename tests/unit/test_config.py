@@ -31,13 +31,16 @@ class TestSettings:
             assert settings.debug is False
             assert settings.log_level == "INFO"
             assert settings.log_json is True
-            assert settings.db_pool_size == 5
-            assert settings.db_max_overflow == 10
+            assert settings.db_pool_size == 10
+            assert settings.db_max_overflow == 20
             assert settings.redis_session_ttl == 3600
             assert settings.rate_limit_requests == 100
             assert settings.rate_limit_burst == 20
             assert settings.request_timeout == 300
             assert settings.max_prompt_length == 100000
+            assert settings.redis_max_connections == 50
+            assert settings.redis_socket_connect_timeout == 5
+            assert settings.redis_socket_timeout == 5
 
     def test_required_fields(self) -> None:
         """Test that required fields raise error when missing."""
@@ -176,6 +179,7 @@ class TestSettings:
             settings = Settings(_env_file=None)
             assert settings.redis_url.startswith("redis://")
             assert "53380" in settings.redis_url
+
 
 
 class TestGetSettings:

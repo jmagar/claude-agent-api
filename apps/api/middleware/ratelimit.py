@@ -61,9 +61,7 @@ def get_api_key(request: Request) -> str:
 limiter = Limiter(key_func=get_api_key)
 
 
-async def rate_limit_handler(
-    _request: Request, exc: Exception
-) -> StarletteResponse:
+async def rate_limit_handler(_request: Request, exc: Exception) -> StarletteResponse:
     """Handle rate limit exceeded errors.
 
     Args:

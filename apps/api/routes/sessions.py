@@ -27,7 +27,11 @@ async def list_sessions(
     Returns:
         Paginated list of sessions.
     """
-    result = await session_service.list_sessions(page=page, page_size=page_size)
+    result = await session_service.list_sessions(
+        page=page,
+        page_size=page_size,
+        current_api_key=_api_key,
+    )
 
     return SessionListResponse(
         sessions=[
@@ -68,7 +72,10 @@ async def get_session(
     Raises:
         SessionNotFoundError: If session doesn't exist.
     """
-    session = await session_service.get_session(session_id)
+    session = await session_service.get_session(
+        session_id,
+        current_api_key=_api_key,
+    )
     if not session:
         raise SessionNotFoundError(session_id)
 

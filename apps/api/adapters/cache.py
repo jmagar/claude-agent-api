@@ -3,20 +3,96 @@
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol, cast
 
 import redis.asyncio as redis
 import structlog
 
 from apps.api.config import get_settings
 
+if TYPE_CHECKING:
+    from apps.api.types import JsonValue
+
 logger = structlog.get_logger(__name__)
 
+
+class RedisClientProtocol(Protocol):
+    """Protocol for Redis client with typed eval method."""
+
+    async def eval(
+        self,
+        script: str,
+        numkeys: int,
+        *keys_and_args: str,
+    ) -> int:
+        """Execute Lua script atomically."""
+        ...
+
+    async def get(self, name: str) -> bytes | None:
+        """Get value."""
+        ...
+
+    async def mget(self, *names: str) -> list[bytes | None]:
+        """Get multiple values.
+
+        Args:
+            *names: Variable number of key names to fetch.
+
+        Returns:
+            List of values in the same order as keys.
+            None for missing keys.
+        """
+        ...
+
+    async def set(
+        self,
+        name: str,
+        value: bytes,
+        ex: int | None = None,
+        px: int | None = None,
+        nx: bool = False,
+        xx: bool = False,
+    ) -> bool | None:
+        """Set value."""
+        ...
+
+    async def delete(self, *names: str) -> int:
+        """Delete keys."""
+        ...
+
+    async def exists(self, *names: str) -> int:
+        """Check if keys exist."""
+        ...
+
+    async def ping(self) -> bool:
+        """Ping server."""
+        ...
+
+    async def smembers(self, name: str) -> AbstractSet[bytes]:
+        """Get set members."""
+        ...
+
+    async def sadd(self, name: str, *values: bytes) -> int:
+        """Add to set."""
+        ...
+
+    async def srem(self, name: str, *values: bytes) -> int:
+        """Remove from set."""
+        ...
+
+    async def incr(self, name: str, amount: int = 1) -> int:
+        """Increment."""
+        ...
+
+
 if TYPE_CHECKING:
+    from collections.abc import Set as AbstractSet
+
     # Use generic type only during type checking
     RedisClient = redis.Redis[bytes]
 else:
     # At runtime, just use the base type to avoid subscript error
+    AbstractSet = set
     RedisClient = redis.Redis
 
 
@@ -47,6 +123,9 @@ class RedisCache:
             redis_url,
             encoding="utf-8",
             decode_responses=False,
+            max_connections=settings.redis_max_connections,
+            socket_connect_timeout=settings.redis_socket_connect_timeout,
+            socket_timeout=settings.redis_socket_timeout,
         )
         return cls(client)
 
@@ -73,7 +152,7 @@ class RedisCache:
             return None
         return value.decode("utf-8")
 
-    async def get_json(self, key: str) -> dict[str, object] | None:
+    async def get_json(self, key: str) -> dict[str, JsonValue] | None:
         """Get a JSON value from cache.
 
         Args:
@@ -83,10 +162,46 @@ class RedisCache:
             Parsed JSON dict or None.
         """
         value = await self.get(key)
-        if value is None:
+        if value is None or not value.strip():
             return None
-        parsed: dict[str, object] = json.loads(value)
-        return parsed
+        try:
+            parsed: dict[str, JsonValue] = json.loads(value)
+            return parsed
+        except (json.JSONDecodeError, ValueError):
+            return None
+
+    async def get_many_json(self, keys: list[str]) -> list[dict[str, JsonValue] | None]:
+        """Get multiple JSON values from cache using Redis mget.
+
+        Args:
+            keys: List of cache keys to fetch.
+
+        Returns:
+            List of parsed JSON dicts in same order as keys.
+            None for missing keys or JSON decode errors.
+        """
+        if not keys:
+            return []
+
+        values = await self._client.mget(*keys)
+        results: list[dict[str, JsonValue] | None] = []
+
+        for raw in values:
+            if raw is None:
+                results.append(None)
+                continue
+            try:
+                decoded = raw.decode("utf-8")
+                results.append(json.loads(decoded))
+            except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as e:
+                logger.debug(
+                    "get_many_json decode error",
+                    key=keys[len(results)],
+                    error=str(e) or type(e).__name__,
+                )
+                results.append(None)
+
+        return results
 
     async def cache_set(
         self,
@@ -113,7 +228,7 @@ class RedisCache:
     async def set_json(
         self,
         key: str,
-        value: dict[str, object],
+        value: dict[str, JsonValue],
         ttl: int | None = None,
     ) -> bool:
         """Set a JSON value in cache.
@@ -154,8 +269,7 @@ class RedisCache:
 
             # Decode and add keys
             batch = [
-                k.decode() if isinstance(k, bytes) else str(k)
-                for k in cursor_result[1]
+                k.decode() if isinstance(k, bytes) else str(k) for k in cursor_result[1]
             ]
             all_keys.extend(batch)
 
@@ -173,6 +287,15 @@ class RedisCache:
                 break
 
         return all_keys[:max_keys]
+
+    async def clear(self) -> bool:
+        """Clear all cached entries.
+
+        Returns:
+            True if the cache was cleared.
+        """
+        result = await self._client.flushdb()
+        return bool(result)
 
     async def delete(self, key: str) -> bool:
         """Delete a value from cache.
@@ -236,6 +359,21 @@ class RedisCache:
         members = await self._client.smembers(key)
         return {m.decode("utf-8") for m in members}
 
+    async def _eval_script(self, script: str, num_keys: int, *args: str) -> int:
+        """Typed wrapper for Redis eval command.
+
+        Args:
+            script: Lua script to execute.
+            num_keys: Number of keys in the script.
+            *args: Keys and arguments for the script.
+
+        Returns:
+            Integer result from the script (1 for success, 0 for failure).
+        """
+        # Type-safe wrapper using RedisClientProtocol
+        client = cast("RedisClientProtocol", self._client)
+        return await client.eval(script, num_keys, *args)
+
     async def acquire_lock(
         self,
         key: str,
@@ -253,6 +391,7 @@ class RedisCache:
             Lock value if acquired, None otherwise.
         """
         import uuid
+
         lock_value = value or str(uuid.uuid4())
         result = await self._client.set(
             f"lock:{key}",
@@ -280,8 +419,8 @@ class RedisCache:
             return 0
         end
         """
-        # Redis eval returns int (1 or 0) - type stubs are incomplete
-        result: int = await self._client.eval(script, 1, f"lock:{key}", value)  # type: ignore[no-untyped-call]
+        # Use typed wrapper to execute Lua script
+        result = await self._eval_script(script, 1, f"lock:{key}", value)
         return bool(result == 1)
 
     async def ping(self) -> bool:

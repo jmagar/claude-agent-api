@@ -47,6 +47,7 @@ class Session(Base):
         Numeric(10, 6),
         nullable=True,
     )
+    owner_api_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
     parent_session_id: Mapped[UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey("sessions.id"),
@@ -79,6 +80,7 @@ class Session(Base):
 
     __table_args__ = (
         Index("idx_sessions_created_at", created_at.desc()),
+        Index("idx_sessions_status_created", status, created_at.desc()),
         Index(
             "idx_sessions_parent",
             parent_session_id,

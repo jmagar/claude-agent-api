@@ -42,7 +42,10 @@ async def list_session_checkpoints(
     Raises:
         SessionNotFoundError: If session doesn't exist.
     """
-    session = await session_service.get_session(session_id)
+    session = await session_service.get_session(
+        session_id,
+        current_api_key=_api_key,
+    )
     if not session:
         raise SessionNotFoundError(session_id)
 
@@ -89,7 +92,10 @@ async def rewind_to_checkpoint(
         SessionNotFoundError: If session doesn't exist.
         InvalidCheckpointError: If checkpoint is invalid or doesn't belong to session.
     """
-    session = await session_service.get_session(session_id)
+    session = await session_service.get_session(
+        session_id,
+        current_api_key=_api_key,
+    )
     if not session:
         raise SessionNotFoundError(session_id)
 

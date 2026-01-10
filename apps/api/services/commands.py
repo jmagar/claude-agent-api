@@ -48,10 +48,7 @@ class CommandsService:
         for command_file in self.commands_dir.glob("*.md"):
             try:
                 commands.append(
-                    CommandInfo(
-                        name=command_file.stem,
-                        path=str(command_file)
-                    )
+                    CommandInfo(name=command_file.stem, path=str(command_file))
                 )
             except (OSError, UnicodeDecodeError, ValueError) as e:
                 logger.error(
@@ -90,7 +87,4 @@ class CommandsService:
         if match:
             args = match.group(1).strip()
 
-        return ParsedCommand(
-            command=command_name,
-            args=args
-        )
+        return ParsedCommand(command=command_name, args=args)

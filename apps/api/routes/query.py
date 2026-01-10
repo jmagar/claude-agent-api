@@ -91,26 +91,37 @@ async def query_stream(
                             # Create session in our service
                             model = init_data.get("model", "sonnet")
                             await session_service.create_session(
-                                model=model, session_id=session_id
+                                model=model,
+                                session_id=session_id,
+                                owner_api_key=_api_key,
                             )
                     except json.JSONDecodeError as e:
-                        logger.error("Failed to parse init event", error=str(e), event_data=event_data)
+                        logger.error(
+                            "Failed to parse init event",
+                            error=str(e),
+                            event_data=event_data,
+                        )
                         yield {
                             "event": "error",
-                            "data": json.dumps({
-                                "error": "Session initialization failed",
-                                "details": "Invalid init event format"
-                            })
+                            "data": json.dumps(
+                                {
+                                    "error": "Session initialization failed",
+                                    "details": "Invalid init event format",
+                                }
+                            ),
                         }
                         return
                     except Exception as e:
-                        logger.error("Failed to create session", error=str(e), session_id=session_id)
+                        logger.error(
+                            "Failed to create session",
+                            error=str(e),
+                            session_id=session_id,
+                        )
                         yield {
                             "event": "error",
-                            "data": json.dumps({
-                                "error": "Session creation failed",
-                                "details": str(e)
-                            })
+                            "data": json.dumps(
+                                {"error": "Session creation failed", "details": str(e)}
+                            ),
                         }
                         return
 
@@ -139,6 +150,7 @@ async def query_stream(
                     status=status,
                     total_turns=num_turns,
                     total_cost_usd=total_cost_usd,
+                    current_api_key=_api_key,
                 )
 
     return EventSourceResponse(
@@ -182,7 +194,9 @@ async def query_single(
             session_id = result["session_id"]
             model = result["model"]
             await session_service.create_session(
-                model=model, session_id=session_id
+                model=model,
+                session_id=session_id,
+                owner_api_key=_api_key,
             )
 
             # Update session status based on result
@@ -194,6 +208,7 @@ async def query_single(
                 status=status,
                 total_turns=result["num_turns"],
                 total_cost_usd=result.get("total_cost_usd"),
+                current_api_key=_api_key,
             )
         except Exception as e:
             logger.error(

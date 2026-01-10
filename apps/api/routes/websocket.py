@@ -5,7 +5,7 @@ import contextlib
 import json
 import secrets
 from dataclasses import dataclass
-from typing import Literal, TypedDict, cast
+from typing import Literal, NotRequired, Required, TypedDict, cast
 
 import structlog
 from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
@@ -26,29 +26,31 @@ VALID_PERMISSION_MODES: frozenset[str] = frozenset(
 )
 
 
-class WebSocketMessageDict(TypedDict, total=False):
+class WebSocketMessageDict(TypedDict):
     """WebSocket message format."""
 
-    type: Literal["prompt", "interrupt", "answer", "control"]
-    prompt: str | None
-    session_id: str | None
-    answer: str | None
+    type: Required[Literal["prompt", "interrupt", "answer", "control"]]
+    prompt: NotRequired[str | None]
+    session_id: NotRequired[str | None]
+    answer: NotRequired[str | None]
     # Query configuration options
-    model: str | None
-    max_turns: int | None
-    allowed_tools: list[str] | None
-    disallowed_tools: list[str] | None
-    permission_mode: str | None  # Validated at runtime to match PermissionModeType
-    include_partial_messages: bool | None
+    model: NotRequired[str | None]
+    max_turns: NotRequired[int | None]
+    allowed_tools: NotRequired[list[str] | None]
+    disallowed_tools: NotRequired[list[str] | None]
+    permission_mode: NotRequired[
+        str | None
+    ]  # Validated at runtime to match PermissionModeType
+    include_partial_messages: NotRequired[bool | None]
 
 
-class WebSocketResponseDict(TypedDict, total=False):
+class WebSocketResponseDict(TypedDict):
     """WebSocket response format."""
 
-    type: Literal["sse_event", "error", "ack"]
-    event: str | None
-    data: dict[str, object] | None
-    message: str | None
+    type: Required[Literal["sse_event", "error", "ack"]]
+    event: NotRequired[str | None]
+    data: NotRequired[dict[str, object] | None]
+    message: NotRequired[str | None]
 
 
 @dataclass
@@ -333,7 +335,9 @@ async def _stream_query(
         logger.info("WebSocket query cancelled")
         raise
     except Exception as e:
-        logger.error("WebSocket stream error", error=str(e), error_type=type(e).__name__)
+        logger.error(
+            "WebSocket stream error", error=str(e), error_type=type(e).__name__
+        )
         await _send_error(websocket, "Stream processing failed")
 
 
