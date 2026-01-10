@@ -169,8 +169,6 @@ class AgentService:
             SSE event dicts with 'event' and 'data' keys.
         """
         session_id = request.session_id or str(uuid4())
-        if request.session_id is None:
-            request = request.model_copy(update={"session_id": session_id})
         model = request.model or "sonnet"
 
         # Extract plugin names for InitEvent (T115)
@@ -195,7 +193,11 @@ class AgentService:
         )
         yield init_event
 
-        async for event in self._stream_runner.run(request, discovery.commands_service):
+        async for event in self._stream_runner.run(
+            request,
+            discovery.commands_service,
+            session_id_override=session_id,
+        ):
             yield event
 
     async def _execute_query(

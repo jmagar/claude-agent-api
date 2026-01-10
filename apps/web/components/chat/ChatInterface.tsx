@@ -13,6 +13,7 @@
 import { useEffect, useState } from "react";
 import { MessageList } from "./MessageList";
 import { Composer } from "./Composer";
+import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { useStreamingQuery } from "@/hooks/useStreamingQuery";
 import { useQuery } from "@tanstack/react-query";
 import type { Message } from "@/types";
@@ -84,31 +85,9 @@ export function ChatInterface({ sessionId }: ChatInterfaceProps) {
         isStreaming={isStreaming}
       />
 
-      {/* Error message */}
+      {/* Error banner */}
       {error && (
-        <div className="border-t border-red-DEFAULT bg-red-bg px-20 py-12">
-          <div className="flex items-center justify-between">
-            <div className="text-14 text-red-dark">
-              {error.includes("network") || error.includes("Network")
-                ? "Network error - connection failed"
-                : "Failed to send message"}
-            </div>
-            <div className="flex gap-8">
-              <button
-                onClick={retry}
-                className="rounded-6 bg-red-DEFAULT px-16 py-8 text-13 font-medium text-white hover:opacity-90"
-              >
-                Retry
-              </button>
-              <button
-                onClick={clearError}
-                className="rounded-6 border border-red-DEFAULT px-16 py-8 text-13 font-medium text-red-dark hover:bg-red-light"
-              >
-                Dismiss
-              </button>
-            </div>
-          </div>
-        </div>
+        <ErrorBanner error={error} onRetry={retry} onDismiss={clearError} />
       )}
 
       {/* Composer */}

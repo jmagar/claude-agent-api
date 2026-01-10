@@ -34,7 +34,10 @@ class StreamQueryRunner:
         self._stream_orchestrator = stream_orchestrator
 
     async def run(
-        self, request: "QueryRequest", commands_service: "CommandsService"
+        self,
+        request: "QueryRequest",
+        commands_service: "CommandsService",
+        session_id_override: str | None = None,
     ) -> AsyncGenerator[dict[str, str], None]:
         """<summary>Execute the streaming query flow.</summary>"""
         if (
@@ -44,7 +47,7 @@ class StreamQueryRunner:
         ):
             raise RuntimeError("StreamQueryRunner dependencies not configured")
 
-        session_id = request.session_id or str(uuid4())
+        session_id = session_id_override or request.session_id or str(uuid4())
         model = request.model or "sonnet"
         ctx = StreamContext(
             session_id=session_id,

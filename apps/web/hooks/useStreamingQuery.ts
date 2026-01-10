@@ -12,6 +12,12 @@
 import { useState, useCallback, useRef } from "react";
 import { fetchEventSource } from "@microsoft/fetch-event-source";
 import type { Message, ContentBlock } from "@/types";
+import {
+  mergeContentBlocks,
+  updateMessagesWithAccumulator,
+  createUserMessage,
+  createAssistantAccumulator,
+} from "@/lib/streaming-utils";
 
 export interface StreamingQueryState {
   /** Whether a query is currently streaming */
@@ -57,12 +63,7 @@ export function useStreamingQuery(
       lastMessageRef.current = text;
 
       // Add user message immediately
-      const userMessage: Message = {
-        id: `user-${Date.now()}`,
-        role: "user",
-        content: [{ type: "text", text }],
-        created_at: new Date(),
-      };
+      const userMessage = createUserMessage(text);
 
       setState((prev) => ({
         ...prev,
@@ -72,12 +73,7 @@ export function useStreamingQuery(
       }));
 
       // Initialize accumulator for assistant message
-      accumulatorRef.current = {
-        id: `assistant-${Date.now()}`,
-        role: "assistant",
-        content: [],
-        created_at: new Date(),
-      };
+      accumulatorRef.current = createAssistantAccumulator();
 
       try {
         await fetchEventSource("/api/streaming/query", {
@@ -110,49 +106,25 @@ export function useStreamingQuery(
               case "message":
                 // Append content to accumulator
                 const messageData = JSON.parse(event.data);
-                if (messageData.content && Array.isArray(messageData.content)) {
-                  // Merge new content blocks
-                  messageData.content.forEach((block: ContentBlock) => {
-                    if (!accumulatorRef.current) return;
-
-                    if (block.type === "text") {
-                      // Append to last text block or create new one
-                      const lastBlock =
-                        accumulatorRef.current.content[
-                          accumulatorRef.current.content.length - 1
-                        ];
-
-                      if (lastBlock && lastBlock.type === "text") {
-                        (lastBlock as { text: string }).text +=
-                          (block as { text: string }).text;
-                      } else {
-                        accumulatorRef.current.content.push(block);
-                      }
-                    } else {
-                      accumulatorRef.current.content.push(block);
-                    }
-                  });
+                if (
+                  messageData.content &&
+                  Array.isArray(messageData.content) &&
+                  accumulatorRef.current
+                ) {
+                  // Merge new content blocks into accumulator
+                  accumulatorRef.current = mergeContentBlocks(
+                    accumulatorRef.current,
+                    messageData.content
+                  );
 
                   // Update state with accumulated message
-                  setState((prev) => {
-                    const newMessages = [...prev.messages];
-                    const assistantIndex = newMessages.findIndex(
-                      (m) => m.id === accumulatorRef.current!.id
-                    );
-
-                    if (assistantIndex >= 0) {
-                      newMessages[assistantIndex] = {
-                        ...accumulatorRef.current!,
-                      };
-                    } else {
-                      newMessages.push({ ...accumulatorRef.current! });
-                    }
-
-                    return {
-                      ...prev,
-                      messages: newMessages,
-                    };
-                  });
+                  setState((prev) => ({
+                    ...prev,
+                    messages: updateMessagesWithAccumulator(
+                      prev.messages,
+                      accumulatorRef.current!
+                    ),
+                  }));
                 }
                 break;
 

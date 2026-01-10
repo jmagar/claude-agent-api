@@ -10,7 +10,7 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, memo } from "react";
 import { MessageContent } from "./MessageContent";
 import type { Message, ContentBlock } from "@/types";
 
@@ -21,7 +21,7 @@ export interface MessageItemProps {
   showTimestamp?: boolean;
 }
 
-export function MessageItem({ message, showTimestamp = false }: MessageItemProps) {
+function MessageItemComponent({ message, showTimestamp = false }: MessageItemProps) {
   const [expandedThinking, setExpandedThinking] = useState<Set<number>>(
     new Set()
   );
@@ -138,6 +138,14 @@ export function MessageItem({ message, showTimestamp = false }: MessageItemProps
     </div>
   );
 }
+
+/**
+ * Memoized MessageItem component
+ *
+ * Only re-renders when message or showTimestamp props change,
+ * preventing unnecessary re-renders in message lists.
+ */
+export const MessageItem = memo(MessageItemComponent);
 
 /** Tool use block component */
 function ToolUseBlock({

@@ -1,5 +1,6 @@
 """End-to-end tests that actually call Claude API."""
 
+import asyncio
 import json
 from collections.abc import Awaitable, Callable
 
@@ -64,9 +65,31 @@ async def test_real_claude_query(
     session_id: str | None = None
     interrupt_sent = False
     saw_message = False
+    saw_done = False
+    interrupt_client = AsyncClient(
+        transport=async_client._transport,  # type: ignore[attr-defined]
+        base_url="http://test",
+    )
+
+    async def interrupt_with_retry() -> None:
+        """Retry interrupt until it succeeds or timeout expires."""
+        nonlocal interrupt_sent
+        assert session_id is not None
+        deadline = asyncio.get_running_loop().time() + 3.0
+        while not interrupt_sent and asyncio.get_running_loop().time() < deadline:
+            interrupt_response = await interrupt_client.post(
+                f"/api/v1/sessions/{session_id}/interrupt",
+                headers=auth_headers,
+            )
+            if interrupt_response.status_code == 200:
+                interrupt_sent = True
+                return
+            await asyncio.sleep(0.05)
+        if not interrupt_sent:
+            raise AssertionError("Interrupt did not succeed before timeout")
 
     async def on_stream_event(event: str, data: dict[str, object]) -> None:
-        nonlocal session_id, interrupt_sent, saw_message
+        nonlocal session_id, saw_message, saw_done
         if event == "error":
             raise AssertionError(f"Streaming query failed: {data!r}")
 
@@ -74,31 +97,25 @@ async def test_real_claude_query(
             session_id_value = data.get("session_id")
             if isinstance(session_id_value, str):
                 session_id = session_id_value
+                await interrupt_with_retry()
             return
 
         if event == "message":
             saw_message = True
+        if event == "done":
+            saw_done = True
 
-        if (
-            event == "message"
-            and session_id is not None
-            and not interrupt_sent
-        ):
-            interrupt_response = await async_client.post(
-                f"/api/v1/sessions/{session_id}/interrupt",
-                headers=auth_headers,
-            )
-            assert interrupt_response.status_code == 200
-            interrupt_sent = True
-
-    async with async_client.stream(
-        "POST",
-        "/api/v1/query",
-        json={"prompt": "Say hello"},
-        headers=auth_headers,
-    ) as response:
-        assert response.status_code == 200
-        events = await _collect_sse_events(response, on_event=on_stream_event)
+    try:
+        async with async_client.stream(
+            "POST",
+            "/api/v1/query",
+            json={"prompt": "Write 50 words about the word hello."},
+            headers=auth_headers,
+        ) as response:
+            assert response.status_code == 200
+            events = await _collect_sse_events(response, on_event=on_stream_event)
+    finally:
+        await interrupt_client.aclose()
 
     assert interrupt_sent
     assert session_id is not None

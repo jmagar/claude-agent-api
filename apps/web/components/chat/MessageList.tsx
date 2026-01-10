@@ -1,8 +1,13 @@
 /**
  * MessageList component
  *
- * Displays chat messages in chronological order with virtualized scrolling.
+ * Displays chat messages in chronological order.
  * Auto-scrolls to bottom on new messages, shows loading/empty states.
+ *
+ * Performance optimizations:
+ * - Memoized to prevent unnecessary re-renders
+ * - Auto-scroll only triggers on new messages
+ * - Note: For >100 messages, consider react-window or react-virtuoso
  *
  * @see tests/unit/components/MessageList.test.tsx for test specifications
  * @see wireframes/01-chat-brainstorm-mode.html for design
@@ -10,7 +15,7 @@
 
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, memo } from "react";
 import { MessageItem } from "./MessageItem";
 import { MessageSkeleton } from "@/components/ui/LoadingState";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -28,7 +33,7 @@ export interface MessageListProps {
   showTimestamps?: boolean;
 }
 
-export function MessageList({
+function MessageListComponent({
   messages,
   isLoading = false,
   isStreaming = false,
@@ -37,19 +42,22 @@ export function MessageList({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const previousMessageCountRef = useRef(messages.length);
+  const isInitialMount = useRef(true);
 
-  // Auto-scroll to bottom when new messages are added
+  // Auto-scroll to bottom when new messages are added or on initial mount
   useEffect(() => {
-    if (messages.length > previousMessageCountRef.current) {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const isNewMessage = messages.length > previousMessageCountRef.current;
+    const shouldScroll = isInitialMount.current || isNewMessage;
+
+    if (shouldScroll) {
+      messagesEndRef.current?.scrollIntoView({
+        behavior: isInitialMount.current ? "auto" : "smooth",
+      });
+      isInitialMount.current = false;
     }
+
     previousMessageCountRef.current = messages.length;
   }, [messages.length]);
-
-  // Auto-scroll on initial load
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
-  }, []);
 
   // Show loading skeleton while fetching messages
   if (isLoading && messages.length === 0) {
@@ -118,3 +126,11 @@ export function MessageList({
     </div>
   );
 }
+
+/**
+ * Memoized MessageList component
+ *
+ * Only re-renders when props actually change, preventing
+ * unnecessary re-renders from parent component updates.
+ */
+export const MessageList = memo(MessageListComponent);

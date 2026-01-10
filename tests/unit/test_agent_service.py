@@ -1,5 +1,6 @@
 """Unit tests for agent service."""
 
+import json
 from typing import Literal
 from unittest.mock import MagicMock, patch
 
@@ -718,6 +719,51 @@ class TestCheckpointUuidTracking:
         # (checkpoints should be created asynchronously via a method call)
         # Instead, verify the UUID was tracked
         assert ctx.last_user_message_uuid == "test-user-msg-uuid-123"
+
+
+class TestQueryStreamSessionIds:
+    """Tests for AgentService.query_stream session ID handling."""
+
+    @pytest.mark.anyio
+    async def test_query_stream_does_not_set_resume_session_id(
+        self,
+        tmp_path: pytest.TempPathFactory,
+    ) -> None:
+        """Ensure new sessions don't set resume options in SDK."""
+
+        class StubStreamRunner:
+            """Capture request and override session ID for assertions."""
+
+            def __init__(self) -> None:
+                self.last_request: QueryRequest | None = None
+                self.last_session_id: str | None = None
+
+            async def run(  # noqa: D401 - Async generator stub.
+                self,
+                request: QueryRequest,
+                commands_service: object,
+                session_id_override: str | None = None,
+            ):
+                self.last_request = request
+                self.last_session_id = session_id_override
+                if False:  # pragma: no cover - required for async generator.
+                    yield {}
+
+        runner = StubStreamRunner()
+        service = AgentService(stream_runner=runner)
+        request = QueryRequest(prompt="Test prompt", cwd=str(tmp_path))
+
+        events = [event async for event in service.query_stream(request)]
+
+        assert events
+        init_event = events[0]
+        assert init_event["event"] == "init"
+        init_data = json.loads(init_event["data"])
+        session_id = init_data.get("session_id")
+        assert isinstance(session_id, str)
+        assert runner.last_request is not None
+        assert runner.last_request.session_id is None
+        assert runner.last_session_id == session_id
 
     def test_stream_context_has_checkpoint_tracking_fields(self) -> None:
         """Test that StreamContext has fields for checkpoint tracking."""

@@ -43,7 +43,9 @@
     "postcss": "^8.4.49",
     "prettier": "^3.4.2",
     "tailwindcss": "^4.0.0",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "undici": "^7.18.2",
+    "whatwg-fetch": "^3.6.20"
   },
   "packageManager": "pnpm@10.27.0"
 }
