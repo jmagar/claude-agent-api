@@ -65,28 +65,28 @@
 
 **Purpose**: Write tests FIRST that define expected behavior, verify they FAIL
 
-- [ ] T023 [P] [US1] Write failing unit test for MessageList component in apps/web/tests/unit/components/MessageList.test.tsx
-- [ ] T024 [P] [US1] Write failing unit test for MessageItem component in apps/web/tests/unit/components/MessageItem.test.tsx
-- [ ] T025 [P] [US1] Write failing unit test for Composer component in apps/web/tests/unit/components/Composer.test.tsx
-- [ ] T026 [P] [US1] Write failing integration test for chat flow in apps/web/tests/integration/chat-flow.test.tsx
-- [ ] T027 [P] [US1] Write failing E2E test for multiline input handling in apps/web/tests/e2e/chat-input.spec.ts
-- [ ] T028 [US1] Run all US1 tests and verify they FAIL (RED checkpoint complete)
+- [X] T023 [P] [US1] Write failing unit test for MessageList component in apps/web/tests/unit/components/MessageList.test.tsx
+- [X] T024 [P] [US1] Write failing unit test for MessageItem component in apps/web/tests/unit/components/MessageItem.test.tsx
+- [X] T025 [P] [US1] Write failing unit test for Composer component in apps/web/tests/unit/components/Composer.test.tsx
+- [X] T026 [P] [US1] Write failing integration test for chat flow in apps/web/tests/integration/chat-flow.test.tsx
+- [X] T027 [P] [US1] Write failing E2E test for multiline input handling in apps/web/tests/e2e/chat-input.spec.ts
+- [X] T028 [US1] Run all US1 tests and verify they FAIL (RED checkpoint complete)
 
 ### GREEN Phase: Implementation for US1
 
 **Purpose**: Write MINIMAL code to make tests pass
 
-- [ ] T029 [P] [US1] Create MessageList component with virtualized scrolling in apps/web/components/chat/MessageList.tsx
-- [ ] T030 [P] [US1] Create MessageItem component in apps/web/components/chat/MessageItem.tsx
-- [ ] T031 [P] [US1] Create Composer component with Shift+Enter multiline support in apps/web/components/chat/Composer.tsx
-- [ ] T032 [P] [US1] Create ChatInterface container component in apps/web/components/chat/ChatInterface.tsx
-- [ ] T033 [US1] Implement useStreamingQuery hook with SSE handling in apps/web/hooks/useStreamingQuery.ts
-- [ ] T034 [US1] Create BFF streaming proxy route in apps/web/app/api/streaming/route.ts
-- [ ] T035 [US1] Create chat page in apps/web/app/(chat)/page.tsx
-- [ ] T036 [US1] Implement message rendering with markdown support in apps/web/components/chat/MessageContent.tsx
-- [ ] T037 [US1] Implement draft message preservation in localStorage
-- [ ] T038 [US1] Add typing indicators during response generation
-- [ ] T039 [US1] Run all US1 tests and verify they PASS (GREEN checkpoint complete)
+- [X] T029 [P] [US1] Create MessageList component with virtualized scrolling in apps/web/components/chat/MessageList.tsx
+- [X] T030 [P] [US1] Create MessageItem component in apps/web/components/chat/MessageItem.tsx
+- [X] T031 [P] [US1] Create Composer component with Shift+Enter multiline support in apps/web/components/chat/Composer.tsx
+- [X] T032 [P] [US1] Create ChatInterface container component in apps/web/components/chat/ChatInterface.tsx
+- [X] T033 [US1] Implement useStreamingQuery hook with SSE handling in apps/web/hooks/useStreamingQuery.ts
+- [X] T034 [US1] Create BFF streaming proxy route in apps/web/app/api/streaming/route.ts
+- [X] T035 [US1] Create chat page in apps/web/app/page.tsx
+- [X] T036 [US1] Implement message rendering with markdown support in apps/web/components/chat/MessageContent.tsx
+- [X] T037 [US1] Implement draft message preservation in localStorage
+- [X] T038 [US1] Add typing indicators during response generation
+- [ ] T039 [US1] Run all US1 tests and verify they PASS (GREEN checkpoint complete - 41/52 tests passing, 11 remaining failures)
 
 ### REFACTOR Phase: Code Cleanup for US1
 
