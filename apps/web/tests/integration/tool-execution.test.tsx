@@ -44,7 +44,16 @@ const mockStream = (events: Array<{ event: string; data: unknown }>) => {
 
 beforeEach(() => {
   fetchEventSourceMock.mockReset();
-  global.fetch = jest.fn();
+  // Set up default fetch mock for all API calls (tools, servers, projects, etc.)
+  global.fetch = jest.fn().mockImplementation((url) => {
+    // Return empty arrays for all fetch requests by default
+    return Promise.resolve(
+      new globalThis.Response(JSON.stringify([]), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+  });
 });
 
 function renderChatInterface() {
@@ -107,7 +116,7 @@ describe('Tool Execution Flow', () => {
       expect(screen.getByText('Bash')).toBeInTheDocument();
     });
 
-    // Tool card should be visible
+    // Verify tool card is present with test ID
     const toolCard = screen.getByTestId('tool-call-tool-abc-123');
     expect(toolCard).toBeInTheDocument();
   });
@@ -262,6 +271,7 @@ describe('Tool Execution Flow', () => {
           role: "assistant",
         },
       },
+      { event: "tool_result", data: { tool_use_id: "tool-abc-123", status: "running" } },
     ]);
     renderChatInterface();
 
@@ -269,7 +279,7 @@ describe('Tool Execution Flow', () => {
     await user.type(input, 'List files in /src');
     await user.keyboard('{Enter}');
 
-    // Wait for tool card
+    // Wait for tool card to appear
     await waitFor(() => {
       expect(screen.getByText('Bash')).toBeInTheDocument();
     });

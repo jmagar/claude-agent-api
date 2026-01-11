@@ -205,7 +205,7 @@ describe("Tool Approval Flow Integration", () => {
     });
   });
 
-  describe.skip("Inline approval cards (Default mode)", () => {
+  describe("Inline approval cards (Default mode)", () => {
     it("shows approval card when tool requires approval", async () => {
       const user = userEvent.setup();
 
@@ -519,7 +519,7 @@ describe("Tool Approval Flow Integration", () => {
     });
   });
 
-  describe.skip("Accept Edits mode", () => {
+  describe("Accept Edits mode", () => {
     it("auto-approves file edit tools without showing approval card", async () => {
       const user = userEvent.setup();
       localStorage.setItem("permissionMode", JSON.stringify("acceptEdits"));
@@ -560,12 +560,12 @@ describe("Tool Approval Flow Integration", () => {
 
       // Should show tool as completed
       await waitFor(() => {
-        expect(screen.getByTestId("tool-call-card-tool-1")).toBeInTheDocument();
+        expect(screen.getByTestId("tool-call-tool-1")).toBeInTheDocument();
       });
     });
   });
 
-  describe.skip("Don't Ask mode", () => {
+  describe("Don't Ask mode", () => {
     it("auto-approves all tools without showing approval card", async () => {
       const user = userEvent.setup();
       localStorage.setItem("permissionMode", JSON.stringify("dontAsk"));
@@ -765,7 +765,7 @@ describe("Tool Approval Flow Integration", () => {
     });
   });
 
-  describe.skip("Keyboard shortcuts", () => {
+  describe("Keyboard shortcuts", () => {
     it("cycles permission mode with keyboard shortcut", async () => {
       const user = userEvent.setup();
 

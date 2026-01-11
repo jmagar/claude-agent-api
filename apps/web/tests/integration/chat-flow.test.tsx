@@ -291,28 +291,40 @@ describe("Chat Flow Integration", () => {
 
   describe("Message persistence", () => {
     it("should load existing messages on mount", async () => {
-      (global.fetch as jest.Mock).mockResolvedValueOnce(
-        new globalThis.Response(
-          JSON.stringify({
-            messages: [
-              {
-                id: "msg-1",
-                role: "user",
-                content: [{ type: "text", text: "Previous message" }],
-                created_at: new Date().toISOString(),
-              },
-              {
-                id: "msg-2",
-                role: "assistant",
-                content: [{ type: "text", text: "Previous response" }],
-                created_at: new Date().toISOString(),
-              },
-            ],
-            total: 2,
-          }),
-          { status: 200, headers: { "Content-Type": "application/json" } }
-        )
-      );
+      // Set up mock BEFORE rendering to ensure useQuery gets the right data
+      (global.fetch as jest.Mock).mockImplementation((url) => {
+        if (url.includes("/api/sessions/session-123/messages")) {
+          return Promise.resolve(
+            new globalThis.Response(
+              JSON.stringify({
+                messages: [
+                  {
+                    id: "msg-1",
+                    role: "user",
+                    content: [{ type: "text", text: "Previous message" }],
+                    created_at: new Date().toISOString(),
+                  },
+                  {
+                    id: "msg-2",
+                    role: "assistant",
+                    content: [{ type: "text", text: "Previous response" }],
+                    created_at: new Date().toISOString(),
+                  },
+                ],
+                total: 2,
+              }),
+              { status: 200, headers: { "Content-Type": "application/json" } }
+            )
+          );
+        }
+        // Default response for other fetches (tools, servers, etc.)
+        return Promise.resolve(
+          new globalThis.Response(JSON.stringify([]), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          })
+        );
+      });
 
       render(<ChatInterface sessionId="session-123" />);
 
@@ -324,31 +336,44 @@ describe("Chat Flow Integration", () => {
     });
 
     it("should append new messages to existing conversation", async () => {
+      // Set up SSE streaming mock
       mockStream([
         { event: "init", data: { session_id: "session-123" } },
         {
           event: "message",
-          data: { content: [{ type: "text", text: "Second message" }], role: "assistant" },
+          data: { content: [{ type: "text", text: "Response to second" }], role: "assistant" },
         },
         { event: "done", data: {} },
       ]);
 
-      (global.fetch as jest.Mock).mockResolvedValueOnce(
-        new globalThis.Response(
-          JSON.stringify({
-            messages: [
-              {
-                id: "msg-1",
-                role: "user",
-                content: [{ type: "text", text: "First message" }],
-                created_at: new Date().toISOString(),
-              },
-            ],
-            total: 1,
-          }),
-          { status: 200, headers: { "Content-Type": "application/json" } }
-        )
-      );
+      // Set up fetch mock BEFORE rendering
+      (global.fetch as jest.Mock).mockImplementation((url) => {
+        if (url.includes("/api/sessions/session-123/messages")) {
+          return Promise.resolve(
+            new globalThis.Response(
+              JSON.stringify({
+                messages: [
+                  {
+                    id: "msg-1",
+                    role: "user",
+                    content: [{ type: "text", text: "First message" }],
+                    created_at: new Date().toISOString(),
+                  },
+                ],
+                total: 1,
+              }),
+              { status: 200, headers: { "Content-Type": "application/json" } }
+            )
+          );
+        }
+        // Default for tools/servers
+        return Promise.resolve(
+          new globalThis.Response(JSON.stringify([]), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          })
+        );
+      });
 
       render(<ChatInterface sessionId="session-123" />);
 
@@ -364,7 +389,7 @@ describe("Chat Flow Integration", () => {
       const sendButton = screen.getByRole("button", { name: /send/i });
       fireEvent.click(sendButton);
 
-      // Both messages should be visible
+      // Both old and new messages should be visible
       await waitFor(() => {
         expect(screen.getByText("First message")).toBeInTheDocument();
         expect(screen.getByText("Second message")).toBeInTheDocument();
@@ -374,13 +399,49 @@ describe("Chat Flow Integration", () => {
 
   describe("Loading states", () => {
     it("should show loading skeleton while fetching initial messages", () => {
+      // Set up fetch to return immediately but still trigger loading state
+      (global.fetch as jest.Mock).mockImplementation((url) => {
+        if (url.includes("/api/sessions/session-123/messages")) {
+          return Promise.resolve(
+            new globalThis.Response(
+              JSON.stringify({ messages: [], total: 0 }),
+              { status: 200, headers: { "Content-Type": "application/json" } }
+            )
+          );
+        }
+        return Promise.resolve(
+          new globalThis.Response(JSON.stringify([]), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          })
+        );
+      });
+
       render(<ChatInterface sessionId="session-123" />);
 
-      // Should show loading state
+      // Should show loading state immediately after render
       expect(screen.getByTestId("message-skeleton")).toBeInTheDocument();
     });
 
     it("should hide loading skeleton after messages load", async () => {
+      // Set up fetch mock
+      (global.fetch as jest.Mock).mockImplementation((url) => {
+        if (url.includes("/api/sessions/session-123/messages")) {
+          return Promise.resolve(
+            new globalThis.Response(
+              JSON.stringify({ messages: [], total: 0 }),
+              { status: 200, headers: { "Content-Type": "application/json" } }
+            )
+          );
+        }
+        return Promise.resolve(
+          new globalThis.Response(JSON.stringify([]), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          })
+        );
+      });
+
       render(<ChatInterface sessionId="session-123" />);
 
       // Wait for messages to load
@@ -394,6 +455,24 @@ describe("Chat Flow Integration", () => {
 
   describe("Empty state", () => {
     it("should show empty state when no messages", async () => {
+      // Set up fetch mock to return empty messages
+      (global.fetch as jest.Mock).mockImplementation((url) => {
+        if (url.includes("/api/sessions/session-123/messages")) {
+          return Promise.resolve(
+            new globalThis.Response(
+              JSON.stringify({ messages: [], total: 0 }),
+              { status: 200, headers: { "Content-Type": "application/json" } }
+            )
+          );
+        }
+        return Promise.resolve(
+          new globalThis.Response(JSON.stringify([]), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          })
+        );
+      });
+
       render(<ChatInterface sessionId="session-123" />);
 
       await waitFor(() => {
@@ -402,6 +481,24 @@ describe("Chat Flow Integration", () => {
     });
 
     it("should hide empty state after first message", async () => {
+      // Set up fetch mock
+      (global.fetch as jest.Mock).mockImplementation((url) => {
+        if (url.includes("/api/sessions/")) {
+          return Promise.resolve(
+            new globalThis.Response(
+              JSON.stringify({ messages: [], total: 0 }),
+              { status: 200, headers: { "Content-Type": "application/json" } }
+            )
+          );
+        }
+        return Promise.resolve(
+          new globalThis.Response(JSON.stringify([]), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          })
+        );
+      });
+
       render(<ChatInterface sessionId="session-123" />);
 
       // Send first message
