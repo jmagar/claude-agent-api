@@ -2,7 +2,7 @@
  * Composer component
  *
  * Message input with auto-resize, Shift+Enter multiline support,
- * draft persistence, and loading states.
+ * draft persistence, autocomplete, and loading states.
  *
  * @see tests/unit/components/Composer.test.tsx for test specifications
  * @see wireframes/01-chat-brainstorm-mode.html for design
@@ -11,6 +11,9 @@
 "use client";
 
 import { useState, useEffect, useRef, KeyboardEvent, ChangeEvent } from "react";
+import { useAutocomplete } from "@/hooks/useAutocomplete";
+import { AutocompleteMenu } from "../autocomplete/AutocompleteMenu";
+import type { AutocompleteItem } from "@/types";
 
 export interface ComposerProps {
   /** Callback when message is sent */
@@ -44,6 +47,17 @@ export function Composer({
   });
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const composerRef = useRef<HTMLDivElement>(null);
+
+  // Track cursor position for autocomplete
+  const [cursorPosition, setCursorPosition] = useState(0);
+
+  // Autocomplete hook
+  const autocomplete = useAutocomplete({
+    value,
+    cursorPosition,
+    enabled: !isLoading,
+  });
 
   // Save draft to localStorage (debounced)
   useEffect((): void | (() => void) => {
@@ -109,11 +123,26 @@ export function Composer({
 
   // Handle input change
   const handleChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
-    setValue(e.target.value);
+    const nextValue = e.target.value;
+    const nextCursorPosition = e.target.selectionStart ?? nextValue.length;
+    setValue(nextValue);
+    setCursorPosition(nextCursorPosition);
   };
 
-  // Handle key down (Enter to send, Shift+Enter for newline)
+  // Handle key down (Enter to send, Shift+Enter for newline, Escape to close autocomplete)
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    // If autocomplete is open, Escape should close it
+    if (autocomplete.isOpen && e.key === "Escape") {
+      e.preventDefault();
+      autocomplete.close();
+      return;
+    }
+
+    // Don't send message if autocomplete is open (let autocomplete handle Enter)
+    if (autocomplete.isOpen && e.key === "Enter") {
+      return;
+    }
+
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
@@ -127,6 +156,7 @@ export function Composer({
 
     onSend(trimmed);
     setValue("");
+    setCursorPosition(0);
 
     // Clear draft from localStorage
     if (typeof window !== "undefined") {
@@ -134,12 +164,51 @@ export function Composer({
     }
   };
 
+  // Handle autocomplete item selection
+  const handleAutocompleteSelect = (item: AutocompleteItem) => {
+    const { value: newValue, cursorPosition: newCursorPos } =
+      autocomplete.selectItem(item);
+    setValue(newValue);
+    setCursorPosition(newCursorPos);
+
+    // Focus back on textarea
+    textareaRef.current?.focus();
+
+    // Set cursor position in textarea
+    requestAnimationFrame(() => {
+      if (textareaRef.current) {
+        textareaRef.current.selectionStart = newCursorPos;
+        textareaRef.current.selectionEnd = newCursorPos;
+      }
+    });
+  };
+
+  // Calculate autocomplete menu position
+  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | undefined>();
+
+  useEffect(() => {
+    if (!autocomplete.isOpen || !textareaRef.current) {
+      setMenuPosition(undefined);
+      return;
+    }
+
+    const textarea = textareaRef.current;
+    const rect = textarea.getBoundingClientRect();
+
+    // Position menu below textarea
+    setMenuPosition({
+      top: rect.bottom + window.scrollY + 4,
+      left: rect.left + window.scrollX,
+    });
+  }, [autocomplete.isOpen]);
+
   const isDisabled = isLoading;
   const isSendDisabled = isDisabled || !value.trim();
 
   return (
     <div
-      className="border-t border-gray-300 bg-white px-20 py-16"
+      ref={composerRef}
+      className="relative border-t border-gray-300 bg-white px-20 py-16"
       data-testid="composer"
     >
       <div className="flex gap-12">
@@ -185,6 +254,19 @@ export function Composer({
         >
           Claude is typing...
         </div>
+      )}
+
+      {/* Autocomplete menu */}
+      {autocomplete.isOpen && menuPosition && (
+        <AutocompleteMenu
+          items={autocomplete.items}
+          onSelect={handleAutocompleteSelect}
+          onClose={autocomplete.close}
+          searchQuery={autocomplete.searchQuery}
+          position={menuPosition}
+          isLoading={autocomplete.isLoading}
+          error={autocomplete.error}
+        />
       )}
     </div>
   );
