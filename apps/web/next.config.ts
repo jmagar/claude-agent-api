@@ -1,16 +1,19 @@
 import type { NextConfig } from "next";
+import { config as loadEnv } from "dotenv";
+import { resolve } from "path";
+
+// Load environment variables from project root .env
+loadEnv({ path: resolve(__dirname, "../../.env") });
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   compress: true,
-  experimental: {
-    turbo: {
-      rules: {
-        "*.svg": {
-          loaders: ["@svgr/webpack"],
-          as: "*.js",
-        },
+  turbopack: {
+    rules: {
+      "*.svg": {
+        loaders: ["@svgr/webpack"],
+        as: "*.js",
       },
     },
   },

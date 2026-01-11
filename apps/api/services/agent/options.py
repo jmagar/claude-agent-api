@@ -77,7 +77,9 @@ class OptionsBuilder:
         # Session resume configuration
         resume: str | None = None
         fork_session: bool | None = None
-        if request.session_id and not request.fork_session:
+        if request.continue_conversation and not request.fork_session:
+            resume = None
+        elif request.session_id and not request.fork_session:
             resume = request.session_id
         elif request.session_id and request.fork_session:
             resume = request.session_id

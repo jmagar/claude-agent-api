@@ -24,6 +24,12 @@ os.environ.setdefault("DEBUG", "true")
 from apps.api.config import get_settings
 from apps.api.dependencies import close_cache, close_db, init_cache, init_db
 from apps.api.main import create_app
+from tests.helpers.e2e_client import (
+    get_e2e_api_key,
+    get_e2e_base_url,
+    get_e2e_timeout_seconds,
+    should_use_live_e2e_client,
+)
 
 logger = logging.getLogger(__name__)
 ALLOW_REAL_CLAUDE_ENV = "ALLOW_REAL_CLAUDE_API"
@@ -60,7 +66,7 @@ def anyio_backend() -> str:
 @pytest.fixture
 def test_api_key() -> str:
     """API key for testing."""
-    return "test-api-key-12345"
+    return get_e2e_api_key(os.environ) or "test-api-key-12345"
 
 
 @pytest.fixture
@@ -76,12 +82,23 @@ def _auth_headers(auth_headers: dict[str, str]) -> dict[str, str]:
 
 
 @pytest.fixture(scope="function")
-async def async_client() -> AsyncGenerator[AsyncClient, None]:
+async def async_client(
+    request: pytest.FixtureRequest,
+) -> AsyncGenerator[AsyncClient, None]:
     """Async HTTP client for testing with ASGI transport.
 
     Initializes the app lifecycle (db, cache) before tests.
     Uses function scope to avoid Redis connection issues across tests.
     """
+    is_e2e = request.node.get_closest_marker("e2e") is not None
+    if should_use_live_e2e_client(is_e2e=is_e2e, env=os.environ):
+        base_url = get_e2e_base_url(os.environ)
+        assert base_url is not None
+        timeout_seconds = get_e2e_timeout_seconds(os.environ)
+        async with AsyncClient(base_url=base_url, timeout=timeout_seconds) as client:
+            yield client
+        return
+
     # Clear the settings cache to ensure test env vars are used
     get_settings.cache_clear()
 

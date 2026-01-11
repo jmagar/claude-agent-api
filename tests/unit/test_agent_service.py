@@ -677,6 +677,22 @@ class TestEnableFileCheckpointing:
         assert request2.enable_file_checkpointing is False
 
 
+class TestContinueConversationOptions:
+    """Tests for continue_conversation handling in options builder."""
+
+    def test_build_options_sets_default_resume_for_continue_conversation(self) -> None:
+        """Do not set resume when continue_conversation is True."""
+        service = AgentService()
+        request = QueryRequest(prompt="Test", continue_conversation=True)
+
+        with patch("claude_agent_sdk.ClaudeAgentOptions") as mock_cls:
+            mock_cls.return_value = MagicMock()
+            service._build_options(request)
+
+            call_kwargs = mock_cls.call_args.kwargs
+            assert call_kwargs.get("resume") is None
+
+
 class TestCheckpointUuidTracking:
     """Tests for checkpoint UUID tracking during message streaming (T104)."""
 

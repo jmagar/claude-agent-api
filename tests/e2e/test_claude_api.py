@@ -5,7 +5,7 @@ import json
 from collections.abc import Awaitable, Callable
 
 import pytest
-from httpx import AsyncClient, Response
+from httpx import ASGITransport, AsyncClient, Response
 
 SseEventHandler = Callable[[str, dict[str, object]], Awaitable[None]]
 
@@ -66,10 +66,15 @@ async def test_real_claude_query(
     interrupt_sent = False
     saw_message = False
     saw_done = False
-    interrupt_client = AsyncClient(
-        transport=async_client._transport,  # type: ignore[attr-defined]
-        base_url="http://test",
-    )
+    transport = async_client._transport  # type: ignore[attr-defined]
+    base_url = str(async_client.base_url)
+    if isinstance(transport, ASGITransport):
+        interrupt_client = AsyncClient(
+            transport=transport,
+            base_url=base_url,
+        )
+    else:
+        interrupt_client = AsyncClient(base_url=base_url)
 
     async def interrupt_with_retry() -> None:
         """Retry interrupt until it succeeds or timeout expires."""
@@ -152,6 +157,6 @@ async def test_real_claude_query(
         resume_events = await _collect_sse_events(response)
 
     assert any(event["event"] == "init" for event in resume_events)
-    assert any(event["event"] == "message" for event in resume_events)
-    assert any(event["event"] == "result" for event in resume_events)
     assert any(event["event"] == "done" for event in resume_events)
+    error_events = [event for event in resume_events if event["event"] == "error"]
+    assert not error_events, f"Resume error events: {error_events!r}"

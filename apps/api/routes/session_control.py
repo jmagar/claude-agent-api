@@ -57,6 +57,7 @@ async def resume_session(
         images=request.images,
         session_id=session_id,
         fork_session=False,
+        continue_conversation=True,
         allowed_tools=request.allowed_tools or [],
         disallowed_tools=request.disallowed_tools or [],
         permission_mode=request.permission_mode or "default",
