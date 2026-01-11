@@ -10,7 +10,7 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { MessageList } from "./MessageList";
 import { Composer } from "./Composer";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
@@ -28,6 +28,7 @@ export function ChatInterface({ sessionId: initialSessionId }: ChatInterfaceProp
   const [loadingMessages, setLoadingMessages] = useState(!!initialSessionId);
   const {
     messages: streamMessages,
+    toolCalls,
     sessionId, // Get the actual session ID from the hook (updated from init event)
     isStreaming,
     error,
@@ -72,6 +73,15 @@ export function ChatInterface({ sessionId: initialSessionId }: ChatInterfaceProp
     }
   }, [streamMessages]);
 
+  const toolCallsById = useMemo(
+    () =>
+      toolCalls.reduce<Record<string, (typeof toolCalls)[number]>>((acc, toolCall) => {
+        acc[toolCall.id] = toolCall;
+        return acc;
+      }, {}),
+    [toolCalls]
+  );
+
   // Handle send message
   const handleSend = async (text: string) => {
     clearError();
@@ -85,6 +95,8 @@ export function ChatInterface({ sessionId: initialSessionId }: ChatInterfaceProp
         messages={allMessages}
         isLoading={loadingMessages}
         isStreaming={isStreaming}
+        toolCallsById={toolCallsById}
+        onRetryTool={retry}
       />
 
       {/* Error banner */}
@@ -96,7 +108,7 @@ export function ChatInterface({ sessionId: initialSessionId }: ChatInterfaceProp
       <Composer
         onSend={handleSend}
         isLoading={isStreaming}
-        sessionId={sessionId}
+        sessionId={sessionId ?? undefined}
       />
     </div>
   );

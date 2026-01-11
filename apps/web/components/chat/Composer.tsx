@@ -31,26 +31,51 @@ export function Composer({
 }: ComposerProps) {
   const [value, setValue] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const globalDraftKey = "draft:global";
+
+  const getDraftKey = (id?: string) =>
+    id ? `draft:${id}` : globalDraftKey;
 
   // Load draft from localStorage on mount
   useEffect(() => {
-    if (sessionId && typeof window !== "undefined") {
-      const draft = localStorage.getItem(`draft:${sessionId}`);
-      if (draft) {
-        setValue(draft);
-      }
+    if (typeof window === "undefined") {
+      return;
+    }
+    const draft = localStorage.getItem(getDraftKey(sessionId));
+    if (draft) {
+      setValue(draft);
     }
   }, [sessionId]);
 
   // Save draft to localStorage (debounced)
   useEffect((): void | (() => void) => {
-    if (sessionId && typeof window !== "undefined" && value) {
-      const timeoutId = setTimeout(() => {
-        localStorage.setItem(`draft:${sessionId}`, value);
-      }, 300);
-      return () => clearTimeout(timeoutId);
+    if (typeof window === "undefined" || !value) {
+      return;
     }
+    const timeoutId = setTimeout(() => {
+      localStorage.setItem(getDraftKey(sessionId), value);
+    }, 300);
+    return () => clearTimeout(timeoutId);
   }, [value, sessionId]);
+
+  // Migrate global draft to session-specific draft when sessionId becomes available
+  useEffect(() => {
+    if (typeof window === "undefined" || !sessionId) {
+      return;
+    }
+    const sessionKey = getDraftKey(sessionId);
+    const sessionDraft = localStorage.getItem(sessionKey);
+    if (sessionDraft) {
+      setValue(sessionDraft);
+      return;
+    }
+    const globalDraft = localStorage.getItem(globalDraftKey);
+    if (globalDraft && !value) {
+      localStorage.setItem(sessionKey, globalDraft);
+      localStorage.removeItem(globalDraftKey);
+      setValue(globalDraft);
+    }
+  }, [sessionId, value]);
 
   // Auto-resize textarea
   useEffect(() => {
@@ -83,8 +108,8 @@ export function Composer({
     setValue("");
 
     // Clear draft from localStorage
-    if (sessionId && typeof window !== "undefined") {
-      localStorage.removeItem(`draft:${sessionId}`);
+    if (typeof window !== "undefined") {
+      localStorage.removeItem(getDraftKey(sessionId));
     }
   };
 

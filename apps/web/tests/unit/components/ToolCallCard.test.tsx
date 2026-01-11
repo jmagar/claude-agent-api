@@ -138,7 +138,7 @@ describe('ToolCallCard', () => {
     expect(screen.getByText(/150ms/)).toBeInTheDocument();
   });
 
-  it('syntax highlights JSON input/output', () => {
+  it('renders JSON input/output in code blocks', () => {
     const jsonToolCall: ToolCall = {
       ...mockToolCall,
       input: { query: 'SELECT * FROM users', limit: 10 },
@@ -147,8 +147,11 @@ describe('ToolCallCard', () => {
 
     render(<ToolCallCard toolCall={jsonToolCall} collapsed={false} />);
 
-    // Should apply syntax highlighting CSS classes
-    const codeBlock = screen.getByText(/SELECT \* FROM users/);
-    expect(codeBlock.closest('pre')).toHaveClass('language-json');
+    // Should render code blocks with formatted JSON
+    const codeBlocks = screen.getAllByTestId('code-block');
+    expect(codeBlocks.length).toBeGreaterThanOrEqual(2); // Input and output
+
+    // Should contain the query text
+    expect(screen.getByText(/SELECT \* FROM users/)).toBeInTheDocument();
   });
 });

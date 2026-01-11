@@ -12,22 +12,32 @@
 
 import { useState, memo } from "react";
 import { MessageContent } from "./MessageContent";
-import type { Message, ToolUseBlock as ToolUseBlockType, ToolResultBlock as ToolResultBlockType } from "@/types";
-import {
-  isTextBlock,
-  isThinkingBlock,
-  isToolUseBlock,
-  isToolResultBlock,
+import { ToolCallCard } from "./ToolCallCard";
+import { ThinkingBlock } from "./ThinkingBlock";
+import type {
+  Message,
+  ToolResultBlock as ToolResultBlockType,
+  ToolCall,
 } from "@/types";
+import { isTextBlock, isThinkingBlock, isToolUseBlock, isToolResultBlock } from "@/types";
 
 export interface MessageItemProps {
   /** Message to display */
   message: Message;
   /** Whether to show timestamp */
   showTimestamp?: boolean;
+  /** Tool calls keyed by tool_use id */
+  toolCallsById?: Record<string, ToolCall>;
+  /** Retry handler for failed tools */
+  onRetryTool?: () => void;
 }
 
-function MessageItemComponent({ message, showTimestamp = false }: MessageItemProps) {
+function MessageItemComponent({
+  message,
+  showTimestamp = false,
+  toolCallsById,
+  onRetryTool,
+}: MessageItemProps) {
   const [expandedThinking, setExpandedThinking] = useState<Set<number>>(
     new Set()
   );
@@ -86,25 +96,27 @@ function MessageItemComponent({ message, showTimestamp = false }: MessageItemPro
                 {isTextBlock(block) && <MessageContent text={block.text} />}
 
                 {isThinkingBlock(block) && (
-                  <div className="rounded-6 border border-gray-300 bg-gray-50 p-12">
-                    <button
-                      onClick={() => toggleThinking(index)}
-                      className="flex w-full items-center justify-between text-12 font-semibold text-gray-700 hover:text-gray-900"
-                    >
-                      <span>Thinking...</span>
-                      <span>{expandedThinking.has(index) ? "−" : "+"}</span>
-                    </button>
-                    <div
-                      className={`mt-8 text-13 text-gray-600 ${
-                        expandedThinking.has(index) ? "block" : "hidden"
-                      }`}
-                    >
-                      {block.thinking}
-                    </div>
-                  </div>
+                  <ThinkingBlock
+                    thinking={block.thinking}
+                    collapsed={!expandedThinking.has(index)}
+                    onToggle={() => toggleThinking(index)}
+                  />
                 )}
 
-                {isToolUseBlock(block) && <ToolUseBlock block={block} />}
+                {isToolUseBlock(block) && (
+                  <ToolCallCard
+                    toolCall={
+                      toolCallsById?.[block.id] ?? {
+                        id: block.id,
+                        name: block.name,
+                        status: "running",
+                        input: block.input,
+                        started_at: new Date(),
+                      }
+                    }
+                    onRetry={onRetryTool}
+                  />
+                )}
 
                 {isToolResultBlock(block) && <ToolResultBlock block={block} />}
               </div>
@@ -130,28 +142,6 @@ function MessageItemComponent({ message, showTimestamp = false }: MessageItemPro
  * preventing unnecessary re-renders in message lists.
  */
 export const MessageItem = memo(MessageItemComponent);
-
-/** Tool use block component */
-function ToolUseBlock({ block }: { block: ToolUseBlockType }) {
-  return (
-    <div className="rounded-6 border border-gray-400 bg-yellow-light p-12">
-      <div className="mb-8 flex items-center justify-between">
-        <div className="font-semibold text-13">{block.name}</div>
-        <div className="rounded-3 bg-yellow-bg px-6 py-2 text-10 font-semibold uppercase text-yellow-text">
-          Tool
-        </div>
-      </div>
-      <div className="font-mono text-12 text-gray-600">
-        {Object.entries(block.input).map(([key, value]) => (
-          <div key={key}>
-            <span className="text-gray-500">{key}:</span>{" "}
-            {JSON.stringify(value)}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 /** Tool result block component */
 function ToolResultBlock({ block }: { block: ToolResultBlockType }) {

@@ -4,6 +4,8 @@
  */
 
 import "@testing-library/jest-dom";
+import "whatwg-fetch";
+import { TransformStream, ReadableStream, WritableStream } from "stream/web";
 import { TextEncoder, TextDecoder } from "util";
 
 // Polyfill TextEncoder/TextDecoder for msw
@@ -38,6 +40,35 @@ global.localStorage = localStorageMock;
 // Mock scrollIntoView for MessageList
 Element.prototype.scrollIntoView = jest.fn();
 
+// Mock ResizeObserver for virtualization components
+class ResizeObserverMock {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+
+global.ResizeObserver = ResizeObserverMock;
+
+// Mock requestAnimationFrame for virtualization
+global.requestAnimationFrame = (callback) => setTimeout(callback, 0);
+global.cancelAnimationFrame = (id) => clearTimeout(id);
+
+// Polyfill Web Streams for MSW in jsdom
+global.TransformStream = TransformStream;
+global.ReadableStream = ReadableStream;
+global.WritableStream = WritableStream;
+
+// Mock BroadcastChannel for MSW
+class BroadcastChannelMock {
+  constructor() {}
+  postMessage() {}
+  close() {}
+  addEventListener() {}
+  removeEventListener() {}
+}
+
+global.BroadcastChannel = BroadcastChannelMock;
+
 // Mock react-markdown to avoid ESM transformation issues
 jest.mock("react-markdown", () => {
   return {
@@ -70,6 +101,26 @@ jest.mock("react-markdown", () => {
 jest.mock("rehype-sanitize", () => ({
   __esModule: true,
   default: () => {},
+}));
+
+// Mock react-virtuoso for deterministic rendering in tests
+jest.mock("react-virtuoso", () => ({
+  Virtuoso: ({ data = [], itemContent, components = {} }) => {
+    const Scroller = components.Scroller || (({ children, ...props }) => <div {...props}>{children}</div>);
+    const List = components.List || (({ children, ...props }) => <div {...props}>{children}</div>);
+    const Footer = components.Footer || (() => null);
+
+    return (
+      <Scroller data-virtuoso-scroller="true">
+        <List data-testid="virtuoso-item-list">
+          {data.map((item, index) => (
+            <div key={item?.id ?? index}>{itemContent(index, item)}</div>
+          ))}
+          <Footer />
+        </List>
+      </Scroller>
+    );
+  },
 }));
 
 // Reset mocks before each test

@@ -9,13 +9,18 @@ const createJestConfig = nextJest({
 const customJestConfig = {
   setupFilesAfterEnv: ["<rootDir>/jest.setup.js"],
   testEnvironment: "jest-environment-jsdom",
+  testEnvironmentOptions: {
+    customExportConditions: ["node", "node-addons"],
+  },
   moduleNameMapper: {
     "^@/(.*)$": "<rootDir>/$1",
   },
+  transformIgnorePatterns: [
+    "/node_modules/(?!(\\.pnpm/.*(msw|mswjs|open-draft|until-async|headers-polyfill|react-syntax-highlighter|refractor|hast-util-to-html|property-information|space-separated-tokens|comma-separated-tokens|hast-util-whitespace)))",
+  ],
   testMatch: [
     "<rootDir>/tests/unit/**/*.test.{ts,tsx}",
-    // Temporarily skip integration tests (msw v2 fetch polyfill issues)
-    // "<rootDir>/tests/integration/**/*.test.{ts,tsx}",
+    "<rootDir>/tests/integration/**/*.test.{ts,tsx}",
   ],
   collectCoverageFrom: [
     "app/**/*.{ts,tsx}",

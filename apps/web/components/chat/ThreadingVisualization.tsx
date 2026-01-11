@@ -16,17 +16,18 @@
 import { useState, useEffect, memo } from "react";
 import type { ToolCall } from "@/types";
 import { Eye, EyeOff } from "lucide-react";
+import { ToolCallCard } from "./ToolCallCard";
 
 export interface ThreadingVisualizationProps {
-  parent: ToolCall;
   children: ToolCall[];
   mode?: "always" | "hover" | "adaptive" | "toggle";
+  onRetryTool?: () => void;
 }
 
 export const ThreadingVisualization = memo(function ThreadingVisualization({
-  parent,
   children,
   mode = "always",
+  onRetryTool,
 }: ThreadingVisualizationProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [isToggled, setIsToggled] = useState(false);
@@ -82,8 +83,10 @@ export const ThreadingVisualization = memo(function ThreadingVisualization({
   if (isMobile) {
     return (
       <div data-testid="threading-wrapper" className="ml-16">
-        <div data-testid="threading-children">
-          {/* Children will be rendered outside this component */}
+        <div data-testid="threading-children" className="flex flex-col gap-8">
+          {children.map((toolCall) => (
+            <ToolCallCard key={toolCall.id} toolCall={toolCall} onRetry={onRetryTool} />
+          ))}
         </div>
       </div>
     );
@@ -137,8 +140,10 @@ export const ThreadingVisualization = memo(function ThreadingVisualization({
       </svg>
 
       {/* Children container */}
-      <div data-testid="threading-children" className="ml-40">
-        {/* Children will be rendered outside this component */}
+      <div data-testid="threading-children" className="ml-40 flex flex-col gap-8">
+        {children.map((toolCall) => (
+          <ToolCallCard key={toolCall.id} toolCall={toolCall} onRetry={onRetryTool} />
+        ))}
       </div>
     </div>
   );

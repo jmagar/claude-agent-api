@@ -153,22 +153,16 @@ describe("MessageItem", () => {
 
       render(<MessageItem message={messageWithThinking} />);
 
-      // Thinking block should be collapsible
-      const thinkingToggle = screen.getByText(/thinking/i);
-      expect(thinkingToggle).toBeInTheDocument();
+      const thinkingBlock = screen.getByTestId("thinking-block");
+      expect(thinkingBlock).toHaveAttribute("aria-expanded", "false");
 
-      // Content should exist but be hidden by default
-      const thinkingContent = screen.getByText("Let me analyze this carefully...");
-      expect(thinkingContent).toBeInTheDocument();
-      expect(thinkingContent).toHaveClass("hidden");
-      expect(thinkingContent).not.toHaveClass("block");
-
-      // Click to expand
+      const thinkingToggle = screen.getByRole("button", { name: /thinking/i });
       fireEvent.click(thinkingToggle);
 
-      // Content should now be visible
-      expect(thinkingContent).toHaveClass("block");
-      expect(thinkingContent).not.toHaveClass("hidden");
+      expect(thinkingBlock).toHaveAttribute("aria-expanded", "true");
+      expect(
+        screen.getByText("Let me analyze this carefully...")
+      ).toBeInTheDocument();
     });
 
     it("should render tool use blocks", () => {
@@ -192,6 +186,8 @@ describe("MessageItem", () => {
 
       // Tool card should be displayed
       expect(screen.getByText("Read")).toBeInTheDocument();
+      const toolHeader = screen.getByRole("button", { name: /read/i });
+      fireEvent.click(toolHeader);
       expect(screen.getByText(/file_path/i)).toBeInTheDocument();
     });
 

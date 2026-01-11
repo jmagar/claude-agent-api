@@ -3,6 +3,11 @@
   "style": "new-york",
   "rsc": true,
   "tsx": true,
+  "iconLibrary": "lucide",
+  "registries": {
+    "@plate": "https://platejs.org/r/{name}.json",
+    "@assistant-ui": "https://r.assistant-ui.com/{name}.json"
+  },
   "tailwind": {
     "config": "tailwind.config.ts",
     "css": "app/globals.css",

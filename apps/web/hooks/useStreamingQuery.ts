@@ -11,13 +11,14 @@
 
 import { useState, useCallback, useRef } from "react";
 import { fetchEventSource } from "@microsoft/fetch-event-source";
-import type { Message } from "@/types";
+import type { Message, ToolCall, ToolStatus } from "@/types";
 import {
   mergeContentBlocks,
   updateMessagesWithAccumulator,
   createUserMessage,
   createAssistantAccumulator,
 } from "@/lib/streaming-utils";
+import { logger } from "@/lib/logger";
 
 export interface StreamingQueryState {
   /** Whether a query is currently streaming */
@@ -26,6 +27,8 @@ export interface StreamingQueryState {
   error: string | null;
   /** Accumulated messages from stream */
   messages: Message[];
+  /** Active tool calls from the stream */
+  toolCalls: ToolCall[];
   /** Current session ID */
   sessionId: string | null;
 }
@@ -46,6 +49,7 @@ export function useStreamingQuery(
     isStreaming: false,
     error: null,
     messages: [],
+    toolCalls: [],
     sessionId: initialSessionId || null,
   });
 
@@ -91,8 +95,6 @@ export function useStreamingQuery(
             }
           },
           onmessage: (event) => {
-            if (!accumulatorRef.current) return;
-
             switch (event.event) {
               case "init":
                 // Session initialized
@@ -104,6 +106,9 @@ export function useStreamingQuery(
                 break;
 
               case "message":
+                if (!accumulatorRef.current) {
+                  return;
+                }
                 // Append content to accumulator
                 const messageData = JSON.parse(event.data);
                 if (
@@ -111,21 +116,92 @@ export function useStreamingQuery(
                   Array.isArray(messageData.content) &&
                   accumulatorRef.current
                 ) {
+                  const toolCallsFromMessage: ToolCall[] = messageData.content
+                    .filter((block: { type?: string }) => block.type === "tool_use")
+                    .map((block: { id: string; name: string; input: Record<string, unknown> }) => ({
+                      id: block.id,
+                      name: block.name,
+                      status: "running" as ToolStatus,
+                      input: block.input,
+                      started_at: new Date(),
+                    }));
+
                   // Merge new content blocks into accumulator
-                  accumulatorRef.current = mergeContentBlocks(
+                  const nextAccumulator = mergeContentBlocks(
                     accumulatorRef.current,
                     messageData.content
                   );
+                  accumulatorRef.current = nextAccumulator;
 
                   // Update state with accumulated message
                   setState((prev) => ({
                     ...prev,
                     messages: updateMessagesWithAccumulator(
                       prev.messages,
-                      accumulatorRef.current!
+                      nextAccumulator
                     ),
+                    toolCalls:
+                      toolCallsFromMessage.length > 0
+                        ? [
+                            ...prev.toolCalls.filter(
+                              (toolCall) =>
+                                !toolCallsFromMessage.some(
+                                  (incoming) => incoming.id === toolCall.id
+                                )
+                            ),
+                            ...toolCallsFromMessage,
+                          ]
+                        : prev.toolCalls,
                   }));
                 }
+                break;
+
+              case "tool_result":
+                const toolResultData = JSON.parse(event.data);
+                setState((prev) => {
+                  const existingIndex = prev.toolCalls.findIndex(
+                    (toolCall) => toolCall.id === toolResultData.tool_use_id
+                  );
+                  const nextToolCalls = [...prev.toolCalls];
+                  const nextStatus = toolResultData.status as ToolStatus;
+                  const outputValue =
+                    typeof toolResultData.content === "undefined"
+                      ? undefined
+                      : toolResultData.content;
+                  const errorValue =
+                    toolResultData.is_error || nextStatus === "error"
+                      ? typeof toolResultData.content === "string"
+                        ? toolResultData.content
+                        : JSON.stringify(toolResultData.content)
+                      : undefined;
+
+                  if (existingIndex >= 0) {
+                    const existing = nextToolCalls[existingIndex];
+                    nextToolCalls[existingIndex] = {
+                      ...existing,
+                      status: nextStatus,
+                      output: outputValue,
+                      error: errorValue,
+                      duration_ms: toolResultData.duration_ms ?? existing.duration_ms,
+                    };
+                  } else {
+                    nextToolCalls.push({
+                      id: toolResultData.tool_use_id,
+                      name: toolResultData.name || "Tool",
+                      status: nextStatus,
+                      input: toolResultData.input ?? {},
+                      output: outputValue,
+                      error: errorValue,
+                      duration_ms: toolResultData.duration_ms,
+                      started_at: new Date(),
+                    });
+                  }
+
+                  return {
+                    ...prev,
+                    toolCalls: nextToolCalls,
+                  };
+                });
                 break;
 
               case "done":
@@ -141,7 +217,11 @@ export function useStreamingQuery(
             }
           },
           onerror: (error) => {
-            console.error("SSE error:", error);
+            logger.error(
+              "SSE streaming error",
+              error instanceof Error ? error : new Error(String(error)),
+              { sessionId: state.sessionId }
+            );
             throw error;
           },
         });

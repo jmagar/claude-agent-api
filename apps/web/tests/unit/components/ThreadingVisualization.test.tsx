@@ -16,14 +16,6 @@ import { ThreadingVisualization } from '@/components/chat/ThreadingVisualization
 import type { ToolCall } from '@/types';
 
 describe('ThreadingVisualization', () => {
-  const parentToolCall: ToolCall = {
-    id: 'tool-1',
-    name: 'Task',
-    status: 'success',
-    input: { prompt: 'Research API design' },
-    output: 'Research complete',
-  };
-
   const childToolCalls: ToolCall[] = [
     {
       id: 'tool-2',
@@ -46,7 +38,6 @@ describe('ThreadingVisualization', () => {
   it('renders parent-child connection lines', () => {
     render(
       <ThreadingVisualization
-        parent={parentToolCall}
         children={childToolCalls}
         mode="always"
       />
@@ -65,7 +56,6 @@ describe('ThreadingVisualization', () => {
   it('hides lines in hover mode by default', () => {
     const { container } = render(
       <ThreadingVisualization
-        parent={parentToolCall}
         children={childToolCalls}
         mode="hover"
       />
@@ -79,7 +69,6 @@ describe('ThreadingVisualization', () => {
   it('shows lines on hover in hover mode', () => {
     const { container } = render(
       <ThreadingVisualization
-        parent={parentToolCall}
         children={childToolCalls}
         mode="hover"
       />
@@ -98,7 +87,6 @@ describe('ThreadingVisualization', () => {
 
     render(
       <ThreadingVisualization
-        parent={parentToolCall}
         children={simpleChildren}
         mode="adaptive"
       />
@@ -112,7 +100,6 @@ describe('ThreadingVisualization', () => {
     // Multiple children = complex thread
     render(
       <ThreadingVisualization
-        parent={parentToolCall}
         children={childToolCalls}
         mode="adaptive"
       />
@@ -125,7 +112,6 @@ describe('ThreadingVisualization', () => {
   it('includes toggle button in toggle mode', () => {
     render(
       <ThreadingVisualization
-        parent={parentToolCall}
         children={childToolCalls}
         mode="toggle"
       />
@@ -136,9 +122,8 @@ describe('ThreadingVisualization', () => {
   });
 
   it('toggles visibility when button clicked', () => {
-    const { container } = render(
+    render(
       <ThreadingVisualization
-        parent={parentToolCall}
         children={childToolCalls}
         mode="toggle"
       />
@@ -162,7 +147,6 @@ describe('ThreadingVisualization', () => {
   it('draws curved connection lines', () => {
     const { container } = render(
       <ThreadingVisualization
-        parent={parentToolCall}
         children={childToolCalls}
         mode="always"
       />
@@ -183,7 +167,6 @@ describe('ThreadingVisualization', () => {
 
     const { container } = render(
       <ThreadingVisualization
-        parent={parentToolCall}
         children={mixedChildren}
         mode="always"
       />
@@ -208,24 +191,22 @@ describe('ThreadingVisualization', () => {
       parent_tool_use_id: 'tool-2', // Child of tool-2
     };
 
-    const { container } = render(
+    render(
       <>
         <ThreadingVisualization
-          parent={parentToolCall}
           children={childToolCalls}
           mode="always"
         />
         <ThreadingVisualization
-          parent={childToolCalls[0]}
           children={[grandchildToolCall]}
           mode="always"
         />
       </>
     );
 
-    // Should render 2 SVG elements (one for each level)
-    const svgs = container.querySelectorAll('svg');
-    expect(svgs).toHaveLength(2);
+    // Should render 2 threading SVG elements (one for each level)
+    const threadingSvgs = screen.getAllByTestId('threading-svg');
+    expect(threadingSvgs).toHaveLength(2);
   });
 
   it('simplifies threading on mobile (indent-only, no lines)', () => {
@@ -239,7 +220,6 @@ describe('ThreadingVisualization', () => {
 
     render(
       <ThreadingVisualization
-        parent={parentToolCall}
         children={childToolCalls}
         mode="always"
       />

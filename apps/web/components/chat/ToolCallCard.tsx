@@ -12,9 +12,10 @@
 
 "use client";
 
-import { useState, memo } from "react";
+import { useState, memo, useEffect } from "react";
 import type { ToolCall } from "@/types";
 import { ChevronDown, ChevronRight, RefreshCw, Check, X, Loader2 } from "lucide-react";
+import { CodeBlock, formatCodeValue } from "@/components/ui/CodeBlock";
 
 export interface ToolCallCardProps {
   toolCall: ToolCall;
@@ -35,7 +36,9 @@ export const ToolCallCard = memo(function ToolCallCard({
   onDeny,
   needsApproval = false,
 }: ToolCallCardProps) {
-  const [internalCollapsed, setInternalCollapsed] = useState(true);
+  const [internalCollapsed, setInternalCollapsed] = useState(
+    toolCall.status !== "success" && toolCall.status !== "error"
+  );
 
   // Use external collapse state if provided, otherwise use internal
   const isCollapsed = externalCollapsed !== undefined ? externalCollapsed : internalCollapsed;
@@ -47,6 +50,15 @@ export const ToolCallCard = memo(function ToolCallCard({
       setInternalCollapsed(!internalCollapsed);
     }
   };
+
+  useEffect(() => {
+    if (externalCollapsed !== undefined) {
+      return;
+    }
+    if (toolCall.status === "success" || toolCall.status === "error") {
+      setInternalCollapsed(false);
+    }
+  }, [toolCall.status, externalCollapsed]);
 
   const getStatusColor = (status: ToolCall["status"]) => {
     switch (status) {
@@ -65,11 +77,6 @@ export const ToolCallCard = memo(function ToolCallCard({
     if (!ms) return null;
     if (ms < 1000) return `${ms}ms`;
     return `${(ms / 1000).toFixed(2)}s`;
-  };
-
-  const formatValue = (value: unknown): string => {
-    if (typeof value === "string") return value;
-    return JSON.stringify(value, null, 2);
   };
 
   return (
@@ -115,18 +122,22 @@ export const ToolCallCard = memo(function ToolCallCard({
           {/* Input */}
           <div className="mt-12">
             <h4 className="text-12 font-medium text-gray-700 mb-4">Input</h4>
-            <pre className="bg-gray-50 p-8 rounded text-12 overflow-x-auto language-json">
-              <code>{formatValue(toolCall.input)}</code>
-            </pre>
+            <CodeBlock
+              code={formatCodeValue(toolCall.input)}
+              language="json"
+              className="overflow-x-auto"
+            />
           </div>
 
           {/* Output or Error */}
           {toolCall.output && (
             <div className="mt-12">
               <h4 className="text-12 font-medium text-gray-700 mb-4">Output</h4>
-              <pre className="bg-gray-50 p-8 rounded text-12 overflow-x-auto language-json">
-                <code>{formatValue(toolCall.output)}</code>
-              </pre>
+              <CodeBlock
+                code={formatCodeValue(toolCall.output)}
+                language="json"
+                className="overflow-x-auto"
+              />
             </div>
           )}
 

@@ -11,7 +11,7 @@
  * - Handle loading state (disable during response)
  */
 
-import { render, screen, fireEvent, waitFor } from "@/tests/utils/test-utils";
+import { render, screen, fireEvent, waitFor, act } from "@/tests/utils/test-utils";
 import { Composer } from "@/components/chat/Composer";
 import { mockLocalStorage } from "@/tests/utils/test-utils";
 
@@ -204,7 +204,9 @@ describe("Composer", () => {
       });
       const preventDefaultSpy = jest.spyOn(event, "preventDefault");
 
-      textarea.dispatchEvent(event);
+      act(() => {
+        textarea.dispatchEvent(event);
+      });
 
       expect(preventDefaultSpy).toHaveBeenCalled();
     });

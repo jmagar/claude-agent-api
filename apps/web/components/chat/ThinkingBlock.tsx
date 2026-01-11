@@ -75,13 +75,15 @@ export const ThinkingBlock = memo(function ThinkingBlock({
       </button>
 
       {/* Content (expanded) */}
-      {!isCollapsed && (
-        <div className="px-16 pb-12 border-t border-purple-100">
-          <pre className="mt-12 text-12 text-purple-900 whitespace-pre-wrap font-sans">
-            {thinking}
-          </pre>
-        </div>
-      )}
+      <div
+        className={`px-16 pb-12 border-t border-purple-100 ${
+          isCollapsed ? "hidden" : "block"
+        }`}
+      >
+        <pre className="mt-12 text-12 text-purple-900 whitespace-pre-wrap font-sans">
+          {thinking}
+        </pre>
+      </div>
     </div>
   );
 });

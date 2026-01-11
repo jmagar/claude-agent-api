@@ -92,7 +92,7 @@ export function ErrorBanner({ error, onRetry, onDismiss }: ErrorBannerProps) {
 
         {/* Actions */}
         <div className="flex gap-8">
-          {onRetry && category === "network" && (
+          {onRetry && (
             <button
               onClick={onRetry}
               className="rounded-6 bg-red-DEFAULT px-16 py-8 text-13 font-medium text-white hover:opacity-90 transition-opacity"

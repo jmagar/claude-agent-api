@@ -15,12 +15,14 @@
 
 "use client";
 
-import { useEffect, useRef, memo } from "react";
+import { useEffect, useMemo, useRef, memo, forwardRef } from "react";
+import type { HTMLAttributes } from "react";
+import { Virtuoso } from "react-virtuoso";
 import { MessageItem } from "./MessageItem";
 import { MessageSkeleton } from "@/components/ui/LoadingState";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { StreamingIndicator } from "@/components/ui/LoadingState";
-import type { Message } from "@/types";
+import type { Message, ToolCall } from "@/types";
 
 export interface MessageListProps {
   /** Array of messages to display */
@@ -31,6 +33,10 @@ export interface MessageListProps {
   isStreaming?: boolean;
   /** Whether to show timestamps on messages */
   showTimestamps?: boolean;
+  /** Tool calls keyed by tool_use id */
+  toolCallsById?: Record<string, ToolCall>;
+  /** Retry handler for failed tools */
+  onRetryTool?: () => void;
 }
 
 function MessageListComponent({
@@ -38,24 +44,26 @@ function MessageListComponent({
   isLoading = false,
   isStreaming = false,
   showTimestamps = false,
+  toolCallsById,
+  onRetryTool,
 }: MessageListProps) {
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
   const previousMessageCountRef = useRef(messages.length);
   const isInitialMount = useRef(true);
 
-  // Auto-scroll to bottom when new messages are added or on initial mount
-  useEffect(() => {
-    const isNewMessage = messages.length > previousMessageCountRef.current;
-    const shouldScroll = isInitialMount.current || isNewMessage;
+  const followOutput = useMemo(() => {
+    if (isInitialMount.current) {
+      return "auto" as const;
+    }
+    if (messages.length > previousMessageCountRef.current) {
+      return "smooth" as const;
+    }
+    return false;
+  }, [messages.length]);
 
-    if (shouldScroll) {
-      messagesEndRef.current?.scrollIntoView({
-        behavior: isInitialMount.current ? "auto" : "smooth",
-      });
+  useEffect(() => {
+    if (isInitialMount.current) {
       isInitialMount.current = false;
     }
-
     previousMessageCountRef.current = messages.length;
   }, [messages.length]);
 
@@ -97,32 +105,54 @@ function MessageListComponent({
 
   return (
     <div
-      ref={containerRef}
-      className="flex flex-1 flex-col overflow-auto px-20 py-20"
-      data-testid="message-list-container"
+      className="flex flex-1 flex-col"
       role="log"
       aria-label="Chat messages"
     >
-      {/* Message list */}
-      <div className="flex flex-col gap-24">
-        {messages.map((message) => (
+      <Virtuoso
+        data={messages}
+        followOutput={followOutput}
+        className="flex-1"
+        components={{
+          Scroller: forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
+            function MessageScroller({ className = "", ...props }, ref) {
+              return (
+                <div
+                  ref={ref}
+                  {...props}
+                  className={`overflow-auto px-20 py-20 ${className}`}
+                  data-testid="message-list-container"
+                />
+              );
+            }
+          ),
+          List: forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
+            function MessageListContainer({ className = "", ...props }, ref) {
+              return (
+                <div
+                  ref={ref}
+                  {...props}
+                  className={`flex flex-col gap-24 ${className}`}
+                />
+              );
+            }
+          ),
+          Footer: () =>
+            isStreaming && messages.length > 0 ? (
+              <div className="mt-8" data-testid="streaming-indicator">
+                <StreamingIndicator showCursor={true} />
+              </div>
+            ) : null,
+        }}
+        itemContent={(_, message) => (
           <MessageItem
-            key={message.id}
             message={message}
             showTimestamp={showTimestamps}
+            toolCallsById={toolCallsById}
+            onRetryTool={onRetryTool}
           />
-        ))}
-      </div>
-
-      {/* Streaming indicator on last message */}
-      {isStreaming && messages.length > 0 && (
-        <div className="mt-8" data-testid="streaming-indicator">
-          <StreamingIndicator showCursor={true} />
-        </div>
-      )}
-
-      {/* Auto-scroll anchor */}
-      <div ref={messagesEndRef} />
+        )}
+      />
     </div>
   );
 }
