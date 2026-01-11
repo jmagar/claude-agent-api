@@ -19,13 +19,13 @@ import { Eye, EyeOff } from "lucide-react";
 import { ToolCallCard } from "./ToolCallCard";
 
 export interface ThreadingVisualizationProps {
-  children: ToolCall[];
+  toolCalls: ToolCall[];
   mode?: "always" | "hover" | "adaptive" | "toggle";
   onRetryTool?: () => void;
 }
 
 export const ThreadingVisualization = memo(function ThreadingVisualization({
-  children,
+  toolCalls,
   mode = "always",
   onRetryTool,
 }: ThreadingVisualizationProps) {
@@ -48,7 +48,7 @@ export const ThreadingVisualization = memo(function ThreadingVisualization({
     if (isMobile) return false; // No SVG lines on mobile
     if (mode === "always") return true;
     if (mode === "hover") return isHovered;
-    if (mode === "adaptive") return children.length > 1; // Complex = 2+ children
+    if (mode === "adaptive") return toolCalls.length > 1; // Complex = 2+ children
     if (mode === "toggle") return isToggled;
     return false;
   };
@@ -84,7 +84,7 @@ export const ThreadingVisualization = memo(function ThreadingVisualization({
     return (
       <div data-testid="threading-wrapper" className="ml-16">
         <div data-testid="threading-children" className="flex flex-col gap-8">
-          {children.map((toolCall) => (
+          {toolCalls.map((toolCall) => (
             <ToolCallCard key={toolCall.id} toolCall={toolCall} onRetry={onRetryTool} />
           ))}
         </div>
@@ -93,7 +93,7 @@ export const ThreadingVisualization = memo(function ThreadingVisualization({
   }
 
   // Adaptive mode - don't render for simple threads
-  if (mode === "adaptive" && children.length <= 1) {
+  if (mode === "adaptive" && toolCalls.length <= 1) {
     return null;
   }
 
@@ -128,7 +128,7 @@ export const ThreadingVisualization = memo(function ThreadingVisualization({
         role="img"
         aria-hidden="true"
       >
-        {children.map((child, index) => (
+        {toolCalls.map((child, index) => (
           <path
             key={child.id}
             d={generatePath(index)}
@@ -139,9 +139,9 @@ export const ThreadingVisualization = memo(function ThreadingVisualization({
         ))}
       </svg>
 
-      {/* Children container */}
+      {/* Tool calls container */}
       <div data-testid="threading-children" className="ml-40 flex flex-col gap-8">
-        {children.map((toolCall) => (
+        {toolCalls.map((toolCall) => (
           <ToolCallCard key={toolCall.id} toolCall={toolCall} onRetry={onRetryTool} />
         ))}
       </div>

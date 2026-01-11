@@ -154,4 +154,17 @@ describe('ToolCallCard', () => {
     // Should contain the query text
     expect(screen.getByText(/SELECT \* FROM users/)).toBeInTheDocument();
   });
+
+  it('renders output section for empty string output', () => {
+    const emptyOutputToolCall: ToolCall = {
+      ...mockToolCall,
+      output: '',
+    };
+
+    render(<ToolCallCard toolCall={emptyOutputToolCall} collapsed={false} />);
+
+    expect(screen.getByText('Output')).toBeInTheDocument();
+    const codeBlocks = screen.getAllByTestId('code-block');
+    expect(codeBlocks.length).toBeGreaterThanOrEqual(2);
+  });
 });

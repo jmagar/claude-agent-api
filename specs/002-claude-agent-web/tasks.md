@@ -143,22 +143,22 @@
 
 ### RED Phase: Write Failing Tests for US3
 
-- [ ] T059 [P] [US3] Write failing unit test for ModeToggle component in apps/web/tests/unit/components/ModeToggle.test.tsx
-- [ ] T060 [P] [US3] Write failing unit test for ProjectPicker component in apps/web/tests/unit/components/ProjectPicker.test.tsx
-- [ ] T061 [P] [US3] Write failing integration test for mode switching in apps/web/tests/integration/mode-switch.test.tsx
-- [ ] T062 [US3] Run all US3 tests and verify they FAIL (RED checkpoint complete)
+- [X] T059 [P] [US3] Write failing unit test for ModeToggle component in apps/web/tests/unit/components/ModeToggle.test.tsx
+- [X] T060 [P] [US3] Write failing unit test for ProjectPicker component in apps/web/tests/unit/components/ProjectPicker.test.tsx
+- [X] T061 [P] [US3] Write failing integration test for mode switching in apps/web/tests/integration/mode-switch.test.tsx
+- [X] T062 [US3] Run all US3 tests and verify they FAIL (RED checkpoint complete - 3 test suites fail with module not found ✅)
 
 ### GREEN Phase: Implementation for US3
 
-- [ ] T063 [P] [US3] Create ModeToggle component in apps/web/components/sidebar/ModeToggle.tsx
-- [ ] T064 [P] [US3] Create ProjectPicker modal component in apps/web/components/modals/ProjectPickerModal.tsx
-- [ ] T065 [US3] Implement mode state management in ActiveSessionContext in apps/web/contexts/ActiveSessionContext.tsx
-- [ ] T066 [US3] Create BFF route for projects list in apps/web/app/api/projects/route.ts (GET, POST)
-- [ ] T067 [US3] Create BFF route for project CRUD in apps/web/app/api/projects/[id]/route.ts (GET, PATCH, DELETE)
-- [ ] T068 [US3] Implement date-based session grouping for Brainstorm mode in SessionList component
-- [ ] T069 [US3] Implement project-based session grouping for Code mode in SessionList component
-- [ ] T070 [US3] Persist mode preference in localStorage
-- [ ] T071 [US3] Run all US3 tests and verify they PASS (GREEN checkpoint complete)
+- [X] T063 [P] [US3] Create ModeToggle component in apps/web/components/sidebar/ModeToggle.tsx
+- [X] T064 [P] [US3] Create ProjectPicker modal component in apps/web/components/modals/ProjectPickerModal.tsx
+- [X] T065 [US3] Implement mode state management in ModeContext in apps/web/contexts/ModeContext.tsx
+- [X] T066 [US3] Create BFF route for projects list in apps/web/app/api/projects/route.ts (GET, POST)
+- [X] T067 [US3] Create BFF route for project CRUD in apps/web/app/api/projects/[id]/route.ts (GET, PATCH, DELETE)
+- [X] T068 [US3] Implement date-based session grouping for Brainstorm mode in ChatInterface sidebar
+- [X] T069 [US3] Implement project-based session grouping for Code mode in ChatInterface sidebar
+- [X] T070 [US3] Persist mode preference in localStorage via ModeContext
+- [X] T071 [US3] Run all US3 tests and verify they PASS (GREEN checkpoint complete - 235/235 tests passing ✅)
 
 ### REFACTOR Phase: Code Cleanup for US3
 

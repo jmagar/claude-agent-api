@@ -26,6 +26,7 @@ export interface ToolUseBlock extends BaseContentBlock {
   id: string;
   name: string;
   input: Record<string, unknown>;
+  parent_tool_use_id?: string;
 }
 
 export interface ToolResultBlock extends BaseContentBlock {

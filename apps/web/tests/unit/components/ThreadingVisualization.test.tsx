@@ -38,7 +38,7 @@ describe('ThreadingVisualization', () => {
   it('renders parent-child connection lines', () => {
     render(
       <ThreadingVisualization
-        children={childToolCalls}
+        toolCalls={childToolCalls}
         mode="always"
       />
     );
@@ -56,7 +56,7 @@ describe('ThreadingVisualization', () => {
   it('hides lines in hover mode by default', () => {
     const { container } = render(
       <ThreadingVisualization
-        children={childToolCalls}
+        toolCalls={childToolCalls}
         mode="hover"
       />
     );
@@ -69,7 +69,7 @@ describe('ThreadingVisualization', () => {
   it('shows lines on hover in hover mode', () => {
     const { container } = render(
       <ThreadingVisualization
-        children={childToolCalls}
+        toolCalls={childToolCalls}
         mode="hover"
       />
     );
@@ -87,7 +87,7 @@ describe('ThreadingVisualization', () => {
 
     render(
       <ThreadingVisualization
-        children={simpleChildren}
+        toolCalls={simpleChildren}
         mode="adaptive"
       />
     );
@@ -100,7 +100,7 @@ describe('ThreadingVisualization', () => {
     // Multiple children = complex thread
     render(
       <ThreadingVisualization
-        children={childToolCalls}
+        toolCalls={childToolCalls}
         mode="adaptive"
       />
     );
@@ -112,7 +112,7 @@ describe('ThreadingVisualization', () => {
   it('includes toggle button in toggle mode', () => {
     render(
       <ThreadingVisualization
-        children={childToolCalls}
+        toolCalls={childToolCalls}
         mode="toggle"
       />
     );
@@ -124,7 +124,7 @@ describe('ThreadingVisualization', () => {
   it('toggles visibility when button clicked', () => {
     render(
       <ThreadingVisualization
-        children={childToolCalls}
+        toolCalls={childToolCalls}
         mode="toggle"
       />
     );
@@ -147,7 +147,7 @@ describe('ThreadingVisualization', () => {
   it('draws curved connection lines', () => {
     const { container } = render(
       <ThreadingVisualization
-        children={childToolCalls}
+        toolCalls={childToolCalls}
         mode="always"
       />
     );
@@ -167,7 +167,7 @@ describe('ThreadingVisualization', () => {
 
     const { container } = render(
       <ThreadingVisualization
-        children={mixedChildren}
+        toolCalls={mixedChildren}
         mode="always"
       />
     );
@@ -194,11 +194,11 @@ describe('ThreadingVisualization', () => {
     render(
       <>
         <ThreadingVisualization
-          children={childToolCalls}
+          toolCalls={childToolCalls}
           mode="always"
         />
         <ThreadingVisualization
-          children={[grandchildToolCall]}
+          toolCalls={[grandchildToolCall]}
           mode="always"
         />
       </>
@@ -216,11 +216,11 @@ describe('ThreadingVisualization', () => {
       configurable: true,
       value: 375,
     });
-    global.dispatchEvent(new Event('resize'));
+    global.dispatchEvent(new globalThis.Event('resize'));
 
     render(
       <ThreadingVisualization
-        children={childToolCalls}
+        toolCalls={childToolCalls}
         mode="always"
       />
     );

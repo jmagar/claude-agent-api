@@ -130,7 +130,7 @@ export const ToolCallCard = memo(function ToolCallCard({
           </div>
 
           {/* Output or Error */}
-          {toolCall.output && (
+          {toolCall.output !== undefined && (
             <div className="mt-12">
               <h4 className="text-12 font-medium text-gray-700 mb-4">Output</h4>
               <CodeBlock

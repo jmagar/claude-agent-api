@@ -55,7 +55,7 @@ const mockNetworkError = () => {
 beforeEach(() => {
   fetchEventSourceMock.mockReset();
   global.fetch = jest.fn().mockResolvedValue(
-    new Response(JSON.stringify({ messages: [], total: 0 }), {
+    new globalThis.Response(JSON.stringify({ messages: [], total: 0 }), {
       status: 200,
       headers: { "Content-Type": "application/json" },
     })
@@ -292,7 +292,7 @@ describe("Chat Flow Integration", () => {
   describe("Message persistence", () => {
     it("should load existing messages on mount", async () => {
       (global.fetch as jest.Mock).mockResolvedValueOnce(
-        new Response(
+        new globalThis.Response(
           JSON.stringify({
             messages: [
               {
@@ -334,7 +334,7 @@ describe("Chat Flow Integration", () => {
       ]);
 
       (global.fetch as jest.Mock).mockResolvedValueOnce(
-        new Response(
+        new globalThis.Response(
           JSON.stringify({
             messages: [
               {

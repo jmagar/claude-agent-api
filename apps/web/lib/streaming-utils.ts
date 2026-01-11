@@ -24,8 +24,11 @@ export function mergeContentBlocks(
       const lastBlock = updatedContent[updatedContent.length - 1];
 
       if (lastBlock && lastBlock.type === "text") {
-        (lastBlock as { text: string }).text +=
-          (block as { text: string }).text;
+        // Create a new block instead of mutating the existing one
+        updatedContent[updatedContent.length - 1] = {
+          ...lastBlock,
+          text: (lastBlock as { text: string }).text + (block as { text: string }).text,
+        };
       } else {
         updatedContent.push(block);
       }

@@ -118,13 +118,21 @@ export function useStreamingQuery(
                 ) {
                   const toolCallsFromMessage: ToolCall[] = messageData.content
                     .filter((block: { type?: string }) => block.type === "tool_use")
-                    .map((block: { id: string; name: string; input: Record<string, unknown> }) => ({
-                      id: block.id,
-                      name: block.name,
-                      status: "running" as ToolStatus,
-                      input: block.input,
-                      started_at: new Date(),
-                    }));
+                    .map(
+                      (block: {
+                        id: string;
+                        name: string;
+                        input: Record<string, unknown>;
+                        parent_tool_use_id?: string;
+                      }) => ({
+                        id: block.id,
+                        name: block.name,
+                        status: "running" as ToolStatus,
+                        input: block.input,
+                        parent_tool_use_id: block.parent_tool_use_id,
+                        started_at: new Date(),
+                      })
+                    );
 
                   // Merge new content blocks into accumulator
                   const nextAccumulator = mergeContentBlocks(

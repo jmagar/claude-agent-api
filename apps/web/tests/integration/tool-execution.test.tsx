@@ -112,6 +112,50 @@ describe('Tool Execution Flow', () => {
     expect(toolCard).toBeInTheDocument();
   });
 
+  it('renders threading visualization for parent-child tool calls', async () => {
+    const user = userEvent.setup();
+    Object.defineProperty(window, 'innerWidth', {
+      writable: true,
+      configurable: true,
+      value: 1024,
+    });
+    global.dispatchEvent(new globalThis.Event('resize'));
+
+    mockStream([
+      { event: "init", data: { session_id: "test-session-789" } },
+      {
+        event: "message",
+        data: {
+          content: [
+            { type: "tool_use", id: "tool-parent-1", name: "Task", input: { prompt: "Research" } },
+            {
+              type: "tool_use",
+              id: "tool-child-1",
+              name: "WebSearch",
+              input: { query: "best practices" },
+              parent_tool_use_id: "tool-parent-1",
+            },
+          ],
+          role: "assistant",
+        },
+      },
+    ]);
+    renderChatInterface();
+
+    const input = screen.getByPlaceholderText(/message/i);
+    await user.type(input, 'Research best practices');
+    await user.keyboard('{Enter}');
+
+    await waitFor(() => {
+      expect(screen.getByText('Task')).toBeInTheDocument();
+      expect(screen.getByText('WebSearch')).toBeInTheDocument();
+    });
+
+    const svg = screen.getByTestId('threading-svg');
+    expect(svg).toBeInTheDocument();
+    expect(svg.querySelectorAll('path')).toHaveLength(1);
+  });
+
   it('shows running status during tool execution', async () => {
     const user = userEvent.setup();
     mockStream([

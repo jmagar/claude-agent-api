@@ -14,6 +14,7 @@ import { useState, memo } from "react";
 import { MessageContent } from "./MessageContent";
 import { ToolCallCard } from "./ToolCallCard";
 import { ThinkingBlock } from "./ThinkingBlock";
+import { ThreadingVisualization } from "./ThreadingVisualization";
 import type {
   Message,
   ToolResultBlock as ToolResultBlockType,
@@ -44,6 +45,41 @@ function MessageItemComponent({
 
   const isUser = message.role === "user";
   const label = isUser ? "You" : "Assistant";
+  const toolUseBlocks = message.content.filter(isToolUseBlock);
+  const toolUseBlockIds = new Set(toolUseBlocks.map((block) => block.id));
+  const toolUseBlockOrder = new Map(
+    toolUseBlocks.map((block, index) => [block.id, index])
+  );
+  const childToolCallsByParent = new Map<string, ToolCall[]>();
+  const childToolCallIds = new Set<string>();
+
+  if (toolCallsById) {
+    Object.values(toolCallsById).forEach((toolCall) => {
+      if (!toolCall.parent_tool_use_id) {
+        return;
+      }
+      if (!toolUseBlockIds.has(toolCall.parent_tool_use_id)) {
+        return;
+      }
+      if (!toolUseBlockIds.has(toolCall.id)) {
+        return;
+      }
+
+      const existing = childToolCallsByParent.get(toolCall.parent_tool_use_id) ?? [];
+      existing.push(toolCall);
+      childToolCallsByParent.set(toolCall.parent_tool_use_id, existing);
+      childToolCallIds.add(toolCall.id);
+    });
+
+    childToolCallsByParent.forEach((children, parentId) => {
+      const sorted = [...children].sort((a, b) => {
+        const aIndex = toolUseBlockOrder.get(a.id) ?? 0;
+        const bIndex = toolUseBlockOrder.get(b.id) ?? 0;
+        return aIndex - bIndex;
+      });
+      childToolCallsByParent.set(parentId, sorted);
+    });
+  }
 
   // Format timestamp (HH:MM)
   const formatTime = (date: Date) => {
@@ -103,20 +139,44 @@ function MessageItemComponent({
                   />
                 )}
 
-                {isToolUseBlock(block) && (
-                  <ToolCallCard
-                    toolCall={
-                      toolCallsById?.[block.id] ?? {
-                        id: block.id,
-                        name: block.name,
-                        status: "running",
-                        input: block.input,
-                        started_at: new Date(),
-                      }
-                    }
-                    onRetry={onRetryTool}
-                  />
-                )}
+                {isToolUseBlock(block) && (() => {
+                  if (childToolCallIds.has(block.id)) {
+                    return null;
+                  }
+
+                  const resolvedToolCall =
+                    toolCallsById?.[block.id] ?? {
+                      id: block.id,
+                      name: block.name,
+                      status: "running",
+                      input: block.input,
+                      started_at: new Date(),
+                    };
+                  const childToolCalls = childToolCallsByParent.get(block.id);
+
+                  if (childToolCalls && childToolCalls.length > 0) {
+                    return (
+                      <div className="flex flex-col gap-8">
+                        <ToolCallCard
+                          toolCall={resolvedToolCall}
+                          onRetry={onRetryTool}
+                        />
+                        <ThreadingVisualization
+                          toolCalls={childToolCalls}
+                          mode="always"
+                          onRetryTool={onRetryTool}
+                        />
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <ToolCallCard
+                      toolCall={resolvedToolCall}
+                      onRetry={onRetryTool}
+                    />
+                  );
+                })()}
 
                 {isToolResultBlock(block) && <ToolResultBlock block={block} />}
               </div>
