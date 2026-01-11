@@ -23,6 +23,8 @@ import { useModeOptional } from "@/contexts/ModeContext";
 import { PermissionsChip } from "@/components/shared/PermissionsChip";
 import { ToolBadge } from "@/components/shared/ToolBadge";
 import { ToolManagementModal } from "@/components/modals/ToolManagementModal";
+import { ToolApprovalCard } from "./ToolApprovalCard";
+import { ToolCallCard } from "./ToolCallCard";
 import { usePermissionsOptional } from "@/contexts/PermissionsContext";
 import type {
   Message,
@@ -33,6 +35,7 @@ import type {
   McpServerConfig,
   PermissionMode,
 } from "@/types";
+import { isToolUseBlock } from "@/types";
 
 const PERMISSION_MODES: PermissionMode[] = [
   "default",
@@ -40,6 +43,15 @@ const PERMISSION_MODES: PermissionMode[] = [
   "dontAsk",
   "bypassPermissions",
 ];
+const FILE_EDIT_TOOLS = new Set([
+  "write_file",
+  "edit_file",
+  "create_file",
+  "apply_patch",
+  "delete_file",
+  "rename_file",
+  "move_file",
+]);
 
 export interface ChatInterfaceProps {
   /** Session ID for this chat (optional - will be generated if not provided) */
@@ -60,6 +72,9 @@ export function ChatInterface({ sessionId: initialSessionId }: ChatInterfaceProp
   const [toolModalOpen, setToolModalOpen] = useState(false);
   const [toolModalLoading, setToolModalLoading] = useState(false);
   const [toolModalError, setToolModalError] = useState<string | null>(null);
+  const [handledApprovalIds, setHandledApprovalIds] = useState<Set<string>>(
+    new Set()
+  );
 
   // Mode context - provides mode state and persistence
   // We always call useModeOptional() to satisfy Rules of Hooks, then check if it's available
@@ -113,6 +128,12 @@ export function ChatInterface({ sessionId: initialSessionId }: ChatInterfaceProp
     },
     [permissionsContext]
   );
+
+  const cyclePermissionMode = useCallback(() => {
+    const currentIndex = PERMISSION_MODES.indexOf(permissionMode);
+    const nextMode = PERMISSION_MODES[(currentIndex + 1) % PERMISSION_MODES.length];
+    setPermissionMode(nextMode);
+  }, [permissionMode, setPermissionMode]);
 
   const {
     messages: streamMessages,
@@ -297,6 +318,111 @@ export function ChatInterface({ sessionId: initialSessionId }: ChatInterfaceProp
     await sendMessage(text);
   };
 
+  const handleApprovalSubmit = useCallback(
+    async (toolCallId: string, toolName: string, approved: boolean, remember: boolean) => {
+      setHandledApprovalIds((prev) => {
+        const next = new Set(prev);
+        next.add(toolCallId);
+        return next;
+      });
+
+      if (remember && permissionsContext) {
+        permissionsContext.addAlwaysAllowedTool(toolName);
+      }
+
+      await fetch("/api/tool-approval", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tool_use_id: toolCallId,
+          approved,
+          remember,
+        }),
+      });
+    },
+    [permissionsContext]
+  );
+
+  const pendingApprovals = useMemo(
+    () =>
+      toolCalls.filter(
+        (toolCall) =>
+          toolCall.requires_approval &&
+          !handledApprovalIds.has(toolCall.id) &&
+          permissionMode === "default"
+      ),
+    [toolCalls, handledApprovalIds, permissionMode]
+  );
+
+  const toolUseIdsInMessages = useMemo(() => {
+    const ids = new Set<string>();
+    for (const message of allMessages) {
+      for (const block of message.content) {
+        if (isToolUseBlock(block)) {
+          ids.add(block.id);
+        }
+      }
+    }
+    return ids;
+  }, [allMessages]);
+
+  const orphanToolCalls = useMemo(
+    () =>
+      toolCalls.filter(
+        (toolCall) =>
+          !toolUseIdsInMessages.has(toolCall.id) &&
+          !toolCall.parent_tool_use_id
+      ),
+    [toolCalls, toolUseIdsInMessages]
+  );
+
+  useEffect(() => {
+    if (permissionMode !== "acceptEdits" && permissionMode !== "dontAsk") {
+      return;
+    }
+
+    const autoApprove = async () => {
+      for (const toolCall of toolCalls) {
+        if (!toolCall.requires_approval) {
+          continue;
+        }
+        if (handledApprovalIds.has(toolCall.id)) {
+          continue;
+        }
+        if (
+          permissionMode === "acceptEdits" &&
+          !FILE_EDIT_TOOLS.has(toolCall.name)
+        ) {
+          continue;
+        }
+
+        await handleApprovalSubmit(toolCall.id, toolCall.name, true, false);
+      }
+    };
+
+    void autoApprove();
+  }, [toolCalls, handledApprovalIds, permissionMode, handleApprovalSubmit]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!event.ctrlKey || !event.shiftKey) {
+        return;
+      }
+      const key = event.key.toLowerCase();
+      if (key === "p") {
+        event.preventDefault();
+        cyclePermissionMode();
+      }
+      if (key === "t") {
+        event.preventDefault();
+        setToolModalOpen(true);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [cyclePermissionMode]);
+
   const handleToolToggle = useCallback((toolName: string, enabled: boolean) => {
     setTools((prev) =>
       prev.map((tool) =>
@@ -430,6 +556,35 @@ export function ChatInterface({ sessionId: initialSessionId }: ChatInterfaceProp
         {projectsError && (
           <div className="bg-red-50 p-16 text-center text-14 text-red-600">
             {projectsError}
+          </div>
+        )}
+
+        {orphanToolCalls.length > 0 && (
+          <div className="space-y-12 px-20 py-12">
+            {orphanToolCalls.map((toolCall) => (
+              <ToolCallCard
+                key={toolCall.id}
+                toolCall={toolCall}
+                onRetry={retry}
+              />
+            ))}
+          </div>
+        )}
+
+        {pendingApprovals.length > 0 && (
+          <div className="space-y-12 px-20 py-12">
+            {pendingApprovals.map((toolCall) => (
+              <ToolApprovalCard
+                key={toolCall.id}
+                toolCall={toolCall}
+                onApprove={(remember) =>
+                  handleApprovalSubmit(toolCall.id, toolCall.name, true, remember)
+                }
+                onReject={() =>
+                  handleApprovalSubmit(toolCall.id, toolCall.name, false, false)
+                }
+              />
+            ))}
           </div>
         )}
 

@@ -96,6 +96,78 @@ export function useStreamingQuery(
           },
           onmessage: (event) => {
             switch (event.event) {
+              case "tool_start": {
+                const toolStartData = JSON.parse(event.data);
+                setState((prev) => {
+                  const existingIndex = prev.toolCalls.findIndex(
+                    (toolCall) => toolCall.id === toolStartData.id
+                  );
+                  const nextToolCalls = [...prev.toolCalls];
+                  const nextToolCall: ToolCall = {
+                    id: toolStartData.id,
+                    name: toolStartData.name || "Tool",
+                    status: "running",
+                    input: toolStartData.input ?? {},
+                    requires_approval: toolStartData.requires_approval ?? false,
+                    parent_tool_use_id: toolStartData.parent_tool_use_id,
+                    started_at: new Date(),
+                  };
+
+                  if (existingIndex >= 0) {
+                    nextToolCalls[existingIndex] = {
+                      ...nextToolCalls[existingIndex],
+                      ...nextToolCall,
+                    };
+                  } else {
+                    nextToolCalls.push(nextToolCall);
+                  }
+
+                  return {
+                    ...prev,
+                    toolCalls: nextToolCalls,
+                  };
+                });
+                break;
+              }
+
+              case "tool_end": {
+                const toolEndData = JSON.parse(event.data);
+                setState((prev) => {
+                  const existingIndex = prev.toolCalls.findIndex(
+                    (toolCall) => toolCall.id === toolEndData.id
+                  );
+                  const nextToolCalls = [...prev.toolCalls];
+                  const outputValue =
+                    typeof toolEndData.output === "undefined"
+                      ? toolEndData.content
+                      : toolEndData.output;
+
+                  if (existingIndex >= 0) {
+                    const existing = nextToolCalls[existingIndex];
+                    nextToolCalls[existingIndex] = {
+                      ...existing,
+                      status: "success",
+                      output: outputValue,
+                    };
+                  } else {
+                    nextToolCalls.push({
+                      id: toolEndData.id,
+                      name: toolEndData.name || "Tool",
+                      status: "success",
+                      input: toolEndData.input ?? {},
+                      output: outputValue,
+                      started_at: new Date(),
+                    });
+                  }
+
+                  return {
+                    ...prev,
+                    toolCalls: nextToolCalls,
+                  };
+                });
+                break;
+              }
+
               case "init": {
                 // Session initialized
                 const initData = JSON.parse(event.data);

@@ -158,6 +158,7 @@ export interface ToolCall {
   started_at?: Date;
   duration_ms?: number;
   parent_tool_use_id?: string;
+  requires_approval?: boolean;
 }
 
 export interface ToolDefinition {
