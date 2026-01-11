@@ -38,6 +38,7 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { XIcon, PlusIcon } from 'lucide-react';
 import type { McpServerConfig, McpTransportType } from '@/types';
+import { validateMcpServerForm } from '@/lib/validation/mcp-server';
 
 export interface McpServerFormProps {
   /**
@@ -104,46 +105,61 @@ export function McpServerForm({
   // Validation errors
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // Validate form
+  /**
+   * Validate form using extracted validation utility
+   */
   const validate = (): boolean => {
-    const newErrors: Record<string, string> = {};
+    // Prepare form data based on transport type
+    const formData: Record<string, unknown> = {
+      name: name.trim(),
+      type,
+      enabled,
+    };
 
-    // Name validation
-    if (!name.trim()) {
-      newErrors.name = 'Name is required';
-    } else if (!isEditMode && existingNames.includes(name.trim())) {
-      newErrors.name = 'Server name already exists';
-    }
-
-    // Transport-specific validation
+    // Add transport-specific fields
     if (type === 'stdio') {
-      if (!command.trim()) {
-        newErrors.command = 'Command is required';
-      }
-
-      // Validate args JSON
-      try {
-        const parsedArgs = JSON.parse(args);
-        if (!Array.isArray(parsedArgs)) {
-          newErrors.args = 'Arguments must be a valid JSON array';
-        }
-      } catch {
-        newErrors.args = 'Invalid JSON format';
-      }
-    } else if (type === 'sse' || type === 'http') {
-      if (!url.trim()) {
-        newErrors.url = 'URL is required';
-      } else {
-        try {
-          new URL(url);
-        } catch {
-          newErrors.url = 'Invalid URL format';
-        }
-      }
+      formData.command = command.trim();
+      formData.args = args; // Will be validated and parsed by Zod
+    } else {
+      formData.url = url.trim();
     }
 
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    // Add headers for http transport
+    if (type === 'http' && headers.length > 0) {
+      formData.headers = headers.reduce(
+        (acc, { key, value }) => {
+          if (key.trim()) {
+            acc[key.trim()] = value;
+          }
+          return acc;
+        },
+        {} as Record<string, string>
+      );
+    }
+
+    // Add environment variables
+    if (envVars.length > 0) {
+      formData.env = envVars.reduce(
+        (acc, { key, value }) => {
+          if (key.trim()) {
+            acc[key.trim()] = value;
+          }
+          return acc;
+        },
+        {} as Record<string, string>
+      );
+    }
+
+    // Validate using Zod schema
+    const result = validateMcpServerForm(formData, existingNames, isEditMode);
+
+    if (result.success) {
+      setErrors({});
+      return true;
+    }
+
+    setErrors(result.errors || {});
+    return false;
   };
 
   // Handle form submission
