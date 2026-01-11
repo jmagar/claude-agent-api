@@ -4,10 +4,17 @@
  * Renders text content with markdown support (bold, italic, code, links, lists).
  * Used by MessageItem to display text blocks.
  *
+ * Security: Uses react-markdown with rehype-sanitize to prevent XSS attacks.
+ * Links are restricted to http/https protocols only.
+ *
  * @see tests/unit/components/MessageItem.test.tsx for test specifications
  */
 
 "use client";
+
+import ReactMarkdown from "react-markdown";
+import rehypeSanitize from "rehype-sanitize";
+import type { Components } from "react-markdown";
 
 export interface MessageContentProps {
   /** Markdown text to render */
@@ -15,28 +22,39 @@ export interface MessageContentProps {
 }
 
 export function MessageContent({ text }: MessageContentProps) {
-  // Simple markdown parser for basic formatting
-  // Full markdown library can be added later if needed
+  // Custom components for secure link rendering
+  const components: Components = {
+    a: ({ node, href, children, ...props }) => {
+      // Only allow http and https protocols
+      const isValidProtocol =
+        href && (href.startsWith("http://") || href.startsWith("https://"));
 
-  // Parse bold: **text** -> <strong>text</strong>
-  let html = text.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+      if (!isValidProtocol) {
+        // Render as plain text if protocol is invalid
+        return <span>{children}</span>;
+      }
 
-  // Parse italic: *text* -> <em>text</em>
-  html = html.replace(/\*(.+?)\*/g, "<em>$1</em>");
-
-  // Parse inline code: `text` -> <code>text</code>
-  html = html.replace(/`(.+?)`/g, "<code>$1</code>");
-
-  // Parse links: [text](url) -> <a href="url">text</a>
-  html = html.replace(
-    /\[(.+?)\]\((.+?)\)/g,
-    '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>'
-  );
+      return (
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          {...props}
+        >
+          {children}
+        </a>
+      );
+    },
+  };
 
   return (
-    <div
-      className="text-14 leading-relaxed text-gray-700 prose prose-sm max-w-none"
-      dangerouslySetInnerHTML={{ __html: html }}
-    />
+    <div className="text-14 leading-relaxed text-gray-700 prose prose-sm max-w-none">
+      <ReactMarkdown
+        rehypePlugins={[rehypeSanitize]}
+        components={components}
+      >
+        {text}
+      </ReactMarkdown>
+    </div>
   );
 }

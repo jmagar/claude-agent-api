@@ -41,6 +41,46 @@ export type ContentBlock =
   | ToolUseBlock
   | ToolResultBlock;
 
+// Type Guard Functions
+
+/**
+ * Type guard to check if a ContentBlock is a TextBlock.
+ * @param block - The content block to check
+ * @returns True if the block is a TextBlock
+ */
+export function isTextBlock(block: ContentBlock): block is TextBlock {
+  return block.type === "text";
+}
+
+/**
+ * Type guard to check if a ContentBlock is a ThinkingBlock.
+ * @param block - The content block to check
+ * @returns True if the block is a ThinkingBlock
+ */
+export function isThinkingBlock(block: ContentBlock): block is ThinkingBlock {
+  return block.type === "thinking";
+}
+
+/**
+ * Type guard to check if a ContentBlock is a ToolUseBlock.
+ * @param block - The content block to check
+ * @returns True if the block is a ToolUseBlock
+ */
+export function isToolUseBlock(block: ContentBlock): block is ToolUseBlock {
+  return block.type === "tool_use";
+}
+
+/**
+ * Type guard to check if a ContentBlock is a ToolResultBlock.
+ * @param block - The content block to check
+ * @returns True if the block is a ToolResultBlock
+ */
+export function isToolResultBlock(
+  block: ContentBlock
+): block is ToolResultBlock {
+  return block.type === "tool_result";
+}
+
 export interface UsageMetrics {
   input_tokens: number;
   output_tokens: number;

@@ -12,7 +12,13 @@
 
 import { useState, memo } from "react";
 import { MessageContent } from "./MessageContent";
-import type { Message, ContentBlock } from "@/types";
+import type { Message, ToolUseBlock as ToolUseBlockType, ToolResultBlock as ToolResultBlockType } from "@/types";
+import {
+  isTextBlock,
+  isThinkingBlock,
+  isToolUseBlock,
+  isToolResultBlock,
+} from "@/types";
 
 export interface MessageItemProps {
   /** Message to display */
@@ -77,11 +83,9 @@ function MessageItemComponent({ message, showTimestamp = false }: MessageItemPro
           <div className="flex flex-col gap-12">
             {message.content.map((block, index) => (
               <div key={index}>
-                {block.type === "text" && (
-                  <MessageContent text={(block as { text: string }).text} />
-                )}
+                {isTextBlock(block) && <MessageContent text={block.text} />}
 
-                {block.type === "thinking" && (
+                {isThinkingBlock(block) && (
                   <div className="rounded-6 border border-gray-300 bg-gray-50 p-12">
                     <button
                       onClick={() => toggleThinking(index)}
@@ -95,34 +99,14 @@ function MessageItemComponent({ message, showTimestamp = false }: MessageItemPro
                         expandedThinking.has(index) ? "block" : "hidden"
                       }`}
                     >
-                      {(block as { thinking: string }).thinking}
+                      {block.thinking}
                     </div>
                   </div>
                 )}
 
-                {block.type === "tool_use" && (
-                  <ToolUseBlock
-                    block={
-                      block as {
-                        id: string;
-                        name: string;
-                        input: Record<string, unknown>;
-                      }
-                    }
-                  />
-                )}
+                {isToolUseBlock(block) && <ToolUseBlock block={block} />}
 
-                {block.type === "tool_result" && (
-                  <ToolResultBlock
-                    block={
-                      block as {
-                        tool_use_id: string;
-                        content: string | Record<string, unknown>;
-                        is_error?: boolean;
-                      }
-                    }
-                  />
-                )}
+                {isToolResultBlock(block) && <ToolResultBlock block={block} />}
               </div>
             ))}
           </div>
@@ -148,11 +132,7 @@ function MessageItemComponent({ message, showTimestamp = false }: MessageItemPro
 export const MessageItem = memo(MessageItemComponent);
 
 /** Tool use block component */
-function ToolUseBlock({
-  block,
-}: {
-  block: { id: string; name: string; input: Record<string, unknown> };
-}) {
+function ToolUseBlock({ block }: { block: ToolUseBlockType }) {
   return (
     <div className="rounded-6 border border-gray-400 bg-yellow-light p-12">
       <div className="mb-8 flex items-center justify-between">
@@ -174,15 +154,7 @@ function ToolUseBlock({
 }
 
 /** Tool result block component */
-function ToolResultBlock({
-  block,
-}: {
-  block: {
-    tool_use_id: string;
-    content: string | Record<string, unknown>;
-    is_error?: boolean;
-  };
-}) {
+function ToolResultBlock({ block }: { block: ToolResultBlockType }) {
   const content =
     typeof block.content === "string"
       ? block.content

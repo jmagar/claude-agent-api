@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import type { ThemeMode, ThreadingMode, PermissionMode } from "@/types";
 
 interface Settings {

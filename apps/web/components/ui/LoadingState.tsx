@@ -8,8 +8,6 @@
  * @see wireframes/10-loading-empty-states.html for design spec
  */
 
-import { ReactNode } from "react";
-
 /** Skeleton loading placeholder with animated shimmer */
 export interface SkeletonProps {
   /** Height of skeleton in pixels or CSS value */

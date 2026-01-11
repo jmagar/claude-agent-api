@@ -11,7 +11,7 @@
 
 import { useState, useCallback, useRef } from "react";
 import { fetchEventSource } from "@microsoft/fetch-event-source";
-import type { Message, ContentBlock } from "@/types";
+import type { Message } from "@/types";
 import {
   mergeContentBlocks,
   updateMessagesWithAccumulator,
@@ -76,7 +76,7 @@ export function useStreamingQuery(
       accumulatorRef.current = createAssistantAccumulator();
 
       try {
-        await fetchEventSource("/api/streaming/query", {
+        await fetchEventSource("/api/streaming", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

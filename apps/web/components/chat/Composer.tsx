@@ -43,7 +43,7 @@ export function Composer({
   }, [sessionId]);
 
   // Save draft to localStorage (debounced)
-  useEffect(() => {
+  useEffect((): void | (() => void) => {
     if (sessionId && typeof window !== "undefined" && value) {
       const timeoutId = setTimeout(() => {
         localStorage.setItem(`draft:${sessionId}`, value);

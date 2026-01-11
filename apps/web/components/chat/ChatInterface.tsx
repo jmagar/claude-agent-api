@@ -19,32 +19,34 @@ import { useQuery } from "@tanstack/react-query";
 import type { Message } from "@/types";
 
 export interface ChatInterfaceProps {
-  /** Session ID for this chat */
-  sessionId: string;
+  /** Session ID for this chat (optional - will be generated if not provided) */
+  sessionId?: string;
 }
 
-export function ChatInterface({ sessionId }: ChatInterfaceProps) {
-  const [loadingMessages, setLoadingMessages] = useState(true);
+export function ChatInterface({ sessionId: initialSessionId }: ChatInterfaceProps) {
+  // Only show loading state if we're resuming an existing session
+  const [loadingMessages, setLoadingMessages] = useState(!!initialSessionId);
   const {
     messages: streamMessages,
+    sessionId, // Get the actual session ID from the hook (updated from init event)
     isStreaming,
     error,
     sendMessage,
     retry,
     clearError,
-  } = useStreamingQuery(sessionId);
+  } = useStreamingQuery(initialSessionId);
 
-  // Fetch existing messages on mount
+  // Fetch existing messages on mount (only if we have an initial session ID to resume)
   const { data: existingMessages } = useQuery<{ messages: Message[] }>({
-    queryKey: ["messages", sessionId],
+    queryKey: ["messages", initialSessionId],
     queryFn: async () => {
-      const response = await fetch(`/api/sessions/${sessionId}/messages`);
+      const response = await fetch(`/api/sessions/${initialSessionId}/messages`);
       if (!response.ok) {
         throw new Error("Failed to load messages");
       }
       return response.json();
     },
-    enabled: !!sessionId,
+    enabled: !!initialSessionId, // Only fetch if we're resuming an existing session
   });
 
   // Merge existing messages with stream messages

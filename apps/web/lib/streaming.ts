@@ -2,7 +2,6 @@
  * Server-Sent Events (SSE) streaming utilities
  */
 import { fetchEventSource } from "@microsoft/fetch-event-source";
-import type { StreamEvent } from "@/types";
 
 export interface StreamOptions {
   apiKey: string;

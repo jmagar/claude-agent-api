@@ -12,19 +12,15 @@
 
 import { render, screen, fireEvent, waitFor } from "@/tests/utils/test-utils";
 import { ChatInterface } from "@/components/chat/ChatInterface";
-import { rest } from "msw";
+import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 
 // Mock SSE streaming endpoint
 const server = setupServer(
-  rest.post("/api/streaming/query", async (req, res, ctx) => {
-    const body = await req.json();
-
+  http.post("/api/streaming/query", () => {
     // Return SSE stream
-    return res(
-      ctx.status(200),
-      ctx.set("Content-Type", "text/event-stream"),
-      ctx.body(`event: init
+    return new HttpResponse(
+      `event: init
 data: {"session_id": "session-123"}
 
 event: message
@@ -38,17 +34,21 @@ data: {"content": [{"type": "text", "text": " you today?"}], "role": "assistant"
 
 event: done
 data: {"usage": {"input_tokens": 10, "output_tokens": 5}}
-`)
+`,
+      {
+        status: 200,
+        headers: {
+          "Content-Type": "text/event-stream",
+        },
+      }
     );
   }),
 
-  rest.get("/api/sessions/:sessionId/messages", (req, res, ctx) => {
-    return res(
-      ctx.json({
-        messages: [],
-        total: 0,
-      })
-    );
+  http.get("/api/sessions/:sessionId/messages", () => {
+    return HttpResponse.json({
+      messages: [],
+      total: 0,
+    });
   })
 );
 
@@ -154,10 +154,10 @@ describe("Chat Flow Integration", () => {
     it("should display error message when streaming fails", async () => {
       // Override with error response
       server.use(
-        rest.post("/api/streaming/query", (req, res, ctx) => {
-          return res(
-            ctx.status(500),
-            ctx.json({ error: "Internal server error" })
+        http.post("/api/streaming/query", () => {
+          return HttpResponse.json(
+            { error: "Internal server error" },
+            { status: 500 }
           );
         })
       );
@@ -182,16 +182,20 @@ describe("Chat Flow Integration", () => {
       // First request fails
       let requestCount = 0;
       server.use(
-        rest.post("/api/streaming/query", (req, res, ctx) => {
+        http.post("/api/streaming/query", () => {
           requestCount++;
           if (requestCount === 1) {
-            return res(ctx.status(500));
+            return new HttpResponse(null, { status: 500 });
           }
           // Second request succeeds
-          return res(
-            ctx.status(200),
-            ctx.set("Content-Type", "text/event-stream"),
-            ctx.body(`event: message\ndata: {"content": [{"type": "text", "text": "Success"}], "role": "assistant"}\n\nevent: done\ndata: {}`)
+          return new HttpResponse(
+            `event: message\ndata: {"content": [{"type": "text", "text": "Success"}], "role": "assistant"}\n\nevent: done\ndata: {}`,
+            {
+              status: 200,
+              headers: {
+                "Content-Type": "text/event-stream",
+              },
+            }
           );
         })
       );
@@ -221,8 +225,8 @@ describe("Chat Flow Integration", () => {
 
     it("should handle network errors gracefully", async () => {
       server.use(
-        rest.post("/api/streaming/query", (req, res) => {
-          return res.networkError("Network connection failed");
+        http.post("/api/streaming/query", () => {
+          return HttpResponse.error();
         })
       );
 
@@ -247,26 +251,24 @@ describe("Chat Flow Integration", () => {
     it("should load existing messages on mount", async () => {
       // Mock existing messages
       server.use(
-        rest.get("/api/sessions/:sessionId/messages", (req, res, ctx) => {
-          return res(
-            ctx.json({
-              messages: [
-                {
-                  id: "msg-1",
-                  role: "user",
-                  content: [{ type: "text", text: "Previous message" }],
-                  created_at: new Date().toISOString(),
-                },
-                {
-                  id: "msg-2",
-                  role: "assistant",
-                  content: [{ type: "text", text: "Previous response" }],
-                  created_at: new Date().toISOString(),
-                },
-              ],
-              total: 2,
-            })
-          );
+        http.get("/api/sessions/:sessionId/messages", () => {
+          return HttpResponse.json({
+            messages: [
+              {
+                id: "msg-1",
+                role: "user",
+                content: [{ type: "text", text: "Previous message" }],
+                created_at: new Date().toISOString(),
+              },
+              {
+                id: "msg-2",
+                role: "assistant",
+                content: [{ type: "text", text: "Previous response" }],
+                created_at: new Date().toISOString(),
+              },
+            ],
+            total: 2,
+          });
         })
       );
 
@@ -282,20 +284,18 @@ describe("Chat Flow Integration", () => {
     it("should append new messages to existing conversation", async () => {
       // Start with existing messages
       server.use(
-        rest.get("/api/sessions/:sessionId/messages", (req, res, ctx) => {
-          return res(
-            ctx.json({
-              messages: [
-                {
-                  id: "msg-1",
-                  role: "user",
-                  content: [{ type: "text", text: "First message" }],
-                  created_at: new Date().toISOString(),
-                },
-              ],
-              total: 1,
-            })
-          );
+        http.get("/api/sessions/:sessionId/messages", () => {
+          return HttpResponse.json({
+            messages: [
+              {
+                id: "msg-1",
+                role: "user",
+                content: [{ type: "text", text: "First message" }],
+                created_at: new Date().toISOString(),
+              },
+            ],
+            total: 1,
+          });
         })
       );
 

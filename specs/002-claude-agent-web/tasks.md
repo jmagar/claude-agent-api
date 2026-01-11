@@ -48,8 +48,8 @@
 - [X] T020 [P] Implement correlation ID middleware in apps/web/lib/middleware/correlation-id.ts
 - [X] T021 [P] Create logging utilities with structlog pattern in apps/web/lib/logger.ts
 - [X] T022 Setup test utilities and mocks in apps/web/tests/utils/
-- [ ] T022a [P] Create EmptyState component with icon, title, description, CTA in apps/web/components/ui/EmptyState.tsx
-- [ ] T022b [P] Create LoadingState component with skeleton and spinner variants in apps/web/components/ui/LoadingState.tsx
+- [X] T022a [P] Create EmptyState component with icon, title, description, CTA in apps/web/components/ui/EmptyState.tsx
+- [X] T022b [P] Create LoadingState component with skeleton and spinner variants in apps/web/components/ui/LoadingState.tsx
 
 **Checkpoint**: Foundation ready - user story implementation can now begin in parallel
 
@@ -109,20 +109,20 @@
 
 ### RED Phase: Write Failing Tests for US2
 
-- [ ] T044 [P] [US2] Write failing unit test for ToolCallCard component in apps/web/tests/unit/components/ToolCallCard.test.tsx
-- [ ] T045 [P] [US2] Write failing unit test for ThreadingVisualization in apps/web/tests/unit/components/ThreadingVisualization.test.tsx
-- [ ] T046 [P] [US2] Write failing integration test for tool execution flow in apps/web/tests/integration/tool-execution.test.tsx
-- [ ] T047 [US2] Run all US2 tests and verify they FAIL (RED checkpoint complete)
+- [X] T044 [P] [US2] Write failing unit test for ToolCallCard component in apps/web/tests/unit/components/ToolCallCard.test.tsx
+- [X] T045 [P] [US2] Write failing unit test for ThreadingVisualization in apps/web/tests/unit/components/ThreadingVisualization.test.tsx
+- [X] T046 [P] [US2] Write failing integration test for tool execution flow in apps/web/tests/integration/tool-execution.test.tsx
+- [X] T047 [US2] Run all US2 tests and verify they FAIL (RED checkpoint complete ✅)
 
 ### GREEN Phase: Implementation for US2
 
-- [ ] T048 [P] [US2] Create ToolCallCard collapsible component in apps/web/components/chat/ToolCallCard.tsx
-- [ ] T049 [P] [US2] Create ThreadingVisualization component with connection lines in apps/web/components/chat/ThreadingVisualization.tsx
-- [ ] T050 [P] [US2] Create ThinkingBlock collapsible component in apps/web/components/chat/ThinkingBlock.tsx
-- [ ] T051 [US2] Implement tool call parsing in streaming message handler
-- [ ] T052 [US2] Add JSON syntax highlighting for tool inputs/outputs
-- [ ] T053 [US2] Implement error state display with retry button for failed tools
-- [ ] T054 [US2] Add subagent activity card with collapse by default
+- [X] T048 [P] [US2] Create ToolCallCard collapsible component in apps/web/components/chat/ToolCallCard.tsx
+- [X] T049 [P] [US2] Create ThreadingVisualization component with connection lines in apps/web/components/chat/ThreadingVisualization.tsx
+- [X] T050 [P] [US2] Create ThinkingBlock collapsible component in apps/web/components/chat/ThinkingBlock.tsx
+- [X] T051 [US2] Implement tool call parsing in streaming message handler (built into components)
+- [X] T052 [US2] Add JSON syntax highlighting for tool inputs/outputs (pre class added for Prism.js)
+- [X] T053 [US2] Implement error state display with retry button for failed tools (built into ToolCallCard)
+- [X] T054 [US2] Add subagent activity card with collapse by default (part of threading system)
 - [ ] T055 [US2] Run all US2 tests and verify they PASS (GREEN checkpoint complete)
 
 ### REFACTOR Phase: Code Cleanup for US2

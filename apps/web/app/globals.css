@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@config "../tailwind.config.ts";
 
 /* Define CSS variables */
 @layer base {
@@ -50,6 +51,10 @@
 
 /* Map CSS variables to Tailwind utilities using @theme inline */
 @theme inline {
+  /* Override base spacing to use 1px units (so py-16 = 16px, not 64px) */
+  --spacing: 1px;
+
+  /* shadcn/ui colors */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -69,6 +74,70 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+
+  /* Custom gray scale from wireframes */
+  --color-gray-50: #fafafa;
+  --color-gray-100: #f5f5f5;
+  --color-gray-200: #e5e5e5;
+  --color-gray-300: #dddddd;
+  --color-gray-400: #cccccc;
+  --color-gray-500: #999999;
+  --color-gray-600: #666666;
+  --color-gray-700: #333333;
+  --color-gray-800: #1a1a1a;
+  --color-gray-900: #0d0d0d;
+
+  /* Base colors */
+  --color-black: #0d0d0d;
+  --color-white: #ffffff;
+
+  /* Semantic colors */
+  --color-blue-light: #e8f4ff;
+  --color-blue-border: #b3d9ff;
+  --color-blue-dark: #1e3a5f;
+  --color-green-light: #d4edda;
+  --color-green: #28a745;
+  --color-green-dark: #155724;
+  --color-green-neon: #7dff9f;
+  --color-yellow-light: #fffbf0;
+  --color-yellow-bg: #fff3cd;
+  --color-yellow-border: #ffc107;
+  --color-yellow-text: #856404;
+  --color-red-light: #f8d7da;
+  --color-red-bg: #fff5f5;
+  --color-red: #dc3545;
+  --color-red-dark: #721c24;
+
+  /* Custom spacing */
+  --spacing-18: 18px;
+  --spacing-20: 20px;
+  --spacing-22: 22px;
+  --spacing-24: 24px;
+  --spacing-28: 28px;
+  --spacing-32: 32px;
+  --spacing-36: 36px;
+  --spacing-40: 40px;
+  --spacing-44: 44px;
+  --spacing-56: 56px;
+
+  /* Custom font sizes */
+  --text-10: 10px;
+  --text-11: 11px;
+  --text-12: 12px;
+  --text-13: 13px;
+  --text-14: 14px;
+  --text-16: 16px;
+  --text-18: 18px;
+
+  /* Custom border radius */
+  --radius-3: 3px;
+  --radius-4: 4px;
+  --radius-6: 6px;
+  --radius-8: 8px;
+  --radius-12: 12px;
+  --radius-18: 18px;
+  --radius-20: 20px;
+  --radius-24: 24px;
 }
 
 @layer base {

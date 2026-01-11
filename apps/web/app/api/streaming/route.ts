@@ -39,16 +39,16 @@ export async function POST(request: NextRequest) {
     const apiUrl =
       process.env.NEXT_PUBLIC_API_URL || "http://localhost:54000";
 
-    const response = await fetch(`${apiUrl}/sessions/query`, {
+    const response = await fetch(`${apiUrl}/api/v1/query`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "X-API-Key": apiKey,
       },
       body: JSON.stringify({
-        message,
+        prompt: message,
         session_id,
-        stream: true,
+        include_partial_messages: true,
       }),
     });
 
