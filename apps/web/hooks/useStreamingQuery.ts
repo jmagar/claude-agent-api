@@ -96,7 +96,7 @@ export function useStreamingQuery(
           },
           onmessage: (event) => {
             switch (event.event) {
-              case "init":
+              case "init": {
                 // Session initialized
                 const initData = JSON.parse(event.data);
                 setState((prev) => ({
@@ -104,8 +104,9 @@ export function useStreamingQuery(
                   sessionId: initData.session_id,
                 }));
                 break;
+              }
 
-              case "message":
+              case "message": {
                 if (!accumulatorRef.current) {
                   return;
                 }
@@ -163,8 +164,9 @@ export function useStreamingQuery(
                   }));
                 }
                 break;
+              }
 
-              case "tool_result":
+              case "tool_result": {
                 const toolResultData = JSON.parse(event.data);
                 setState((prev) => {
                   const existingIndex = prev.toolCalls.findIndex(
@@ -211,17 +213,20 @@ export function useStreamingQuery(
                   };
                 });
                 break;
+              }
 
-              case "done":
+              case "done": {
                 // Streaming complete
                 setState((prev) => ({ ...prev, isStreaming: false }));
                 accumulatorRef.current = null;
                 break;
+              }
 
-              case "error":
+              case "error": {
                 // Server-side error
                 const errorData = JSON.parse(event.data);
                 throw new Error(errorData.error || "Streaming error");
+              }
             }
           },
           onerror: (error) => {

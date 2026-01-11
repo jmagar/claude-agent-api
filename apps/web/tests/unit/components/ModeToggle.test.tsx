@@ -10,7 +10,6 @@
 
 import { render, screen, fireEvent } from "@testing-library/react";
 import { ModeToggle } from "@/components/sidebar/ModeToggle";
-import type { SessionMode } from "@/types";
 
 // Mock localStorage
 const localStorageMock = (() => {

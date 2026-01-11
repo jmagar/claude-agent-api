@@ -19,8 +19,27 @@ import { useStreamingQuery } from "@/hooks/useStreamingQuery";
 import { useQuery } from "@tanstack/react-query";
 import { ModeToggle } from "@/components/sidebar/ModeToggle";
 import { ProjectPicker } from "@/components/modals/ProjectPickerModal";
-import { useMode } from "@/contexts/ModeContext";
-import type { Message, Project, SessionMode } from "@/types";
+import { useModeOptional } from "@/contexts/ModeContext";
+import { PermissionsChip } from "@/components/shared/PermissionsChip";
+import { ToolBadge } from "@/components/shared/ToolBadge";
+import { ToolManagementModal } from "@/components/modals/ToolManagementModal";
+import { usePermissionsOptional } from "@/contexts/PermissionsContext";
+import type {
+  Message,
+  Project,
+  SessionMode,
+  ToolDefinition,
+  ToolPreset,
+  McpServerConfig,
+  PermissionMode,
+} from "@/types";
+
+const PERMISSION_MODES: PermissionMode[] = [
+  "default",
+  "acceptEdits",
+  "dontAsk",
+  "bypassPermissions",
+];
 
 export interface ChatInterfaceProps {
   /** Session ID for this chat (optional - will be generated if not provided) */
@@ -33,24 +52,20 @@ export function ChatInterface({ sessionId: initialSessionId }: ChatInterfaceProp
   const [showProjectPicker, setShowProjectPicker] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectsError, setProjectsError] = useState<string | null>(null);
+  const [tools, setTools] = useState<ToolDefinition[]>([]);
+  const [toolsLoading, setToolsLoading] = useState(false);
+  const [toolsError, setToolsError] = useState<string | null>(null);
+  const [servers, setServers] = useState<McpServerConfig[]>([]);
+  const [presets, setPresets] = useState<ToolPreset[]>([]);
+  const [toolModalOpen, setToolModalOpen] = useState(false);
+  const [toolModalLoading, setToolModalLoading] = useState(false);
+  const [toolModalError, setToolModalError] = useState<string | null>(null);
 
   // Mode context - provides mode state and persistence
-  let modeContext: {
-    mode: SessionMode;
-    selectedProjectId: string | null;
-    selectedProject: Project | null;
-    setMode: (mode: SessionMode) => void;
-    setSelectedProjectId: (id: string | null) => void;
-    setSelectedProject: (project: Project | null) => void;
-  } | null = null;
+  // We always call useModeOptional() to satisfy Rules of Hooks, then check if it's available
+  const modeContext = useModeOptional();
 
-  try {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    modeContext = useMode();
-  } catch {
-    // ModeProvider not available, use local state
-  }
-
+  // Fallback local state if context is not available
   const [localMode, setLocalMode] = useState<SessionMode>("brainstorm");
   const [localSelectedProjectId, setLocalSelectedProjectId] = useState<string | null>(null);
   const [localSelectedProject, setLocalSelectedProject] = useState<Project | null>(null);
@@ -62,6 +77,43 @@ export function ChatInterface({ sessionId: initialSessionId }: ChatInterfaceProp
   const setSelectedProjectId = modeContext?.setSelectedProjectId ?? setLocalSelectedProjectId;
   const setSelectedProject = modeContext?.setSelectedProject ?? setLocalSelectedProject;
 
+  const permissionsContext = usePermissionsOptional();
+  const [localPermissionMode, setLocalPermissionMode] =
+    useState<PermissionMode>("default");
+  const permissionMode = permissionsContext?.mode ?? localPermissionMode;
+
+  useEffect(() => {
+    if (permissionsContext || typeof window === "undefined") {
+      return;
+    }
+    const stored = localStorage.getItem("permissionMode");
+    if (!stored) {
+      return;
+    }
+    try {
+      const parsed = JSON.parse(stored) as PermissionMode;
+      if (PERMISSION_MODES.includes(parsed)) {
+        setLocalPermissionMode(parsed);
+      }
+    } catch {
+      // Ignore malformed stored value
+    }
+  }, [permissionsContext]);
+
+  const setPermissionMode = useCallback(
+    (newMode: PermissionMode) => {
+      if (permissionsContext) {
+        permissionsContext.setMode(newMode);
+        return;
+      }
+      setLocalPermissionMode(newMode);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("permissionMode", JSON.stringify(newMode));
+      }
+    },
+    [permissionsContext]
+  );
+
   const {
     messages: streamMessages,
     toolCalls,
@@ -72,6 +124,64 @@ export function ChatInterface({ sessionId: initialSessionId }: ChatInterfaceProp
     retry,
     clearError,
   } = useStreamingQuery(initialSessionId);
+
+  const fetchTools = useCallback(async () => {
+    setToolsLoading(true);
+    try {
+      const response = await fetch("/api/tools");
+      if (!response.ok) {
+        throw new Error("Failed to load tools");
+      }
+      const data = await response.json();
+      const nextTools = Array.isArray(data) ? data : data.tools ?? [];
+      setTools(nextTools);
+      setToolsError(null);
+    } catch (err) {
+      setToolsError(err instanceof Error ? err.message : "Failed to load tools");
+    } finally {
+      setToolsLoading(false);
+    }
+  }, []);
+
+  const fetchToolModalData = useCallback(async () => {
+    setToolModalLoading(true);
+    try {
+      const [serversResponse, presetsResponse] = await Promise.all([
+        fetch("/api/mcp-servers"),
+        fetch("/api/tool-presets"),
+      ]);
+
+      if (!serversResponse.ok) {
+        throw new Error("Failed to load MCP servers");
+      }
+      if (!presetsResponse.ok) {
+        throw new Error("Failed to load tool presets");
+      }
+
+      const serversData = await serversResponse.json();
+      const presetsData = await presetsResponse.json();
+
+      setServers(Array.isArray(serversData) ? serversData : serversData.servers ?? []);
+      setPresets(Array.isArray(presetsData) ? presetsData : presetsData.presets ?? []);
+      setToolModalError(null);
+    } catch (err) {
+      setToolModalError(
+        err instanceof Error ? err.message : "Failed to load tool settings"
+      );
+    } finally {
+      setToolModalLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchTools();
+  }, [fetchTools]);
+
+  useEffect(() => {
+    if (toolModalOpen) {
+      fetchToolModalData();
+    }
+  }, [toolModalOpen, fetchToolModalData]);
 
   // Fetch projects when needed
   const fetchProjects = useCallback(async () => {
@@ -187,6 +297,57 @@ export function ChatInterface({ sessionId: initialSessionId }: ChatInterfaceProp
     await sendMessage(text);
   };
 
+  const handleToolToggle = useCallback((toolName: string, enabled: boolean) => {
+    setTools((prev) =>
+      prev.map((tool) =>
+        tool.name === toolName ? { ...tool, enabled } : tool
+      )
+    );
+  }, []);
+
+  const handlePresetSelect = useCallback(async (preset: ToolPreset) => {
+    try {
+      const response = await fetch(`/api/tool-presets/${preset.id}/apply`, {
+        method: "POST",
+      });
+      if (!response.ok) {
+        throw new Error("Failed to apply preset");
+      }
+      const data = await response.json();
+      const updatedTools = Array.isArray(data) ? data : data.tools ?? [];
+      if (updatedTools.length > 0) {
+        setTools(updatedTools);
+      }
+    } catch (err) {
+      setToolModalError(
+        err instanceof Error ? err.message : "Failed to apply preset"
+      );
+    }
+  }, []);
+
+  const handlePresetCreate = useCallback(
+    (preset: Omit<ToolPreset, "id" | "created_at">) => {
+      const createdPreset: ToolPreset = {
+        id: `preset-${Date.now()}`,
+        name: preset.name,
+        description: preset.description,
+        tools: preset.tools,
+        created_at: new Date(),
+      };
+      setPresets((prev) => [...prev, createdPreset]);
+    },
+    []
+  );
+
+  const handlePresetDelete = useCallback((presetId: string) => {
+    setPresets((prev) => prev.filter((preset) => preset.id !== presetId));
+  }, []);
+
+  const enabledToolCount = useMemo(
+    () => tools.filter((tool) => tool.enabled).length,
+    [tools]
+  );
+
   return (
     <div className="flex h-full">
       {/* Sidebar */}
@@ -272,12 +433,26 @@ export function ChatInterface({ sessionId: initialSessionId }: ChatInterfaceProp
           </div>
         )}
 
-        {/* Composer */}
-        <Composer
-          onSend={handleSend}
-          isLoading={isStreaming}
-          sessionId={sessionId ?? undefined}
-        />
+        <div className="bg-white">
+          <div className="flex items-center justify-between border-t border-gray-300 px-20 py-10">
+            <PermissionsChip
+              mode={permissionMode}
+              onModeChange={setPermissionMode}
+              disabled={isStreaming}
+            />
+            <ToolBadge
+              count={enabledToolCount}
+              total={tools.length}
+              onClick={() => setToolModalOpen(true)}
+              disabled={toolsLoading}
+            />
+          </div>
+          <Composer
+            onSend={handleSend}
+            isLoading={isStreaming}
+            sessionId={sessionId ?? undefined}
+          />
+        </div>
       </div>
 
       {/* Project picker modal */}
@@ -287,6 +462,25 @@ export function ChatInterface({ sessionId: initialSessionId }: ChatInterfaceProp
         onSelectProject={handleSelectProject}
         projects={projects}
         selectedProjectId={selectedProjectId ?? undefined}
+      />
+
+      {/* Tool management modal */}
+      <ToolManagementModal
+        open={toolModalOpen}
+        onClose={() => setToolModalOpen(false)}
+        tools={tools}
+        servers={servers}
+        presets={presets}
+        onToolToggle={handleToolToggle}
+        onPresetSelect={handlePresetSelect}
+        onPresetCreate={handlePresetCreate}
+        onPresetDelete={handlePresetDelete}
+        isLoading={toolsLoading || toolModalLoading}
+        error={toolsError ?? toolModalError ?? undefined}
+        onRetry={() => {
+          fetchTools();
+          fetchToolModalData();
+        }}
       />
     </div>
   );

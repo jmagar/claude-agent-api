@@ -35,7 +35,7 @@ interface RouteParams {
  * GET /api/projects/[id]
  * Returns a single project by ID
  */
-export async function GET(request: NextRequest, { params }: RouteParams) {
+export async function GET(_request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
     const project = mockProjects.get(id);
@@ -93,7 +93,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
  * DELETE /api/projects/[id]
  * Deletes a project
  */
-export async function DELETE(request: NextRequest, { params }: RouteParams) {
+export async function DELETE(_request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
     const project = mockProjects.get(id);

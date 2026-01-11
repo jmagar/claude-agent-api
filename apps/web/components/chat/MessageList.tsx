@@ -15,7 +15,7 @@
 
 "use client";
 
-import { useEffect, useMemo, useRef, memo, forwardRef } from "react";
+import { useEffect, useRef, useState, memo, forwardRef } from "react";
 import type { HTMLAttributes } from "react";
 import { Virtuoso } from "react-virtuoso";
 import { MessageItem } from "./MessageItem";
@@ -49,20 +49,17 @@ function MessageListComponent({
 }: MessageListProps) {
   const previousMessageCountRef = useRef(messages.length);
   const isInitialMount = useRef(true);
+  const [followOutput, setFollowOutput] = useState<"auto" | "smooth" | false>("auto");
 
-  const followOutput = useMemo(() => {
-    if (isInitialMount.current) {
-      return "auto" as const;
-    }
-    if (messages.length > previousMessageCountRef.current) {
-      return "smooth" as const;
-    }
-    return false;
-  }, [messages.length]);
-
+  // Update followOutput when messages change
   useEffect(() => {
     if (isInitialMount.current) {
+      setFollowOutput("auto");
       isInitialMount.current = false;
+    } else if (messages.length > previousMessageCountRef.current) {
+      setFollowOutput("smooth");
+    } else {
+      setFollowOutput(false);
     }
     previousMessageCountRef.current = messages.length;
   }, [messages.length]);

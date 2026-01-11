@@ -8,7 +8,7 @@
  * RED PHASE: These tests are written first and MUST FAIL
  */
 
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ProjectPicker } from "@/components/modals/ProjectPickerModal";
 import type { Project } from "@/types";

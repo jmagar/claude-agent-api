@@ -282,6 +282,25 @@ describe("Composer", () => {
         expect(draft).toBeNull();
       });
     });
+
+    it("should clear draft when switching to a session without a saved draft", async () => {
+      localStorage.setItem("draft:session-1", "Session one draft");
+
+      const { rerender } = render(
+        <Composer onSend={mockOnSend} sessionId="session-1" />
+      );
+
+      const textarea = screen.getByPlaceholderText(
+        /message/i
+      ) as HTMLTextAreaElement;
+      expect(textarea.value).toBe("Session one draft");
+
+      rerender(<Composer onSend={mockOnSend} sessionId="session-2" />);
+
+      await waitFor(() => {
+        expect(textarea.value).toBe("");
+      });
+    });
   });
 
   describe("Accessibility", () => {

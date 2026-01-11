@@ -125,3 +125,11 @@ export function useMode() {
   }
   return context;
 }
+
+/**
+ * Optional variant of useMode that returns undefined if no provider is available
+ * Use this when you want to gracefully handle the case where ModeProvider is not present
+ */
+export function useModeOptional() {
+  return useContext(ModeContext);
+}

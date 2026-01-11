@@ -29,23 +29,21 @@ export function Composer({
   sessionId,
   maxHeight = 80,
 }: ComposerProps) {
-  const [value, setValue] = useState("");
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const globalDraftKey = "draft:global";
 
   const getDraftKey = (id?: string) =>
     id ? `draft:${id}` : globalDraftKey;
 
-  // Load draft from localStorage on mount
-  useEffect(() => {
+  // Initialize value from localStorage
+  const [value, setValue] = useState(() => {
     if (typeof window === "undefined") {
-      return;
+      return "";
     }
     const draft = localStorage.getItem(getDraftKey(sessionId));
-    if (draft) {
-      setValue(draft);
-    }
-  }, [sessionId]);
+    return draft || "";
+  });
+
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Save draft to localStorage (debounced)
   useEffect((): void | (() => void) => {
@@ -58,24 +56,47 @@ export function Composer({
     return () => clearTimeout(timeoutId);
   }, [value, sessionId]);
 
+  // Track previous sessionId to detect changes
+  const previousSessionIdRef = useRef(sessionId);
+
   // Migrate global draft to session-specific draft when sessionId becomes available
   useEffect(() => {
-    if (typeof window === "undefined" || !sessionId) {
+    if (typeof window === "undefined") {
       return;
     }
+
+    // Only migrate when sessionId changes
+    const sessionIdChanged = previousSessionIdRef.current !== sessionId;
+    previousSessionIdRef.current = sessionId;
+
+    if (!sessionIdChanged) {
+      return;
+    }
+
+    if (!sessionId) {
+      const globalDraft = localStorage.getItem(globalDraftKey);
+      setValue(globalDraft ?? "");
+      return;
+    }
+
     const sessionKey = getDraftKey(sessionId);
     const sessionDraft = localStorage.getItem(sessionKey);
+
     if (sessionDraft) {
       setValue(sessionDraft);
       return;
     }
+
     const globalDraft = localStorage.getItem(globalDraftKey);
-    if (globalDraft && !value) {
+    if (globalDraft) {
       localStorage.setItem(sessionKey, globalDraft);
       localStorage.removeItem(globalDraftKey);
       setValue(globalDraft);
+      return;
     }
-  }, [sessionId, value]);
+
+    setValue("");
+  }, [sessionId, globalDraftKey]);
 
   // Auto-resize textarea
   useEffect(() => {

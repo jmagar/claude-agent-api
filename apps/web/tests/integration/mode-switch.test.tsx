@@ -17,7 +17,7 @@
  * RED PHASE: These tests are written first and MUST FAIL
  */
 
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ChatInterface } from "@/components/chat/ChatInterface";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -282,7 +282,6 @@ describe("Mode Switching Flow", () => {
     });
 
     it("should group sessions by project in Code mode", async () => {
-      const user = userEvent.setup();
       localStorageMock.setItem("sessionMode", '"code"');
       localStorageMock.setItem("selectedProjectId", '"proj-1"');
 
@@ -371,7 +370,6 @@ describe("Mode Switching Flow", () => {
 
   describe("project context", () => {
     it("should show selected project name in header when in Code mode", async () => {
-      const user = userEvent.setup();
       localStorageMock.setItem("sessionMode", '"code"');
       localStorageMock.setItem("selectedProjectId", '"proj-1"');
 
