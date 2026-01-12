@@ -13,5 +13,11 @@ export type { PlateMarkdownToolbarProps } from './PlateMarkdownToolbar';
 export { PlateMarkdownEditor } from './PlateMarkdownEditor';
 export type { PlateMarkdownEditorProps } from './PlateMarkdownEditor';
 
+export { PlateYamlEditor } from './PlateYamlEditor';
+export type { PlateYamlEditorProps } from './PlateYamlEditor';
+
 export { useMarkdownSync } from './hooks/useMarkdownSync';
 export type { UseMarkdownSyncReturn } from './hooks/useMarkdownSync';
+
+export { useYamlFrontmatter } from './hooks/useYamlFrontmatter';
+export type { UseYamlFrontmatterReturn } from './hooks/useYamlFrontmatter';

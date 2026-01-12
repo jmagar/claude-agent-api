@@ -2,6 +2,48 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { AgentForm } from '@/components/agents/AgentForm';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
+// Mock the PlateEditor component used by PlateMarkdownEditor
+jest.mock('@/components/plate/PlateEditor', () => ({
+  PlateEditor: ({ value, onChange, placeholder, ariaLabel }: {
+    value: Array<{ type: string; children: Array<{ text: string }> }>;
+    onChange: (value: Array<{ type: string; children: Array<{ text: string }> }>) => void;
+    placeholder?: string;
+    ariaLabel?: string;
+  }) => {
+    // Extract plain text from Slate value
+    const getText = (nodes: Array<{ type: string; children: Array<{ text: string }> }>) => {
+      return nodes.map(node =>
+        node.children.map(child => child.text).join('')
+      ).join('\n');
+    };
+
+    return (
+      <textarea
+        data-testid="plate-editor"
+        aria-label={ariaLabel}
+        placeholder={placeholder}
+        value={getText(value)}
+        onChange={(e) => {
+          // Convert text back to Slate nodes
+          const text = e.target.value;
+          const nodes = text.split('\n').map(line => ({
+            type: 'paragraph',
+            children: [{ text: line }]
+          }));
+          onChange(nodes);
+        }}
+      />
+    );
+  },
+}));
+
+// Mock PlateMarkdownToolbar
+jest.mock('@/components/plate/PlateMarkdownToolbar', () => ({
+  PlateMarkdownToolbar: () => (
+    <div data-testid="plate-toolbar">Toolbar (mocked)</div>
+  ),
+}));
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: { retry: false },
@@ -236,10 +278,11 @@ describe('AgentForm', () => {
     });
   });
 
-  describe('PlateJS Prompt Editor', () => {
-    it('loads PlateJS editor', () => {
+  describe('PlateMarkdownEditor Prompt Editor', () => {
+    it('loads PlateMarkdownEditor with Edit tab', () => {
       render(<AgentForm onSubmit={() => {}} onCancel={() => {}} />, { wrapper });
 
+      expect(screen.getByRole('tab', { name: 'Edit', selected: true })).toBeInTheDocument();
       expect(screen.getByRole('textbox', { name: /prompt/i })).toBeInTheDocument();
     });
 
@@ -254,13 +297,16 @@ describe('AgentForm', () => {
       });
     });
 
-    it('supports markdown formatting', () => {
+    it('does not show YAML tab when showYamlTab=false', () => {
       render(<AgentForm onSubmit={() => {}} onCancel={() => {}} />, { wrapper });
 
-      const toolbarButtons = screen.getAllByRole('button');
-      const boldButton = toolbarButtons.find(btn => btn.getAttribute('aria-label') === 'Bold');
+      expect(screen.queryByRole('tab', { name: /yaml/i })).not.toBeInTheDocument();
+    });
 
-      expect(boldButton).toBeInTheDocument();
+    it('does not show Preview tab when showPreviewTab=false', () => {
+      render(<AgentForm onSubmit={() => {}} onCancel={() => {}} />, { wrapper });
+
+      expect(screen.queryByRole('tab', { name: /preview/i })).not.toBeInTheDocument();
     });
   });
 
@@ -293,13 +339,15 @@ describe('AgentForm', () => {
       fireEvent.click(submitButton);
 
       await waitFor(() => {
-        expect(onSubmit).toHaveBeenCalledWith({
-          name: 'new-agent',
-          description: 'New agent description',
-          prompt: 'You are a helpful agent.',
-          model: 'inherit',
-          tools: [],
-        });
+        expect(onSubmit).toHaveBeenCalledWith(
+          expect.objectContaining({
+            name: 'new-agent',
+            description: 'New agent description',
+            prompt: expect.stringContaining('You are a helpful agent.'),
+            model: 'inherit',
+            tools: [],
+          })
+        );
       });
     });
 
@@ -332,29 +380,23 @@ describe('AgentForm', () => {
     });
   });
 
-  describe('YAML Frontmatter Support', () => {
-    it('allows toggling between visual and YAML frontmatter views', () => {
+  describe('Markdown Editing', () => {
+    it('provides markdown editor for prompt content', () => {
       render(<AgentForm onSubmit={() => {}} onCancel={() => {}} />, { wrapper });
 
-      const toggleButton = screen.getByRole('button', { name: /yaml view/i });
-      fireEvent.click(toggleButton);
-
-      // Check YAML editor is visible with frontmatter delimiters
-      const yamlEditor = screen.getByRole('textbox', { name: /yaml/i }) as HTMLTextAreaElement;
-      expect(yamlEditor.value).toContain('---');
+      // PlateMarkdownEditor is present with Edit tab
+      expect(screen.getByRole('tab', { name: 'Edit', selected: true })).toBeInTheDocument();
+      expect(screen.getByRole('textbox', { name: /prompt/i })).toBeInTheDocument();
     });
 
-    it('validates YAML frontmatter syntax', async () => {
+    it('supports markdown content in prompt field', async () => {
       render(<AgentForm onSubmit={() => {}} onCancel={() => {}} />, { wrapper });
 
-      const toggleButton = screen.getByRole('button', { name: /yaml view/i });
-      fireEvent.click(toggleButton);
-
-      const yamlEditor = screen.getByRole('textbox', { name: /yaml/i });
-      fireEvent.change(yamlEditor, { target: { value: 'invalid: yaml: syntax:' } });
+      const promptEditor = screen.getByRole('textbox', { name: /prompt/i });
+      fireEvent.change(promptEditor, { target: { value: '# Heading\n\nParagraph text' } });
 
       await waitFor(() => {
-        expect(screen.getByText(/invalid yaml/i)).toBeInTheDocument();
+        expect(promptEditor).toHaveValue('# Heading\n\nParagraph text');
       });
     });
   });

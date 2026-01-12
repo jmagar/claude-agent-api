@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, FormEvent } from 'react';
+import { PlateMarkdownEditor } from '@/components/plate/PlateMarkdownEditor';
 import type { AgentDefinition } from '@/types';
 
 interface AgentFormProps {
@@ -20,8 +21,6 @@ export function AgentForm({ agent, onSubmit, onCancel }: AgentFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [showToolsMenu, setShowToolsMenu] = useState(false);
-  const [viewMode, setViewMode] = useState<'visual' | 'yaml'>('visual');
-  const [yamlError, setYamlError] = useState<string>('');
 
   const availableTools = [
     'Read',
@@ -161,68 +160,19 @@ export function AgentForm({ agent, onSubmit, onCancel }: AgentFormProps) {
         </select>
       </div>
 
-      {/* Prompt editor with view toggle */}
+      {/* Prompt editor with PlateMarkdownEditor */}
       <div>
-        <div className="flex justify-between items-center mb-1">
-          <label htmlFor="agent-prompt" className="block text-sm font-medium text-gray-700">
-            Prompt
-          </label>
-          <button
-            type="button"
-            onClick={() => setViewMode(viewMode === 'visual' ? 'yaml' : 'visual')}
-            className="text-sm text-blue-600 hover:text-blue-700"
-            aria-label="Toggle YAML view"
-          >
-            {viewMode === 'visual' ? 'YAML View' : 'Visual View'}
-          </button>
-        </div>
-
-        {viewMode === 'visual' ? (
-          <div>
-            <textarea
-              id="agent-prompt"
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              required
-              rows={10}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
-              placeholder="You are a helpful AI agent..."
-              aria-label="Prompt editor"
-            />
-          </div>
-        ) : (
-          <div>
-            <textarea
-              id="agent-prompt-yaml"
-              value={`---\nname: ${name}\ndescription: ${description}\nmodel: ${model}\n---\n${prompt}`}
-              onChange={(e) => {
-                const content = e.target.value;
-
-                // Basic YAML validation
-                const lines = content.split('\n');
-                const delimiterCount = lines.filter(line => line.trim() === '---').length;
-
-                if (delimiterCount < 2) {
-                  setYamlError('Invalid YAML: Missing frontmatter delimiters');
-                } else if (content.includes(': :')) {
-                  setYamlError('Invalid YAML: Syntax error detected');
-                } else {
-                  setYamlError('');
-                  setPrompt(content.split('---\n').slice(2).join('---\n'));
-                }
-              }}
-              rows={15}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
-              aria-label="YAML editor"
-            />
-            {yamlError && (
-              <p role="alert" className="text-sm text-red-600 mt-1">
-                {yamlError}
-              </p>
-            )}
-          </div>
-        )}
-
+        <label htmlFor="agent-prompt" className="block text-sm font-medium text-gray-700 mb-1">
+          Prompt
+        </label>
+        <PlateMarkdownEditor
+          value={prompt}
+          onChange={setPrompt}
+          placeholder="You are a helpful AI agent..."
+          ariaLabel="Prompt editor"
+          showYamlTab={false}
+          showPreviewTab={false}
+        />
         {errors.prompt && (
           <p role="alert" className="text-sm text-red-600 mt-1">
             {errors.prompt}
