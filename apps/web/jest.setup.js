@@ -83,34 +83,6 @@ class BroadcastChannelMock {
 
 global.BroadcastChannel = BroadcastChannelMock;
 
-// Mock react-markdown to avoid ESM transformation issues
-jest.mock("react-markdown", () => {
-  return {
-    __esModule: true,
-    default: ({ children }) => {
-      // Simple markdown parser for tests
-      let html = children;
-
-      // Parse bold: **text** -> <strong>text</strong>
-      html = html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
-
-      // Parse italic: *text* -> <em>text</em>
-      html = html.replace(/\*(.+?)\*/g, "<em>$1</em>");
-
-      // Parse inline code: `text` -> <code>text</code>
-      html = html.replace(/`(.+?)`/g, "<code>$1</code>");
-
-      // Parse links: [text](url) -> <a href="url">text</a>
-      html = html.replace(
-        /\[(.+?)\]\((.+?)\)/g,
-        '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>'
-      );
-
-      return <div dangerouslySetInnerHTML={{ __html: html }} />;
-    },
-  };
-});
-
 // Mock rehype-sanitize (not needed in tests since we're mocking react-markdown)
 jest.mock("rehype-sanitize", () => ({
   __esModule: true,
