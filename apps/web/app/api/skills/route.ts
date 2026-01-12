@@ -116,7 +116,8 @@ export async function POST(request: NextRequest) {
     }
 
     const data = await response.json();
-    return jsonResponse(data as any, { status: 201 });
+    const skill = data?.skill ?? data;
+    return jsonResponse(skill as Record<string, unknown>, { status: 201 });
   } catch (error) {
     console.error('Error creating skill:', error);
     return jsonResponse({ error: 'Internal server error' }, { status: 500 });

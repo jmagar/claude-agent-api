@@ -4,7 +4,7 @@
  * Validates settings defaults and per-setting setter behavior.
  */
 
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, cleanup } from "@testing-library/react";
 import { SettingsProvider, useSettings } from "@/contexts/SettingsContext";
 import type { PermissionMode, ThreadingMode } from "@/types";
 
@@ -15,8 +15,6 @@ function TestConsumer() {
     defaultPermissionMode,
     workspaceBaseDir,
     messageDensity,
-    defaultModel,
-    autoCompactThreshold,
     showTimestamps,
     setTheme,
     toggleTheme,
@@ -24,8 +22,6 @@ function TestConsumer() {
     setDefaultPermissionMode,
     setWorkspaceBaseDir,
     setMessageDensity,
-    setDefaultModel,
-    setAutoCompactThreshold,
     toggleShowTimestamps,
   } = useSettings();
 
@@ -36,8 +32,6 @@ function TestConsumer() {
       <div data-testid="defaultPermissionMode">{defaultPermissionMode}</div>
       <div data-testid="workspaceBaseDir">{workspaceBaseDir}</div>
       <div data-testid="messageDensity">{messageDensity}</div>
-      <div data-testid="defaultModel">{defaultModel}</div>
-      <div data-testid="autoCompactThreshold">{autoCompactThreshold}</div>
       <div data-testid="showTimestamps">{showTimestamps ? "true" : "false"}</div>
 
       <button type="button" onClick={() => setTheme("dark")}>SetTheme</button>
@@ -66,18 +60,6 @@ function TestConsumer() {
       >
         SetDensity
       </button>
-      <button
-        type="button"
-        onClick={() => setDefaultModel("opus")}
-      >
-        SetModel
-      </button>
-      <button
-        type="button"
-        onClick={() => setAutoCompactThreshold(200)}
-      >
-        SetThreshold
-      </button>
       <button type="button" onClick={toggleShowTimestamps}>
         ToggleTimestamps
       </button>
@@ -95,20 +77,33 @@ function renderWithProvider() {
 
 describe("SettingsContext", () => {
   beforeEach(() => {
+    cleanup();
     jest.clearAllMocks();
-    localStorage.getItem = jest.fn().mockReturnValue(null);
+    const store = new Map<string, string>();
+    localStorage.getItem = jest.fn((key: string) => store.get(key) ?? null);
+    localStorage.setItem = jest.fn((key: string, value: string) => {
+      store.set(key, value);
+    });
+    localStorage.removeItem = jest.fn((key: string) => {
+      store.delete(key);
+    });
+    localStorage.clear = jest.fn(() => {
+      store.clear();
+    });
+  });
+
+  afterEach(() => {
+    cleanup();
   });
 
   it("exposes default settings", () => {
     renderWithProvider();
 
-    expect(screen.getByTestId("theme")).toHaveTextContent("system");
+    expect(screen.getByTestId("theme")).toHaveTextContent("light");
     expect(screen.getByTestId("threadingMode")).toHaveTextContent("adaptive");
     expect(screen.getByTestId("defaultPermissionMode")).toHaveTextContent("default");
     expect(screen.getByTestId("workspaceBaseDir")).toHaveTextContent("/workspaces");
     expect(screen.getByTestId("messageDensity")).toHaveTextContent("comfortable");
-    expect(screen.getByTestId("defaultModel")).toHaveTextContent("sonnet");
-    expect(screen.getByTestId("autoCompactThreshold")).toHaveTextContent("100");
     expect(screen.getByTestId("showTimestamps")).toHaveTextContent("true");
   });
 
@@ -120,8 +115,6 @@ describe("SettingsContext", () => {
     fireEvent.click(screen.getByText("SetPermission"));
     fireEvent.click(screen.getByText("SetWorkspace"));
     fireEvent.click(screen.getByText("SetDensity"));
-    fireEvent.click(screen.getByText("SetModel"));
-    fireEvent.click(screen.getByText("SetThreshold"));
     fireEvent.click(screen.getByText("ToggleTimestamps"));
 
     expect(screen.getByTestId("theme")).toHaveTextContent("dark");
@@ -129,18 +122,20 @@ describe("SettingsContext", () => {
     expect(screen.getByTestId("defaultPermissionMode")).toHaveTextContent("dontAsk");
     expect(screen.getByTestId("workspaceBaseDir")).toHaveTextContent("/workspace");
     expect(screen.getByTestId("messageDensity")).toHaveTextContent("compact");
-    expect(screen.getByTestId("defaultModel")).toHaveTextContent("opus");
-    expect(screen.getByTestId("autoCompactThreshold")).toHaveTextContent("200");
     expect(screen.getByTestId("showTimestamps")).toHaveTextContent("false");
   });
 
-  it("toggles theme between light and dark", () => {
+  it("toggles theme between light and dark", async () => {
     renderWithProvider();
 
     fireEvent.click(screen.getByText("ToggleTheme"));
-    expect(screen.getByTestId("theme")).toHaveTextContent("light");
+    await waitFor(() =>
+      expect(screen.getByTestId("theme")).toHaveTextContent("dark")
+    );
 
     fireEvent.click(screen.getByText("ToggleTheme"));
-    expect(screen.getByTestId("theme")).toHaveTextContent("dark");
+    await waitFor(() =>
+      expect(screen.getByTestId("theme")).toHaveTextContent("light")
+    );
   });
 });

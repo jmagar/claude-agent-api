@@ -13,6 +13,21 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const BACKEND_API_URL = process.env.API_BASE_URL || 'http://localhost:54000/api/v1';
 
+function jsonResponse(body: Record<string, unknown>, init?: ResponseInit) {
+  const headers = new Headers(init?.headers);
+  if (!headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
+  return new NextResponse(JSON.stringify(body), { ...init, headers });
+}
+
+function normalizeServer(server: Record<string, unknown>) {
+  if (server.transport_type || !server.type) {
+    return server;
+  }
+  return { ...server, transport_type: server.type };
+}
+
 /**
  * GET /api/mcp-servers
  * List all configured MCP servers
@@ -55,10 +70,19 @@ export async function GET(request: NextRequest) {
     }
 
     const data = await response.json();
-    return NextResponse.json(data.servers || []);
+    const servers = Array.isArray(data)
+      ? data
+      : Array.isArray(data.servers)
+        ? data.servers
+        : [];
+    return jsonResponse({
+      servers: servers.map((server) =>
+        normalizeServer(server as Record<string, unknown>)
+      ),
+    });
   } catch (error) {
     console.error('MCP servers GET error:', error);
-    return NextResponse.json(
+    return jsonResponse(
       {
         error: {
           code: 'INTERNAL_ERROR',
@@ -96,7 +120,7 @@ export async function POST(request: NextRequest) {
 
     // Basic validation
     if (!backendRequest.name || !backendRequest.type) {
-      return NextResponse.json(
+      return jsonResponse(
         {
           error: {
             code: 'VALIDATION_ERROR',
@@ -135,10 +159,13 @@ export async function POST(request: NextRequest) {
     }
 
     const data = await response.json();
-    return NextResponse.json(data, { status: 201 });
+    const server = data?.server ?? data;
+    return jsonResponse(normalizeServer(server as Record<string, unknown>), {
+      status: 201,
+    });
   } catch (error) {
     console.error('MCP servers POST error:', error);
-    return NextResponse.json(
+    return jsonResponse(
       {
         error: {
           code: 'INTERNAL_ERROR',

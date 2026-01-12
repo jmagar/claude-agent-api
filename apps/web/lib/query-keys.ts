@@ -8,6 +8,8 @@ export const queryKeys = {
       [...queryKeys.sessions.lists(), filters] as const,
     details: () => [...queryKeys.sessions.all, "detail"] as const,
     detail: (id: string) => [...queryKeys.sessions.details(), id] as const,
+    checkpoints: (id: string) =>
+      [...queryKeys.sessions.detail(id), "checkpoints"] as const,
   },
   projects: {
     all: ["projects"] as const,

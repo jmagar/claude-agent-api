@@ -16,6 +16,7 @@ import { MessageList } from "./MessageList";
 import { Composer } from "./Composer";
 import { ErrorBanner } from "@/components/ui/ErrorBanner";
 import { useStreamingQuery } from "@/hooks/useStreamingQuery";
+import { useCheckpoints } from "@/hooks/useCheckpoints";
 import { useQuery } from "@tanstack/react-query";
 import { ModeToggle } from "@/components/sidebar/ModeToggle";
 import { ProjectPicker } from "@/components/modals/ProjectPickerModal";
@@ -26,6 +27,7 @@ import { ToolManagementModal } from "@/components/modals/ToolManagementModal";
 import { ToolApprovalCard } from "./ToolApprovalCard";
 import { ToolCallCard } from "./ToolCallCard";
 import { usePermissionsOptional } from "@/contexts/PermissionsContext";
+import { useActiveSession } from "@/contexts/ActiveSessionContext";
 import type {
   Message,
   Project,
@@ -146,6 +148,13 @@ export function ChatInterface({ sessionId: initialSessionId }: ChatInterfaceProp
     retry,
     clearError,
   } = useStreamingQuery(initialSessionId);
+  const {
+    messages: allMessages,
+    setMessages: setAllMessages,
+    setIsStreaming: setContextStreaming,
+  } = useActiveSession();
+  const resolvedSessionId = sessionId ?? initialSessionId ?? "";
+  const { checkpoints } = useCheckpoints(resolvedSessionId);
 
   const fetchTools = useCallback(async () => {
     setToolsLoading(true);
@@ -282,15 +291,16 @@ export function ChatInterface({ sessionId: initialSessionId }: ChatInterfaceProp
     enabled: !!initialSessionId, // Only fetch if we're resuming an existing session
   });
 
-  // Merge existing messages with stream messages
-  const [allMessages, setAllMessages] = useState<Message[]>([]);
+  useEffect(() => {
+    setContextStreaming(isStreaming);
+  }, [isStreaming, setContextStreaming]);
 
   useEffect(() => {
     if (existingMessages?.messages) {
       setAllMessages(existingMessages.messages);
       setLoadingMessages(false);
     }
-  }, [existingMessages]);
+  }, [existingMessages, setAllMessages]);
 
   useEffect(() => {
     if (streamMessages.length > 0) {
@@ -303,7 +313,7 @@ export function ChatInterface({ sessionId: initialSessionId }: ChatInterfaceProp
         return [...prev, ...newMessages];
       });
     }
-  }, [streamMessages]);
+  }, [streamMessages, setAllMessages]);
 
   const toolCallsById = useMemo(
     () =>
@@ -567,6 +577,7 @@ export function ChatInterface({ sessionId: initialSessionId }: ChatInterfaceProp
           isStreaming={isStreaming}
           toolCallsById={toolCallsById}
           onRetryTool={retry}
+          checkpoints={checkpoints}
         />
 
         {/* Error banner */}

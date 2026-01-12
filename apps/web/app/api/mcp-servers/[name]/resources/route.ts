@@ -12,6 +12,14 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const BACKEND_API_URL = process.env.API_BASE_URL || 'http://localhost:54000/api/v1';
 
+function jsonResponse(body: Record<string, unknown>, init?: ResponseInit) {
+  const headers = new Headers(init?.headers);
+  if (!headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
+  return new NextResponse(JSON.stringify(body), { ...init, headers });
+}
+
 interface RouteParams {
   params: {
     name: string;
@@ -28,7 +36,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const apiKey = request.headers.get('X-API-Key') || request.cookies.get('api-key')?.value;
 
     if (!apiKey) {
-      return NextResponse.json(
+      return jsonResponse(
         { error: { code: 'INVALID_API_KEY', message: 'API key is required' } },
         { status: 401 }
       );
@@ -49,7 +57,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         error: { message: 'Backend request failed' },
       }));
 
-      return NextResponse.json(
+      return jsonResponse(
         {
           error: {
             code: error.error?.code ?? 'BACKEND_ERROR',
@@ -61,10 +69,15 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     }
 
     const data = await response.json();
-    return NextResponse.json(data.resources || []);
+    const resources = Array.isArray(data)
+      ? data
+      : Array.isArray(data.resources)
+        ? data.resources
+        : [];
+    return jsonResponse({ resources });
   } catch (error) {
     console.error(`MCP server resources GET error (${params.name}):`, error);
-    return NextResponse.json(
+    return jsonResponse(
       {
         error: {
           code: 'INTERNAL_ERROR',

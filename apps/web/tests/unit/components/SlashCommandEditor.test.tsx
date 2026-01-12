@@ -5,7 +5,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 // Mock PlateMarkdownEditor components
 jest.mock('@/components/plate/PlateEditor', () => ({
   PlateEditor: ({
-    value,
     onChange,
     placeholder,
     ariaLabel,
@@ -455,7 +454,7 @@ describe('SlashCommandEditor', () => {
 
   describe('Loading States', () => {
     it('shows loading indicator while submitting', async () => {
-      const onSubmit = jest.fn(() => new Promise(resolve => setTimeout(resolve, 100)));
+      const onSubmit = jest.fn<Promise<void>, []>(() => new Promise(resolve => setTimeout(resolve, 100)));
       render(<SlashCommandEditor onSubmit={onSubmit} onCancel={() => {}} />, { wrapper });
 
       const nameInput = screen.getByLabelText(/command name/i);
@@ -473,7 +472,7 @@ describe('SlashCommandEditor', () => {
     });
 
     it('disables buttons while submitting', async () => {
-      const onSubmit = jest.fn(() => new Promise(resolve => setTimeout(resolve, 100)));
+      const onSubmit = jest.fn<Promise<void>, []>(() => new Promise(resolve => setTimeout(resolve, 100)));
       render(<SlashCommandEditor onSubmit={onSubmit} onCancel={() => {}} />, { wrapper });
 
       const nameInput = screen.getByLabelText(/command name/i);

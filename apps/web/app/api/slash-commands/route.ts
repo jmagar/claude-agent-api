@@ -120,7 +120,8 @@ export async function POST(request: NextRequest) {
     }
 
     const data = await response.json();
-    return jsonResponse(data as any, { status: 201 });
+    const command = data?.command ?? data;
+    return jsonResponse(command as Record<string, unknown>, { status: 201 });
   } catch (error) {
     console.error('Error creating slash command:', error);
     return jsonResponse({ error: 'Internal server error' }, { status: 500 });

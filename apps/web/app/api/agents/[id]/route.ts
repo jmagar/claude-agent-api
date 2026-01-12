@@ -67,7 +67,8 @@ export async function GET(
     }
 
     const data = await response.json();
-    return jsonResponse(data as any);
+    const agent = data?.agent ?? data;
+    return jsonResponse(agent as Record<string, unknown>);
   } catch (error) {
     console.error('Error fetching agent:', error);
     return jsonResponse(
@@ -152,7 +153,8 @@ export async function PUT(
     }
 
     const data = await response.json();
-    return jsonResponse(data as any);
+    const agent = data?.agent ?? data;
+    return jsonResponse(agent as Record<string, unknown>);
   } catch (error) {
     console.error('Error updating agent:', error);
     return jsonResponse(

@@ -1,7 +1,12 @@
 /**
- * Tool Preset Detail API Route
+ * Tool Preset CRUD API Route
  *
- * BFF endpoint for tool preset detail management.
+ * BFF endpoint for individual tool preset operations:
+ * - GET: Fetch single tool preset by ID
+ * - PUT: Update existing tool preset
+ * - DELETE: Delete tool preset
+ *
+ * Proxies requests to the backend Claude Agent API.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -22,7 +27,7 @@ function getApiKey(request: NextRequest) {
   return request.headers.get('X-API-Key') || request.cookies.get('api-key')?.value;
 }
 
-function mapPreset(preset: Record<string, unknown>) {
+function mapPreset(preset: Record<string, any>) {
   const allowed_tools = Array.isArray(preset.allowed_tools)
     ? preset.allowed_tools
     : Array.isArray(preset.tools)
@@ -56,6 +61,7 @@ export async function GET(
   }
 
   try {
+    const { id } = params;
     const apiKey = getApiKey(request);
     if (!apiKey) {
       return jsonResponse(
@@ -64,25 +70,20 @@ export async function GET(
       );
     }
 
-    const response = await fetch(`${API_BASE_URL}/tool-presets/${params.id}`, {
+    const response = await fetch(`${API_BASE_URL}/tool-presets/${id}`, {
       method: 'GET',
       headers: {
-        'X-API-Key': apiKey,
         'Content-Type': 'application/json',
+        'X-API-Key': apiKey,
       },
     });
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({
-        error: { message: 'Backend request failed' },
+        error: { message: 'Failed to fetch tool preset' },
       }));
       return jsonResponse(
-        {
-          error: {
-            code: 'BACKEND_ERROR',
-            message: error.error?.message ?? 'Failed to fetch tool preset',
-          },
-        },
+        { error: error.error?.message ?? 'Failed to fetch tool preset' },
         { status: response.status }
       );
     }
@@ -91,7 +92,11 @@ export async function GET(
     const preset = data && typeof data === 'object' ? mapPreset(data) : data;
     return jsonResponse(preset as any);
   } catch (error) {
-    console.error('Tool preset GET error:', error);
+    console.error('Error fetching tool preset:', error);
+    return jsonResponse({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
 export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -109,18 +114,7 @@ export async function PUT(
   }
 
   try {
-    const apiKey = getApiKey(request);
-      },
-      { status: 500 }
-    );
-  }
-}
-
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  try {
+    const { id } = params;
     const apiKey = getApiKey(request);
     if (!apiKey) {
       return jsonResponse(
@@ -128,56 +122,41 @@ export async function PUT(
         { status: 401 }
       );
     }
-
     const body = await request.json();
-    if (!body?.name || typeof body.name !== 'string') {
-      return jsonResponse(
-        {
-          error: {
-            code: 'VALIDATION_ERROR',
-            message: 'Preset name is required',
-          },
-        },
-        { status: 400 }
-      );
-    }
 
-    if (!Array.isArray(body.tools)) {
-      return jsonResponse(
-        {
-          error: {
-            code: 'VALIDATION_ERROR',
-            message: 'Preset tools must be an array',
-          },
-        },
-        { status: 400 }
-      );
-    }
-
-    const response = await fetch(`${API_BASE_URL}/tool-presets/${params.id}`, {
+    const response = await fetch(`${API_BASE_URL}/tool-presets/${id}`, {
       method: 'PUT',
       headers: {
-        'X-API-Key': apiKey,
         'Content-Type': 'application/json',
+        'X-API-Key': apiKey,
       },
       body: JSON.stringify({
         name: body.name,
         description: body.description,
-        allowed_tools: body.tools,
-        disallowed_tools: Array.isArray(body.disallowed_tools)
-          ? body.disallowed_tools
-          : [],
+        allowed_tools: body.allowed_tools || body.tools,
+        disallowed_tools: body.disallowed_tools || [],
       }),
     });
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({
-        error: { message: 'Backend request failed' },
+        error: { message: 'Failed to update tool preset' },
       }));
       return jsonResponse(
-        {
-          error: {
-            code: 'BACKEND_ERROR',
+        { error: error.error?.message ?? 'Failed to update tool preset' },
+        { status: response.status }
+      );
+    }
+
+    const data = await response.json();
+    const preset = data && typeof data === 'object' ? mapPreset(data) : data;
+    return jsonResponse(preset as any);
+  } catch (error) {
+    console.error('Error updating tool preset:', error);
+    return jsonResponse({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -195,30 +174,7 @@ export async function DELETE(
   }
 
   try {
-    const apiKey = getApiKey(request);
-
-    const data = await response.json();
-    const preset = data && typeof data === 'object' ? mapPreset(data) : data;
-    return jsonResponse(preset as any);
-  } catch (error) {
-    console.error('Tool preset PUT error:', error);
-    return jsonResponse(
-      {
-        error: {
-          code: 'INTERNAL_ERROR',
-          message: error instanceof Error ? error.message : 'Internal server error',
-        },
-      },
-      { status: 500 }
-    );
-  }
-}
-
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  try {
+    const { id } = params;
     const apiKey = getApiKey(request);
     if (!apiKey) {
       return jsonResponse(
@@ -227,17 +183,17 @@ export async function DELETE(
       );
     }
 
-    const response = await fetch(`${API_BASE_URL}/tool-presets/${params.id}`, {
+    const response = await fetch(`${API_BASE_URL}/tool-presets/${id}`, {
       method: 'DELETE',
       headers: {
-        'X-API-Key': apiKey,
         'Content-Type': 'application/json',
+        'X-API-Key': apiKey,
       },
     });
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({
-        error: { message: 'Backend request failed' },
+        error: { message: 'Failed to delete tool preset' },
       }));
       return jsonResponse(
         {
@@ -252,15 +208,7 @@ export async function DELETE(
 
     return new NextResponse(null, { status: 204 });
   } catch (error) {
-    console.error('Tool preset DELETE error:', error);
-    return jsonResponse(
-      {
-        error: {
-          code: 'INTERNAL_ERROR',
-          message: error instanceof Error ? error.message : 'Internal server error',
-        },
-      },
-      { status: 500 }
-    );
+    console.error('Error deleting tool preset:', error);
+    return jsonResponse({ error: 'Internal server error' }, { status: 500 });
   }
 }

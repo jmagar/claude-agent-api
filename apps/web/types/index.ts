@@ -97,7 +97,7 @@ export interface Message {
   parent_tool_use_id?: string;
   model?: string;
   usage?: UsageMetrics;
-  created_at: string;
+  created_at: Date;
 }
 
 // Session Types
@@ -117,9 +117,9 @@ export interface Session {
   status: SessionStatus;
   project_id?: string;
   title?: string;
-  created_at: string;
-  updated_at: string;
-  last_message_at?: string;
+  created_at: Date;
+  updated_at: Date;
+  last_message_at?: Date;
   total_turns: number;
   total_cost_usd?: number;
   parent_session_id?: string;
@@ -143,9 +143,9 @@ export interface Project {
   id: string;
   name: string;
   path: string;
-  created_at: string;
+  created_at: Date;
   session_count: number;
-  last_accessed_at?: string;
+  last_accessed_at?: Date;
 }
 
 // Tool & Permission Types
@@ -164,7 +164,7 @@ export interface ToolCall {
   input: Record<string, unknown>;
   output?: string | Record<string, unknown>;
   error?: string;
-  started_at?: string;
+  started_at?: Date;
   duration_ms?: number;
   parent_tool_use_id?: string;
   requires_approval?: boolean;
@@ -184,7 +184,7 @@ export interface ToolPreset {
   description?: string;
   allowed_tools: string[];
   disallowed_tools?: string[];
-  created_at: string;
+  created_at: Date;
   is_system?: boolean;
 }
 
@@ -204,8 +204,8 @@ export interface McpServerConfig {
   enabled: boolean;
   status: McpServerStatus;
   error?: string;
-  created_at: string;
-  updated_at: string;
+  created_at: Date;
+  updated_at: Date;
   tools_count?: number;
   resources_count?: number;
 }
@@ -233,8 +233,8 @@ export interface AgentDefinition {
   prompt: string;
   tools?: string[];
   model?: "sonnet" | "opus" | "haiku" | "inherit";
-  created_at: string;
-  updated_at: string;
+  created_at: Date;
+  updated_at: Date;
   is_shared?: boolean;
   share_url?: string;
 }
@@ -245,8 +245,8 @@ export interface SkillDefinition {
   description: string;
   content: string;
   enabled: boolean;
-  created_at: string;
-  updated_at: string;
+  created_at: Date;
+  updated_at: Date;
   is_shared?: boolean;
   share_url?: string;
 }
@@ -257,8 +257,8 @@ export interface SlashCommand {
   description: string;
   content: string;
   enabled: boolean;
-  created_at: string;
-  updated_at: string;
+  created_at: Date;
+  updated_at: Date;
 }
 
 // Checkpoint Types
@@ -266,7 +266,7 @@ export interface Checkpoint {
   id: string;
   session_id: string;
   user_message_uuid: string;
-  created_at: string;
+  created_at: Date;
   files_modified: string[];
   label?: string;
 }
@@ -280,7 +280,7 @@ export interface Artifact {
   language?: string;
   content: string;
   title?: string;
-  created_at: string;
+  created_at: Date;
   message_id: string;
 }
 
@@ -307,7 +307,7 @@ export interface AutocompleteItem {
 }
 
 // Settings Types
-export type ThemeMode = "light" | "dark" | "system";
+export type ThemeMode = "light" | "dark";
 export type ThreadingMode = "always" | "hover" | "adaptive" | "toggle";
 
 export type MessageDensity = "compact" | "comfortable" | "spacious";
@@ -315,12 +315,23 @@ export type MessageDensity = "compact" | "comfortable" | "spacious";
 export interface UserSettings {
   theme: ThemeMode;
   threading_mode: ThreadingMode;
-  workspace_base_dir?: string;
   default_permission_mode: PermissionMode;
-  message_density?: MessageDensity;
-  show_timestamps?: boolean;
-  default_model?: string;
-  auto_compact_threshold?: number;
+  workspace_base_dir: string;
+  message_density: MessageDensity;
+  show_timestamps: boolean;
+}
+
+export interface ActiveSessionContextType {
+  session: Session | null;
+  messages: Message[];
+  isStreaming: boolean;
+  sendMessage: (prompt: string, images?: File[]) => Promise<void>;
+  interruptSession: () => Promise<void>;
+  forkSession: (checkpointId: string) => Promise<Session>;
+  activeTools: Set<string>;
+  permissionMode: PermissionMode;
+  setPermissionMode: (mode: PermissionMode) => void;
+  connectedServers: McpServerConfig[];
 }
 
 // Streaming Event Types

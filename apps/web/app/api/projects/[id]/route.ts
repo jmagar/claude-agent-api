@@ -66,7 +66,8 @@ export async function GET(
     }
 
     const data = await response.json();
-    return jsonResponse(data);
+    const project = data?.project ?? data;
+    return jsonResponse(project as Record<string, unknown>);
   } catch (error) {
     console.error('Project GET error:', error);
     return jsonResponse(
@@ -130,7 +131,8 @@ export async function PATCH(
     }
 
     const data = await response.json();
-    return jsonResponse(data);
+    const project = data?.project ?? data;
+    return jsonResponse(project as Record<string, unknown>);
   } catch (error) {
     console.error('Project PATCH error:', error);
     return jsonResponse(

@@ -50,6 +50,10 @@ const localStorageMock = {
 };
 
 global.localStorage = localStorageMock;
+Object.defineProperty(window, "localStorage", {
+  value: localStorageMock,
+  writable: true,
+});
 
 // Mock scrollIntoView for MessageList
 Element.prototype.scrollIntoView = jest.fn();

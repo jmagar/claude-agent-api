@@ -72,7 +72,8 @@ export async function GET(
     }
 
     const data = await response.json();
-    return jsonResponse(data as any);
+    const command = data?.command ?? data;
+    return jsonResponse(command as Record<string, unknown>);
   } catch (error) {
     console.error('Error fetching slash command:', error);
     return jsonResponse({ error: 'Internal server error' }, { status: 500 });
@@ -126,7 +127,8 @@ export async function PUT(
     }
 
     const data = await response.json();
-    return jsonResponse(data as any);
+    const command = data?.command ?? data;
+    return jsonResponse(command as Record<string, unknown>);
   } catch (error) {
     console.error('Error updating slash command:', error);
     return jsonResponse({ error: 'Internal server error' }, { status: 500 });

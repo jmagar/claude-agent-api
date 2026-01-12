@@ -115,11 +115,12 @@ async function fetchAllServerStatuses(): Promise<ServerStatusMap> {
     throw new Error(error.error?.message ?? 'Failed to fetch server statuses');
   }
 
-  const data: { servers: McpServerConfig[] } = await response.json();
+  const data = await response.json();
+  const servers = Array.isArray(data) ? data : data.servers ?? [];
 
   // Build status map from servers
   const statusMap: ServerStatusMap = {};
-  for (const server of data.servers) {
+  for (const server of servers) {
     statusMap[server.name] = server.status ?? 'disabled';
   }
 
@@ -141,8 +142,9 @@ async function fetchServerStatus(serverName: string): Promise<McpServerStatus> {
     throw new Error(error.error?.message ?? 'Failed to fetch server status');
   }
 
-  const data: { server: McpServerConfig } = await response.json();
-  return data.server.status ?? 'disabled';
+  const data = await response.json();
+  const server = data.server ?? data;
+  return server.status ?? 'disabled';
 }
 
 /**

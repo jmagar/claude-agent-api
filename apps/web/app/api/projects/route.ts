@@ -140,7 +140,8 @@ export async function POST(request: NextRequest) {
     }
 
     const data = await response.json();
-    return jsonResponse(data, { status: 201 });
+    const project = data?.project ?? data;
+    return jsonResponse(project as Record<string, unknown>, { status: 201 });
   } catch (error) {
     console.error('Projects POST error:', error);
     return jsonResponse(

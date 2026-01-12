@@ -12,7 +12,7 @@
 
 import { render, screen, waitFor } from "@/tests/utils/test-utils";
 import { MessageList } from "@/components/chat/MessageList";
-import type { Message } from "@/types";
+import type { Checkpoint, Message } from "@/types";
 
 describe("MessageList", () => {
   const mockMessages: Message[] = [
@@ -99,6 +99,30 @@ describe("MessageList", () => {
 
       expect(userLabels.length).toBeGreaterThan(0);
       expect(assistantLabels.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe("Checkpoints", () => {
+    it("should render checkpoint markers for matching messages", () => {
+      const checkpoints: Checkpoint[] = [
+        {
+          id: "checkpoint-1",
+          session_id: "session-1",
+          user_message_uuid: "uuid-1",
+          created_at: new Date("2026-01-10T10:00:00Z"),
+          files_modified: [],
+        },
+      ];
+      const messagesWithUuid = [
+        { ...mockMessages[0], uuid: "uuid-1" },
+        mockMessages[1],
+      ];
+
+      render(
+        <MessageList messages={messagesWithUuid} checkpoints={checkpoints} />
+      );
+
+      expect(screen.getByText("Checkpoint #1")).toBeInTheDocument();
     });
   });
 

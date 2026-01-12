@@ -10,15 +10,33 @@
  * - Error handling during streaming
  */
 
-import { render, screen, fireEvent, waitFor } from "@/tests/utils/test-utils";
+import { render, screen, fireEvent, waitFor, act } from "@/tests/utils/test-utils";
 import { ChatInterface } from "@/components/chat/ChatInterface";
 import { fetchEventSource } from "@microsoft/fetch-event-source";
+import { defaultRetryConfig, RetryConfig } from "@/lib/streaming-retry";
 
 jest.mock("@microsoft/fetch-event-source", () => ({
   fetchEventSource: jest.fn(),
 }));
 
 const fetchEventSourceMock = fetchEventSource as jest.Mock;
+const originalRetryConfig: RetryConfig = { ...defaultRetryConfig };
+
+const applyTestRetryConfig = () => {
+  defaultRetryConfig.initialDelay = 1;
+  defaultRetryConfig.maxDelay = 1;
+  defaultRetryConfig.maxAttempts = 0;
+  defaultRetryConfig.backoffFactor = 1;
+  defaultRetryConfig.jitterRatio = 0;
+};
+
+const restoreRetryConfig = () => {
+  defaultRetryConfig.initialDelay = originalRetryConfig.initialDelay;
+  defaultRetryConfig.maxDelay = originalRetryConfig.maxDelay;
+  defaultRetryConfig.maxAttempts = originalRetryConfig.maxAttempts;
+  defaultRetryConfig.backoffFactor = originalRetryConfig.backoffFactor;
+  defaultRetryConfig.jitterRatio = originalRetryConfig.jitterRatio;
+};
 
 const createOkResponse = () => ({
   ok: true,
@@ -52,6 +70,14 @@ const mockNetworkError = () => {
   });
 };
 
+const renderChatInterface = async (sessionId = "session-123") => {
+  await act(async () => {
+    render(<ChatInterface sessionId={sessionId} />);
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+};
+
 beforeEach(() => {
   fetchEventSourceMock.mockReset();
   global.fetch = jest.fn().mockResolvedValue(
@@ -60,6 +86,11 @@ beforeEach(() => {
       headers: { "Content-Type": "application/json" },
     })
   );
+});
+
+afterEach(() => {
+  restoreRetryConfig();
+  jest.useRealTimers();
 });
 
 describe("Chat Flow Integration", () => {
@@ -82,7 +113,7 @@ describe("Chat Flow Integration", () => {
         { event: "done", data: { usage: { input_tokens: 10, output_tokens: 5 } } },
       ]);
 
-      render(<ChatInterface sessionId="session-123" />);
+      await renderChatInterface();
 
       // Type a message
       const textarea = screen.getByPlaceholderText(/message/i);
@@ -124,7 +155,7 @@ describe("Chat Flow Integration", () => {
         { event: "done", data: { usage: { input_tokens: 10, output_tokens: 5 } } },
       ]);
 
-      render(<ChatInterface sessionId="session-123" />);
+      await renderChatInterface();
 
       const textarea = screen.getByPlaceholderText(/message/i);
       fireEvent.change(textarea, { target: { value: "Test" } });
@@ -158,7 +189,7 @@ describe("Chat Flow Integration", () => {
         { event: "done", data: { usage: { input_tokens: 10, output_tokens: 5 } } },
       ]);
 
-      render(<ChatInterface sessionId="session-123" />);
+      await renderChatInterface();
 
       const textarea = screen.getByPlaceholderText(/message/i);
       fireEvent.change(textarea, { target: { value: "Test" } });
@@ -191,7 +222,7 @@ describe("Chat Flow Integration", () => {
         { event: "done", data: { usage: { input_tokens: 10, output_tokens: 5 } } },
       ]);
 
-      render(<ChatInterface sessionId="session-123" />);
+      await renderChatInterface();
 
       const textarea = screen.getByPlaceholderText(/message/i);
       fireEvent.change(textarea, { target: { value: "Test" } });
@@ -207,10 +238,14 @@ describe("Chat Flow Integration", () => {
   });
 
   describe("Error handling", () => {
+    beforeEach(() => {
+      applyTestRetryConfig();
+    });
+
     it("should display error message when streaming fails", async () => {
       mockErrorStream(500, "Internal Server Error");
 
-      render(<ChatInterface sessionId="session-123" />);
+      await renderChatInterface();
 
       const textarea = screen.getByPlaceholderText(/message/i);
       fireEvent.change(textarea, { target: { value: "Test" } });
@@ -246,7 +281,7 @@ describe("Chat Flow Integration", () => {
         options.onmessage?.({ event: "done", data: JSON.stringify({}) });
       });
 
-      render(<ChatInterface sessionId="session-123" />);
+      await renderChatInterface();
 
       const textarea = screen.getByPlaceholderText(/message/i);
       fireEvent.change(textarea, { target: { value: "Test" } });
@@ -272,7 +307,7 @@ describe("Chat Flow Integration", () => {
     it("should handle network errors gracefully", async () => {
       mockNetworkError();
 
-      render(<ChatInterface sessionId="session-123" />);
+      await renderChatInterface();
 
       const textarea = screen.getByPlaceholderText(/message/i);
       fireEvent.change(textarea, { target: { value: "Test" } });
@@ -326,7 +361,7 @@ describe("Chat Flow Integration", () => {
         );
       });
 
-      render(<ChatInterface sessionId="session-123" />);
+      await renderChatInterface();
 
       // Should load and display existing messages
       await waitFor(() => {
@@ -375,7 +410,7 @@ describe("Chat Flow Integration", () => {
         );
       });
 
-      render(<ChatInterface sessionId="session-123" />);
+      await renderChatInterface();
 
       // Wait for existing message
       await waitFor(() => {
@@ -398,7 +433,7 @@ describe("Chat Flow Integration", () => {
   });
 
   describe("Loading states", () => {
-    it("should show loading skeleton while fetching initial messages", () => {
+    it("should show loading skeleton while fetching initial messages", async () => {
       // Set up fetch to return immediately but still trigger loading state
       (global.fetch as jest.Mock).mockImplementation((url) => {
         if (url.includes("/api/sessions/session-123/messages")) {
@@ -419,8 +454,11 @@ describe("Chat Flow Integration", () => {
 
       render(<ChatInterface sessionId="session-123" />);
 
-      // Should show loading state immediately after render
       expect(screen.getByTestId("message-skeleton")).toBeInTheDocument();
+
+      await waitFor(() => {
+        expect(screen.queryByTestId("message-skeleton")).not.toBeInTheDocument();
+      });
     });
 
     it("should hide loading skeleton after messages load", async () => {
@@ -442,7 +480,7 @@ describe("Chat Flow Integration", () => {
         );
       });
 
-      render(<ChatInterface sessionId="session-123" />);
+      await renderChatInterface();
 
       // Wait for messages to load
       await waitFor(() => {
@@ -473,7 +511,7 @@ describe("Chat Flow Integration", () => {
         );
       });
 
-      render(<ChatInterface sessionId="session-123" />);
+      await renderChatInterface();
 
       await waitFor(() => {
         expect(screen.getByText(/no messages yet/i)).toBeInTheDocument();
@@ -499,7 +537,7 @@ describe("Chat Flow Integration", () => {
         );
       });
 
-      render(<ChatInterface sessionId="session-123" />);
+      await renderChatInterface();
 
       // Send first message
       const textarea = screen.getByPlaceholderText(/message/i);
@@ -513,6 +551,66 @@ describe("Chat Flow Integration", () => {
         expect(
           screen.queryByText(/no messages yet/i)
         ).not.toBeInTheDocument();
+      });
+    });
+  });
+
+  describe("Checkpoints", () => {
+    it("should render checkpoint markers for sessions", async () => {
+      global.fetch = jest.fn((input: RequestInfo | URL) => {
+        const url = typeof input === "string" ? input : input.toString();
+
+        if (url.includes("/checkpoints")) {
+          return Promise.resolve(
+            new globalThis.Response(
+              JSON.stringify({
+                checkpoints: [
+                  {
+                    id: "checkpoint-1",
+                    session_id: "session-123",
+                    user_message_uuid: "uuid-1",
+                    created_at: "2026-01-11T02:00:00Z",
+                    files_modified: [],
+                  },
+                ],
+              }),
+              { status: 200, headers: { "Content-Type": "application/json" } }
+            )
+          );
+        }
+
+        if (url.includes("/messages")) {
+          return Promise.resolve(
+            new globalThis.Response(
+              JSON.stringify({
+                messages: [
+                  {
+                    id: "msg-1",
+                    role: "user",
+                    content: [{ type: "text", text: "Checkpointed message" }],
+                    created_at: "2026-01-11T01:00:00Z",
+                    uuid: "uuid-1",
+                  },
+                ],
+                total: 1,
+              }),
+              { status: 200, headers: { "Content-Type": "application/json" } }
+            )
+          );
+        }
+
+        return Promise.resolve(
+          new globalThis.Response(JSON.stringify({ messages: [], total: 0 }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          })
+        );
+      }) as jest.Mock;
+
+      await renderChatInterface();
+
+      await waitFor(() => {
+        expect(screen.getByText("Checkpoint #1")).toBeInTheDocument();
       });
     });
   });

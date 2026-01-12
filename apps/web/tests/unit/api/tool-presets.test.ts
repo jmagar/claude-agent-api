@@ -31,6 +31,8 @@ describe('Tool presets routes', () => {
     jest.resetModules();
   });
 
+  const presetId = '00000000-0000-0000-0000-000000000001';
+
   it('GET /api/tool-presets returns 401 without API key', async () => {
     const { GET } = await import('@/app/api/tool-presets/route');
     const response = await GET(buildRequest());
@@ -43,7 +45,7 @@ describe('Tool presets routes', () => {
       ok: true,
       json: async () => ({
         presets: [
-          { id: '1', name: 'Preset', allowed_tools: [], disallowed_tools: [] },
+          { id: presetId, name: 'Preset', allowed_tools: [], disallowed_tools: [] },
         ],
       }),
     });
@@ -74,7 +76,7 @@ describe('Tool presets routes', () => {
   it('POST /api/tool-presets proxies to backend', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ id: '1', name: 'Preset', allowed_tools: [] }),
+      json: async () => ({ id: presetId, name: 'Preset', allowed_tools: [] }),
     });
 
     const { POST } = await import('@/app/api/tool-presets/route');
@@ -93,36 +95,36 @@ describe('Tool presets routes', () => {
         headers: expect.objectContaining({ 'X-API-Key': 'test-key' }),
       })
     );
-    expect(data.preset.id).toBe('1');
+    expect(data.id).toBe(presetId);
   });
 
   it('GET /api/tool-presets/{id} proxies to backend', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ id: '1', name: 'Preset', allowed_tools: [] }),
+      json: async () => ({ id: presetId, name: 'Preset', allowed_tools: [] }),
     });
 
     const { GET } = await import('@/app/api/tool-presets/[id]/route');
     const response = await GET(
       buildRequest({}, { 'X-API-Key': 'test-key' }),
-      { params: { id: '1' } }
+      { params: { id: presetId } }
     );
     const data = await response.json();
 
     expect(mockFetch).toHaveBeenCalledWith(
-      'http://backend/api/v1/tool-presets/1',
+      `http://backend/api/v1/tool-presets/${presetId}`,
       expect.objectContaining({
         method: 'GET',
         headers: expect.objectContaining({ 'X-API-Key': 'test-key' }),
       })
     );
-    expect(data.preset.id).toBe('1');
+    expect(data.id).toBe(presetId);
   });
 
   it('PUT /api/tool-presets/{id} proxies to backend', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ id: '1', name: 'Updated', allowed_tools: [] }),
+      json: async () => ({ id: presetId, name: 'Updated', allowed_tools: [] }),
     });
 
     const { PUT } = await import('@/app/api/tool-presets/[id]/route');
@@ -131,18 +133,18 @@ describe('Tool presets routes', () => {
         { name: 'Updated', tools: [] },
         { 'X-API-Key': 'test-key' }
       ),
-      { params: { id: '1' } }
+      { params: { id: presetId } }
     );
     const data = await response.json();
 
     expect(mockFetch).toHaveBeenCalledWith(
-      'http://backend/api/v1/tool-presets/1',
+      `http://backend/api/v1/tool-presets/${presetId}`,
       expect.objectContaining({
         method: 'PUT',
         headers: expect.objectContaining({ 'X-API-Key': 'test-key' }),
       })
     );
-    expect(data.preset.name).toBe('Updated');
+    expect(data.name).toBe('Updated');
   });
 
   it('DELETE /api/tool-presets/{id} proxies to backend', async () => {
@@ -154,16 +156,16 @@ describe('Tool presets routes', () => {
     const { DELETE } = await import('@/app/api/tool-presets/[id]/route');
     const response = await DELETE(
       buildRequest({}, { 'X-API-Key': 'test-key' }),
-      { params: { id: '1' } }
+      { params: { id: presetId } }
     );
 
     expect(mockFetch).toHaveBeenCalledWith(
-      'http://backend/api/v1/tool-presets/1',
+      `http://backend/api/v1/tool-presets/${presetId}`,
       expect.objectContaining({
         method: 'DELETE',
         headers: expect.objectContaining({ 'X-API-Key': 'test-key' }),
       })
     );
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(204);
   });
 });

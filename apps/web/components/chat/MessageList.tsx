@@ -22,7 +22,9 @@ import { MessageItem } from "./MessageItem";
 import { MessageSkeleton } from "@/components/ui/LoadingState";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { StreamingIndicator } from "@/components/ui/LoadingState";
-import type { Message, ToolCall } from "@/types";
+import { CheckpointMarker } from "@/components/shared/CheckpointMarker";
+import type { Checkpoint, Message, ToolCall } from "@/types";
+import { findCheckpointByMessage, isActiveCheckpoint } from "@/utils/checkpointManagement";
 
 export interface MessageListProps {
   /** Array of messages to display */
@@ -37,6 +39,10 @@ export interface MessageListProps {
   toolCallsById?: Record<string, ToolCall>;
   /** Retry handler for failed tools */
   onRetryTool?: () => void;
+  /** Checkpoints associated with the session */
+  checkpoints?: Checkpoint[];
+  /** Callback when a checkpoint fork is requested */
+  onForkCheckpoint?: (checkpointId: string) => void;
 }
 
 function MessageListComponent({
@@ -46,6 +52,8 @@ function MessageListComponent({
   showTimestamps = false,
   toolCallsById,
   onRetryTool,
+  checkpoints = [],
+  onForkCheckpoint,
 }: MessageListProps) {
   const previousMessageCountRef = useRef(messages.length);
   const isInitialMount = useRef(true);
@@ -141,14 +149,34 @@ function MessageListComponent({
               </div>
             ) : null,
         }}
-        itemContent={(_, message) => (
-          <MessageItem
-            message={message}
-            showTimestamp={showTimestamps}
-            toolCallsById={toolCallsById}
-            onRetryTool={onRetryTool}
-          />
-        )}
+        itemContent={(index, message) => {
+          const checkpoint = message.uuid
+            ? findCheckpointByMessage(checkpoints, message.uuid)
+            : undefined;
+
+          return (
+            <div className="flex flex-col gap-12">
+              <MessageItem
+                message={message}
+                showTimestamp={showTimestamps}
+                toolCallsById={toolCallsById}
+                onRetryTool={onRetryTool}
+              />
+              {checkpoint && (
+                <CheckpointMarker
+                  messageIndex={index + 1}
+                  timestamp={checkpoint.created_at}
+                  isActive={isActiveCheckpoint(checkpoint, checkpoints)}
+                  onFork={
+                    onForkCheckpoint
+                      ? () => onForkCheckpoint(checkpoint.id)
+                      : undefined
+                  }
+                />
+              )}
+            </div>
+          );
+        }}
       />
     </div>
   );

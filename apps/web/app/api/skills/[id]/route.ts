@@ -67,7 +67,8 @@ export async function GET(
     }
 
     const data = await response.json();
-    return jsonResponse(data as any);
+    const skill = data?.skill ?? data;
+    return jsonResponse(skill as Record<string, unknown>);
   } catch (error) {
     console.error('Error fetching skill:', error);
     return jsonResponse({ error: 'Internal server error' }, { status: 500 });
@@ -148,7 +149,8 @@ export async function PUT(
     }
 
     const data = await response.json();
-    return jsonResponse(data as any);
+    const skill = data?.skill ?? data;
+    return jsonResponse(skill as Record<string, unknown>);
   } catch (error) {
     console.error('Error updating skill:', error);
     return jsonResponse({ error: 'Internal server error' }, { status: 500 });

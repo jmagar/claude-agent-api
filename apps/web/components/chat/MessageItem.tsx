@@ -15,6 +15,7 @@ import { MessageContent } from "./MessageContent";
 import { ToolCallCard } from "./ToolCallCard";
 import { ThinkingBlock } from "./ThinkingBlock";
 import { ThreadingVisualization } from "./ThreadingVisualization";
+import { SubagentCard } from "./SubagentCard";
 import type {
   Message,
   ToolResultBlock as ToolResultBlockType,
@@ -52,6 +53,10 @@ function MessageItemComponent({
   );
   const childToolCallsByParent = new Map<string, ToolCall[]>();
   const childToolCallIds = new Set<string>();
+  const subagentParentId = message.parent_tool_use_id ?? null;
+  const subagentParentTool = subagentParentId
+    ? toolCallsById?.[subagentParentId]
+    : undefined;
 
   if (toolCallsById) {
     Object.values(toolCallsById).forEach((toolCall) => {
@@ -81,6 +86,26 @@ function MessageItemComponent({
     });
   }
 
+  const subagentChildToolCalls = subagentParentId
+    ? Object.values(toolCallsById ?? {}).filter(
+        (toolCall) => toolCall.parent_tool_use_id === subagentParentId
+      )
+    : [];
+
+  const resolveSubagentDescription = (toolCall?: ToolCall) => {
+    if (!toolCall?.input) {
+      return undefined;
+    }
+    const input = toolCall.input as Record<string, unknown>;
+    if (typeof input.prompt === "string") {
+      return input.prompt;
+    }
+    if (typeof input.description === "string") {
+      return input.description;
+    }
+    return undefined;
+  };
+
   // Format timestamp (HH:MM)
   const formatTime = (date: Date) => {
     return new Date(date).toLocaleTimeString("en-US", {
@@ -103,6 +128,109 @@ function MessageItemComponent({
     });
   };
 
+  const messageBody = (
+    <div className={`flex max-w-[70%] flex-col gap-4`}>
+      {/* Message label */}
+      <div className="text-11 font-semibold uppercase text-gray-600">
+        {label}
+      </div>
+
+      {/* Message bubble */}
+      <div
+        className={`rounded-8 border px-16 py-12 ${
+          isUser
+            ? "bg-blue-light border-blue-border"
+            : "bg-gray-100 border-gray-300"
+        }`}
+        data-testid="message-bubble"
+      >
+        <div className="flex flex-col gap-12">
+          {message.content.map((block, index) => (
+            <div key={index}>
+              {isTextBlock(block) && <MessageContent text={block.text} />}
+
+              {isThinkingBlock(block) && (
+                <ThinkingBlock
+                  thinking={block.thinking}
+                  collapsed={!expandedThinking.has(index)}
+                  onToggle={() => toggleThinking(index)}
+                />
+              )}
+
+              {isToolUseBlock(block) && (() => {
+                if (childToolCallIds.has(block.id)) {
+                  return null;
+                }
+
+                const resolvedToolCall =
+                  toolCallsById?.[block.id] ?? {
+                    id: block.id,
+                    name: block.name,
+                    status: "running",
+                    input: block.input,
+                    started_at: new Date(),
+                  };
+                const childToolCalls = childToolCallsByParent.get(block.id);
+
+                if (childToolCalls && childToolCalls.length > 0) {
+                  return (
+                    <div className="flex flex-col gap-8">
+                      <ToolCallCard
+                        toolCall={resolvedToolCall}
+                        onRetry={onRetryTool}
+                      />
+                      <ThreadingVisualization
+                        toolCalls={childToolCalls}
+                        mode="always"
+                        onRetryTool={onRetryTool}
+                      />
+                    </div>
+                  );
+                }
+
+                return (
+                  <ToolCallCard
+                    toolCall={resolvedToolCall}
+                    onRetry={onRetryTool}
+                  />
+                );
+              })()}
+
+              {isToolResultBlock(block) && <ToolResultBlock block={block} />}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Timestamp */}
+      {showTimestamp && (
+        <div className="text-12 text-gray-500">
+          {formatTime(message.created_at)}
+        </div>
+      )}
+    </div>
+  );
+
+  const wrapper = (
+    <div
+      className={`flex gap-12 ${isUser ? "justify-end" : ""}`}
+      data-role={message.role}
+      data-testid="message-item"
+      role="article"
+      aria-label={`${label} message`}
+    >
+      {messageBody}
+    </div>
+  );
+
+  if (!subagentParentId) {
+    return wrapper;
+  }
+
+  const subagentType = subagentParentTool?.name ?? "Subagent";
+  const subagentStatus = subagentParentTool?.status ?? "running";
+  const subagentDescription = resolveSubagentDescription(subagentParentTool);
+
   return (
     <div
       className={`flex gap-12 ${isUser ? "justify-end" : ""}`}
@@ -111,86 +239,15 @@ function MessageItemComponent({
       role="article"
       aria-label={`${label} message`}
     >
-      <div className={`flex max-w-[70%] flex-col gap-4`}>
-        {/* Message label */}
-        <div className="text-11 font-semibold uppercase text-gray-600">
-          {label}
-        </div>
-
-        {/* Message bubble */}
-        <div
-          className={`rounded-8 border px-16 py-12 ${
-            isUser
-              ? "bg-blue-light border-blue-border"
-              : "bg-gray-100 border-gray-300"
-          }`}
-          data-testid="message-bubble"
-        >
-          <div className="flex flex-col gap-12">
-            {message.content.map((block, index) => (
-              <div key={index}>
-                {isTextBlock(block) && <MessageContent text={block.text} />}
-
-                {isThinkingBlock(block) && (
-                  <ThinkingBlock
-                    thinking={block.thinking}
-                    collapsed={!expandedThinking.has(index)}
-                    onToggle={() => toggleThinking(index)}
-                  />
-                )}
-
-                {isToolUseBlock(block) && (() => {
-                  if (childToolCallIds.has(block.id)) {
-                    return null;
-                  }
-
-                  const resolvedToolCall =
-                    toolCallsById?.[block.id] ?? {
-                      id: block.id,
-                      name: block.name,
-                      status: "running",
-                      input: block.input,
-                      started_at: new Date(),
-                    };
-                  const childToolCalls = childToolCallsByParent.get(block.id);
-
-                  if (childToolCalls && childToolCalls.length > 0) {
-                    return (
-                      <div className="flex flex-col gap-8">
-                        <ToolCallCard
-                          toolCall={resolvedToolCall}
-                          onRetry={onRetryTool}
-                        />
-                        <ThreadingVisualization
-                          toolCalls={childToolCalls}
-                          mode="always"
-                          onRetryTool={onRetryTool}
-                        />
-                      </div>
-                    );
-                  }
-
-                  return (
-                    <ToolCallCard
-                      toolCall={resolvedToolCall}
-                      onRetry={onRetryTool}
-                    />
-                  );
-                })()}
-
-                {isToolResultBlock(block) && <ToolResultBlock block={block} />}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Timestamp */}
-        {showTimestamp && (
-          <div className="text-12 text-gray-500">
-            {formatTime(message.created_at)}
-          </div>
-        )}
-      </div>
+      <SubagentCard
+        id={subagentParentId}
+        type={subagentType}
+        status={subagentStatus}
+        description={subagentDescription}
+        childToolCalls={subagentChildToolCalls}
+      >
+        {messageBody}
+      </SubagentCard>
     </div>
   );
 }

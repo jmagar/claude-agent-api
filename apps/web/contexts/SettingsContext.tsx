@@ -9,8 +9,6 @@ interface SettingsState {
   defaultPermissionMode: PermissionMode;
   workspaceBaseDir: string;
   messageDensity: MessageDensity;
-  defaultModel: string;
-  autoCompactThreshold: number;
   showTimestamps: boolean;
 }
 
@@ -21,21 +19,17 @@ export interface SettingsContextType extends SettingsState {
   setDefaultPermissionMode: (mode: PermissionMode) => void;
   setWorkspaceBaseDir: (dir: string) => void;
   setMessageDensity: (density: MessageDensity) => void;
-  setDefaultModel: (model: string) => void;
-  setAutoCompactThreshold: (threshold: number) => void;
   toggleShowTimestamps: () => void;
 }
 
 const SETTINGS_STORAGE_KEY = "settings";
 
 const defaultSettings: SettingsState = {
-  theme: "system",
+  theme: "light",
   threadingMode: "adaptive",
   defaultPermissionMode: "default",
   workspaceBaseDir: "/workspaces",
   messageDensity: "comfortable",
-  defaultModel: "sonnet",
-  autoCompactThreshold: 100,
   showTimestamps: true,
 };
 
@@ -47,13 +41,7 @@ function applyTheme(theme: ThemeMode) {
   }
 
   const root = document.documentElement;
-
-  if (theme === "system") {
-    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    root.classList.toggle("dark", prefersDark);
-  } else {
-    root.classList.toggle("dark", theme === "dark");
-  }
+  root.classList.toggle("dark", theme === "dark");
 }
 
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
@@ -75,9 +63,9 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     applyTheme(settings.theme);
   }, [settings.theme]);
 
-  const updateSettings = (partial: Partial<SettingsState>) => {
+  const updateSettings = (updater: (prev: SettingsState) => SettingsState) => {
     setSettings((prev) => {
-      const next = { ...prev, ...partial };
+      const next = updater(prev);
       localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(next));
       return next;
     });
@@ -86,22 +74,25 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const contextValue = useMemo<SettingsContextType>(
     () => ({
       ...settings,
-      setTheme: (theme) => updateSettings({ theme }),
+      setTheme: (theme) => updateSettings((prev) => ({ ...prev, theme })),
       toggleTheme: () =>
-        updateSettings({
-          theme: settings.theme === "light" ? "dark" : "light",
-        }),
-      setThreadingMode: (threadingMode) => updateSettings({ threadingMode }),
+        updateSettings((prev) => ({
+          ...prev,
+          theme: prev.theme === "light" ? "dark" : "light",
+        })),
+      setThreadingMode: (threadingMode) =>
+        updateSettings((prev) => ({ ...prev, threadingMode })),
       setDefaultPermissionMode: (defaultPermissionMode) =>
-        updateSettings({ defaultPermissionMode }),
+        updateSettings((prev) => ({ ...prev, defaultPermissionMode })),
       setWorkspaceBaseDir: (workspaceBaseDir) =>
-        updateSettings({ workspaceBaseDir }),
-      setMessageDensity: (messageDensity) => updateSettings({ messageDensity }),
-      setDefaultModel: (defaultModel) => updateSettings({ defaultModel }),
-      setAutoCompactThreshold: (autoCompactThreshold) =>
-        updateSettings({ autoCompactThreshold }),
+        updateSettings((prev) => ({ ...prev, workspaceBaseDir })),
+      setMessageDensity: (messageDensity) =>
+        updateSettings((prev) => ({ ...prev, messageDensity })),
       toggleShowTimestamps: () =>
-        updateSettings({ showTimestamps: !settings.showTimestamps }),
+        updateSettings((prev) => ({
+          ...prev,
+          showTimestamps: !prev.showTimestamps,
+        })),
     }),
     [settings]
   );

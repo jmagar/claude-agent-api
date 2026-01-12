@@ -84,7 +84,10 @@ export function errorResponse(
     payload.details = details;
   }
 
-  return NextResponse.json(payload, { status });
+  return new NextResponse(JSON.stringify(payload), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
 }
 
 export function logRequest(request: NextRequest, extra?: Record<string, unknown>) {

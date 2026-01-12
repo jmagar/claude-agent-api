@@ -5,20 +5,19 @@
  */
 
 import { render, screen, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { PlateEditor } from '@/components/plate/PlateEditor';
 import type { SlateValue } from '@/lib/slate-serializers';
 
 // Mock the @plate components
 jest.mock('platejs/react', () => ({
-  Plate: ({ children, onChange, editor }: any) => {
+  Plate: ({ children, editor }: { children: React.ReactNode; editor: { value?: unknown }; onChange?: unknown }) => {
     return (
       <div data-testid="plate-provider" data-value={editor?.value ? JSON.stringify(editor.value) : undefined}>
         {children}
       </div>
     );
   },
-  usePlateEditor: (options: any) => {
+  usePlateEditor: (options: { id?: string; plugins?: unknown[]; value?: unknown }) => {
     return {
       id: options.id,
       plugins: options.plugins,

@@ -11,7 +11,6 @@ import { PlateMarkdownEditor } from '@/components/plate/PlateMarkdownEditor';
 // Mock PlateEditor
 jest.mock('@/components/plate/PlateEditor', () => ({
   PlateEditor: ({
-    value,
     onChange,
     placeholder,
     ariaLabel,

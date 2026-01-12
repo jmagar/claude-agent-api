@@ -158,7 +158,7 @@ export async function POST(request: NextRequest) {
 
     const data = await response.json();
     const preset = data && typeof data === 'object' ? mapPreset(data) : data;
-    return jsonResponse({ preset } as Record<string, unknown>, { status: 201 });
+    return jsonResponse(preset as Record<string, unknown>, { status: 201 });
   } catch (error) {
     console.error('Tool presets POST error:', error);
     return jsonResponse(

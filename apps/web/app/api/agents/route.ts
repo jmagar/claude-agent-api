@@ -121,7 +121,8 @@ export async function POST(request: NextRequest) {
     }
 
     const data = await response.json();
-    return jsonResponse(data as any, { status: 201 });
+    const agent = data?.agent ?? data;
+    return jsonResponse(agent as Record<string, unknown>, { status: 201 });
   } catch (error) {
     console.error('Error creating agent:', error);
     return jsonResponse(

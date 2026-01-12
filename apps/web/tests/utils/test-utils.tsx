@@ -4,7 +4,10 @@
 import { ReactElement } from "react";
 import { render, RenderOptions } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ActiveSessionProvider } from "@/contexts/ActiveSessionContext";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { ModeProvider } from "@/contexts/ModeContext";
+import { PermissionsProvider } from "@/contexts/PermissionsContext";
 import { SettingsProvider } from "@/contexts/SettingsContext";
 
 // Create a test query client with no retries
@@ -31,7 +34,13 @@ function AllProviders({ children }: AllProvidersProps) {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <SettingsProvider>{children}</SettingsProvider>
+        <SettingsProvider>
+          <ModeProvider>
+            <PermissionsProvider>
+              <ActiveSessionProvider>{children}</ActiveSessionProvider>
+            </PermissionsProvider>
+          </ModeProvider>
+        </SettingsProvider>
       </AuthProvider>
     </QueryClientProvider>
   );

@@ -19,6 +19,18 @@ import {
   createAssistantAccumulator,
 } from "@/lib/streaming-utils";
 import { logger } from "@/lib/logger";
+import { calculateRetryDelay, defaultRetryConfig } from "@/lib/streaming-retry";
+
+type NonRetryableError = Error & { nonRetryable: true };
+
+const createNonRetryableError = (message: string): NonRetryableError =>
+  Object.assign(new Error(message), { nonRetryable: true });
+
+const isNonRetryableError = (error: unknown): error is NonRetryableError =>
+  typeof error === "object" &&
+  error !== null &&
+  "nonRetryable" in error &&
+  (error as { nonRetryable?: boolean }).nonRetryable === true;
 
 export interface StreamingQueryState {
   /** Whether a query is currently streaming */
@@ -56,6 +68,11 @@ export function useStreamingQuery(
   const lastMessageRef = useRef<string>("");
   const accumulatorRef = useRef<Message | null>(null);
 
+  const sleep = (delayMs: number) =>
+    new Promise<void>((resolve) => {
+      setTimeout(resolve, delayMs);
+    });
+
   // Clear error
   const clearError = useCallback(() => {
     setState((prev) => ({ ...prev, error: null }));
@@ -80,22 +97,30 @@ export function useStreamingQuery(
       accumulatorRef.current = createAssistantAccumulator();
 
       try {
-        await fetchEventSource("/api/streaming", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            message: text,
-            session_id: state.sessionId,
-          }),
-          onopen: async (response) => {
-            if (!response.ok) {
-              throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-          },
-          onmessage: (event) => {
-            switch (event.event) {
+        let attempt = 0;
+        let receivedEvent = false;
+
+        while (attempt <= defaultRetryConfig.maxAttempts) {
+          try {
+            await fetchEventSource("/api/streaming", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                message: text,
+                session_id: state.sessionId,
+              }),
+              onopen: async (response) => {
+                if (!response.ok) {
+                  throw createNonRetryableError(
+                    `HTTP ${response.status}: ${response.statusText}`
+                  );
+                }
+              },
+              onmessage: (event) => {
+                receivedEvent = true;
+                switch (event.event) {
               case "tool_start": {
                 const toolStartData = JSON.parse(event.data);
                 setState((prev) => {
@@ -299,17 +324,32 @@ export function useStreamingQuery(
                 const errorData = JSON.parse(event.data);
                 throw new Error(errorData.error || "Streaming error");
               }
+                }
+              },
+              onerror: (error) => {
+                logger.error(
+                  "SSE streaming error",
+                  error instanceof Error ? error : new Error(String(error)),
+                  { sessionId: state.sessionId }
+                );
+                throw error;
+              },
+            });
+            break;
+          } catch (error) {
+            if (
+              receivedEvent ||
+              isNonRetryableError(error) ||
+              attempt >= defaultRetryConfig.maxAttempts
+            ) {
+              throw error;
             }
-          },
-          onerror: (error) => {
-            logger.error(
-              "SSE streaming error",
-              error instanceof Error ? error : new Error(String(error)),
-              { sessionId: state.sessionId }
-            );
-            throw error;
-          },
-        });
+
+            const delay = calculateRetryDelay(attempt, defaultRetryConfig);
+            attempt += 1;
+            await sleep(delay);
+          }
+        }
       } catch (error) {
         const errorMessage =
           error instanceof Error ? error.message : "Failed to send message";

@@ -21,7 +21,7 @@ async function createSlashCommand(data: Partial<SlashCommand>): Promise<SlashCom
   });
   if (!response.ok) throw new Error('Failed to create slash command');
   const result = await response.json();
-  return result.command;
+  return result.command ?? result;
 }
 
 async function updateSlashCommand({ id, data }: { id: string; data: Partial<SlashCommand> }): Promise<SlashCommand> {
@@ -32,7 +32,7 @@ async function updateSlashCommand({ id, data }: { id: string; data: Partial<Slas
   });
   if (!response.ok) throw new Error('Failed to update slash command');
   const result = await response.json();
-  return result.command;
+  return result.command ?? result;
 }
 
 async function deleteSlashCommand(id: string): Promise<void> {

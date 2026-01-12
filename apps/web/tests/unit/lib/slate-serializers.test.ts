@@ -1,4 +1,4 @@
-import { markdownToSlate, slateToMarkdown, preserveYamlFrontmatter } from '@/lib/slate-serializers';
+import { markdownToSlate, slateToMarkdown, preserveYamlFrontmatter, type SlateValue } from '@/lib/slate-serializers';
 
 describe('Slate Serializers', () => {
   describe('markdownToSlate', () => {
@@ -127,12 +127,12 @@ describe('Slate Serializers', () => {
 
   describe('slateToMarkdown', () => {
     it('converts plain text', () => {
-      const value = [{ type: 'p', children: [{ text: 'Hello' }] }];
+      const value: SlateValue = [{ type: 'p', children: [{ text: 'Hello' }] }];
       expect(slateToMarkdown(value)).toBe('Hello\n');
     });
 
     it('converts headings', () => {
-      const value = [
+      const value: SlateValue = [
         { type: 'h1', children: [{ text: 'H1' }] },
         { type: 'h2', children: [{ text: 'H2' }] }
       ];
@@ -140,7 +140,7 @@ describe('Slate Serializers', () => {
     });
 
     it('converts bold and italic', () => {
-      const value = [
+      const value: SlateValue = [
         {
           type: 'p',
           children: [
@@ -154,7 +154,7 @@ describe('Slate Serializers', () => {
     });
 
     it('converts code blocks', () => {
-      const value = [
+      const value: SlateValue = [
         {
           type: 'code_block',
           lang: 'typescript',

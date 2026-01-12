@@ -2,8 +2,8 @@
  * API utility tests
  */
 
-import { NextRequest } from "next/server";
 import { checkRateLimit, errorResponse, getApiKey } from "@/lib/api-utils";
+import type { NextRequest } from "next/server";
 
 describe("api-utils", () => {
   afterEach(() => {
@@ -25,9 +25,10 @@ describe("api-utils", () => {
   });
 
   it("extracts API key from headers", () => {
-    const request = new NextRequest("http://localhost/api/test", {
-      headers: { "x-api-key": "test-key" },
-    });
+    const request = {
+      headers: new Headers({ "x-api-key": "test-key" }),
+      cookies: { get: () => undefined },
+    } as NextRequest;
 
     expect(getApiKey(request)).toBe("test-key");
   });
