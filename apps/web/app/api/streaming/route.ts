@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
 
     // Proxy to Claude Agent API
     const apiUrl =
-      process.env.NEXT_PUBLIC_API_URL || "http://localhost:54000";
+      process.env.API_BASE_URL || "http://localhost:54000";
 
     const response = await fetch(`${apiUrl}/api/v1/query`, {
       method: "POST",

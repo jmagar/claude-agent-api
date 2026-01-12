@@ -12,6 +12,20 @@ import { TextEncoder, TextDecoder } from "util";
 global.TextEncoder = TextEncoder;
 global.TextDecoder = TextDecoder;
 
+// Polyfill Response.json for NextResponse.json usage in tests
+if (typeof Response.json !== "function") {
+  Response.json = (data, init = {}) => {
+    const headers = new Headers(init.headers);
+    if (!headers.has("Content-Type")) {
+      headers.set("Content-Type", "application/json");
+    }
+    return new Response(JSON.stringify(data), {
+      ...init,
+      headers,
+    });
+  };
+}
+
 // Mock window.matchMedia for SettingsContext
 Object.defineProperty(window, "matchMedia", {
   writable: true,

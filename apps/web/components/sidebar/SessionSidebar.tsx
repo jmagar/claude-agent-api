@@ -12,6 +12,10 @@
  * - Empty, loading, and error states
  * - Keyboard navigation
  *
+ * Performance optimizations:
+ * - useMemo for expensive grouping operations
+ * - useCallback for stable callback references
+ *
  * @example
  * ```tsx
  * <SessionSidebar
@@ -24,7 +28,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { SessionList } from './SessionList';
 import { useSessions } from '@/hooks/useSessions';
 import type { Session, SessionMode } from '@/types';
@@ -122,31 +126,37 @@ export function SessionSidebar({
 }: SessionSidebarProps) {
   const { sessions, isLoading, error } = useSessions();
 
-  // Filter sessions by mode
-  const filteredSessions = sessions?.filter((s) => s.mode === mode) || [];
+  // Memoize filtered sessions to prevent recalculation
+  const filteredSessions = useMemo(
+    () => sessions?.filter((s) => s.mode === mode) || [],
+    [sessions, mode]
+  );
 
-  // Group sessions based on mode
-  const groups =
-    mode === 'brainstorm'
-      ? groupByDate(filteredSessions)
-      : groupByProject(filteredSessions);
+  // Memoize grouped sessions (expensive operation)
+  const groups = useMemo(
+    () =>
+      mode === 'brainstorm'
+        ? groupByDate(filteredSessions)
+        : groupByProject(filteredSessions),
+    [mode, filteredSessions]
+  );
 
   // Set default expanded groups based on mode
-  const getDefaultExpandedGroups = () => {
+  const getDefaultExpandedGroups = useCallback(() => {
     if (mode === 'brainstorm') {
       return new Set(['Today', 'Yesterday']);
     } else {
       // In code mode, expand all project groups by default
       return new Set(Object.keys(groups));
     }
-  };
+  }, [mode, groups]);
 
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() =>
     getDefaultExpandedGroups()
   );
 
-  // Toggle group expansion
-  const toggleGroup = (groupName: string) => {
+  // Memoize toggle function to prevent recreation
+  const toggleGroup = useCallback((groupName: string) => {
     setExpandedGroups((prev) => {
       const next = new Set(prev);
       if (next.has(groupName)) {
@@ -156,7 +166,7 @@ export function SessionSidebar({
       }
       return next;
     });
-  };
+  }, []);
 
   // Loading state
   if (isLoading) {

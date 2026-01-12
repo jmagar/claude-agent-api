@@ -1,10 +1,18 @@
 """Session CRUD endpoints."""
 
+from uuid import UUID
+
 from fastapi import APIRouter, Query
 
-from apps.api.dependencies import ApiKey, SessionSvc
+from apps.api.adapters.session_repo import SessionRepository
+from apps.api.dependencies import ApiKey, DbSession, SessionSvc
 from apps.api.exceptions import SessionNotFoundError
-from apps.api.schemas.responses import SessionListResponse, SessionResponse
+from apps.api.schemas.requests.sessions import PromoteRequest
+from apps.api.schemas.responses import (
+    SessionListResponse,
+    SessionResponse,
+    SessionWithMetaResponse,
+)
 
 router = APIRouter(prefix="/sessions", tags=["Sessions"])
 
@@ -88,4 +96,47 @@ async def get_session(
         total_turns=session.total_turns,
         total_cost_usd=session.total_cost_usd,
         parent_session_id=session.parent_session_id,
+    )
+
+
+@router.post("/{session_id}/promote", response_model=SessionWithMetaResponse)
+async def promote_session(
+    session_id: str,
+    request: PromoteRequest,
+    _api_key: ApiKey,
+    db_session: DbSession,
+) -> SessionWithMetaResponse:
+    """Promote a brainstorm session to code mode."""
+    repo = SessionRepository(db_session)
+    session = await repo.get(UUID(session_id))
+    if not session or (session.owner_api_key and session.owner_api_key != _api_key):
+        raise SessionNotFoundError(session_id)
+
+    metadata = dict(session.metadata_ or {})
+    metadata.update({"mode": "code", "project_id": request.project_id})
+
+    updated = await repo.update_metadata(UUID(session_id), metadata)
+    if updated is None:
+        raise SessionNotFoundError(session_id)
+
+    mode = metadata.get("mode", "code")
+    project_id = metadata.get("project_id")
+    tags = metadata.get("tags")
+    title = metadata.get("title")
+
+    return SessionWithMetaResponse(
+        id=str(updated.id),
+        mode="code" if mode != "brainstorm" else "brainstorm",
+        status=updated.status,
+        project_id=str(project_id) if project_id else None,
+        title=str(title) if title else None,
+        created_at=updated.created_at,
+        updated_at=updated.updated_at,
+        total_turns=updated.total_turns,
+        total_cost_usd=float(updated.total_cost_usd) if updated.total_cost_usd else None,
+        parent_session_id=str(updated.parent_session_id)
+        if updated.parent_session_id
+        else None,
+        tags=tags if isinstance(tags, list) else None,
+        metadata=metadata,
     )

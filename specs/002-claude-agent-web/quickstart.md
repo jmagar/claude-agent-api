@@ -30,7 +30,8 @@ Create `.env.local` in `apps/web/`:
 
 ```bash
 # Claude Agent API
-NEXT_PUBLIC_API_URL=http://localhost:54000/api/v1
+API_BASE_URL=http://localhost:54000/api/v1
+MCP_SHARE_SECRET=replace-with-long-random-value
 NEXT_PUBLIC_API_KEY=your-api-key-here
 
 # Database (shared with backend)
@@ -564,7 +565,7 @@ pnpm start
 
 ```bash
 # .env.production
-NEXT_PUBLIC_API_URL=https://api.yourdomain.com/api/v1
+API_BASE_URL=https://api.yourdomain.com/api/v1
 NEXT_PUBLIC_APP_URL=https://yourdomain.com
 DATABASE_URL=postgresql://...
 REDIS_URL=redis://...
@@ -580,7 +581,7 @@ docker build -t claude-agent-web:latest .
 
 # Run container
 docker run -p 53002:53002 \
-  -e NEXT_PUBLIC_API_URL=http://api:54000/api/v1 \
+  -e API_BASE_URL=http://api:54000/api/v1 \
   -e DATABASE_URL=postgresql://... \
   claude-agent-web:latest
 ```

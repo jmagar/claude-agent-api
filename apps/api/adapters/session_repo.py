@@ -114,6 +114,33 @@ class SessionRepository:
 
         return result.scalar_one_or_none()
 
+    async def update_metadata(
+        self,
+        session_id: UUID,
+        metadata: dict[str, object],
+    ) -> Session | None:
+        """Update session metadata.
+
+        Args:
+            session_id: Session identifier.
+            metadata: Metadata payload to store.
+
+        Returns:
+            Updated session or None if not found.
+        """
+        from sqlalchemy import update as sql_update
+
+        stmt = (
+            sql_update(Session)
+            .where(Session.id == session_id)
+            .values(metadata_=metadata, updated_at=datetime.now())
+            .returning(Session)
+        )
+
+        result = await self._db.execute(stmt)
+        await self._db.commit()
+        return result.scalar_one_or_none()
+
     async def list_sessions(
         self,
         status: str | None = None,

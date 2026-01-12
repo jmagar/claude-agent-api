@@ -24,6 +24,7 @@ from apps.api.exceptions.infra import (
     RequestTimeoutError,
     ServiceUnavailableError,
 )
+from apps.api.exceptions.mcp import McpShareNotFoundError
 from apps.api.exceptions.session import (
     SessionCompletedError,
     SessionLockedError,
@@ -33,6 +34,7 @@ from apps.api.exceptions.validation import (
     StructuredOutputValidationError,
     ValidationError,
 )
+from apps.api.exceptions.tool_presets import ToolPresetNotFoundError
 
 __all__ = [
     "APIError",
@@ -45,11 +47,13 @@ __all__ = [
     "InvalidCheckpointError",
     "RateLimitError",
     "RequestTimeoutError",
+    "McpShareNotFoundError",
     "ServiceUnavailableError",
     "SessionCompletedError",
     "SessionLockedError",
     "SessionNotFoundError",
     "StructuredOutputValidationError",
+    "ToolPresetNotFoundError",
     "ToolNotAllowedError",
     "ValidationError",
 ]

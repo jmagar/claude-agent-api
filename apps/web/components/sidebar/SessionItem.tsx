@@ -8,6 +8,9 @@
  * - Action menu (fork, delete)
  * - Forked session indicator
  *
+ * Performance optimizations:
+ * - React.memo to prevent re-renders when props haven't changed
+ *
  * @example
  * ```tsx
  * <SessionItem
@@ -23,6 +26,7 @@
 
 'use client';
 
+import { memo } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { MoreVerticalIcon, GitBranchIcon } from 'lucide-react';
 import type { Session } from '@/types';
@@ -115,7 +119,10 @@ function getStatusVariant(
   }
 }
 
-export function SessionItem({
+/**
+ * SessionItem component with React.memo for performance
+ */
+export const SessionItem = memo(function SessionItem({
   session,
   isSelected = false,
   isForked = false,
@@ -234,4 +241,4 @@ export function SessionItem({
       </DropdownMenu>
     </div>
   );
-}
+});

@@ -25,6 +25,7 @@
 import { GitBranchIcon, ClockIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { formatCheckpointTime } from '@/utils/checkpointManagement';
 
 export interface CheckpointMarkerProps {
   /**
@@ -51,24 +52,6 @@ export interface CheckpointMarkerProps {
    * Optional className for custom styling
    */
   className?: string;
-}
-
-/**
- * Format checkpoint timestamp
- */
-function formatCheckpointTime(timestamp: Date | string): string {
-  try {
-    const date = typeof timestamp === 'string' ? new Date(timestamp) : timestamp;
-    return date.toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    });
-  } catch {
-    return 'Unknown time';
-  }
 }
 
 export function CheckpointMarker({

@@ -61,6 +61,12 @@ class Settings(BaseSettings):
     redis_interrupt_ttl: int = Field(
         default=300, ge=60, le=3600, description="Interrupt marker TTL in seconds"
     )
+    mcp_share_ttl_seconds: int = Field(
+        default=86400,
+        ge=300,
+        le=604800,
+        description="MCP share token TTL in seconds",
+    )
     redis_max_connections: int = Field(
         default=50, ge=5, le=200, description="Redis max connections"
     )

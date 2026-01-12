@@ -56,7 +56,8 @@ export interface UseAutocompleteResult {
 async function fetchSuggestions(
   trigger: "@" | "/",
   searchQuery: string,
-  apiUrl: string
+  apiUrl: string,
+  signal: AbortSignal
 ): Promise<AutocompleteItem[]> {
   const params = new URLSearchParams({
     trigger,
@@ -65,6 +66,7 @@ async function fetchSuggestions(
 
   const response = await fetch(`${apiUrl}?${params}`, {
     method: "GET",
+    signal,
   });
 
   if (!response.ok) {
@@ -128,7 +130,8 @@ export function useAutocomplete({
         const suggestions = await fetchSuggestions(
           trigger,
           searchQuery,
-          apiUrl
+          apiUrl,
+          controller.signal
         );
 
         // Only update if not aborted

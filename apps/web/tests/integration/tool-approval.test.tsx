@@ -517,6 +517,50 @@ describe("Tool Approval Flow Integration", () => {
         expect(screen.queryByTestId("tool-approval-card")).not.toBeInTheDocument();
       });
     });
+
+    it("shows error banner and keeps card when approval fails", async () => {
+      const user = userEvent.setup();
+
+      mockFetch.mockImplementation((url: string) => {
+        if (url.includes("/api/sessions")) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({ messages: [] }),
+          });
+        }
+        if (url.includes("/api/streaming")) {
+          return Promise.resolve({
+            ok: true,
+            body: createToolApprovalStream(),
+          });
+        }
+        if (url.includes("/api/tool-approval")) {
+          return Promise.resolve({
+            ok: false,
+            json: async () => ({ error: { message: "Approval failed" } }),
+            status: 500,
+          });
+        }
+        return Promise.resolve({ ok: true, json: async () => ({}) });
+      });
+
+      render(<ChatInterface />, { wrapper: createTestWrapper() });
+
+      const input = screen.getByRole("textbox");
+      await user.type(input, "Create a test file");
+      await user.click(screen.getByRole("button", { name: /send/i }));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("tool-approval-card")).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByRole("button", { name: /approve/i }));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("error-banner")).toBeInTheDocument();
+        expect(screen.getByTestId("tool-approval-card")).toBeInTheDocument();
+      });
+    });
   });
 
   describe("Accept Edits mode", () => {
@@ -602,6 +646,60 @@ describe("Tool Approval Flow Integration", () => {
       // Should NOT show approval card
       await waitFor(() => {
         expect(screen.queryByTestId("tool-approval-card")).not.toBeInTheDocument();
+      });
+    });
+  });
+
+  describe("Bypass Permissions mode", () => {
+    it("auto-approves all tools and skips approval cards", async () => {
+      const user = userEvent.setup();
+      localStorage.setItem("permissionMode", JSON.stringify("bypassPermissions"));
+
+      mockFetch.mockImplementation((url: string) => {
+        if (url.includes("/api/sessions")) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({ messages: [] }),
+          });
+        }
+        if (url.includes("/api/streaming")) {
+          return Promise.resolve({
+            ok: true,
+            body: createToolApprovalStream(),
+          });
+        }
+        if (url.includes("/api/tool-approval")) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({ success: true }),
+          });
+        }
+        return Promise.resolve({ ok: true, json: async () => ({}) });
+      });
+
+      render(<ChatInterface />, { wrapper: createTestWrapper() });
+
+      await waitFor(() => {
+        const chip = screen.getByRole("button", { name: /permissions/i });
+        expect(chip).toHaveTextContent(/bypass/i);
+      });
+
+      const input = screen.getByRole("textbox");
+      await user.type(input, "Create a test file");
+      await user.click(screen.getByRole("button", { name: /send/i }));
+
+      await waitFor(() => {
+        expect(screen.queryByTestId("tool-approval-card")).not.toBeInTheDocument();
+      });
+
+      await waitFor(() => {
+        expect(mockFetch).toHaveBeenCalledWith(
+          expect.stringContaining("/api/tool-approval"),
+          expect.objectContaining({
+            method: "POST",
+            body: expect.stringContaining('\"approved\":true'),
+          })
+        );
       });
     });
   });

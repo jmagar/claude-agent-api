@@ -20,7 +20,7 @@ import type { Session } from '@/types';
  * Backend API base URL
  */
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || 'http://localhost:54000';
+  process.env.API_BASE_URL || 'http://localhost:54000';
 
 /**
  * GET /api/sessions/[id]

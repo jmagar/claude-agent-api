@@ -41,6 +41,41 @@ class McpServerStatusSchema(BaseModel):
     error: str | None = None
 
 
+class McpSharePayloadResponse(BaseModel):
+    """Payload returned for an MCP share token."""
+
+    name: str
+    config: dict[str, object]
+    created_at: str
+
+
+class McpShareCreateResponse(BaseModel):
+    """Response for MCP share token creation."""
+
+    share_token: str
+    name: str
+    config: dict[str, object]
+    created_at: str
+
+
+class ToolPresetResponse(BaseModel):
+    """Tool preset response schema."""
+
+    id: str
+    name: str
+    description: str | None = None
+    allowed_tools: list[str]
+    disallowed_tools: list[str] = Field(default_factory=list)
+    is_system: bool = False
+    created_at: datetime
+
+
+class ToolPresetListResponse(BaseModel):
+    """List of tool presets."""
+
+    presets: list[ToolPresetResponse]
+
+
 class CommandInfoSchema(BaseModel):
     """Information about an available slash command."""
 
@@ -206,6 +241,27 @@ class SessionResponse(BaseModel):
     total_turns: int
     total_cost_usd: float | None = None
     parent_session_id: str | None = None
+
+
+class SessionWithMetaResponse(BaseModel):
+    """Session response with metadata fields."""
+
+    id: str
+    mode: Literal["brainstorm", "code"]
+    status: Literal["active", "completed", "error"]
+    project_id: str | None = None
+    title: str | None = None
+    created_at: datetime
+    updated_at: datetime
+    last_message_at: datetime | None = None
+    total_turns: int | None = None
+    total_cost_usd: float | None = None
+    parent_session_id: str | None = None
+    tags: list[str] | None = None
+    duration_ms: int | None = None
+    usage: dict[str, object] | None = None
+    model_usage: dict[str, object] | None = None
+    metadata: dict[str, object] | None = None
 
 
 class SessionListResponse(BaseModel):

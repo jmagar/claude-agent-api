@@ -116,3 +116,9 @@ class AnswerRequest(BaseModel):
     """Request to answer an AskUserQuestion from the agent."""
 
     answer: str = Field(..., min_length=1, max_length=100000)
+
+
+class PromoteRequest(BaseModel):
+    """Request to promote a brainstorm session to code mode."""
+
+    project_id: str = Field(..., description="Project ID to associate with session")

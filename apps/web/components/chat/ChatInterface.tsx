@@ -72,6 +72,7 @@ export function ChatInterface({ sessionId: initialSessionId }: ChatInterfaceProp
   const [toolModalOpen, setToolModalOpen] = useState(false);
   const [toolModalLoading, setToolModalLoading] = useState(false);
   const [toolModalError, setToolModalError] = useState<string | null>(null);
+  const [approvalError, setApprovalError] = useState<string | null>(null);
   const [handledApprovalIds, setHandledApprovalIds] = useState<Set<string>>(
     new Set()
   );
@@ -320,25 +321,41 @@ export function ChatInterface({ sessionId: initialSessionId }: ChatInterfaceProp
 
   const handleApprovalSubmit = useCallback(
     async (toolCallId: string, toolName: string, approved: boolean, remember: boolean) => {
-      setHandledApprovalIds((prev) => {
-        const next = new Set(prev);
-        next.add(toolCallId);
-        return next;
-      });
+      setApprovalError(null);
+      try {
+        const response = await fetch("/api/tool-approval", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            tool_use_id: toolCallId,
+            approved,
+            remember,
+          }),
+        });
 
-      if (remember && permissionsContext) {
-        permissionsContext.addAlwaysAllowedTool(toolName);
+        if (!response.ok) {
+          const errorBody = await response.json().catch(() => ({
+            error: { message: "Tool approval failed" },
+          }));
+          throw new Error(
+            errorBody.error?.message ?? "Tool approval failed"
+          );
+        }
+
+        if (remember && permissionsContext) {
+          permissionsContext.addAlwaysAllowedTool(toolName);
+        }
+
+        setHandledApprovalIds((prev) => {
+          const next = new Set(prev);
+          next.add(toolCallId);
+          return next;
+        });
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : "Tool approval failed";
+        setApprovalError(message);
       }
-
-      await fetch("/api/tool-approval", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          tool_use_id: toolCallId,
-          approved,
-          remember,
-        }),
-      });
     },
     [permissionsContext]
   );
@@ -377,7 +394,11 @@ export function ChatInterface({ sessionId: initialSessionId }: ChatInterfaceProp
   );
 
   useEffect(() => {
-    if (permissionMode !== "acceptEdits" && permissionMode !== "dontAsk") {
+    if (
+      permissionMode !== "acceptEdits" &&
+      permissionMode !== "dontAsk" &&
+      permissionMode !== "bypassPermissions"
+    ) {
       return;
     }
 
@@ -550,6 +571,13 @@ export function ChatInterface({ sessionId: initialSessionId }: ChatInterfaceProp
         {/* Error banner */}
         {error && (
           <ErrorBanner error={error} onRetry={retry} onDismiss={clearError} />
+        )}
+
+        {approvalError && (
+          <ErrorBanner
+            error={approvalError}
+            onDismiss={() => setApprovalError(null)}
+          />
         )}
 
         {/* Projects error */}

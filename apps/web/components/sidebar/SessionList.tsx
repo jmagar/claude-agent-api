@@ -8,6 +8,11 @@
  * - Forked session nesting
  * - Status indicators
  *
+ * Performance optimizations:
+ * - React.memo for preventing unnecessary re-renders
+ * - useMemo for expensive sorting operations
+ * - Memoized callbacks to prevent child re-renders
+ *
  * @example
  * ```tsx
  * <SessionList
@@ -22,6 +27,7 @@
 
 'use client';
 
+import { useMemo, memo } from 'react';
 import { SessionItem } from './SessionItem';
 import type { Session } from '@/types';
 
@@ -91,7 +97,10 @@ function sortSessions(sessions: Session[], sortBy: 'recent' | 'title' | 'created
   }
 }
 
-export function SessionList({
+/**
+ * SessionList component with performance optimizations
+ */
+export const SessionList = memo(function SessionList({
   sessions,
   currentSessionId,
   onSessionClick,
@@ -108,8 +117,11 @@ export function SessionList({
     );
   }
 
-  // Sort sessions
-  const sortedSessions = sortSessions(sessions, sortBy);
+  // Memoize sorting to prevent recalculation on every render
+  const sortedSessions = useMemo(
+    () => sortSessions(sessions, sortBy),
+    [sessions, sortBy]
+  );
 
   return (
     <ul role="list" className="flex flex-col">
@@ -135,4 +147,4 @@ export function SessionList({
       })}
     </ul>
   );
-}
+});

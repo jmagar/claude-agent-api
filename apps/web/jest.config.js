@@ -16,7 +16,7 @@ const customJestConfig = {
     "^@/(.*)$": "<rootDir>/$1",
   },
   transformIgnorePatterns: [
-    "/node_modules/(?!(\\.pnpm/.*(msw|mswjs|open-draft|until-async|headers-polyfill|react-syntax-highlighter|refractor|hast-util-to-html|property-information|space-separated-tokens|comma-separated-tokens|hast-util-whitespace)))",
+    "/node_modules/(?!(.pnpm|msw|@mswjs|open-draft|until-async|headers-polyfill|react-syntax-highlighter|refractor|hast-util-to-html|property-information|space-separated-tokens|comma-separated-tokens|hast-util-whitespace))",
   ],
   testMatch: [
     "<rootDir>/tests/unit/**/*.test.{ts,tsx}",

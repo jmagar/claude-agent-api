@@ -13,12 +13,12 @@ export const dynamic = "force-dynamic";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ sessionId: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { sessionId } = await params;
+    const { id } = await params;
 
-    if (!sessionId) {
+    if (!id) {
       return NextResponse.json(
         { error: "Session ID is required" },
         { status: 400 }
@@ -38,9 +38,9 @@ export async function GET(
 
     // Fetch messages from Claude Agent API
     const apiUrl =
-      process.env.NEXT_PUBLIC_API_URL || "http://localhost:54000";
+      process.env.API_BASE_URL || "http://localhost:54000";
 
-    const response = await fetch(`${apiUrl}/sessions/${sessionId}/messages`, {
+    const response = await fetch(`${apiUrl}/sessions/${id}/messages`, {
       headers: {
         "X-API-Key": apiKey,
       },

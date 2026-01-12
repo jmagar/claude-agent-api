@@ -13,10 +13,15 @@ PUBLIC_PATHS = {
     "/",
     "/health",
     "/api/v1/health",
+    "/api/v1/mcp-servers/share",
     "/docs",
     "/redoc",
     "/openapi.json",
 }
+
+PUBLIC_PATH_PREFIXES = (
+    "/api/v1/mcp-servers/share/",
+)
 
 
 class ApiKeyAuthMiddleware(BaseHTTPMiddleware):
@@ -37,7 +42,9 @@ class ApiKeyAuthMiddleware(BaseHTTPMiddleware):
             Response.
         """
         # Skip auth for public paths
-        if request.url.path in PUBLIC_PATHS:
+        if request.url.path in PUBLIC_PATHS or request.url.path.startswith(
+            PUBLIC_PATH_PREFIXES
+        ):
             return await call_next(request)
 
         # Skip auth for OPTIONS requests (CORS preflight)

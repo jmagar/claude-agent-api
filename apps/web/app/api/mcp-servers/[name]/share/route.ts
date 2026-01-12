@@ -10,12 +10,21 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 
-const BACKEND_API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:54000/api/v1';
+const BACKEND_API_URL =
+  process.env.API_BASE_URL || 'http://localhost:54000/api/v1';
 
 interface RouteParams {
   params: {
     name: string;
   };
+}
+
+function jsonResponse(body: Record<string, unknown>, init?: ResponseInit) {
+  const headers = new Headers(init?.headers);
+  if (!headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
+  return new NextResponse(JSON.stringify(body), { ...init, headers });
 }
 
 /**
@@ -83,10 +92,11 @@ function sanitizeConfig(config: Record<string, unknown>): Record<string, unknown
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
     const { name } = params;
-    const apiKey = request.headers.get('X-API-Key') || request.cookies.get('api-key')?.value;
+    const apiKey =
+      request.headers.get('X-API-Key') || request.cookies?.get('api-key')?.value;
 
     if (!apiKey) {
-      return NextResponse.json(
+      return jsonResponse(
         { error: { code: 'INVALID_API_KEY', message: 'API key is required' } },
         { status: 401 }
       );
@@ -107,7 +117,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         error: { message: 'Failed to fetch server config' },
       }));
 
-      return NextResponse.json(
+      return jsonResponse(
         {
           error: {
             code: error.error?.code ?? 'BACKEND_ERROR',
@@ -124,21 +134,46 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     // Sanitize the configuration
     const sanitizedConfig = sanitizeConfig(serverConfig);
 
-    // Generate share token (simple approach - use timestamp + random string)
-    const shareToken = `${Date.now()}-${Math.random().toString(36).substring(7)}`;
-    const shareUrl = `${request.nextUrl.origin}/share/mcp/${shareToken}`;
+    const shareResponse = await fetch(
+      `${BACKEND_API_URL}/mcp-servers/${encodeURIComponent(name)}/share`,
+      {
+        method: 'POST',
+        headers: {
+          'X-API-Key': apiKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ config: sanitizedConfig }),
+      }
+    );
 
-    // TODO: Store sanitized config with share token in database for later retrieval
-    // For now, just return the share URL and sanitized config
+    if (!shareResponse.ok) {
+      const error = await shareResponse.json().catch(() => ({
+        error: { message: 'Failed to create share token' },
+      }));
 
-    return NextResponse.json({
+      return jsonResponse(
+        {
+          error: {
+            code: error.error?.code ?? 'BACKEND_ERROR',
+            message: error.error?.message ?? 'Failed to create share token',
+          },
+        },
+        { status: shareResponse.status }
+      );
+    }
+
+    const shareData = await shareResponse.json();
+    const shareToken = shareData.share_token;
+    const shareUrl = `${request.nextUrl.origin}/api/mcp-servers/share/${shareToken}`;
+
+    return jsonResponse({
       share_url: shareUrl,
       share_token: shareToken,
-      config: sanitizedConfig,
+      config: shareData.config ?? sanitizedConfig,
     });
   } catch (error) {
     console.error(`MCP server share error (${params.name}):`, error);
-    return NextResponse.json(
+    return jsonResponse(
       {
         error: {
           code: 'INTERNAL_ERROR',

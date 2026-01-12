@@ -20,9 +20,11 @@ from apps.api.routes import (
     checkpoints,
     health,
     interactions,
+    mcp_servers,
     query,
     session_control,
     sessions,
+    tool_presets,
     skills,
     websocket,
 )
@@ -165,6 +167,8 @@ def create_app() -> FastAPI:
     app.include_router(interactions.router, prefix="/api/v1")
     app.include_router(skills.router, prefix="/api/v1")
     app.include_router(websocket.router, prefix="/api/v1")
+    app.include_router(mcp_servers.router, prefix="/api/v1")
+    app.include_router(tool_presets.router, prefix="/api/v1")
 
     # Also mount health at root for convenience
     app.include_router(health.router)
