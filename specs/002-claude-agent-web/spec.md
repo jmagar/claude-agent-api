@@ -7,7 +7,7 @@
 
 ## Overview
 
-This specification defines a Next.js 15+ web application that provides a comprehensive frontend interface for the Claude Agent API. The application delivers a beautiful, modern chat experience with full feature parity including agents, skills, MCP servers, tool calls, rich execution visualization, and mobile-first responsive design.
+This specification defines a Next.js 16+ web application that provides a comprehensive frontend interface for the Claude Agent API. The application delivers a beautiful, modern chat experience with full feature parity including agents, skills, MCP servers, tool calls, rich execution visualization, and mobile-first responsive design.
 
 ## User Scenarios & Testing *(mandatory)*
 
