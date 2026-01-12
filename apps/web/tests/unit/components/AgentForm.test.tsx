@@ -232,6 +232,19 @@ describe('AgentForm', () => {
       const modelSelect = screen.getByLabelText(/model/i) as HTMLSelectElement;
       expect(modelSelect.value).toBe('sonnet');
     });
+
+    it('updates model state when selection changes', async () => {
+      render(<AgentForm onSubmit={() => {}} onCancel={() => {}} />, { wrapper });
+
+      const modelSelect = screen.getByLabelText(/model/i) as HTMLSelectElement;
+      expect(modelSelect.value).toBe('inherit');
+
+      fireEvent.change(modelSelect, { target: { value: 'opus' } });
+
+      await waitFor(() => {
+        expect(modelSelect.value).toBe('opus');
+      });
+    });
   });
 
   describe('Tool Selection', () => {
