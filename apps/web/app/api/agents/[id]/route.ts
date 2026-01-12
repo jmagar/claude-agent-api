@@ -1,163 +1,214 @@
 /**
- * Agent CRUD API Route
+ * Agent Detail API Route
  *
- * BFF endpoint for individual agent operations:
- * - GET: Fetch single agent by ID
- * - PUT: Update existing agent
- * - DELETE: Delete agent
- *
- * Proxies requests to the backend Claude Agent API.
- *
- * @example GET /api/agents/agent-123
- * @example PUT /api/agents/agent-123 { description: 'Updated description' }
- * @example DELETE /api/agents/agent-123
+ * BFF endpoint for agent details.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { isUUID } from '@/lib/validation/uuid';
 import type { AgentDefinition } from '@/types';
 
-/**
- * Backend API base URL
- */
 const API_BASE_URL =
-  process.env.API_BASE_URL || 'http://localhost:54000';
+  process.env.API_BASE_URL || 'http://localhost:54000/api/v1';
 
-/**
- * GET /api/agents/[id]
- *
- * Fetch a single agent by ID
- */
+function jsonResponse(body: Record<string, unknown>, init?: ResponseInit) {
+  const headers = new Headers(init?.headers);
+  if (!headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
+  return new NextResponse(JSON.stringify(body), { ...init, headers });
+}
+
+function getApiKey(request: NextRequest) {
+  return request.headers.get('X-API-Key') || request.cookies.get('api-key')?.value;
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  try {
-    const { id } = params;
+  if (!isUUID(params.id)) {
+    return NextResponse.json(
+      {
+        error: {
+          code: 'INVALID_ID',
+          message: 'Invalid agent ID format (UUID expected)',
+        },
+      },
+      { status: 400 }
+    );
+  }
 
-    const response = await fetch(`${API_BASE_URL}/agents/${id}`, {
+  try {
+    const apiKey = getApiKey(request);
+    if (!apiKey) {
+      return jsonResponse(
+        { error: { code: 'INVALID_API_KEY', message: 'API key is required' } },
+        { status: 401 }
+      );
+    }
+
+    const response = await fetch(`${API_BASE_URL}/agents/${params.id}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        ...(request.headers.get('authorization')
-          ? { Authorization: request.headers.get('authorization')! }
-          : {}),
+        'X-API-Key': apiKey,
       },
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      return NextResponse.json(
-        { error: error.message || 'Failed to fetch agent' },
+      const error = await response.json().catch(() => ({
+        error: { message: 'Failed to fetch agent' },
+      }));
+      return jsonResponse(
+        { error: error.error?.message ?? 'Failed to fetch agent' },
         { status: response.status }
       );
     }
 
     const data = await response.json();
-
-    return NextResponse.json({
-      agent: data.agent as AgentDefinition,
-    });
+    return jsonResponse(data as any);
   } catch (error) {
     console.error('Error fetching agent:', error);
-    return NextResponse.json(
+    return jsonResponse(
       { error: 'Internal server error' },
       { status: 500 }
     );
   }
 }
 
-/**
- * PUT /api/agents/[id]
- *
- * Update an existing agent
- *
- * Request body (all fields optional):
- * {
- *   name?: string,
- *   description?: string,
- *   prompt?: string,
- *   model?: 'sonnet' | 'opus' | 'haiku' | 'inherit',
- *   tools?: string[]
- * }
- */
 export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  if (!isUUID(params.id)) {
+    return NextResponse.json(
+      {
+        error: {
+          code: 'INVALID_ID',
+          message: 'Invalid agent ID format (UUID expected)',
+        },
+      },
+      { status: 400 }
+    );
+  }
+
   try {
-    const { id } = params;
+    const apiKey = getApiKey(request);
+    if (!apiKey) {
+      return jsonResponse(
+        { error: { code: 'INVALID_API_KEY', message: 'API key is required' } },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
 
-    const response = await fetch(`${API_BASE_URL}/agents/${id}`, {
+    if (!body.name || typeof body.name !== 'string') {
+      return jsonResponse(
+        { error: 'Name is required and must be a string' },
+        { status: 400 }
+      );
+    }
+
+    if (!body.description || typeof body.description !== 'string') {
+      return jsonResponse(
+        { error: 'Description is required and must be a string' },
+        { status: 400 }
+      );
+    }
+
+    if (!body.prompt || typeof body.prompt !== 'string') {
+      return jsonResponse(
+        { error: 'Prompt is required and must be a string' },
+        { status: 400 }
+      );
+    }
+
+    const response = await fetch(`${API_BASE_URL}/agents/${params.id}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
-        ...(request.headers.get('authorization')
-          ? { Authorization: request.headers.get('authorization')! }
-          : {}),
+        'X-API-Key': apiKey,
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify({
+        id: params.id,
+        name: body.name,
+        description: body.description,
+        prompt: body.prompt,
+        tools: body.tools,
+        model: body.model,
+      }),
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      return NextResponse.json(
-        { error: error.message || 'Failed to update agent' },
+      const error = await response.json().catch(() => ({
+        error: { message: 'Failed to update agent' },
+      }));
+      return jsonResponse(
+        { error: error.error?.message ?? 'Failed to update agent' },
         { status: response.status }
       );
     }
 
     const data = await response.json();
-
-    return NextResponse.json({
-      agent: data.agent as AgentDefinition,
-    });
+    return jsonResponse(data as any);
   } catch (error) {
     console.error('Error updating agent:', error);
-    return NextResponse.json(
+    return jsonResponse(
       { error: 'Internal server error' },
       { status: 500 }
     );
   }
 }
 
-/**
- * DELETE /api/agents/[id]
- *
- * Delete an agent
- */
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  try {
-    const { id } = params;
+  if (!isUUID(params.id)) {
+    return NextResponse.json(
+      {
+        error: {
+          code: 'INVALID_ID',
+          message: 'Invalid agent ID format (UUID expected)',
+        },
+      },
+      { status: 400 }
+    );
+  }
 
-    const response = await fetch(`${API_BASE_URL}/agents/${id}`, {
+  try {
+    const apiKey = getApiKey(request);
+    if (!apiKey) {
+      return jsonResponse(
+        { error: { code: 'INVALID_API_KEY', message: 'API key is required' } },
+        { status: 401 }
+      );
+    }
+
+    const response = await fetch(`${API_BASE_URL}/agents/${params.id}`, {
       method: 'DELETE',
       headers: {
         'Content-Type': 'application/json',
-        ...(request.headers.get('authorization')
-          ? { Authorization: request.headers.get('authorization')! }
-          : {}),
+        'X-API-Key': apiKey,
       },
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      return NextResponse.json(
-        { error: error.message || 'Failed to delete agent' },
+      const error = await response.json().catch(() => ({
+        error: { message: 'Failed to delete agent' },
+      }));
+      return jsonResponse(
+        { error: error.error?.message ?? 'Failed to delete agent' },
         { status: response.status }
       );
     }
 
-    return NextResponse.json(
-      { message: 'Agent deleted successfully' },
-      { status: 200 }
-    );
+    return new NextResponse(null, { status: 204 });
   } catch (error) {
     console.error('Error deleting agent:', error);
-    return NextResponse.json(
+    return jsonResponse(
       { error: 'Internal server error' },
       { status: 500 }
     );

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, FormEvent } from 'react';
+import ReactMarkdown from 'react-markdown';
 import type { SkillDefinition } from '@/types';
 
 interface SkillEditorProps {
@@ -72,24 +73,9 @@ ${content}`;
     }
   };
 
-  // Simple markdown to HTML converter for preview
-  const renderPreview = () => {
-    // Extract markdown content (remove frontmatter)
-    const markdownContent = content.replace(/^---[\s\S]*?---\n/, '');
-
-    // Basic markdown rendering
-    const html = markdownContent
-      .replace(/^# (.+)$/gm, '<h1 class="text-2xl font-bold mb-4">$1</h1>')
-      .replace(/^## (.+)$/gm, '<h2 class="text-xl font-bold mb-3">$1</h2>')
-      .replace(/^### (.+)$/gm, '<h3 class="text-lg font-semibold mb-2">$1</h3>')
-      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\*(.+?)\*/g, '<em>$1</em>')
-      .replace(/`(.+?)`/g, '<code class="bg-gray-100 px-1 py-0.5 rounded">$1</code>')
-      .replace(/^- (.+)$/gm, '<li>$1</li>')
-      .replace(/(<li>.*<\/li>)/s, '<ul class="list-disc pl-6 mb-4">$1</ul>')
-      .replace(/\n\n/g, '<br /><br />');
-
-    return <div className="prose max-w-none" dangerouslySetInnerHTML={{ __html: html }} />;
+  // Extract markdown content (remove frontmatter) for preview
+  const getMarkdownContent = () => {
+    return content.replace(/^---[\s\S]*?---\n/, '');
   };
 
   return (
@@ -230,37 +216,6 @@ ${content}`;
               placeholder="# Skill Content\n\nWrite your skill documentation in Markdown..."
               aria-label="Content editor"
             />
-            {/* Toolbar */}
-            <div className="flex gap-2 mt-2">
-              <button
-                type="button"
-                className="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-50"
-                aria-label="Bold"
-              >
-                <strong>B</strong>
-              </button>
-              <button
-                type="button"
-                className="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-50"
-                aria-label="Italic"
-              >
-                <em>I</em>
-              </button>
-              <button
-                type="button"
-                className="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-50"
-                aria-label="Heading"
-              >
-                H
-              </button>
-              <button
-                type="button"
-                className="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-50"
-                aria-label="Code block"
-              >
-                {'</>'}
-              </button>
-            </div>
           </div>
         )}
 
@@ -308,7 +263,11 @@ ${content}`;
           <div className="border border-gray-300 rounded-lg p-6 min-h-96">
             <h2 className="text-2xl font-bold mb-4">{name || 'Untitled Skill'}</h2>
             <p className="text-gray-600 mb-6">{description || 'No description'}</p>
-            <div className="border-t border-gray-200 pt-6">{renderPreview()}</div>
+            <div className="border-t border-gray-200 pt-6">
+              <ReactMarkdown className="prose max-w-none">
+                {getMarkdownContent()}
+              </ReactMarkdown>
+            </div>
           </div>
         )}
       </div>

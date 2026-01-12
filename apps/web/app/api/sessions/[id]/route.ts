@@ -14,13 +14,14 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { isUUID } from '@/lib/validation/uuid';
 import type { Session } from '@/types';
 
 /**
  * Backend API base URL
  */
 const API_BASE_URL =
-  process.env.API_BASE_URL || 'http://localhost:54000';
+  process.env.API_BASE_URL || 'http://localhost:54000/api/v1';
 
 /**
  * GET /api/sessions/[id]
@@ -31,36 +32,55 @@ export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  try {
-    const { id } = params;
+  if (!isUUID(params.id)) {
+    return NextResponse.json(
+      { error: { code: 'INVALID_ID', message: 'Invalid session ID format (UUID expected)' } },
+      { status: 400 }
+    );
+  }
 
-    const response = await fetch(`${API_BASE_URL}/sessions/${id}`, {
+  try {
+    const apiKey = getApiKey(request);
+    if (!apiKey) {
+      return NextResponse.json(
+        { error: { code: 'UNAUTHORIZED', message: 'API key is required' } },
+        { status: 401 }
+      );
+    }
+
+    const response = await fetch(`${API_BASE_URL}/sessions/${params.id}`, {
       method: 'GET',
       headers: {
+        'X-API-Key': apiKey,
         'Content-Type': 'application/json',
-        ...(request.headers.get('authorization')
-          ? { Authorization: request.headers.get('authorization')! }
-          : {}),
       },
     });
 
     if (!response.ok) {
-      const error = await response.json();
+      const error = await response.json().catch(() => ({ message: 'Failed to fetch session' }));
       return NextResponse.json(
-        { error: error.message || 'Failed to fetch session' },
+        {
+          error: {
+            code: 'BACKEND_ERROR',
+            message: error.message || 'Failed to fetch session',
+          },
+        },
         { status: response.status }
       );
     }
 
     const data = await response.json();
 
-    return NextResponse.json({
-      session: data.session as Session,
-    });
+    return NextResponse.json(data);
   } catch (error) {
     console.error('Error fetching session:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      {
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Internal server error',
+        },
+      },
       { status: 500 }
     );
   }
@@ -81,6 +101,13 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  if (!isUUID(params.id)) {
+    return NextResponse.json(
+      { error: { code: 'INVALID_ID', message: 'Invalid session ID format (UUID expected)' } },
+      { status: 400 }
+    );
+  }
+
   try {
     const { id } = params;
     const body = await request.json();
@@ -88,7 +115,12 @@ export async function PATCH(
     // Validate at least one field is present
     if (!body.title && !body.tags) {
       return NextResponse.json(
-        { error: 'At least one field (title or tags) must be provided' },
+        {
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'At least one field (title or tags) must be provided',
+          },
+        },
         { status: 400 }
       );
     }
@@ -100,6 +132,9 @@ export async function PATCH(
         ...(request.headers.get('authorization')
           ? { Authorization: request.headers.get('authorization')! }
           : {}),
+        ...(request.headers.get('x-api-key')
+          ? { 'X-API-Key': request.headers.get('x-api-key')! }
+          : {}),
       },
       body: JSON.stringify({
         title: body.title,
@@ -108,22 +143,30 @@ export async function PATCH(
     });
 
     if (!response.ok) {
-      const error = await response.json();
+      const error = await response.json().catch(() => ({ message: 'Failed to update session' }));
       return NextResponse.json(
-        { error: error.message || 'Failed to update session' },
+        {
+          error: {
+            code: 'BACKEND_ERROR',
+            message: error.message || 'Failed to update session',
+          },
+        },
         { status: response.status }
       );
     }
 
     const data = await response.json();
 
-    return NextResponse.json({
-      session: data.session as Session,
-    });
+    return NextResponse.json(data);
   } catch (error) {
     console.error('Error updating session:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      {
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Internal server error',
+        },
+      },
       { status: 500 }
     );
   }
@@ -138,6 +181,13 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  if (!isUUID(params.id)) {
+    return NextResponse.json(
+      { error: { code: 'INVALID_ID', message: 'Invalid session ID format (UUID expected)' } },
+      { status: 400 }
+    );
+  }
+
   try {
     const { id } = params;
 
@@ -148,25 +198,35 @@ export async function DELETE(
         ...(request.headers.get('authorization')
           ? { Authorization: request.headers.get('authorization')! }
           : {}),
+        ...(request.headers.get('x-api-key')
+          ? { 'X-API-Key': request.headers.get('x-api-key')! }
+          : {}),
       },
     });
 
     if (!response.ok) {
-      const error = await response.json();
+      const error = await response.json().catch(() => ({ message: 'Failed to delete session' }));
       return NextResponse.json(
-        { error: error.message || 'Failed to delete session' },
+        {
+          error: {
+            code: 'BACKEND_ERROR',
+            message: error.message || 'Failed to delete session',
+          },
+        },
         { status: response.status }
       );
     }
 
-    return NextResponse.json(
-      { success: true },
-      { status: 200 }
-    );
+    return new NextResponse(null, { status: 204 });
   } catch (error) {
     console.error('Error deleting session:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      {
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Internal server error',
+        },
+      },
       { status: 500 }
     );
   }

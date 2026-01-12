@@ -2,24 +2,13 @@
  * useAgents Hook
  *
  * React Query hook for managing agent data with CRUD operations.
- *
- * Features:
- * - Fetch all agents
- * - Create new agent
- * - Update existing agent
- * - Delete agent
- * - Share agent (generate share URL)
- * - Automatic cache invalidation
- * - Optimistic updates
- *
- * @example
- * ```tsx
- * const { agents, isLoading, createAgent, updateAgent, deleteAgent } = useAgents();
- * ```
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { v4 as uuidv4 } from 'uuid';
 import type { AgentDefinition } from '@/types';
+import { queryKeys } from '@/lib/query-keys';
+import { createOptimisticHandlers } from '@/lib/react-query/optimistic';
 
 /**
  * API base URL
@@ -38,7 +27,7 @@ async function fetchAgents(): Promise<AgentDefinition[]> {
   }
 
   const data = await response.json();
-  return data.agents || [];
+  return data.agents || data || [];
 }
 
 /**
@@ -57,7 +46,7 @@ async function createAgent(data: Partial<AgentDefinition>): Promise<AgentDefinit
   }
 
   const result = await response.json();
-  return result.agent;
+  return result.agent ?? result;
 }
 
 /**
@@ -82,7 +71,7 @@ async function updateAgent({
   }
 
   const result = await response.json();
-  return result.agent;
+  return result.agent ?? result;
 }
 
 /**
@@ -102,7 +91,7 @@ async function deleteAgent(id: string): Promise<void> {
 /**
  * Share an agent (generate public share URL)
  */
-async function shareAgent(id: string): Promise<{ share_url: string }> {
+async function shareAgent(id: string): Promise<{ share_url: string; share_token?: string }> {
   const response = await fetch(`${API_BASE_URL}/${id}/share`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -121,6 +110,7 @@ async function shareAgent(id: string): Promise<{ share_url: string }> {
  */
 export function useAgents() {
   const queryClient = useQueryClient();
+  const queryKey = queryKeys.agents.lists();
 
   // Fetch agents query
   const {
@@ -129,43 +119,69 @@ export function useAgents() {
     error,
     refetch,
   } = useQuery({
-    queryKey: ['agents'],
+    queryKey,
     queryFn: fetchAgents,
   });
 
   // Create agent mutation
   const createMutation = useMutation({
     mutationFn: createAgent,
-    onSuccess: () => {
-      // Invalidate and refetch agents list
-      queryClient.invalidateQueries({ queryKey: ['agents'] });
-    },
+    ...createOptimisticHandlers<AgentDefinition[], Partial<AgentDefinition>>({
+      queryClient,
+      queryKey,
+      updater: (current, variables) => {
+        const now = new Date().toISOString();
+        const optimistic: AgentDefinition = {
+          id: uuidv4(),
+          name: variables.name ?? 'New Agent',
+          description: variables.description ?? '',
+          prompt: variables.prompt ?? '',
+          tools: variables.tools,
+          model: variables.model,
+          created_at: now,
+          updated_at: now,
+          is_shared: false,
+        };
+
+        return [optimistic, ...(current ?? [])];
+      },
+    }),
   });
 
   // Update agent mutation
   const updateMutation = useMutation({
     mutationFn: updateAgent,
-    onSuccess: () => {
-      // Invalidate and refetch agents list
-      queryClient.invalidateQueries({ queryKey: ['agents'] });
-    },
+    ...createOptimisticHandlers<AgentDefinition[], { id: string; data: Partial<AgentDefinition> }>({
+      queryClient,
+      queryKey,
+      updater: (current, variables) =>
+        (current ?? []).map((agent) =>
+          agent.id === variables.id
+            ? {
+                ...agent,
+                ...variables.data,
+                updated_at: new Date().toISOString(),
+              }
+            : agent
+        ),
+    }),
   });
 
   // Delete agent mutation
   const deleteMutation = useMutation({
     mutationFn: deleteAgent,
-    onSuccess: () => {
-      // Invalidate and refetch agents list
-      queryClient.invalidateQueries({ queryKey: ['agents'] });
-    },
+    ...createOptimisticHandlers<AgentDefinition[], string>({
+      queryClient,
+      queryKey,
+      updater: (current, id) => (current ?? []).filter((agent) => agent.id !== id),
+    }),
   });
 
   // Share agent mutation
   const shareMutation = useMutation({
     mutationFn: shareAgent,
     onSuccess: () => {
-      // Invalidate and refetch agents list (to update is_shared status)
-      queryClient.invalidateQueries({ queryKey: ['agents'] });
+      queryClient.invalidateQueries({ queryKey });
     },
   });
 

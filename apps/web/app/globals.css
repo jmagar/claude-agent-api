@@ -1,4 +1,8 @@
 @import "tailwindcss";
+
+@plugin "tailwind-scrollbar-hide";
+
+@custom-variant dark (&:is(.dark *));
 @config "../tailwind.config.ts";
 
 /* Define CSS variables */
@@ -138,6 +142,8 @@
   --radius-18: 18px;
   --radius-20: 20px;
   --radius-24: 24px;
+  --color-brand: var(--brand);
+  --color-highlight: var(--highlight);
 }
 
 @layer base {
@@ -147,5 +153,24 @@
   body {
     background-color: var(--background);
     color: var(--foreground);
+  }
+}
+
+:root {
+  --highlight: oklch(0.852 0.199 91.936);
+  --brand: oklch(0.623 0.214 259.815);
+}
+
+.dark {
+  --highlight: oklch(0.852 0.199 91.936);
+  --brand: oklch(0.707 0.165 254.624);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
   }
 }

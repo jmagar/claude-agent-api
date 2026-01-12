@@ -17,7 +17,11 @@ import type { Session } from '@/types';
  * Backend API base URL
  */
 const API_BASE_URL =
-  process.env.API_BASE_URL || 'http://localhost:54000';
+  process.env.API_BASE_URL || 'http://localhost:54000/api/v1';
+
+function getApiKey(request: NextRequest) {
+  return request.headers.get('X-API-Key') || request.cookies.get('api-key')?.value;
+}
 
 /**
  * PATCH /api/sessions/[id]/tags
@@ -36,12 +40,20 @@ export async function PATCH(
   try {
     const { id } = params;
     const body = await request.json();
+    const apiKey = getApiKey(request);
 
     // Validate tags field
     if (!Array.isArray(body.tags)) {
       return NextResponse.json(
         { error: 'Tags must be an array of strings' },
         { status: 400 }
+      );
+    }
+
+    if (!apiKey) {
+      return NextResponse.json(
+        { error: { code: 'INVALID_API_KEY', message: 'API key is required' } },
+        { status: 401 }
       );
     }
 
@@ -53,14 +65,12 @@ export async function PATCH(
       );
     }
 
-    // Use the main session update endpoint
-    const response = await fetch(`${API_BASE_URL}/sessions/${id}`, {
+    // Use the tags endpoint
+    const response = await fetch(`${API_BASE_URL}/sessions/${id}/tags`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
-        ...(request.headers.get('authorization')
-          ? { Authorization: request.headers.get('authorization')! }
-          : {}),
+        'X-API-Key': apiKey,
       },
       body: JSON.stringify({
         tags: body.tags,
@@ -68,22 +78,30 @@ export async function PATCH(
     });
 
     if (!response.ok) {
-      const error = await response.json();
+      const error = await response.json().catch(() => ({ message: 'Failed to update tags' }));
       return NextResponse.json(
-        { error: error.message || 'Failed to update tags' },
+        {
+          error: {
+            code: 'BACKEND_ERROR',
+            message: error.message || 'Failed to update tags',
+          },
+        },
         { status: response.status }
       );
     }
 
     const data = await response.json();
 
-    return NextResponse.json({
-      session: data.session as Session,
-    });
+    return NextResponse.json(data);
   } catch (error) {
     console.error('Error updating tags:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      {
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Internal server error',
+        },
+      },
       { status: 500 }
     );
   }

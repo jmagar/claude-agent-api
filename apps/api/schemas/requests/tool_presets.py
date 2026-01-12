@@ -8,8 +8,10 @@ class ToolPresetCreateRequest(BaseModel):
 
     name: str = Field(..., min_length=1, max_length=100)
     description: str | None = Field(None, max_length=500)
-    allowed_tools: list[str] = Field(default_factory=list)
-    disallowed_tools: list[str] = Field(default_factory=list)
+    tools: list[str] = Field(default_factory=list)
+    is_default: bool | None = None
+    allowed_tools: list[str] | None = None
+    disallowed_tools: list[str] | None = None
 
 
 class ToolPresetUpdateRequest(BaseModel):
@@ -17,5 +19,6 @@ class ToolPresetUpdateRequest(BaseModel):
 
     name: str = Field(..., min_length=1, max_length=100)
     description: str | None = Field(None, max_length=500)
-    allowed_tools: list[str] = Field(default_factory=list)
-    disallowed_tools: list[str] = Field(default_factory=list)
+    tools: list[str] | None = None
+    allowed_tools: list[str] | None = None
+    disallowed_tools: list[str] | None = None

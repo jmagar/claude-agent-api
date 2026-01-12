@@ -17,7 +17,7 @@
  * RED PHASE: These tests are written first and MUST FAIL
  */
 
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ChatInterface } from "@/components/chat/ChatInterface";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -113,7 +113,11 @@ beforeEach(() => {
     if (url.includes("/api/projects")) {
       return Promise.resolve({
         ok: true,
-        json: () => Promise.resolve(mockProjects),
+        json: () =>
+          Promise.resolve({
+            projects: mockProjects,
+            total: mockProjects.length,
+          }),
       });
     }
     if (url.includes("/api/sessions")) {
@@ -150,27 +154,65 @@ function renderApp() {
   );
 }
 
+async function renderAppAndWait(options?: { waitForProjects?: boolean }) {
+  const result = renderApp();
+
+  await waitFor(() => {
+    expect(mockFetch).toHaveBeenCalledWith("/api/tools");
+  });
+
+  if (options?.waitForProjects) {
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledWith("/api/projects");
+    });
+  }
+
+  await act(async () => {
+    await Promise.resolve();
+  });
+
+  return result;
+}
+
 describe("Mode Switching Flow", () => {
   describe("initial state", () => {
-    it("should default to brainstorm mode", () => {
-      renderApp();
+    it("should not emit act warnings on mount", async () => {
+      const consoleError = jest
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
+
+      await renderAppAndWait();
+
+      await waitFor(() => {
+        expect(mockFetch).toHaveBeenCalledWith("/api/tools");
+      });
+
+      await waitFor(() => {
+        expect(consoleError).not.toHaveBeenCalled();
+      });
+
+      consoleError.mockRestore();
+    });
+
+    it("should default to brainstorm mode", async () => {
+      await renderAppAndWait();
 
       expect(screen.getByText(/brainstorm/i)).toBeInTheDocument();
     });
 
-    it("should show mode toggle in sidebar", () => {
-      renderApp();
+    it("should show mode toggle in sidebar", async () => {
+      await renderAppAndWait();
 
       expect(
         screen.getByRole("button", { name: /toggle mode|switch mode/i })
       ).toBeInTheDocument();
     });
 
-    it("should restore saved mode from localStorage", () => {
+    it("should restore saved mode from localStorage", async () => {
       localStorageMock.setItem("sessionMode", '"code"');
       localStorageMock.setItem("selectedProjectId", '"proj-1"');
 
-      renderApp();
+      await renderAppAndWait({ waitForProjects: true });
 
       expect(screen.getByText(/code/i)).toBeInTheDocument();
     });
@@ -179,7 +221,7 @@ describe("Mode Switching Flow", () => {
   describe("switching from Brainstorm to Code mode", () => {
     it("should show project picker when switching to Code mode", async () => {
       const user = userEvent.setup();
-      renderApp();
+      await renderAppAndWait();
 
       const modeToggle = screen.getByRole("button", {
         name: /toggle mode|switch mode/i,
@@ -194,7 +236,7 @@ describe("Mode Switching Flow", () => {
 
     it("should display available projects in picker", async () => {
       const user = userEvent.setup();
-      renderApp();
+      await renderAppAndWait();
 
       const modeToggle = screen.getByRole("button", {
         name: /toggle mode|switch mode/i,
@@ -209,7 +251,7 @@ describe("Mode Switching Flow", () => {
 
     it("should switch to Code mode after selecting project", async () => {
       const user = userEvent.setup();
-      renderApp();
+      await renderAppAndWait();
 
       // Click mode toggle
       const modeToggle = screen.getByRole("button", {
@@ -231,7 +273,7 @@ describe("Mode Switching Flow", () => {
 
     it("should not switch mode if project picker is canceled", async () => {
       const user = userEvent.setup();
-      renderApp();
+      await renderAppAndWait();
 
       // Click mode toggle
       const modeToggle = screen.getByRole("button", {
@@ -256,7 +298,7 @@ describe("Mode Switching Flow", () => {
       localStorageMock.setItem("sessionMode", '"code"');
       localStorageMock.setItem("selectedProjectId", '"proj-1"');
 
-      renderApp();
+      await renderAppAndWait({ waitForProjects: true });
 
       const modeToggle = screen.getByRole("button", {
         name: /toggle mode|switch mode/i,
@@ -273,7 +315,7 @@ describe("Mode Switching Flow", () => {
 
   describe("sidebar organization", () => {
     it("should group sessions by date in Brainstorm mode", async () => {
-      renderApp();
+      await renderAppAndWait();
 
       await waitFor(() => {
         expect(screen.getByText("Today")).toBeInTheDocument();
@@ -285,7 +327,7 @@ describe("Mode Switching Flow", () => {
       localStorageMock.setItem("sessionMode", '"code"');
       localStorageMock.setItem("selectedProjectId", '"proj-1"');
 
-      renderApp();
+      await renderAppAndWait({ waitForProjects: true });
 
       await waitFor(() => {
         expect(screen.getByText("Frontend App")).toBeInTheDocument();
@@ -295,7 +337,7 @@ describe("Mode Switching Flow", () => {
 
     it("should reorganize sidebar when mode changes", async () => {
       const user = userEvent.setup();
-      renderApp();
+      await renderAppAndWait();
 
       // Initially in brainstorm mode - should see date groups
       await waitFor(() => {
@@ -325,7 +367,7 @@ describe("Mode Switching Flow", () => {
   describe("mode persistence", () => {
     it("should save mode to localStorage", async () => {
       const user = userEvent.setup();
-      renderApp();
+      await renderAppAndWait();
 
       // Switch to code mode
       const modeToggle = screen.getByRole("button", {
@@ -347,7 +389,7 @@ describe("Mode Switching Flow", () => {
 
     it("should save selected project to localStorage in Code mode", async () => {
       const user = userEvent.setup();
-      renderApp();
+      await renderAppAndWait();
 
       // Switch to code mode
       const modeToggle = screen.getByRole("button", {
@@ -373,7 +415,7 @@ describe("Mode Switching Flow", () => {
       localStorageMock.setItem("sessionMode", '"code"');
       localStorageMock.setItem("selectedProjectId", '"proj-1"');
 
-      renderApp();
+      await renderAppAndWait({ waitForProjects: true });
 
       await waitFor(() => {
         expect(screen.getByText("Frontend App")).toBeInTheDocument();
@@ -385,7 +427,7 @@ describe("Mode Switching Flow", () => {
       localStorageMock.setItem("sessionMode", '"code"');
       localStorageMock.setItem("selectedProjectId", '"proj-1"');
 
-      renderApp();
+      await renderAppAndWait({ waitForProjects: true });
 
       // Click on project name to change it
       await waitFor(() => {
@@ -426,7 +468,7 @@ describe("Mode Switching Flow", () => {
       });
 
       const user = userEvent.setup();
-      renderApp();
+      await renderAppAndWait();
 
       const modeToggle = screen.getByRole("button", {
         name: /toggle mode|switch mode/i,

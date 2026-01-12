@@ -176,7 +176,8 @@ export function extractFrontmatter<T = Record<string, unknown>>(content: string)
 export function hasValidYamlFrontmatter(content: string): boolean {
   try {
     const parsed = matter(content);
-    return !parsed.isEmpty && Object.keys(parsed.data).length > 0;
+    const isEmpty = Object.keys(parsed.data).length === 0;
+    return !isEmpty && Object.keys(parsed.data).length > 0;
   } catch {
     return false;
   }

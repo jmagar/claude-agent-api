@@ -140,5 +140,5 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
 ];
 
 export async function GET() {
-  return jsonResponse({ tools: TOOL_DEFINITIONS });
+  return NextResponse.json(TOOL_DEFINITIONS);
 }

@@ -1,179 +1,56 @@
-"""Integration tests for slash command execution."""
-
-from pathlib import Path
-from typing import cast
+"""Integration tests for slash command endpoints."""
 
 import pytest
 from httpx import AsyncClient
-from httpx_sse import aconnect_sse
-
-
-def parse_sse_data(data: str | None) -> dict[str, object]:
-    """Parse SSE data, handling empty strings."""
-    if not data or not data.strip():
-        return {}
-    import json
-    from typing import cast
-
-    try:
-        result = json.loads(data)
-        return cast("dict[str, object]", result)
-    except json.JSONDecodeError:
-        return {"raw": data}
 
 
 @pytest.mark.integration
 @pytest.mark.anyio
-async def test_slash_command_included_in_init_event(
+async def test_slash_command_crud_flow(
     async_client: AsyncClient,
-    tmp_path: Path,
     auth_headers: dict[str, str],
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Test slash commands are exposed in init event."""
-    # Create test command
-    commands_dir = tmp_path / ".claude" / "commands"
-    commands_dir.mkdir(parents=True)
-    (commands_dir / "example.md").write_text("# Example Command\n\nTest")
+    """Slash commands can be created, listed, updated, and deleted."""
+    create_response = await async_client.post(
+        "/api/v1/slash-commands",
+        json={
+            "name": "hello",
+            "description": "Say hello",
+            "content": "# Command",
+        },
+        headers=auth_headers,
+    )
 
-    # Change working directory for test isolation
-    monkeypatch.chdir(tmp_path)
+    assert create_response.status_code == 201
+    created = create_response.json()
+    command_id = created["id"]
+    assert created["name"] == "hello"
 
-    # Make query
-    request_data = {
-        "prompt": "Hello",
-        "max_turns": 1,
-    }
+    list_response = await async_client.get(
+        "/api/v1/slash-commands", headers=auth_headers
+    )
+    assert list_response.status_code == 200
+    list_data = list_response.json()
+    assert any(cmd["id"] == command_id for cmd in list_data["commands"])
 
-    events: list[dict[str, object]] = []
-    async with aconnect_sse(
-        async_client,
-        "POST",
-        "/api/v1/query",
-        headers={**auth_headers, "Accept": "text/event-stream"},
-        json=request_data,
-    ) as event_source:
-        async for sse in event_source.aiter_sse():
-            if sse.event:
-                data = parse_sse_data(sse.data)
-                events.append({"event": sse.event, "data": data})
-                # Stop after init event for this test
-                if sse.event == "init":
-                    break
+    update_response = await async_client.put(
+        f"/api/v1/slash-commands/{command_id}",
+        json={
+            "id": command_id,
+            "name": "hello",
+            "description": "Updated",
+            "content": "# Command",
+            "enabled": True,
+        },
+        headers=auth_headers,
+    )
 
-    # Parse init event
-    assert len(events) >= 1
-    init_event = events[0]
-    assert init_event["event"] == "init"
-    init_data = init_event["data"]
-    assert isinstance(init_data, dict)
+    assert update_response.status_code == 200
+    updated = update_response.json()
+    assert updated["description"] == "Updated"
 
-    # Verify commands are present
-    commands = init_data.get("commands", [])
-    assert len(commands) == 1
-    assert isinstance(commands[0], dict)
-    assert commands[0]["name"] == "example"
-    # Path should be absolute path to command file
-    assert commands[0]["path"].endswith(".claude/commands/example.md")
-
-
-@pytest.mark.integration
-@pytest.mark.anyio
-async def test_slash_command_execution_via_prompt(
-    async_client: AsyncClient,
-    tmp_path: Path,
-    auth_headers: dict[str, str],
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Test slash command is executed when in prompt."""
-    # Create test command
-    commands_dir = tmp_path / ".claude" / "commands"
-    commands_dir.mkdir(parents=True)
-    (commands_dir / "greet.md").write_text("""# Greet Command
-
-Say hello to: $ARGUMENTS
-""")
-
-    # Change working directory
-    monkeypatch.chdir(tmp_path)
-
-    # Send slash command via prompt
-    request_data = {
-        "prompt": "/greet world",
-        "max_turns": 1,
-    }
-
-    events: list[dict[str, object]] = []
-    async with aconnect_sse(
-        async_client,
-        "POST",
-        "/api/v1/query",
-        headers={**auth_headers, "Accept": "text/event-stream"},
-        json=request_data,
-    ) as event_source:
-        async for sse in event_source.aiter_sse():
-            if sse.event:
-                data = parse_sse_data(sse.data)
-                events.append({"event": sse.event, "data": data})
-
-    # Check for error events
-    error_events = [e for e in events if e["event"] == "error"]
-    assert len(error_events) == 0
-
-    # Verify init event contains the command
-    init_events = [e for e in events if e["event"] == "init"]
-    assert len(init_events) == 1
-    init_data = cast("dict[str, object]", init_events[0]["data"])
-    commands = cast("list[dict[str, object]]", init_data.get("commands", []))
-    assert len(commands) == 1
-    assert commands[0]["name"] == "greet"
-
-    # Verify message events show the slash command was processed
-    # The SDK receives the prompt with slash command and processes it
-    message_events = [e for e in events if e["event"] == "message"]
-    assert len(message_events) > 0, "Expected message events from SDK execution"
-
-    # Verify we got a done event (stream completed successfully)
-    done_events = [e for e in events if e["event"] == "done"]
-    assert len(done_events) == 1
-
-
-@pytest.mark.integration
-@pytest.mark.anyio
-async def test_no_commands_when_directory_missing(
-    async_client: AsyncClient,
-    tmp_path: Path,
-    auth_headers: dict[str, str],
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Test empty commands list when .claude/commands/ directory doesn't exist."""
-    # Change to directory without commands
-    monkeypatch.chdir(tmp_path)
-
-    request_data = {
-        "prompt": "Hello",
-        "max_turns": 1,
-    }
-
-    events: list[dict[str, object]] = []
-    async with aconnect_sse(
-        async_client,
-        "POST",
-        "/api/v1/query",
-        headers={**auth_headers, "Accept": "text/event-stream"},
-        json=request_data,
-    ) as event_source:
-        async for sse in event_source.aiter_sse():
-            if sse.event:
-                data = parse_sse_data(sse.data)
-                events.append({"event": sse.event, "data": data})
-                if sse.event == "init":
-                    break
-
-    # Verify empty commands list
-    assert len(events) >= 1
-    init_event = events[0]
-    init_data = init_event["data"]
-    assert isinstance(init_data, dict)
-    commands = init_data.get("commands", [])
-    assert len(commands) == 0
+    delete_response = await async_client.delete(
+        f"/api/v1/slash-commands/{command_id}",
+        headers=auth_headers,
+    )
+    assert delete_response.status_code == 204

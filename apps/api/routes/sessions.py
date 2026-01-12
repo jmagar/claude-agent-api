@@ -6,11 +6,11 @@ from fastapi import APIRouter, Query
 
 from apps.api.adapters.session_repo import SessionRepository
 from apps.api.dependencies import ApiKey, DbSession, SessionSvc
-from apps.api.exceptions import SessionNotFoundError
+from apps.api.exceptions import APIError, SessionNotFoundError
 from apps.api.schemas.requests.sessions import PromoteRequest
 from apps.api.schemas.responses import (
-    SessionListResponse,
     SessionResponse,
+    SessionWithMetaListResponse,
     SessionWithMetaResponse,
 )
 
@@ -20,44 +20,77 @@ router = APIRouter(prefix="/sessions", tags=["Sessions"])
 @router.get("")
 async def list_sessions(
     _api_key: ApiKey,
-    session_service: SessionSvc,
-    page: int = Query(default=1, ge=1, description="Page number"),
-    page_size: int = Query(default=20, ge=1, le=100, description="Page size"),
-) -> SessionListResponse:
-    """List all sessions with pagination.
+    db_session: DbSession,
+    mode: str | None = None,
+    project_id: str | None = None,
+    tags: list[str] | None = Query(default=None),
+    search: str | None = None,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=50, ge=1, le=100),
+) -> SessionWithMetaListResponse:
+    """<summary>List sessions with metadata filtering.</summary>"""
+    repo = SessionRepository(db_session)
+    sessions, total = await repo.list_sessions(limit=10000, offset=0)
 
-    Args:
-        _api_key: Validated API key (via dependency).
-        session_service: Session service instance.
-        page: Page number (1-indexed).
-        page_size: Number of sessions per page (max 100).
+    def matches(session) -> bool:
+        if session.owner_api_key and session.owner_api_key != _api_key:
+            return False
+        metadata = session.metadata_ or {}
+        session_mode = metadata.get("mode", "code")
+        if mode and session_mode != mode:
+            return False
+        if project_id and str(metadata.get("project_id")) != project_id:
+            return False
+        if tags:
+            session_tags = metadata.get("tags", [])
+            if not isinstance(session_tags, list) or not all(
+                tag in session_tags for tag in tags
+            ):
+                return False
+        if search:
+            title = str(metadata.get("title", "")).lower()
+            if search.lower() not in title:
+                return False
+        return True
 
-    Returns:
-        Paginated list of sessions.
-    """
-    result = await session_service.list_sessions(
-        page=page,
-        page_size=page_size,
-        current_api_key=_api_key,
-    )
+    filtered = [session for session in sessions if matches(session)]
+    start = (page - 1) * page_size
+    page_sessions = filtered[start : start + page_size]
 
-    return SessionListResponse(
-        sessions=[
-            SessionResponse(
-                id=s.id,
+    mapped = []
+    for s in page_sessions:
+        metadata = s.metadata_ or {}
+        session_mode = metadata.get("mode", "code")
+        mapped.append(
+            SessionWithMetaResponse(
+                id=str(s.id),
+                mode="brainstorm" if session_mode == "brainstorm" else "code",
                 status=s.status,
-                model=s.model,
+                project_id=str(metadata.get("project_id"))
+                if metadata.get("project_id")
+                else None,
+                title=str(metadata.get("title"))
+                if metadata.get("title")
+                else None,
                 created_at=s.created_at,
                 updated_at=s.updated_at,
                 total_turns=s.total_turns,
-                total_cost_usd=s.total_cost_usd,
-                parent_session_id=s.parent_session_id,
+                total_cost_usd=float(s.total_cost_usd)
+                if s.total_cost_usd
+                else None,
+                parent_session_id=str(s.parent_session_id)
+                if s.parent_session_id
+                else None,
+                tags=metadata.get("tags") if isinstance(metadata.get("tags"), list) else None,
+                metadata=metadata,
             )
-            for s in result.sessions
-        ],
-        total=result.total,
-        page=result.page,
-        page_size=result.page_size,
+        )
+
+    return SessionWithMetaListResponse(
+        sessions=mapped,
+        total=len(filtered),
+        page=page,
+        page_size=page_size,
     )
 
 
@@ -138,5 +171,54 @@ async def promote_session(
         if updated.parent_session_id
         else None,
         tags=tags if isinstance(tags, list) else None,
+        metadata=metadata,
+    )
+
+
+@router.patch("/{session_id}/tags", response_model=SessionWithMetaResponse)
+async def update_session_tags(
+    session_id: str,
+    request: dict[str, object],
+    _api_key: ApiKey,
+    db_session: DbSession,
+) -> SessionWithMetaResponse:
+    """<summary>Update session tags.</summary>"""
+    tags = request.get("tags")
+    if not isinstance(tags, list):
+        raise APIError(
+            message="Tags must be a list",
+            code="VALIDATION_ERROR",
+            status_code=400,
+        )
+
+    repo = SessionRepository(db_session)
+    session = await repo.get(UUID(session_id))
+    if not session or (session.owner_api_key and session.owner_api_key != _api_key):
+        raise SessionNotFoundError(session_id)
+
+    metadata = dict(session.metadata_ or {})
+    metadata["tags"] = tags
+
+    updated = await repo.update_metadata(UUID(session_id), metadata)
+    if updated is None:
+        raise SessionNotFoundError(session_id)
+
+    session_mode = metadata.get("mode", "code")
+    return SessionWithMetaResponse(
+        id=str(updated.id),
+        mode="brainstorm" if session_mode == "brainstorm" else "code",
+        status=updated.status,
+        project_id=str(metadata.get("project_id"))
+        if metadata.get("project_id")
+        else None,
+        title=str(metadata.get("title")) if metadata.get("title") else None,
+        created_at=updated.created_at,
+        updated_at=updated.updated_at,
+        total_turns=updated.total_turns,
+        total_cost_usd=float(updated.total_cost_usd) if updated.total_cost_usd else None,
+        parent_session_id=str(updated.parent_session_id)
+        if updated.parent_session_id
+        else None,
+        tags=tags,
         metadata=metadata,
     )

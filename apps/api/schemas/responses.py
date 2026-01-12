@@ -76,6 +76,132 @@ class ToolPresetListResponse(BaseModel):
     presets: list[ToolPresetResponse]
 
 
+class ProjectResponse(BaseModel):
+    """Project response schema."""
+
+    id: str
+    name: str
+    path: str
+    created_at: datetime
+    last_accessed_at: datetime | None = None
+    session_count: int | None = None
+    metadata: dict[str, object] | None = None
+
+
+class ProjectListResponse(BaseModel):
+    """Project list response."""
+
+    projects: list[ProjectResponse]
+    total: int
+
+
+class AgentDefinitionResponse(BaseModel):
+    """Agent definition response schema."""
+
+    id: str
+    name: str
+    description: str
+    prompt: str
+    tools: list[str] | None = None
+    model: Literal["sonnet", "opus", "haiku", "inherit"] | None = None
+    created_at: datetime
+    updated_at: datetime | None = None
+    is_shared: bool | None = None
+    share_url: str | None = None
+
+
+class AgentListResponse(BaseModel):
+    """Agent list response."""
+
+    agents: list[AgentDefinitionResponse]
+
+
+class SkillDefinitionResponse(BaseModel):
+    """Skill definition response schema."""
+
+    id: str
+    name: str
+    description: str
+    content: str
+    enabled: bool = True
+    created_at: datetime
+    updated_at: datetime | None = None
+    is_shared: bool | None = None
+    share_url: str | None = None
+
+
+class SkillListResponse(BaseModel):
+    """Skill list response."""
+
+    skills: list[SkillDefinitionResponse]
+
+
+class SlashCommandDefinitionResponse(BaseModel):
+    """Slash command definition response schema."""
+
+    id: str
+    name: str
+    description: str
+    content: str
+    enabled: bool = True
+    created_at: datetime
+    updated_at: datetime | None = None
+
+
+class SlashCommandListResponse(BaseModel):
+    """Slash command list response."""
+
+    commands: list[SlashCommandDefinitionResponse]
+
+
+class McpServerConfigResponse(BaseModel):
+    """MCP server configuration response schema."""
+
+    id: str
+    name: str
+    transport_type: str
+    command: str | None = None
+    args: list[str] | None = None
+    url: str | None = None
+    headers: dict[str, str] | None = None
+    env: dict[str, str] | None = None
+    enabled: bool = True
+    status: str = "active"
+    error: str | None = None
+    created_at: datetime
+    updated_at: datetime | None = None
+    metadata: dict[str, object] | None = None
+
+
+class McpServerListResponse(BaseModel):
+    """MCP server list response."""
+
+    servers: list[McpServerConfigResponse]
+
+
+class McpResourceResponse(BaseModel):
+    """MCP server resource response schema."""
+
+    uri: str
+    name: str | None = None
+    description: str | None = None
+    mimeType: str | None = None
+
+
+class McpResourceListResponse(BaseModel):
+    """MCP server resource list response."""
+
+    resources: list[McpResourceResponse]
+
+
+class McpResourceContentResponse(BaseModel):
+    """MCP server resource content response."""
+
+    uri: str
+    mimeType: str | None = None
+    text: str | None = None
+
+
 class CommandInfoSchema(BaseModel):
     """Information about an available slash command."""
 
@@ -268,6 +394,15 @@ class SessionListResponse(BaseModel):
     """Paginated session list."""
 
     sessions: list[SessionResponse]
+    total: int
+    page: int
+    page_size: int
+
+
+class SessionWithMetaListResponse(BaseModel):
+    """Paginated session list with metadata."""
+
+    sessions: list[SessionWithMetaResponse]
     total: int
     page: int
     page_size: int

@@ -2,24 +2,13 @@
  * useSkills Hook
  *
  * React Query hook for managing skill data with CRUD operations.
- *
- * Features:
- * - Fetch all skills
- * - Create new skill
- * - Update existing skill
- * - Delete skill
- * - Share skill (generate share URL)
- * - Automatic cache invalidation
- * - Optimistic updates
- *
- * @example
- * ```tsx
- * const { skills, isLoading, createSkill, updateSkill, deleteSkill } = useSkills();
- * ```
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { v4 as uuidv4 } from 'uuid';
 import type { SkillDefinition } from '@/types';
+import { queryKeys } from '@/lib/query-keys';
+import { createOptimisticHandlers } from '@/lib/react-query/optimistic';
 
 /**
  * API base URL
@@ -38,7 +27,7 @@ async function fetchSkills(): Promise<SkillDefinition[]> {
   }
 
   const data = await response.json();
-  return data.skills || [];
+  return data.skills || data || [];
 }
 
 /**
@@ -57,7 +46,7 @@ async function createSkill(data: Partial<SkillDefinition>): Promise<SkillDefinit
   }
 
   const result = await response.json();
-  return result.skill;
+  return result.skill ?? result;
 }
 
 /**
@@ -82,7 +71,7 @@ async function updateSkill({
   }
 
   const result = await response.json();
-  return result.skill;
+  return result.skill ?? result;
 }
 
 /**
@@ -102,7 +91,7 @@ async function deleteSkill(id: string): Promise<void> {
 /**
  * Share a skill (generate public share URL)
  */
-async function shareSkill(id: string): Promise<{ share_url: string }> {
+async function shareSkill(id: string): Promise<{ share_url: string; share_token?: string }> {
   const response = await fetch(`${API_BASE_URL}/${id}/share`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -121,6 +110,7 @@ async function shareSkill(id: string): Promise<{ share_url: string }> {
  */
 export function useSkills() {
   const queryClient = useQueryClient();
+  const queryKey = queryKeys.skills.lists();
 
   // Fetch skills query
   const {
@@ -129,43 +119,68 @@ export function useSkills() {
     error,
     refetch,
   } = useQuery({
-    queryKey: ['skills'],
+    queryKey,
     queryFn: fetchSkills,
   });
 
   // Create skill mutation
   const createMutation = useMutation({
     mutationFn: createSkill,
-    onSuccess: () => {
-      // Invalidate and refetch skills list
-      queryClient.invalidateQueries({ queryKey: ['skills'] });
-    },
+    ...createOptimisticHandlers<SkillDefinition[], Partial<SkillDefinition>>({
+      queryClient,
+      queryKey,
+      updater: (current, variables) => {
+        const now = new Date().toISOString();
+        const optimistic: SkillDefinition = {
+          id: uuidv4(),
+          name: variables.name ?? 'New Skill',
+          description: variables.description ?? '',
+          content: variables.content ?? '',
+          enabled: variables.enabled ?? true,
+          created_at: now,
+          updated_at: now,
+          is_shared: false,
+        };
+
+        return [optimistic, ...(current ?? [])];
+      },
+    }),
   });
 
   // Update skill mutation
   const updateMutation = useMutation({
     mutationFn: updateSkill,
-    onSuccess: () => {
-      // Invalidate and refetch skills list
-      queryClient.invalidateQueries({ queryKey: ['skills'] });
-    },
+    ...createOptimisticHandlers<SkillDefinition[], { id: string; data: Partial<SkillDefinition> }>({
+      queryClient,
+      queryKey,
+      updater: (current, variables) =>
+        (current ?? []).map((skill) =>
+          skill.id === variables.id
+            ? {
+                ...skill,
+                ...variables.data,
+                updated_at: new Date().toISOString(),
+              }
+            : skill
+        ),
+    }),
   });
 
   // Delete skill mutation
   const deleteMutation = useMutation({
     mutationFn: deleteSkill,
-    onSuccess: () => {
-      // Invalidate and refetch skills list
-      queryClient.invalidateQueries({ queryKey: ['skills'] });
-    },
+    ...createOptimisticHandlers<SkillDefinition[], string>({
+      queryClient,
+      queryKey,
+      updater: (current, id) => (current ?? []).filter((skill) => skill.id !== id),
+    }),
   });
 
   // Share skill mutation
   const shareMutation = useMutation({
     mutationFn: shareSkill,
     onSuccess: () => {
-      // Invalidate and refetch skills list (to update is_shared status)
-      queryClient.invalidateQueries({ queryKey: ['skills'] });
+      queryClient.invalidateQueries({ queryKey });
     },
   });
 

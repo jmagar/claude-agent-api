@@ -213,9 +213,10 @@ export function ChatInterface({ sessionId: initialSessionId }: ChatInterfaceProp
         throw new Error("Failed to load projects");
       }
       const data = await response.json();
-      setProjects(data);
+      const nextProjects = Array.isArray(data) ? data : data.projects ?? [];
+      setProjects(nextProjects);
       setProjectsError(null);
-      return data as Project[];
+      return nextProjects as Project[];
     } catch (err) {
       setProjectsError(err instanceof Error ? err.message : "Failed to load projects");
       return [];

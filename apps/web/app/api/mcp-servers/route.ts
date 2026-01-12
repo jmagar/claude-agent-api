@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
     }
 
     const data = await response.json();
-    return NextResponse.json(data);
+    return NextResponse.json(data.servers || []);
   } catch (error) {
     console.error('MCP servers GET error:', error);
     return NextResponse.json(
@@ -88,13 +88,19 @@ export async function POST(request: NextRequest) {
     // Parse and validate request body
     const body = await request.json();
 
+    // Map transport_type to type for backend compatibility
+    const backendRequest = {
+      ...body,
+      type: body.transport_type || body.type,
+    };
+
     // Basic validation
-    if (!body.name || !body.type) {
+    if (!backendRequest.name || !backendRequest.type) {
       return NextResponse.json(
         {
           error: {
             code: 'VALIDATION_ERROR',
-            message: 'Server name and type are required',
+            message: 'Server name and transport_type/type are required',
           },
         },
         { status: 400 }
@@ -109,7 +115,7 @@ export async function POST(request: NextRequest) {
         'X-API-Key': apiKey,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify(backendRequest),
     });
 
     if (!response.ok) {

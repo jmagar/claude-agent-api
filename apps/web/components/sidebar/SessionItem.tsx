@@ -27,7 +27,6 @@
 'use client';
 
 import { memo } from 'react';
-import { formatDistanceToNow } from 'date-fns';
 import { MoreVerticalIcon, GitBranchIcon } from 'lucide-react';
 import type { Session } from '@/types';
 import { Button } from '@/components/ui/button';
@@ -70,18 +69,6 @@ export interface SessionItemProps {
    * Callback when delete action is triggered
    */
   onDelete?: () => void;
-}
-
-/**
- * Format relative time from date
- */
-function formatRelativeTime(date: Date | string): string {
-  try {
-    const parsedDate = typeof date === 'string' ? new Date(date) : date;
-    return formatDistanceToNow(parsedDate, { addSuffix: true });
-  } catch {
-    return 'Unknown';
-  }
 }
 
 /**

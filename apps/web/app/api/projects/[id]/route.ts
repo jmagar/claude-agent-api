@@ -1,114 +1,203 @@
-import { NextRequest, NextResponse } from "next/server";
-import type { Project } from "@/types";
+/**
+ * Project Detail API Route
+ *
+ * BFF endpoint for project detail management.
+ */
 
-// Mock projects store (shared with parent route in production)
-const mockProjects: Map<string, Project> = new Map([
-  [
-    "proj-1",
-    {
-      id: "proj-1",
-      name: "Frontend App",
-      path: "/workspace/frontend-app",
-      created_at: new Date("2026-01-01"),
-      session_count: 5,
-      last_accessed_at: new Date("2026-01-10"),
-    },
-  ],
-  [
-    "proj-2",
-    {
-      id: "proj-2",
-      name: "Backend API",
-      path: "/workspace/backend-api",
-      created_at: new Date("2025-12-15"),
-      session_count: 12,
-      last_accessed_at: new Date("2026-01-09"),
-    },
-  ],
-]);
+import { NextRequest, NextResponse } from 'next/server';
+import { isUUID } from '@/lib/validation/uuid';
 
-interface RouteParams {
-  params: Promise<{ id: string }>;
+const API_BASE_URL =
+  process.env.API_BASE_URL || 'http://localhost:54000/api/v1';
+
+function jsonResponse(body: Record<string, unknown>, init?: ResponseInit) {
+  const headers = new Headers(init?.headers);
+  if (!headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
+  return new NextResponse(JSON.stringify(body), { ...init, headers });
 }
 
-/**
- * GET /api/projects/[id]
- * Returns a single project by ID
- */
-export async function GET(_request: NextRequest, { params }: RouteParams) {
-  try {
-    const { id } = await params;
-    const project = mockProjects.get(id);
+function getApiKey(request: NextRequest) {
+  return request.headers.get('X-API-Key') || request.cookies.get('api-key')?.value;
+}
 
-    if (!project) {
-      return NextResponse.json({ error: "Project not found" }, { status: 404 });
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  if (!isUUID(params.id)) {
+    return NextResponse.json(
+      { error: { code: 'INVALID_ID', message: 'Invalid project ID format (UUID expected)' } },
+      { status: 400 }
+    );
+  }
+
+  try {
+    const apiKey = getApiKey(request);
+    if (!apiKey) {
+      return jsonResponse(
+        { error: { code: 'INVALID_API_KEY', message: 'API key is required' } },
+        { status: 401 }
+      );
     }
 
-    return NextResponse.json(project);
+    const response = await fetch(`${API_BASE_URL}/projects/${params.id}`, {
+      method: 'GET',
+      headers: {
+        'X-API-Key': apiKey,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({
+        error: { message: 'Backend request failed' },
+      }));
+      return jsonResponse(
+        {
+          error: {
+            code: 'BACKEND_ERROR',
+            message: error.error?.message ?? 'Failed to fetch project',
+          },
+        },
+        { status: response.status }
+      );
+    }
+
+    const data = await response.json();
+    return jsonResponse(data);
   } catch (error) {
-    console.error("Failed to fetch project:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch project" },
+    console.error('Project GET error:', error);
+    return jsonResponse(
+      {
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: error instanceof Error ? error.message : 'Internal server error',
+        },
+      },
       { status: 500 }
     );
   }
 }
 
-/**
- * PATCH /api/projects/[id]
- * Updates a project
- */
-export async function PATCH(request: NextRequest, { params }: RouteParams) {
-  try {
-    const { id } = await params;
-    const project = mockProjects.get(id);
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  if (!isUUID(params.id)) {
+    return NextResponse.json(
+      { error: { code: 'INVALID_ID', message: 'Invalid project ID format (UUID expected)' } },
+      { status: 400 }
+    );
+  }
 
-    if (!project) {
-      return NextResponse.json({ error: "Project not found" }, { status: 404 });
+  try {
+    const apiKey = getApiKey(request);
+    if (!apiKey) {
+      return jsonResponse(
+        { error: { code: 'INVALID_API_KEY', message: 'API key is required' } },
+        { status: 401 }
+      );
     }
 
     const body = await request.json();
-    const { name, path } = body as { name?: string; path?: string };
+    const response = await fetch(`${API_BASE_URL}/projects/${params.id}`, {
+      method: 'PATCH',
+      headers: {
+        'X-API-Key': apiKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        name: body.name,
+        metadata: body.metadata,
+      }),
+    });
 
-    const updatedProject: Project = {
-      ...project,
-      ...(name && { name }),
-      ...(path && { path }),
-      last_accessed_at: new Date(),
-    };
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({
+        error: { message: 'Backend request failed' },
+      }));
+      return jsonResponse(
+        {
+          error: {
+            code: 'BACKEND_ERROR',
+            message: error.error?.message ?? 'Failed to update project',
+          },
+        },
+        { status: response.status }
+      );
+    }
 
-    mockProjects.set(id, updatedProject);
-
-    return NextResponse.json(updatedProject);
+    const data = await response.json();
+    return jsonResponse(data);
   } catch (error) {
-    console.error("Failed to update project:", error);
-    return NextResponse.json(
-      { error: "Failed to update project" },
+    console.error('Project PATCH error:', error);
+    return jsonResponse(
+      {
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: error instanceof Error ? error.message : 'Internal server error',
+        },
+      },
       { status: 500 }
     );
   }
 }
 
-/**
- * DELETE /api/projects/[id]
- * Deletes a project
- */
-export async function DELETE(_request: NextRequest, { params }: RouteParams) {
-  try {
-    const { id } = await params;
-    const project = mockProjects.get(id);
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  if (!isUUID(params.id)) {
+    return NextResponse.json(
+      { error: { code: 'INVALID_ID', message: 'Invalid project ID format (UUID expected)' } },
+      { status: 400 }
+    );
+  }
 
-    if (!project) {
-      return NextResponse.json({ error: "Project not found" }, { status: 404 });
+  try {
+    const apiKey = getApiKey(request);
+    if (!apiKey) {
+      return jsonResponse(
+        { error: { code: 'INVALID_API_KEY', message: 'API key is required' } },
+        { status: 401 }
+      );
     }
 
-    mockProjects.delete(id);
+    const response = await fetch(`${API_BASE_URL}/projects/${params.id}`, {
+      method: 'DELETE',
+      headers: {
+        'X-API-Key': apiKey,
+        'Content-Type': 'application/json',
+      },
+    });
 
-    return NextResponse.json({ success: true });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({
+        error: { message: 'Backend request failed' },
+      }));
+      return jsonResponse(
+        {
+          error: {
+            code: 'BACKEND_ERROR',
+            message: error.error?.message ?? 'Failed to delete project',
+          },
+        },
+        { status: response.status }
+      );
+    }
+
+    return new NextResponse(null, { status: 204 });
   } catch (error) {
-    console.error("Failed to delete project:", error);
-    return NextResponse.json(
-      { error: "Failed to delete project" },
+    console.error('Project DELETE error:', error);
+    return jsonResponse(
+      {
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: error instanceof Error ? error.message : 'Internal server error',
+        },
+      },
       { status: 500 }
     );
   }

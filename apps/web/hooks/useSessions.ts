@@ -8,37 +8,18 @@
  * - Deleting sessions
  * - Forking sessions from checkpoints
  * - Resuming sessions
- *
- * @example
- * ```tsx
- * function SessionManager() {
- *   const {
- *     sessions,
- *     isLoading,
- *     error,
- *     createSession,
- *     updateSession,
- *     deleteSession,
- *     forkSession,
- *     resumeSession,
- *   } = useSessions();
- *
- *   const handleCreate = async () => {
- *     const session = await createSession({
- *       mode: 'brainstorm',
- *       title: 'New Session',
- *     });
- *   };
- *
- *   return <div>...</div>;
- * }
- * ```
+ * - Optimistic updates for mutations
  */
 
 'use client';
 
+import { useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import type { Session, SessionMode } from '@/types';
+import { v4 as uuidv4 } from 'uuid';
+import type { Session, SessionFilters, SessionMode } from '@/types';
+import { buildSessionQueryParams } from '@/lib/session-filters';
+import { queryKeys } from '@/lib/query-keys';
+import { createOptimisticHandlers } from '@/lib/react-query/optimistic';
 
 /**
  * Session creation parameters
@@ -66,6 +47,13 @@ export interface ForkSessionParams {
   title?: string;
 }
 
+export interface SessionListResponse {
+  sessions: Session[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
 /**
  * API client for sessions
  */
@@ -73,15 +61,22 @@ const sessionsApi = {
   /**
    * Fetch all sessions
    */
-  async fetchAll(): Promise<Session[]> {
-    const response = await fetch('/api/sessions');
+  async fetchAll(filters?: SessionFilters): Promise<SessionListResponse> {
+    const params = filters ? buildSessionQueryParams(filters) : new URLSearchParams();
+    const queryString = params.toString();
+    const response = await fetch(`/api/sessions${queryString ? `?${queryString}` : ''}`);
 
     if (!response.ok) {
       throw new Error('Failed to fetch sessions');
     }
 
     const data = await response.json();
-    return data.sessions || [];
+    return {
+      sessions: data.sessions || [],
+      total: data.total ?? data.sessions?.length ?? 0,
+      page: data.page ?? filters?.page ?? 1,
+      page_size: data.page_size ?? filters?.page_size ?? (data.sessions?.length ?? 0),
+    };
   },
 
   /**
@@ -100,7 +95,7 @@ const sessionsApi = {
     }
 
     const data = await response.json();
-    return data.session;
+    return data.session ?? data;
   },
 
   /**
@@ -122,7 +117,7 @@ const sessionsApi = {
     }
 
     const data = await response.json();
-    return data.session;
+    return data.session ?? data;
   },
 
   /**
@@ -158,7 +153,7 @@ const sessionsApi = {
     }
 
     const data = await response.json();
-    return data.session;
+    return data.session ?? data;
   },
 
   /**
@@ -175,7 +170,7 @@ const sessionsApi = {
     }
 
     const data = await response.json();
-    return data.session;
+    return data.session ?? data;
   },
 };
 
@@ -187,6 +182,21 @@ export interface UseSessionsReturn {
    * List of sessions
    */
   sessions: Session[] | undefined;
+
+  /**
+   * Total sessions count (server-side)
+   */
+  total: number;
+
+  /**
+   * Current page
+   */
+  page: number;
+
+  /**
+   * Page size
+   */
+  pageSize: number;
 
   /**
    * Whether sessions are being loaded
@@ -235,38 +245,91 @@ export interface UseSessionsReturn {
   refetch: () => void;
 }
 
+function buildOptimisticList(
+  current: SessionListResponse | undefined,
+  updater: (sessions: Session[]) => Session[]
+): SessionListResponse {
+  const base: SessionListResponse =
+    current ?? { sessions: [], total: 0, page: 1, page_size: 0 };
+  const nextSessions = updater(base.sessions);
+  const delta = nextSessions.length - base.sessions.length;
+
+  return {
+    ...base,
+    sessions: nextSessions,
+    total: Math.max(0, base.total + delta),
+  };
+}
+
+function matchesFilters(session: Session, filters?: SessionFilters) {
+  if (!filters) return true;
+  if (filters.mode && session.mode !== filters.mode) return false;
+  if (filters.project_id && session.project_id !== filters.project_id) return false;
+  if (filters.tags && filters.tags.length > 0) {
+    if (!filters.tags.every((tag) => session.tags.includes(tag))) return false;
+  }
+  if (filters.search) {
+    const query = filters.search.toLowerCase();
+    if (!session.title?.toLowerCase().includes(query)) return false;
+  }
+  return true;
+}
+
 /**
  * React Query hook for session management
  */
-export function useSessions(): UseSessionsReturn {
+export function useSessions(filters?: SessionFilters): UseSessionsReturn {
   const queryClient = useQueryClient();
+  const queryKey = useMemo(
+    () => (filters ? queryKeys.sessions.list(filters) : queryKeys.sessions.lists()),
+    [filters]
+  );
 
   // Fetch sessions query
   const {
-    data: sessions,
+    data,
     isLoading,
     error: queryError,
     refetch,
   } = useQuery({
-    queryKey: ['sessions'],
-    queryFn: sessionsApi.fetchAll,
-    staleTime: 30000, // 30 seconds
+    queryKey,
+    queryFn: () => sessionsApi.fetchAll(filters),
     refetchOnWindowFocus: true,
   });
 
-  // Create session mutation
   const createMutation = useMutation({
     mutationFn: sessionsApi.create,
-    onSuccess: (newSession) => {
-      // Add new session to cache
-      queryClient.setQueryData<Session[]>(['sessions'], (old) => {
-        if (!old) return [newSession];
-        return [newSession, ...old];
-      });
-    },
+    ...createOptimisticHandlers<SessionListResponse, CreateSessionParams>({
+      queryClient,
+      queryKey,
+      updater: (current, variables) =>
+        buildOptimisticList(current, (sessions) => {
+          const now = new Date().toISOString();
+          const optimistic: Session = {
+            id: uuidv4(),
+            mode: variables.mode,
+            status: 'active',
+            project_id: variables.project_id,
+            title: variables.title,
+            created_at: now,
+            updated_at: now,
+            last_message_at: now,
+            total_turns: 0,
+            tags: variables.tags ?? [],
+            duration_ms: undefined,
+            total_cost_usd: undefined,
+            parent_session_id: undefined,
+          };
+
+          if (!matchesFilters(optimistic, filters)) {
+            return sessions;
+          }
+
+          return [optimistic, ...sessions];
+        }),
+    }),
   });
 
-  // Update session mutation
   const updateMutation = useMutation({
     mutationFn: ({
       sessionId,
@@ -275,30 +338,38 @@ export function useSessions(): UseSessionsReturn {
       sessionId: string;
       params: UpdateSessionParams;
     }) => sessionsApi.update(sessionId, params),
-    onSuccess: (updatedSession) => {
-      // Update session in cache
-      queryClient.setQueryData<Session[]>(['sessions'], (old) => {
-        if (!old) return [updatedSession];
-        return old.map((s) =>
-          s.id === updatedSession.id ? updatedSession : s
-        );
-      });
-    },
+    ...createOptimisticHandlers<SessionListResponse, { sessionId: string; params: UpdateSessionParams }>(
+      {
+        queryClient,
+        queryKey,
+        updater: (current, variables) =>
+          buildOptimisticList(current, (sessions) =>
+            sessions.map((session) =>
+              session.id === variables.sessionId
+                ? {
+                    ...session,
+                    ...variables.params,
+                    updated_at: new Date().toISOString(),
+                  }
+                : session
+            )
+          ),
+      }
+    ),
   });
 
-  // Delete session mutation
   const deleteMutation = useMutation({
     mutationFn: sessionsApi.delete,
-    onSuccess: (_, sessionId) => {
-      // Remove session from cache
-      queryClient.setQueryData<Session[]>(['sessions'], (old) => {
-        if (!old) return [];
-        return old.filter((s) => s.id !== sessionId);
-      });
-    },
+    ...createOptimisticHandlers<SessionListResponse, string>({
+      queryClient,
+      queryKey,
+      updater: (current, sessionId) =>
+        buildOptimisticList(current, (sessions) =>
+          sessions.filter((session) => session.id !== sessionId)
+        ),
+    }),
   });
 
-  // Fork session mutation
   const forkMutation = useMutation({
     mutationFn: ({
       sessionId,
@@ -307,31 +378,65 @@ export function useSessions(): UseSessionsReturn {
       sessionId: string;
       params: ForkSessionParams;
     }) => sessionsApi.fork(sessionId, params),
-    onSuccess: (forkedSession) => {
-      // Add forked session to cache
-      queryClient.setQueryData<Session[]>(['sessions'], (old) => {
-        if (!old) return [forkedSession];
-        return [forkedSession, ...old];
-      });
-    },
+    ...createOptimisticHandlers<SessionListResponse, { sessionId: string; params: ForkSessionParams }>(
+      {
+        queryClient,
+        queryKey,
+        updater: (current, variables) =>
+          buildOptimisticList(current, (sessions) => {
+            const parent = sessions.find((session) => session.id === variables.sessionId);
+            const now = new Date().toISOString();
+            const optimistic: Session = {
+              id: uuidv4(),
+              mode: parent?.mode ?? 'brainstorm',
+              status: 'active',
+              project_id: parent?.project_id,
+              title: variables.params.title ?? parent?.title,
+              created_at: now,
+              updated_at: now,
+              last_message_at: now,
+              total_turns: 0,
+              tags: parent?.tags ?? [],
+              duration_ms: undefined,
+              total_cost_usd: undefined,
+              parent_session_id: variables.sessionId,
+            };
+
+            if (!matchesFilters(optimistic, filters)) {
+              return sessions;
+            }
+
+            return [optimistic, ...sessions];
+          }),
+      }
+    ),
   });
 
-  // Resume session mutation
   const resumeMutation = useMutation({
     mutationFn: sessionsApi.resume,
-    onSuccess: (resumedSession) => {
-      // Update session in cache
-      queryClient.setQueryData<Session[]>(['sessions'], (old) => {
-        if (!old) return [resumedSession];
-        return old.map((s) =>
-          s.id === resumedSession.id ? resumedSession : s
-        );
-      });
-    },
+    ...createOptimisticHandlers<SessionListResponse, string>({
+      queryClient,
+      queryKey,
+      updater: (current, sessionId) =>
+        buildOptimisticList(current, (sessions) =>
+          sessions.map((session) =>
+            session.id === sessionId
+              ? {
+                  ...session,
+                  status: 'active',
+                  updated_at: new Date().toISOString(),
+                }
+              : session
+          )
+        ),
+    }),
   });
 
   return {
-    sessions,
+    sessions: data?.sessions,
+    total: data?.total ?? 0,
+    page: data?.page ?? 1,
+    pageSize: data?.page_size ?? 0,
     isLoading,
     error: queryError ? (queryError as Error).message : null,
     createSession: createMutation.mutateAsync,

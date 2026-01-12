@@ -17,13 +17,16 @@ from apps.api.middleware.correlation import CorrelationIdMiddleware
 from apps.api.middleware.logging import RequestLoggingMiddleware, configure_logging
 from apps.api.middleware.ratelimit import configure_rate_limiting
 from apps.api.routes import (
+    agents,
     checkpoints,
     health,
     interactions,
     mcp_servers,
+    projects,
     query,
     session_control,
     sessions,
+    slash_commands,
     tool_presets,
     skills,
     websocket,
@@ -160,12 +163,15 @@ def create_app() -> FastAPI:
 
     # Include routers
     app.include_router(health.router, prefix="/api/v1")
+    app.include_router(projects.router, prefix="/api/v1")
+    app.include_router(agents.router, prefix="/api/v1")
     app.include_router(query.router, prefix="/api/v1")
     app.include_router(sessions.router, prefix="/api/v1")
     app.include_router(session_control.router, prefix="/api/v1")
     app.include_router(checkpoints.router, prefix="/api/v1")
     app.include_router(interactions.router, prefix="/api/v1")
     app.include_router(skills.router, prefix="/api/v1")
+    app.include_router(slash_commands.router, prefix="/api/v1")
     app.include_router(websocket.router, prefix="/api/v1")
     app.include_router(mcp_servers.router, prefix="/api/v1")
     app.include_router(tool_presets.router, prefix="/api/v1")

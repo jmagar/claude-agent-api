@@ -1,100 +1,95 @@
 /**
  * Agents API Route
  *
- * BFF endpoint for agent management:
- * - GET: Fetch all agents
- * - POST: Create a new agent
- *
- * Proxies requests to the backend Claude Agent API.
- *
- * @example GET /api/agents
- * @example POST /api/agents { name: 'my-agent', description: '...', prompt: '...' }
+ * BFF endpoint for agent management.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import type { AgentDefinition } from '@/types';
 
-/**
- * Backend API base URL
- */
 const API_BASE_URL =
-  process.env.API_BASE_URL || 'http://localhost:54000';
+  process.env.API_BASE_URL || 'http://localhost:54000/api/v1';
 
-/**
- * GET /api/agents
- *
- * Fetch all agents for the current user
- */
+function jsonResponse(body: Record<string, unknown>, init?: ResponseInit) {
+  const headers = new Headers(init?.headers);
+  if (!headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
+  return new NextResponse(JSON.stringify(body), { ...init, headers });
+}
+
+function getApiKey(request: NextRequest) {
+  return request.headers.get('X-API-Key') || request.cookies.get('api-key')?.value;
+}
+
 export async function GET(request: NextRequest) {
   try {
+    const apiKey = getApiKey(request);
+    if (!apiKey) {
+      return jsonResponse(
+        { error: { code: 'INVALID_API_KEY', message: 'API key is required' } },
+        { status: 401 }
+      );
+    }
+
     const response = await fetch(`${API_BASE_URL}/agents`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        // Forward auth headers if present
-        ...(request.headers.get('authorization')
-          ? { Authorization: request.headers.get('authorization')! }
-          : {}),
+        'X-API-Key': apiKey,
       },
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      return NextResponse.json(
-        { error: error.message || 'Failed to fetch agents' },
+      const error = await response.json().catch(() => ({
+        error: { message: 'Failed to fetch agents' },
+      }));
+      return jsonResponse(
+        { error: error.error?.message ?? 'Failed to fetch agents' },
         { status: response.status }
       );
     }
 
     const data = await response.json();
 
-    return NextResponse.json({
-      agents: data.agents || [],
-    });
+    return jsonResponse({ agents: data.agents || [] });
   } catch (error) {
     console.error('Error fetching agents:', error);
-    return NextResponse.json(
+    return jsonResponse(
       { error: 'Internal server error' },
       { status: 500 }
     );
   }
 }
 
-/**
- * POST /api/agents
- *
- * Create a new agent
- *
- * Request body:
- * {
- *   name: string,
- *   description: string,
- *   prompt: string,
- *   model?: 'sonnet' | 'opus' | 'haiku' | 'inherit',
- *   tools?: string[]
- * }
- */
 export async function POST(request: NextRequest) {
   try {
+    const apiKey = getApiKey(request);
+    if (!apiKey) {
+      return jsonResponse(
+        { error: { code: 'INVALID_API_KEY', message: 'API key is required' } },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
 
-    // Validate required fields
     if (!body.name || typeof body.name !== 'string') {
-      return NextResponse.json(
+      return jsonResponse(
         { error: 'Name is required and must be a string' },
         { status: 400 }
       );
     }
 
     if (!body.description || typeof body.description !== 'string') {
-      return NextResponse.json(
+      return jsonResponse(
         { error: 'Description is required and must be a string' },
         { status: 400 }
       );
     }
 
     if (!body.prompt || typeof body.prompt !== 'string') {
-      return NextResponse.json(
+      return jsonResponse(
         { error: 'Prompt is required and must be a string' },
         { status: 400 }
       );
@@ -104,35 +99,32 @@ export async function POST(request: NextRequest) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(request.headers.get('authorization')
-          ? { Authorization: request.headers.get('authorization')! }
-          : {}),
+        'X-API-Key': apiKey,
       },
       body: JSON.stringify({
         name: body.name,
         description: body.description,
         prompt: body.prompt,
-        model: body.model || 'inherit',
-        tools: body.tools || [],
+        tools: body.tools,
+        model: body.model,
       }),
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      return NextResponse.json(
-        { error: error.message || 'Failed to create agent' },
+      const error = await response.json().catch(() => ({
+        error: { message: 'Failed to create agent' },
+      }));
+      return jsonResponse(
+        { error: error.error?.message ?? 'Failed to create agent' },
         { status: response.status }
       );
     }
 
     const data = await response.json();
-
-    return NextResponse.json({
-      agent: data.agent as AgentDefinition,
-    }, { status: 201 });
+    return jsonResponse(data as any, { status: 201 });
   } catch (error) {
     console.error('Error creating agent:', error);
-    return NextResponse.json(
+    return jsonResponse(
       { error: 'Internal server error' },
       { status: 500 }
     );

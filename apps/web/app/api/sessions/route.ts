@@ -18,7 +18,7 @@ import type { Session, SessionMode } from '@/types';
  * Backend API base URL
  */
 const API_BASE_URL =
-  process.env.API_BASE_URL || 'http://localhost:54000';
+  process.env.API_BASE_URL || 'http://localhost:54000/api/v1';
 
 /**
  * GET /api/sessions
@@ -27,7 +27,23 @@ const API_BASE_URL =
  */
 export async function GET(request: NextRequest) {
   try {
-    const response = await fetch(`${API_BASE_URL}/sessions`, {
+    const { searchParams } = new URL(request.url);
+    const mode = searchParams.get('mode');
+    const project_id = searchParams.get('project_id');
+    const tags = searchParams.getAll('tags');
+    const search = searchParams.get('search');
+    const page = parseInt(searchParams.get('page') || '1');
+    const page_size = parseInt(searchParams.get('page_size') || '50');
+
+    const backendUrl = new URL(`${API_BASE_URL}/sessions`);
+    if (mode) backendUrl.searchParams.set('mode', mode);
+    if (project_id) backendUrl.searchParams.set('project_id', project_id);
+    if (search) backendUrl.searchParams.set('search', search);
+    backendUrl.searchParams.set('page', page.toString());
+    backendUrl.searchParams.set('page_size', page_size.toString());
+    tags.forEach(tag => backendUrl.searchParams.append('tags', tag));
+
+    const response = await fetch(backendUrl.toString(), {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -35,13 +51,21 @@ export async function GET(request: NextRequest) {
         ...(request.headers.get('authorization')
           ? { Authorization: request.headers.get('authorization')! }
           : {}),
+        ...(request.headers.get('x-api-key')
+          ? { 'X-API-Key': request.headers.get('x-api-key')! }
+          : {}),
       },
     });
 
     if (!response.ok) {
-      const error = await response.json();
+      const error = await response.json().catch(() => ({ message: 'Failed to fetch sessions' }));
       return NextResponse.json(
-        { error: error.message || 'Failed to fetch sessions' },
+        {
+          error: {
+            code: 'BACKEND_ERROR',
+            message: error.message || 'Failed to fetch sessions',
+          },
+        },
         { status: response.status }
       );
     }
@@ -50,6 +74,9 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       sessions: data.sessions || [],
+      total: data.total ?? (data.sessions ? data.sessions.length : 0),
+      page: data.page ?? page,
+      page_size: data.page_size ?? page_size,
     });
   } catch (error) {
     console.error('Error fetching sessions:', error);
@@ -92,6 +119,9 @@ export async function POST(request: NextRequest) {
         ...(request.headers.get('authorization')
           ? { Authorization: request.headers.get('authorization')! }
           : {}),
+        ...(request.headers.get('x-api-key')
+          ? { 'X-API-Key': request.headers.get('x-api-key')! }
+          : {}),
       },
       body: JSON.stringify({
         mode: body.mode as SessionMode,
@@ -102,22 +132,30 @@ export async function POST(request: NextRequest) {
     });
 
     if (!response.ok) {
-      const error = await response.json();
+      const error = await response.json().catch(() => ({ message: 'Failed to create session' }));
       return NextResponse.json(
-        { error: error.message || 'Failed to create session' },
+        {
+          error: {
+            code: 'BACKEND_ERROR',
+            message: error.message || 'Failed to create session',
+          },
+        },
         { status: response.status }
       );
     }
 
     const data = await response.json();
 
-    return NextResponse.json({
-      session: data.session as Session,
-    }, { status: 201 });
+    return NextResponse.json(data, { status: 201 });
   } catch (error) {
     console.error('Error creating session:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      {
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Internal server error',
+        },
+      },
       { status: 500 }
     );
   }

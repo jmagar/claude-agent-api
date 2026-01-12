@@ -22,7 +22,7 @@ function getApiKey(request: NextRequest) {
 }
 
 function mapPreset(preset: Record<string, unknown>) {
-  const tools = Array.isArray(preset.allowed_tools)
+  const allowed_tools = Array.isArray(preset.allowed_tools)
     ? preset.allowed_tools
     : Array.isArray(preset.tools)
       ? preset.tools
@@ -31,9 +31,10 @@ function mapPreset(preset: Record<string, unknown>) {
     id: preset.id,
     name: preset.name,
     description: preset.description,
-    tools,
+    allowed_tools,
+    disallowed_tools: preset.disallowed_tools || [],
     created_at: preset.created_at,
-    is_default: preset.is_system ?? preset.is_default,
+    is_system: !!(preset.is_system ?? preset.is_default),
   };
 }
 

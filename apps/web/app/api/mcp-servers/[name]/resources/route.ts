@@ -61,7 +61,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     }
 
     const data = await response.json();
-    return NextResponse.json(data);
+    return NextResponse.json(data.resources || []);
   } catch (error) {
     console.error(`MCP server resources GET error (${params.name}):`, error);
     return NextResponse.json(

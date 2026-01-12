@@ -97,7 +97,7 @@ export interface Message {
   parent_tool_use_id?: string;
   model?: string;
   usage?: UsageMetrics;
-  created_at: Date;
+  created_at: string;
 }
 
 // Session Types
@@ -117,9 +117,9 @@ export interface Session {
   status: SessionStatus;
   project_id?: string;
   title?: string;
-  created_at: Date;
-  updated_at: Date;
-  last_message_at?: Date;
+  created_at: string;
+  updated_at: string;
+  last_message_at?: string;
   total_turns: number;
   total_cost_usd?: number;
   parent_session_id?: string;
@@ -130,13 +130,22 @@ export interface Session {
   metadata?: Record<string, unknown>;
 }
 
+export interface SessionFilters {
+  mode?: SessionMode;
+  project_id?: string;
+  tags?: string[];
+  search?: string;
+  page?: number;
+  page_size?: number;
+}
+
 export interface Project {
   id: string;
   name: string;
   path: string;
-  created_at: Date;
+  created_at: string;
   session_count: number;
-  last_accessed_at?: Date;
+  last_accessed_at?: string;
 }
 
 // Tool & Permission Types
@@ -155,7 +164,7 @@ export interface ToolCall {
   input: Record<string, unknown>;
   output?: string | Record<string, unknown>;
   error?: string;
-  started_at?: Date;
+  started_at?: string;
   duration_ms?: number;
   parent_tool_use_id?: string;
   requires_approval?: boolean;
@@ -173,9 +182,10 @@ export interface ToolPreset {
   id: string;
   name: string;
   description?: string;
-  tools: string[];
-  created_at: Date;
-  is_default?: boolean;
+  allowed_tools: string[];
+  disallowed_tools?: string[];
+  created_at: string;
+  is_system?: boolean;
 }
 
 // MCP Server Types
@@ -185,7 +195,7 @@ export type McpServerStatus = "active" | "failed" | "disabled";
 export interface McpServerConfig {
   id: string;
   name: string;
-  type: McpTransportType;
+  transport_type: McpTransportType;
   command?: string;
   args?: string[];
   url?: string;
@@ -194,8 +204,8 @@ export interface McpServerConfig {
   enabled: boolean;
   status: McpServerStatus;
   error?: string;
-  created_at: Date;
-  updated_at: Date;
+  created_at: string;
+  updated_at: string;
   tools_count?: number;
   resources_count?: number;
 }
@@ -223,8 +233,8 @@ export interface AgentDefinition {
   prompt: string;
   tools?: string[];
   model?: "sonnet" | "opus" | "haiku" | "inherit";
-  created_at: Date;
-  updated_at: Date;
+  created_at: string;
+  updated_at: string;
   is_shared?: boolean;
   share_url?: string;
 }
@@ -234,8 +244,9 @@ export interface SkillDefinition {
   name: string;
   description: string;
   content: string;
-  created_at: Date;
-  updated_at: Date;
+  enabled: boolean;
+  created_at: string;
+  updated_at: string;
   is_shared?: boolean;
   share_url?: string;
 }
@@ -246,8 +257,8 @@ export interface SlashCommand {
   description: string;
   content: string;
   enabled: boolean;
-  created_at: Date;
-  updated_at: Date;
+  created_at: string;
+  updated_at: string;
 }
 
 // Checkpoint Types
@@ -255,7 +266,7 @@ export interface Checkpoint {
   id: string;
   session_id: string;
   user_message_uuid: string;
-  created_at: Date;
+  created_at: string;
   files_modified: string[];
   label?: string;
 }
@@ -269,7 +280,7 @@ export interface Artifact {
   language?: string;
   content: string;
   title?: string;
-  created_at: Date;
+  created_at: string;
   message_id: string;
 }
 
@@ -297,13 +308,17 @@ export interface AutocompleteItem {
 
 // Settings Types
 export type ThemeMode = "light" | "dark" | "system";
-export type ThreadingMode = "always" | "auto" | "never";
+export type ThreadingMode = "always" | "hover" | "adaptive" | "toggle";
+
+export type MessageDensity = "compact" | "comfortable" | "spacious";
 
 export interface UserSettings {
   theme: ThemeMode;
   threading_mode: ThreadingMode;
   workspace_base_dir?: string;
   default_permission_mode: PermissionMode;
+  message_density?: MessageDensity;
+  show_timestamps?: boolean;
   default_model?: string;
   auto_compact_threshold?: number;
 }

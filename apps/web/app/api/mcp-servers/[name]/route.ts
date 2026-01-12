@@ -97,6 +97,12 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     // Parse request body
     const body = await request.json();
 
+    // Map transport_type to type for backend compatibility
+    const backendRequest = {
+      ...body,
+      type: body.transport_type || body.type,
+    };
+
     // Forward request to backend
     const backendUrl = `${BACKEND_API_URL}/mcp-servers/${encodeURIComponent(name)}`;
     const response = await fetch(backendUrl, {
@@ -105,7 +111,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         'X-API-Key': apiKey,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify(backendRequest),
     });
 
     if (!response.ok) {

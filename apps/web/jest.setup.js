@@ -137,6 +137,27 @@ jest.mock("react-virtuoso", () => ({
   },
 }));
 
+// Mock react-markdown for preview rendering in tests
+jest.mock("react-markdown", () => {
+  return function ReactMarkdown({ children, className }) {
+    // Simple markdown-to-text conversion for testing
+    // Preserve text content but strip markdown formatting
+    if (typeof children !== 'string') {
+      return <div className={className}>{children}</div>;
+    }
+
+    const text = children
+      .replace(/^#{1,6}\s+(.+)$/gm, '$1')  // Headings: # Text → Text
+      .replace(/\*\*(.+?)\*\*/g, '$1')      // Bold: **text** → text
+      .replace(/\*(.+?)\*/g, '$1')          // Italic: *text* → text
+      .replace(/`(.+?)`/g, '$1')            // Code: `text` → text
+      .replace(/^\s*[-*]\s+/gm, '')         // List markers
+      .trim();
+
+    return <div className={className}>{text}</div>;
+  };
+});
+
 // Reset mocks before each test
 beforeEach(() => {
   localStorageMock.getItem.mockClear();

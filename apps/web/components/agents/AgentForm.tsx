@@ -189,37 +189,6 @@ export function AgentForm({ agent, onSubmit, onCancel }: AgentFormProps) {
               placeholder="You are a helpful AI agent..."
               aria-label="Prompt editor"
             />
-            {/* Toolbar for basic formatting */}
-            <div className="flex gap-2 mt-2">
-              <button
-                type="button"
-                className="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-50"
-                aria-label="Bold"
-              >
-                <strong>B</strong>
-              </button>
-              <button
-                type="button"
-                className="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-50"
-                aria-label="Italic"
-              >
-                <em>I</em>
-              </button>
-              <button
-                type="button"
-                className="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-50"
-                aria-label="Heading"
-              >
-                H
-              </button>
-              <button
-                type="button"
-                className="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-50"
-                aria-label="Code block"
-              >
-                {'</>'}
-              </button>
-            </div>
           </div>
         ) : (
           <div>

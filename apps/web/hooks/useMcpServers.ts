@@ -2,31 +2,15 @@
  * useMcpServers Hook
  *
  * React Query hook for fetching and managing MCP server configurations.
- * Provides:
- * - List of configured MCP servers
- * - Loading and error states
- * - Automatic caching and revalidation
- * - Mutations for create, update, delete
- *
- * @example
- * ```tsx
- * const { servers, isLoading, error, createServer, updateServer, deleteServer } = useMcpServers();
- *
- * // Create new server
- * await createServer({ name: 'postgres', type: 'stdio', ... });
- *
- * // Update server
- * await updateServer('postgres', { enabled: false });
- *
- * // Delete server
- * await deleteServer('postgres');
- * ```
  */
 
 'use client';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { v4 as uuidv4 } from 'uuid';
 import type { McpServerConfig } from '@/types';
+import { queryKeys } from '@/lib/query-keys';
+import { createOptimisticHandlers } from '@/lib/react-query/optimistic';
 
 interface McpServersResponse {
   servers: McpServerConfig[];
@@ -48,7 +32,7 @@ async function fetchMcpServers(): Promise<McpServerConfig[]> {
   }
 
   const data: McpServersResponse = await response.json();
-  return data.servers;
+  return data.servers ?? (data as unknown as McpServerConfig[]);
 }
 
 /**
@@ -73,7 +57,7 @@ async function createMcpServer(
   }
 
   const data = await response.json();
-  return data.server;
+  return data.server ?? data;
 }
 
 /**
@@ -99,7 +83,7 @@ async function updateMcpServer(
   }
 
   const data = await response.json();
-  return data.server;
+  return data.server ?? data;
 }
 
 /**
@@ -123,6 +107,7 @@ async function deleteMcpServer(name: string): Promise<void> {
  */
 export function useMcpServers() {
   const queryClient = useQueryClient();
+  const queryKey = queryKeys.mcpServers.lists();
 
   // Fetch servers query
   const {
@@ -131,38 +116,67 @@ export function useMcpServers() {
     error,
     refetch,
   } = useQuery({
-    queryKey: ['mcp-servers'],
+    queryKey,
     queryFn: fetchMcpServers,
-    staleTime: 30 * 1000, // 30 seconds
-    gcTime: 5 * 60 * 1000, // 5 minutes (formerly cacheTime)
+    gcTime: 5 * 60 * 1000,
   });
 
   // Create server mutation
   const createMutation = useMutation({
     mutationFn: createMcpServer,
-    onSuccess: () => {
-      // Invalidate and refetch servers list
-      queryClient.invalidateQueries({ queryKey: ['mcp-servers'] });
-    },
+    ...createOptimisticHandlers<McpServerConfig[], Partial<McpServerConfig>>({
+      queryClient,
+      queryKey,
+      updater: (current, variables) => {
+        const now = new Date().toISOString();
+        const optimistic: McpServerConfig = {
+          id: uuidv4(),
+          name: variables.name ?? 'new-server',
+          transport_type: variables.transport_type ?? 'stdio',
+          command: variables.command,
+          args: variables.args,
+          url: variables.url,
+          headers: variables.headers,
+          env: variables.env,
+          enabled: variables.enabled ?? true,
+          status: variables.status ?? 'disabled',
+          error: variables.error,
+          created_at: now,
+          updated_at: now,
+          tools_count: variables.tools_count,
+          resources_count: variables.resources_count,
+        };
+
+        return [optimistic, ...(current ?? [])];
+      },
+    }),
   });
 
   // Update server mutation
   const updateMutation = useMutation({
     mutationFn: ({ name, config }: { name: string; config: Partial<McpServerConfig> }) =>
       updateMcpServer(name, config),
-    onSuccess: () => {
-      // Invalidate and refetch servers list
-      queryClient.invalidateQueries({ queryKey: ['mcp-servers'] });
-    },
+    ...createOptimisticHandlers<McpServerConfig[], { name: string; config: Partial<McpServerConfig> }>({
+      queryClient,
+      queryKey,
+      updater: (current, variables) =>
+        (current ?? []).map((server) =>
+          server.name === variables.name
+            ? { ...server, ...variables.config, updated_at: new Date().toISOString() }
+            : server
+        ),
+    }),
   });
 
   // Delete server mutation
   const deleteMutation = useMutation({
     mutationFn: deleteMcpServer,
-    onSuccess: () => {
-      // Invalidate and refetch servers list
-      queryClient.invalidateQueries({ queryKey: ['mcp-servers'] });
-    },
+    ...createOptimisticHandlers<McpServerConfig[], string>({
+      queryClient,
+      queryKey,
+      updater: (current, name) =>
+        (current ?? []).filter((server) => server.name !== name),
+    }),
   });
 
   return {

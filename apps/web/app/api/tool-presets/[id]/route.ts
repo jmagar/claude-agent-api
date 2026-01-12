@@ -5,6 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { isUUID } from '@/lib/validation/uuid';
 
 const API_BASE_URL =
   process.env.API_BASE_URL || 'http://localhost:54000/api/v1';
@@ -22,7 +23,7 @@ function getApiKey(request: NextRequest) {
 }
 
 function mapPreset(preset: Record<string, unknown>) {
-  const tools = Array.isArray(preset.allowed_tools)
+  const allowed_tools = Array.isArray(preset.allowed_tools)
     ? preset.allowed_tools
     : Array.isArray(preset.tools)
       ? preset.tools
@@ -31,9 +32,10 @@ function mapPreset(preset: Record<string, unknown>) {
     id: preset.id,
     name: preset.name,
     description: preset.description,
-    tools,
+    allowed_tools,
+    disallowed_tools: preset.disallowed_tools || [],
     created_at: preset.created_at,
-    is_default: preset.is_system ?? preset.is_default,
+    is_system: !!(preset.is_system ?? preset.is_default),
   };
 }
 
@@ -41,6 +43,18 @@ export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  if (!isUUID(params.id)) {
+    return NextResponse.json(
+      {
+        error: {
+          code: 'INVALID_ID',
+          message: 'Invalid tool preset ID format (UUID expected)',
+        },
+      },
+      { status: 400 }
+    );
+  }
+
   try {
     const apiKey = getApiKey(request);
     if (!apiKey) {
@@ -75,15 +89,27 @@ export async function GET(
 
     const data = await response.json();
     const preset = data && typeof data === 'object' ? mapPreset(data) : data;
-    return jsonResponse({ preset } as Record<string, unknown>);
+    return jsonResponse(preset as any);
   } catch (error) {
     console.error('Tool preset GET error:', error);
-    return jsonResponse(
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  if (!isUUID(params.id)) {
+    return NextResponse.json(
       {
         error: {
-          code: 'INTERNAL_ERROR',
-          message: error instanceof Error ? error.message : 'Internal server error',
+          code: 'INVALID_ID',
+          message: 'Invalid tool preset ID format (UUID expected)',
         },
+      },
+      { status: 400 }
+    );
+  }
+
+  try {
+    const apiKey = getApiKey(request);
       },
       { status: 500 }
     );
@@ -152,16 +178,28 @@ export async function PUT(
         {
           error: {
             code: 'BACKEND_ERROR',
-            message: error.error?.message ?? 'Failed to update tool preset',
-          },
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  if (!isUUID(params.id)) {
+    return NextResponse.json(
+      {
+        error: {
+          code: 'INVALID_ID',
+          message: 'Invalid tool preset ID format (UUID expected)',
         },
-        { status: response.status }
-      );
-    }
+      },
+      { status: 400 }
+    );
+  }
+
+  try {
+    const apiKey = getApiKey(request);
 
     const data = await response.json();
     const preset = data && typeof data === 'object' ? mapPreset(data) : data;
-    return jsonResponse({ preset } as Record<string, unknown>);
+    return jsonResponse(preset as any);
   } catch (error) {
     console.error('Tool preset PUT error:', error);
     return jsonResponse(
@@ -212,8 +250,7 @@ export async function DELETE(
       );
     }
 
-    const data = await response.json().catch(() => ({}));
-    return jsonResponse(data);
+    return new NextResponse(null, { status: 204 });
   } catch (error) {
     console.error('Tool preset DELETE error:', error);
     return jsonResponse(

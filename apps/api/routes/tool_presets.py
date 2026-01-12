@@ -36,11 +36,17 @@ async def create_tool_preset(
 ) -> ToolPresetResponse:
     """Create a new tool preset."""
     service = ToolPresetService(cache)
+    allowed_tools = (
+        request.allowed_tools
+        if request.allowed_tools is not None
+        else request.tools
+    )
+    disallowed_tools = request.disallowed_tools or []
     preset = await service.create_preset(
         name=request.name,
         description=request.description,
-        allowed_tools=request.allowed_tools,
-        disallowed_tools=request.disallowed_tools,
+        allowed_tools=allowed_tools,
+        disallowed_tools=disallowed_tools,
     )
 
     return ToolPresetResponse(**preset.__dict__)
@@ -70,12 +76,20 @@ async def update_tool_preset(
 ) -> ToolPresetResponse:
     """Update a tool preset by ID."""
     service = ToolPresetService(cache)
+    allowed_tools = (
+        request.allowed_tools
+        if request.allowed_tools is not None
+        else request.tools
+    )
+    if allowed_tools is None:
+        allowed_tools = []
+    disallowed_tools = request.disallowed_tools or []
     preset = await service.update_preset(
         preset_id=preset_id,
         name=request.name,
         description=request.description,
-        allowed_tools=request.allowed_tools,
-        disallowed_tools=request.disallowed_tools,
+        allowed_tools=allowed_tools,
+        disallowed_tools=disallowed_tools,
     )
     if preset is None:
         raise ToolPresetNotFoundError(preset_id)

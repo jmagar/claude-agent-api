@@ -11,59 +11,95 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type { SlashCommand } from '@/types';
 
-const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:54000';
+const API_BASE_URL =
+  process.env.API_BASE_URL || 'http://localhost:54000/api/v1';
+
+function jsonResponse(body: Record<string, unknown>, init?: ResponseInit) {
+  const headers = new Headers(init?.headers);
+  if (!headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
+  return new NextResponse(JSON.stringify(body), { ...init, headers });
+}
+
+function getApiKey(request: NextRequest) {
+  return request.headers.get('X-API-Key') || request.cookies.get('api-key')?.value;
+}
 
 export async function GET(request: NextRequest) {
   try {
+    const apiKey = getApiKey(request);
+    if (!apiKey) {
+      return jsonResponse(
+        { error: { code: 'INVALID_API_KEY', message: 'API key is required' } },
+        { status: 401 }
+      );
+    }
+
     const response = await fetch(`${API_BASE_URL}/slash-commands`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        ...(request.headers.get('authorization')
-          ? { Authorization: request.headers.get('authorization')! }
-          : {}),
+        'X-API-Key': apiKey,
       },
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      return NextResponse.json(
-        { error: error.message || 'Failed to fetch slash commands' },
+      const error = await response.json().catch(() => ({
+        error: { message: 'Failed to fetch slash commands' },
+      }));
+      return jsonResponse(
+        { error: error.error?.message ?? 'Failed to fetch slash commands' },
         { status: response.status }
       );
     }
 
     const data = await response.json();
-    return NextResponse.json({ commands: data.commands || [] });
+    return jsonResponse({ commands: data.commands || [] });
   } catch (error) {
     console.error('Error fetching slash commands:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return jsonResponse({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
+    const apiKey = getApiKey(request);
+    if (!apiKey) {
+      return jsonResponse(
+        { error: { code: 'INVALID_API_KEY', message: 'API key is required' } },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
 
     if (!body.name || typeof body.name !== 'string') {
-      return NextResponse.json({ error: 'Name is required and must be a string' }, { status: 400 });
+      return jsonResponse(
+        { error: 'Name is required and must be a string' },
+        { status: 400 }
+      );
     }
 
     if (!body.description || typeof body.description !== 'string') {
-      return NextResponse.json({ error: 'Description is required and must be a string' }, { status: 400 });
+      return jsonResponse(
+        { error: 'Description is required and must be a string' },
+        { status: 400 }
+      );
     }
 
     if (!body.content || typeof body.content !== 'string') {
-      return NextResponse.json({ error: 'Content is required and must be a string' }, { status: 400 });
+      return jsonResponse(
+        { error: 'Content is required and must be a string' },
+        { status: 400 }
+      );
     }
 
     const response = await fetch(`${API_BASE_URL}/slash-commands`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(request.headers.get('authorization')
-          ? { Authorization: request.headers.get('authorization')! }
-          : {}),
+        'X-API-Key': apiKey,
       },
       body: JSON.stringify({
         name: body.name,
@@ -74,17 +110,19 @@ export async function POST(request: NextRequest) {
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      return NextResponse.json(
-        { error: error.message || 'Failed to create slash command' },
+      const error = await response.json().catch(() => ({
+        error: { message: 'Failed to create slash command' },
+      }));
+      return jsonResponse(
+        { error: error.error?.message ?? 'Failed to create slash command' },
         { status: response.status }
       );
     }
 
     const data = await response.json();
-    return NextResponse.json({ command: data.command as SlashCommand }, { status: 201 });
+    return jsonResponse(data as any, { status: 201 });
   } catch (error) {
     console.error('Error creating slash command:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return jsonResponse({ error: 'Internal server error' }, { status: 500 });
   }
 }
