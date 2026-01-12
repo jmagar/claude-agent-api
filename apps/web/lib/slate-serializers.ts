@@ -5,15 +5,15 @@
  * Preserves YAML frontmatter during conversions.
  */
 
-import { parseYamlFrontmatter, extractContent } from './yaml-validation';
+import { parseYamlFrontmatter } from './yaml-validation';
 
 // Slate node types
 type Text = { text: string; bold?: boolean; italic?: boolean; code?: boolean };
 type Paragraph = { type: 'p'; children: (Text | Link)[] };
-type Heading = { type: 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6'; children: Text[] };
+type Heading = { type: 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6'; children: (Text | Link)[] };
 type CodeBlock = { type: 'code_block'; lang?: string; children: Text[] };
 type List = { type: 'ul' | 'ol'; children: ListItem[] };
-type ListItem = { type: 'lic'; children: (Text | Paragraph)[] };
+type ListItem = { type: 'lic'; children: (Text | Link | Paragraph)[] };
 type Blockquote = { type: 'blockquote'; children: Paragraph[] };
 type Link = { type: 'a'; url: string; children: Text[] };
 type SlateNode = Paragraph | Heading | CodeBlock | List | Blockquote;
