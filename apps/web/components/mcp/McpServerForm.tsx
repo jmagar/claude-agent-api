@@ -89,7 +89,7 @@ export function McpServerForm({
 
   // Form state
   const [name, setName] = useState(server?.name ?? '');
-  const [type, setType] = useState<McpTransportType>(server?.type ?? 'stdio');
+  const [type, setType] = useState<McpTransportType>(server?.transport_type ?? 'stdio');
   const [command, setCommand] = useState(server?.command ?? '');
   const [args, setArgs] = useState(
     server?.args ? JSON.stringify(server.args, null, 2) : '[]'
@@ -97,12 +97,12 @@ export function McpServerForm({
   const [url, setUrl] = useState(server?.url ?? '');
   const [envVars, setEnvVars] = useState<EnvVar[]>(
     server?.env
-      ? Object.entries(server.env).map(([key, value]) => ({ key, value }))
+      ? Object.entries(server.env).map(([key, value]) => ({ key, value: value as string }))
       : []
   );
   const [headers, setHeaders] = useState<Header[]>(
     server?.headers
-      ? Object.entries(server.headers).map(([key, value]) => ({ key, value }))
+      ? Object.entries(server.headers).map(([key, value]) => ({ key, value: value as string }))
       : []
   );
   const [enabled, setEnabled] = useState(server?.enabled ?? true);
@@ -181,7 +181,7 @@ export function McpServerForm({
     try {
       const data: Partial<McpServerConfig> = {
         name: name.trim(),
-        type,
+        transport_type: type,
         enabled,
       };
 

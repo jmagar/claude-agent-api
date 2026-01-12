@@ -460,7 +460,7 @@ describe('McpServerForm', () => {
         expect(mockOnSubmit).toHaveBeenCalledWith(
           expect.objectContaining({
             name: 'test-server',
-            type: 'stdio',
+            transport_type: 'stdio',
             command: 'npx',
             args: ['--version'],
             enabled: true,
@@ -489,7 +489,7 @@ describe('McpServerForm', () => {
         expect(mockOnSubmit).toHaveBeenCalledWith(
           expect.objectContaining({
             name: 'test-server',
-            type: 'sse',
+            transport_type: 'sse',
             url: 'http://localhost:3000/sse',
             enabled: true,
           })
