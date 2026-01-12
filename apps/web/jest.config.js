@@ -14,9 +14,20 @@ const customJestConfig = {
   },
   moduleNameMapper: {
     "^@/(.*)$": "<rootDir>/$1",
+    "^@udecode/plate-core/react$": "<rootDir>/tests/__mocks__/@udecode/plate-core.tsx",
+    "^@udecode/plate-core$": "<rootDir>/tests/__mocks__/@udecode/plate-core.tsx",
+    "^@udecode/plate-paragraph$": "<rootDir>/tests/__mocks__/@udecode/plate-paragraph.ts",
+    "^@udecode/plate-heading$": "<rootDir>/tests/__mocks__/@udecode/plate-heading.ts",
+    "^@udecode/plate-basic-marks$": "<rootDir>/tests/__mocks__/@udecode/plate-basic-marks.ts",
+    "^@udecode/plate-list$": "<rootDir>/tests/__mocks__/@udecode/plate-list.ts",
+    "^@udecode/plate-code-block$": "<rootDir>/tests/__mocks__/@udecode/plate-code-block.ts",
+    "^@udecode/plate-block-quote$": "<rootDir>/tests/__mocks__/@udecode/plate-block-quote.ts",
+    "^@udecode/plate-link$": "<rootDir>/tests/__mocks__/@udecode/plate-link.ts",
+    "^@udecode/plate-horizontal-rule$": "<rootDir>/tests/__mocks__/@udecode/plate-horizontal-rule.ts",
+    "^@udecode/plate-autoformat$": "<rootDir>/tests/__mocks__/@udecode/plate-autoformat.ts",
   },
   transformIgnorePatterns: [
-    "/node_modules/(?!(.pnpm|msw|@mswjs|open-draft|until-async|headers-polyfill|react-syntax-highlighter|refractor|hast-util-to-html|property-information|space-separated-tokens|comma-separated-tokens|hast-util-whitespace))",
+    "/node_modules/(?!(.pnpm|msw|@mswjs|open-draft|until-async|headers-polyfill|react-syntax-highlighter|refractor|hast-util-to-html|property-information|space-separated-tokens|comma-separated-tokens|hast-util-whitespace|@udecode|nanoid|slate|slate-react|slate-history|slate-dom))",
   ],
   testMatch: [
     "<rootDir>/tests/unit/**/*.test.{ts,tsx}",
