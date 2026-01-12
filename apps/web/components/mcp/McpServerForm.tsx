@@ -27,7 +27,6 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
   SelectContent,
@@ -37,8 +36,15 @@ import {
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { XIcon, PlusIcon } from 'lucide-react';
+import { PlateJsonEditor } from '@/components/plate';
 import type { McpServerConfig, McpTransportType } from '@/types';
 import { validateMcpServerForm } from '@/lib/validation/mcp-server';
+import { z } from 'zod';
+
+/**
+ * Zod schema for MCP server arguments (JSON array of strings)
+ */
+const mcpArgsSchema = z.array(z.string());
 
 export interface McpServerFormProps {
   /**
@@ -318,15 +324,12 @@ export function McpServerForm({
 
           <div className="space-y-2">
             <Label htmlFor="args">Arguments (JSON array)</Label>
-            <Textarea
-              id="args"
+            <PlateJsonEditor
               value={args}
-              onChange={(e) => setArgs(e.target.value)}
+              onChange={setArgs}
+              schema={mcpArgsSchema}
               placeholder='["-y", "@modelcontextprotocol/server-postgres"]'
-              rows={4}
-              className="font-mono text-sm"
-              aria-invalid={!!errors.args}
-              aria-describedby={errors.args ? 'args-error' : undefined}
+              ariaLabel="MCP server arguments"
             />
             {errors.args && (
               <p id="args-error" className="text-sm text-destructive" role="alert">

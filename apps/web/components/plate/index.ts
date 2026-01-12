@@ -16,6 +16,9 @@ export type { PlateMarkdownEditorProps } from './PlateMarkdownEditor';
 export { PlateYamlEditor } from './PlateYamlEditor';
 export type { PlateYamlEditorProps } from './PlateYamlEditor';
 
+export { PlateJsonEditor } from './PlateJsonEditor';
+export type { PlateJsonEditorProps } from './PlateJsonEditor';
+
 export { useMarkdownSync } from './hooks/useMarkdownSync';
 export type { UseMarkdownSyncReturn } from './hooks/useMarkdownSync';
 

@@ -18,6 +18,47 @@ import userEvent from '@testing-library/user-event';
 import { McpServerForm } from '@/components/mcp/McpServerForm';
 import type { McpServerConfig } from '@/types';
 
+// Mock the PlateEditor component used by PlateJsonEditor
+jest.mock('@/components/plate/PlateEditor', () => ({
+  PlateEditor: ({ value, onChange, placeholder, ariaLabel }: {
+    value: Array<{ type: string; lang?: string; children: Array<{ text: string }> }>;
+    onChange: (value: Array<{ type: string; lang?: string; children: Array<{ text: string }> }>) => void;
+    placeholder?: string;
+    ariaLabel?: string;
+  }) => {
+    // Extract text from code_block node
+    const getText = (nodes: Array<{ type: string; children: Array<{ text: string }> }>) => {
+      if (nodes.length === 0) return '';
+      const firstNode = nodes[0];
+      return firstNode.children[0]?.text || '';
+    };
+
+    return (
+      <textarea
+        data-testid="plate-editor"
+        aria-label={ariaLabel}
+        placeholder={placeholder}
+        value={getText(value)}
+        onChange={(e) => {
+          // Convert text back to code_block node for JSON editor
+          const text = e.target.value;
+          const nodes = [{
+            type: 'code_block',
+            lang: 'json',
+            children: [{ text }]
+          }];
+          onChange(nodes);
+        }}
+      />
+    );
+  },
+}));
+
+// Mock PlateMarkdownToolbar to avoid platejs imports
+jest.mock('@/components/plate/PlateMarkdownToolbar', () => ({
+  PlateMarkdownToolbar: () => <div data-testid="plate-toolbar">Toolbar (mocked)</div>,
+}));
+
 /**
  * Helper to select a value from Radix UI Select component
  * Radix UI Select doesn't support fireEvent.change, so we need to click the trigger and then the option
@@ -109,7 +150,7 @@ describe('McpServerForm', () => {
       render(<McpServerForm onSubmit={mockOnSubmit} onCancel={mockOnCancel} />);
 
       expect(screen.getByLabelText(/command/i)).toBeInTheDocument();
-      expect(screen.getByLabelText(/arguments/i)).toBeInTheDocument();
+      expect(screen.getAllByLabelText(/mcp server arguments/i)[0]).toBeInTheDocument();
       expect(screen.queryByLabelText(/url/i)).not.toBeInTheDocument();
     });
 
@@ -152,11 +193,13 @@ describe('McpServerForm', () => {
       expect(commandInput).toBeInTheDocument();
     });
 
-    it('displays arguments textarea for stdio type', () => {
+    it('displays arguments editor with PlateJsonEditor for stdio type', () => {
       render(<McpServerForm onSubmit={mockOnSubmit} onCancel={mockOnCancel} />);
 
-      const argsTextarea = screen.getByLabelText(/arguments/i);
-      expect(argsTextarea).toBeInTheDocument();
+      // PlateJsonEditor should be present (get the first one, which is the wrapper div)
+      const argsEditors = screen.getAllByLabelText(/mcp server arguments/i);
+      expect(argsEditors.length).toBeGreaterThan(0);
+      expect(argsEditors[0]).toBeInTheDocument();
     });
 
     it('displays environment variables editor', () => {
@@ -323,7 +366,7 @@ describe('McpServerForm', () => {
   });
 
   describe('Arguments Editor', () => {
-    it('displays arguments as JSON array in textarea', () => {
+    it('displays arguments as JSON array with PlateJsonEditor', () => {
       render(
         <McpServerForm
           server={existingServer}
@@ -332,8 +375,10 @@ describe('McpServerForm', () => {
         />
       );
 
-      const argsTextarea = screen.getByLabelText(/arguments/i);
-      expect(argsTextarea).toHaveValue(
+      // Get the textarea element (second element with aria-label)
+      const argsEditors = screen.getAllByLabelText(/mcp server arguments/i);
+      const argsEditor = argsEditors.find(el => el.tagName === 'TEXTAREA');
+      expect(argsEditor).toHaveValue(
         JSON.stringify(existingServer.args, null, 2)
       );
     });
@@ -347,8 +392,10 @@ describe('McpServerForm', () => {
       const commandInput = screen.getByLabelText(/command/i);
       fireEvent.change(commandInput, { target: { value: 'npx' } });
 
-      const argsTextarea = screen.getByLabelText(/arguments/i);
-      fireEvent.change(argsTextarea, { target: { value: 'not valid json' } });
+      // Get the textarea element
+      const argsEditors = screen.getAllByLabelText(/mcp server arguments/i);
+      const argsEditor = argsEditors.find(el => el.tagName === 'TEXTAREA')!;
+      fireEvent.change(argsEditor, { target: { value: 'not valid json' } });
 
       const submitButton = screen.getByRole('button', { name: /create server/i });
       fireEvent.click(submitButton);
@@ -399,8 +446,10 @@ describe('McpServerForm', () => {
       const commandInput = screen.getByLabelText(/command/i);
       fireEvent.change(commandInput, { target: { value: 'npx' } });
 
-      const argsTextarea = screen.getByLabelText(/arguments/i);
-      fireEvent.change(argsTextarea, {
+      // Get the textarea element
+      const argsEditors = screen.getAllByLabelText(/mcp server arguments/i);
+      const argsEditor = argsEditors.find(el => el.tagName === 'TEXTAREA')!;
+      fireEvent.change(argsEditor, {
         target: { value: '["--version"]' },
       });
 
@@ -531,7 +580,7 @@ describe('McpServerForm', () => {
       expect(screen.getByLabelText(/server name/i)).toBeInTheDocument();
       expect(screen.getByLabelText(/transport type/i)).toBeInTheDocument();
       expect(screen.getByLabelText(/command/i)).toBeInTheDocument();
-      expect(screen.getByLabelText(/arguments/i)).toBeInTheDocument();
+      expect(screen.getAllByLabelText(/mcp server arguments/i)[0]).toBeInTheDocument();
       expect(screen.getByLabelText(/enabled/i)).toBeInTheDocument();
     });
 
