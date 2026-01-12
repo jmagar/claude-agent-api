@@ -2,6 +2,57 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { SkillEditor } from '@/components/skills/SkillEditor';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
+// Mock PlateMarkdownEditor components
+jest.mock('@/components/plate/PlateEditor', () => ({
+  PlateEditor: ({
+    value,
+    onChange,
+    placeholder,
+    ariaLabel,
+  }: {
+    value: unknown;
+    onChange: (value: unknown) => void;
+    placeholder?: string;
+    ariaLabel?: string;
+  }) => (
+    <textarea
+      data-testid="plate-editor"
+      data-placeholder={placeholder}
+      aria-label={ariaLabel}
+      onChange={(e) => {
+        // Simulate Slate change
+        onChange([{ type: 'p', children: [{ text: e.target.value }] }]);
+      }}
+      role="textbox"
+    />
+  ),
+}));
+
+jest.mock('@/components/plate/PlateMarkdownToolbar', () => ({
+  PlateMarkdownToolbar: () => (
+    <div data-testid="plate-toolbar">
+      <button role="button" aria-label="Bold">Bold</button>
+      <button role="button" aria-label="Italic">Italic</button>
+      <button role="button" aria-label="Heading">Heading</button>
+      <button role="button" aria-label="Code Block">Code Block</button>
+    </div>
+  ),
+}));
+
+jest.mock('@/lib/slate-serializers', () => ({
+  markdownToSlate: (markdown: string) => {
+    if (!markdown.trim()) {
+      return [{ type: 'p', children: [{ text: '' }] }];
+    }
+    return [{ type: 'p', children: [{ text: markdown }] }];
+  },
+  slateToMarkdown: (value: unknown) => {
+    const nodes = value as Array<{ children: Array<{ text: string }> }>;
+    if (!nodes || nodes.length === 0) return '';
+    return nodes.map((node) => node.children[0].text).join('\n');
+  },
+}));
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: { retry: false },
@@ -318,8 +369,8 @@ describe('SkillEditor', () => {
       fireEvent.click(previewTab);
 
       await waitFor(() => {
-        expect(screen.getByText('Test-Driven Development')).toBeInTheDocument();
-        expect(screen.getByText('RED Phase')).toBeInTheDocument();
+        expect(screen.getByText(/Test-Driven Development/i)).toBeInTheDocument();
+        expect(screen.getByText(/RED Phase/i)).toBeInTheDocument();
       });
     });
 
