@@ -8,7 +8,7 @@
 'use client';
 
 import * as React from 'react';
-import ReactMarkdown from 'react-markdown';
+import Markdown from 'react-markdown';
 import { PlateEditor } from './PlateEditor';
 import { PlateMarkdownToolbar } from './PlateMarkdownToolbar';
 import { useMarkdownSync } from './hooks/useMarkdownSync';
@@ -133,10 +133,10 @@ export function PlateMarkdownEditor({
         )}
 
         {activeTab === 'preview' && (
-          <div className="border border-gray-300 rounded-lg p-6 min-h-[300px]">
-            <ReactMarkdown className="prose max-w-none">
+          <div className="border border-gray-300 rounded-lg p-6 min-h-[300px] prose max-w-none">
+            <Markdown>
               {value || '*No content to preview*'}
-            </ReactMarkdown>
+            </Markdown>
           </div>
         )}
       </div>

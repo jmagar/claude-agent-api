@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, FormEvent } from 'react';
-import ReactMarkdown from 'react-markdown';
+import Markdown from 'react-markdown';
 import { PlateMarkdownEditor } from '@/components/plate';
 import type { SkillDefinition } from '@/types';
 
@@ -263,10 +263,10 @@ ${content}`;
           <div className="border border-gray-300 rounded-lg p-6 min-h-96">
             <h2 className="text-2xl font-bold mb-4">{name || 'Untitled Skill'}</h2>
             <p className="text-gray-600 mb-6">{description || 'No description'}</p>
-            <div className="border-t border-gray-200 pt-6">
-              <ReactMarkdown className="prose max-w-none">
+            <div className="border-t border-gray-200 pt-6 prose max-w-none">
+              <Markdown>
                 {getMarkdownContent()}
-              </ReactMarkdown>
+              </Markdown>
             </div>
           </div>
         )}

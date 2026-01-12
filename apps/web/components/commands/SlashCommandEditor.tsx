@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, FormEvent } from 'react';
-import ReactMarkdown from 'react-markdown';
+import Markdown from 'react-markdown';
 import { PlateMarkdownEditor } from '@/components/plate';
 import type { SlashCommand } from '@/types';
 
@@ -259,10 +259,10 @@ export function SlashCommandEditor({ command, onSubmit, onCancel }: SlashCommand
               <h2 className="text-2xl font-bold">{name || 'Untitled Command'}</h2>
             </div>
             <p className="text-gray-600 mb-6">{description || 'No description'}</p>
-            <div className="border-t border-gray-200 pt-6">
-              <ReactMarkdown className="prose max-w-none">
+            <div className="border-t border-gray-200 pt-6 prose max-w-none">
+              <Markdown>
                 {getMarkdownContent()}
-              </ReactMarkdown>
+              </Markdown>
             </div>
           </div>
         )}

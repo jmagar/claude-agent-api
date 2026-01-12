@@ -1,7 +1,5 @@
 'use client';
 
-import * as React from 'react';
-
 import {
   BoldIcon,
   Code2Icon,
@@ -15,6 +13,7 @@ import {
 } from 'lucide-react';
 import { KEYS } from 'platejs';
 
+import { BlockToolbarButton } from '@/components/ui/block-toolbar-button';
 import { RedoToolbarButton, UndoToolbarButton } from '@/components/ui/history-toolbar-button';
 import { LinkToolbarButton } from '@/components/ui/link-toolbar-button';
 import {
@@ -38,7 +37,7 @@ export function PlateMarkdownToolbar({ className }: PlateMarkdownToolbarProps) {
         <RedoToolbarButton />
       </ToolbarGroup>
 
-      {/* Mark buttons */}
+      {/* Mark buttons (inline formatting) */}
       <ToolbarGroup>
         <MarkToolbarButton nodeType={KEYS.bold} tooltip="Bold (⌘+B)">
           <BoldIcon />
@@ -60,19 +59,19 @@ export function PlateMarkdownToolbar({ className }: PlateMarkdownToolbarProps) {
         </MarkToolbarButton>
       </ToolbarGroup>
 
-      {/* Heading buttons */}
+      {/* Heading buttons (block elements) */}
       <ToolbarGroup>
-        <MarkToolbarButton nodeType="h1" tooltip="Heading 1">
+        <BlockToolbarButton nodeType="h1" tooltip="Heading 1">
           <Heading1Icon />
-        </MarkToolbarButton>
+        </BlockToolbarButton>
 
-        <MarkToolbarButton nodeType="h2" tooltip="Heading 2">
+        <BlockToolbarButton nodeType="h2" tooltip="Heading 2">
           <Heading2Icon />
-        </MarkToolbarButton>
+        </BlockToolbarButton>
 
-        <MarkToolbarButton nodeType="h3" tooltip="Heading 3">
+        <BlockToolbarButton nodeType="h3" tooltip="Heading 3">
           <Heading3Icon />
-        </MarkToolbarButton>
+        </BlockToolbarButton>
       </ToolbarGroup>
 
       {/* List buttons */}
@@ -83,13 +82,13 @@ export function PlateMarkdownToolbar({ className }: PlateMarkdownToolbarProps) {
 
       {/* Block buttons */}
       <ToolbarGroup>
-        <MarkToolbarButton nodeType={KEYS.codeBlock} tooltip="Code Block">
+        <BlockToolbarButton nodeType={KEYS.codeBlock} tooltip="Code Block">
           <FileCodeIcon />
-        </MarkToolbarButton>
+        </BlockToolbarButton>
 
-        <MarkToolbarButton nodeType={KEYS.blockquote} tooltip="Blockquote">
+        <BlockToolbarButton nodeType={KEYS.blockquote} tooltip="Blockquote">
           <QuoteIcon />
-        </MarkToolbarButton>
+        </BlockToolbarButton>
 
         <LinkToolbarButton />
       </ToolbarGroup>

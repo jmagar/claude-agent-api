@@ -49,6 +49,9 @@ export function useMarkdownSync(
     if (currentMarkdown.trim() !== markdownValue.trim()) {
       setSlateValue(markdownToSlate(markdownValue));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Intentionally only sync when markdownValue changes externally.
+    // Including slateValue would cause infinite re-render loops since we're comparing it.
+    // isInitialized is only read, not written after initialization flag is set.
   }, [markdownValue]);
 
   // Handle Slate changes and convert back to markdown
