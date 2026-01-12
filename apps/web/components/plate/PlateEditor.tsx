@@ -84,6 +84,7 @@ export function PlateEditor({
           placeholder={placeholder}
           disabled={disabled}
           readOnly={readOnly}
+          // eslint-disable-next-line jsx-a11y/no-autofocus -- autoFocus is opt-in via props and needed for UX
           autoFocus={autoFocus}
           aria-label={ariaLabel}
           aria-describedby={ariaDescribedBy}

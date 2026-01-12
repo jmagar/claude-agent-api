@@ -179,7 +179,7 @@ function parseInlineMarkdown(text: string): (Text | Link)[] {
     }
 
     // Regular text - consume until next special character
-    const nextSpecial = remaining.search(/[\*`\[]/);
+    const nextSpecial = remaining.search(/[*`[]/);
     if (nextSpecial === -1) {
       children.push({ text: remaining });
       break;
@@ -216,9 +216,10 @@ function serializeNode(node: SlateNode): string {
       return `##### ${serializeChildren(node.children)}`;
     case 'h6':
       return `###### ${serializeChildren(node.children)}`;
-    case 'code_block':
+    case 'code_block': {
       const lang = (node as CodeBlock).lang || '';
       return '```' + lang + '\n' + node.children[0].text + '\n```';
+    }
     case 'ul':
       return (node as List).children.map(li => `- ${serializeChildren(li.children)}`).join('\n');
     case 'ol':
