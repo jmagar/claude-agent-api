@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import Any, cast
 from uuid import uuid4
 
 from apps.api.protocols import Cache
@@ -51,7 +52,7 @@ class McpServerConfigService:
         raw_servers = await self._cache.get_many_json(keys)
         servers: list[McpServerRecord] = []
 
-        for name, raw in zip(names, raw_servers):
+        for name, raw in zip(names, raw_servers, strict=True):
             if raw is None:
                 await self._cache.remove_from_set(self._INDEX_KEY, name)
                 continue
@@ -75,18 +76,20 @@ class McpServerConfigService:
             id=str(uuid4()),
             name=name,
             transport_type=transport_type,
-            command=config.get("command"),
-            args=list(config.get("args", [])) if config.get("args") is not None else None,
-            url=config.get("url"),
-            headers=config.get("headers"),
-            env=config.get("env"),
+            command=cast("str | None", config.get("command")),
+            args=list(cast("list[str]", config.get("args", []))) if config.get("args") is not None else None,
+            url=cast("str | None", config.get("url")),
+            headers=cast("dict[str, str] | None", config.get("headers")),
+            env=cast("dict[str, str] | None", config.get("env")),
             enabled=bool(config.get("enabled", True)),
             status=str(config.get("status", "active")),
-            error=config.get("error"),
+            error=cast("str | None", config.get("error")),
             created_at=now,
             updated_at=None,
-            metadata=config.get("metadata"),
-            resources=list(config.get("resources", [])) if config.get("resources") else [],
+            metadata=cast("dict[str, Any] | None", config.get("metadata")),
+            resources=list(cast("list[dict[str, Any]]", config.get("resources", [])))
+            if config.get("resources")
+            else [],
         )
 
         await self._cache.set_json(self._server_key(name), record.__dict__)
@@ -98,7 +101,7 @@ class McpServerConfigService:
         raw = await self._cache.get_json(self._server_key(name))
         if raw is None:
             return None
-        return self._map_record(name, raw)
+        return self._map_record(name, cast("dict[str, Any]", raw))
 
     async def update_server(
         self,
@@ -116,18 +119,20 @@ class McpServerConfigService:
             id=existing.id,
             name=existing.name,
             transport_type=transport_type or existing.transport_type,
-            command=next_config.get("command", existing.command),
-            args=next_config.get("args", existing.args),
-            url=next_config.get("url", existing.url),
-            headers=next_config.get("headers", existing.headers),
-            env=next_config.get("env", existing.env),
+            command=cast("str | None", next_config.get("command", existing.command)),
+            args=cast("list[str] | None", next_config.get("args", existing.args)),
+            url=cast("str | None", next_config.get("url", existing.url)),
+            headers=cast("dict[str, str] | None", next_config.get("headers", existing.headers)),
+            env=cast("dict[str, str] | None", next_config.get("env", existing.env)),
             enabled=bool(next_config.get("enabled", existing.enabled)),
             status=str(next_config.get("status", existing.status)),
-            error=next_config.get("error", existing.error),
+            error=cast("str | None", next_config.get("error", existing.error)),
             created_at=existing.created_at,
             updated_at=datetime.now(UTC).isoformat(),
-            metadata=next_config.get("metadata", existing.metadata),
-            resources=next_config.get("resources", existing.resources),
+            metadata=cast("dict[str, Any] | None", next_config.get("metadata", existing.metadata)),
+            resources=cast(
+                "list[dict[str, Any]] | None", next_config.get("resources", existing.resources)
+            ),
         )
 
         await self._cache.set_json(self._server_key(name), record.__dict__)
@@ -138,22 +143,26 @@ class McpServerConfigService:
         await self._cache.remove_from_set(self._INDEX_KEY, name)
         return await self._cache.delete(self._server_key(name))
 
-    def _map_record(self, name: str, raw: dict[str, object]) -> McpServerRecord:
+    def _map_record(self, name: str, raw: dict[str, Any]) -> McpServerRecord:
         """<summary>Map cached data to MCP server record.</summary>"""
         return McpServerRecord(
             id=str(raw.get("id", "")),
             name=str(raw.get("name", name)),
             transport_type=str(raw.get("transport_type", raw.get("type", ""))),
-            command=raw.get("command"),
-            args=list(raw.get("args", [])) if raw.get("args") is not None else None,
-            url=raw.get("url"),
-            headers=raw.get("headers"),
-            env=raw.get("env"),
+            command=cast("str | None", raw.get("command")),
+            args=list(cast("list[str]", raw.get("args", [])))
+            if raw.get("args") is not None
+            else None,
+            url=cast("str | None", raw.get("url")),
+            headers=cast("dict[str, str] | None", raw.get("headers")),
+            env=cast("dict[str, str] | None", raw.get("env")),
             enabled=bool(raw.get("enabled", True)),
             status=str(raw.get("status", "active")),
-            error=raw.get("error"),
+            error=cast("str | None", raw.get("error")),
             created_at=str(raw.get("created_at", "")),
-            updated_at=raw.get("updated_at"),
-            metadata=raw.get("metadata"),
-            resources=list(raw.get("resources", [])) if raw.get("resources") else [],
+            updated_at=cast("str | None", raw.get("updated_at")),
+            metadata=cast("dict[str, Any] | None", raw.get("metadata")),
+            resources=list(cast("list[dict[str, Any]]", raw.get("resources", [])))
+            if raw.get("resources")
+            else [],
         )

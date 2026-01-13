@@ -7,6 +7,7 @@ import structlog
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from packaging.version import parse as parse_version
 
 from apps.api import __version__
 from apps.api.config import get_settings
@@ -26,14 +27,52 @@ from apps.api.routes import (
     query,
     session_control,
     sessions,
+    skills,
     slash_commands,
     tool_presets,
-    skills,
     websocket,
 )
 from apps.api.services.shutdown import get_shutdown_manager, reset_shutdown_manager
 
 logger = structlog.get_logger(__name__)
+
+# Minimum supported SDK version - update when new SDK features are required
+MIN_SDK_VERSION = "0.1.19"
+
+
+def verify_sdk_version() -> None:
+    """Verify Claude Agent SDK version meets minimum requirements.
+
+    Logs a warning if the installed SDK version is below the minimum required version.
+    This check helps catch compatibility issues early during startup.
+
+    Raises:
+        RuntimeError: If SDK is not installed or version cannot be determined.
+    """
+    try:
+        from claude_agent_sdk import __version__ as sdk_version
+    except ImportError as e:
+        raise RuntimeError(
+            "Claude Agent SDK is not installed. "
+            "Install it with: uv add claude-agent-sdk"
+        ) from e
+
+    installed = parse_version(sdk_version)
+    minimum = parse_version(MIN_SDK_VERSION)
+
+    if installed < minimum:
+        logger.warning(
+            "sdk_version_below_minimum",
+            installed_version=sdk_version,
+            minimum_version=MIN_SDK_VERSION,
+            hint=f"Upgrade with: uv add claude-agent-sdk>={MIN_SDK_VERSION}",
+        )
+    else:
+        logger.debug(
+            "sdk_version_verified",
+            installed_version=sdk_version,
+            minimum_version=MIN_SDK_VERSION,
+        )
 
 
 @asynccontextmanager
@@ -49,6 +88,9 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
         log_level=settings.log_level,
         log_json=settings.log_json,
     )
+
+    # Verify SDK version compatibility
+    verify_sdk_version()
 
     # Reset shutdown manager for fresh state
     reset_shutdown_manager()
@@ -97,11 +139,11 @@ def create_app() -> FastAPI:
 
     # Add middleware (order matters - first added is last executed)
     # Reverse order so auth runs first, then correlation, then logging, then CORS
-    app.add_middleware(ApiKeyAuthMiddleware)
-    app.add_middleware(CorrelationIdMiddleware)
-    app.add_middleware(RequestLoggingMiddleware, skip_paths=["/health", "/"])
+    app.add_middleware(ApiKeyAuthMiddleware)  # type: ignore
+    app.add_middleware(CorrelationIdMiddleware)  # type: ignore
+    app.add_middleware(RequestLoggingMiddleware, skip_paths=["/health", "/"])  # type: ignore
     app.add_middleware(
-        CORSMiddleware,
+        CORSMiddleware,  # type: ignore
         allow_origins=settings.cors_origins,
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],

@@ -1,8 +1,9 @@
 """MCP share token service."""
 
+import secrets
 from dataclasses import dataclass
 from datetime import UTC, datetime
-import secrets
+from typing import Any, cast
 
 import structlog
 
@@ -86,6 +87,6 @@ class McpShareService:
             return None
         return McpSharePayload(
             name=str(payload.get("name", "")),
-            config=payload.get("config", {}),
+            config=cast("dict[str, Any]", payload.get("config", {})),
             created_at=str(payload.get("created_at", "")),
         )

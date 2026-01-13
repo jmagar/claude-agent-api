@@ -2,6 +2,7 @@
 
 from pydantic import BaseModel, Field
 
+
 class McpShareCreateRequest(BaseModel):
     """Request payload for creating MCP share tokens."""
 

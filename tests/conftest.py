@@ -7,10 +7,11 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
-from alembic import command
 from alembic.config import Config
 from filelock import FileLock
 from httpx import ASGITransport, AsyncClient
+
+from alembic import command
 
 # Set test environment variables before importing app
 os.environ.setdefault("API_KEY", "test-api-key-12345")
@@ -220,6 +221,8 @@ async def mock_active_session_id(_async_client: AsyncClient) -> AsyncGenerator[s
     Creates a session and registers it with the agent service as active.
     Cleans up the active session registration after the test completes.
     """
+    from uuid import uuid4
+
     from apps.api.adapters.session_repo import SessionRepository
     from apps.api.dependencies import (
         get_cache,
@@ -228,7 +231,6 @@ async def mock_active_session_id(_async_client: AsyncClient) -> AsyncGenerator[s
     )
     from apps.api.services.agent import AgentService
     from apps.api.services.session import SessionService
-    from uuid import uuid4
 
     # Create session in session service
     cache = await get_cache()

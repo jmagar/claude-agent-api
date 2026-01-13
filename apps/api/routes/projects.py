@@ -4,7 +4,10 @@ from fastapi import APIRouter
 
 from apps.api.dependencies import ApiKey, Cache
 from apps.api.exceptions import APIError
-from apps.api.schemas.requests.projects import ProjectCreateRequest, ProjectUpdateRequest
+from apps.api.schemas.requests.projects import (
+    ProjectCreateRequest,
+    ProjectUpdateRequest,
+)
 from apps.api.schemas.responses import ProjectListResponse, ProjectResponse
 from apps.api.services.projects import ProjectService
 

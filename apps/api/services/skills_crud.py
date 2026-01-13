@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import cast
 from uuid import uuid4
 
 from apps.api.protocols import Cache
@@ -45,7 +46,7 @@ class SkillCrudService:
         raw_skills = await self._cache.get_many_json(keys)
         skills: list[SkillRecord] = []
 
-        for skill_id, raw in zip(ids, raw_skills):
+        for skill_id, raw in zip(ids, raw_skills, strict=True):
             if raw is None:
                 await self._cache.remove_from_set(self._INDEX_KEY, skill_id)
                 continue
@@ -57,9 +58,9 @@ class SkillCrudService:
                     content=str(raw.get("content", "")),
                     enabled=bool(raw.get("enabled", True)),
                     created_at=str(raw.get("created_at", "")),
-                    updated_at=raw.get("updated_at"),
-                    is_shared=raw.get("is_shared"),
-                    share_url=raw.get("share_url"),
+                    updated_at=cast("str | None", raw.get("updated_at")),
+                    is_shared=cast("bool | None", raw.get("is_shared")),
+                    share_url=cast("str | None", raw.get("share_url")),
                 )
             )
 
@@ -103,9 +104,9 @@ class SkillCrudService:
             content=str(raw.get("content", "")),
             enabled=bool(raw.get("enabled", True)),
             created_at=str(raw.get("created_at", "")),
-            updated_at=raw.get("updated_at"),
-            is_shared=raw.get("is_shared"),
-            share_url=raw.get("share_url"),
+            updated_at=cast("str | None", raw.get("updated_at")),
+            is_shared=cast("bool | None", raw.get("is_shared")),
+            share_url=cast("str | None", raw.get("share_url")),
         )
 
     async def update_skill(

@@ -221,7 +221,7 @@ class TestTimeoutErrorHandler:
 
         # Cast to async handler type
         async_handler = cast(
-            Callable[[Request, TimeoutError], Awaitable[JSONResponse]],
+            "Callable[[Request, TimeoutError], Awaitable[JSONResponse]]",
             timeout_handler
         )
 
@@ -260,7 +260,7 @@ class TestTimeoutErrorHandler:
 
         # Cast to async handler type
         async_handler = cast(
-            Callable[[Request, TimeoutError], Awaitable[JSONResponse]],
+            "Callable[[Request, TimeoutError], Awaitable[JSONResponse]]",
             timeout_handler
         )
 
@@ -301,7 +301,7 @@ class TestGeneralExceptionHandler:
 
         # Cast to async handler type
         async_handler = cast(
-            Callable[[Request, Exception], Awaitable[JSONResponse]],
+            "Callable[[Request, Exception], Awaitable[JSONResponse]]",
             general_handler
         )
 
@@ -348,7 +348,7 @@ class TestGeneralExceptionHandler:
 
             # Cast to async handler type
             async_handler = cast(
-                Callable[[Request, Exception], Awaitable[JSONResponse]],
+                "Callable[[Request, Exception], Awaitable[JSONResponse]]",
                 general_handler
             )
 
@@ -397,7 +397,7 @@ class TestGeneralExceptionHandler:
 
             # Cast to async handler type
             async_handler = cast(
-                Callable[[Request, Exception], Awaitable[JSONResponse]],
+                "Callable[[Request, Exception], Awaitable[JSONResponse]]",
                 general_handler
             )
 

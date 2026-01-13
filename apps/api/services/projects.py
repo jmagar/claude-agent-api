@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import Any, cast
 from uuid import uuid4
 
 from apps.api.protocols import Cache
@@ -43,7 +44,7 @@ class ProjectService:
         raw_projects = await self._cache.get_many_json(keys)
         projects: list[ProjectRecord] = []
 
-        for project_id, raw in zip(ids, raw_projects):
+        for project_id, raw in zip(ids, raw_projects, strict=True):
             if raw is None:
                 await self._cache.remove_from_set(self._INDEX_KEY, project_id)
                 continue
@@ -53,9 +54,9 @@ class ProjectService:
                     name=str(raw.get("name", "")),
                     path=str(raw.get("path", "")),
                     created_at=str(raw.get("created_at", "")),
-                    last_accessed_at=raw.get("last_accessed_at"),
-                    session_count=raw.get("session_count"),
-                    metadata=raw.get("metadata"),
+                    last_accessed_at=cast("str | None", raw.get("last_accessed_at")),
+                    session_count=cast("int | None", raw.get("session_count")),
+                    metadata=cast("dict[str, Any] | None", raw.get("metadata")),
                 )
             )
 
@@ -100,9 +101,9 @@ class ProjectService:
             name=str(raw.get("name", "")),
             path=str(raw.get("path", "")),
             created_at=str(raw.get("created_at", "")),
-            last_accessed_at=raw.get("last_accessed_at"),
-            session_count=raw.get("session_count"),
-            metadata=raw.get("metadata"),
+            last_accessed_at=cast("str | None", raw.get("last_accessed_at")),
+            session_count=cast("int | None", raw.get("session_count")),
+            metadata=cast("dict[str, Any] | None", raw.get("metadata")),
         )
 
     async def update_project(

@@ -40,8 +40,19 @@ ModelOption = Literal["sonnet", "opus", "haiku"]
 # Valid short model names
 VALID_SHORT_MODEL_NAMES: set[str] = {"sonnet", "opus", "haiku"}
 
-# Valid model ID prefixes (for full model identifiers)
-# These match patterns like "claude-sonnet-4-20250514", "claude-3-5-sonnet-20241022"
+# Valid full model IDs (exact matches)
+VALID_FULL_MODEL_IDS: set[str] = {
+    "claude-opus-4-20250514",
+    "claude-sonnet-4-20250514",
+    "claude-haiku-4-5-20251001",
+    "claude-sonnet-4-5-20250929",
+    "claude-3-5-haiku-20241022",
+    "claude-opus-4-5-20251101",
+    "claude-opus-4-1-20250805",
+    "claude-3-7-sonnet-20250219",
+}
+
+# Valid model ID prefixes (for backward compatibility with future model versions)
 VALID_MODEL_PREFIXES: tuple[str, ...] = (
     "claude-sonnet-",
     "claude-opus-",
@@ -49,6 +60,7 @@ VALID_MODEL_PREFIXES: tuple[str, ...] = (
     "claude-3-5-sonnet-",
     "claude-3-5-haiku-",
     "claude-3-opus-",
+    "claude-3-7-sonnet-",
 )
 
 # SSE event types

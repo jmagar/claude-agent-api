@@ -9,7 +9,13 @@ import structlog
 from fastapi import APIRouter, Request
 from sse_starlette import EventSourceResponse
 
-from apps.api.dependencies import AgentSvc, ApiKey, SessionSvc, ShutdownState
+from apps.api.dependencies import (
+    AgentSvc,
+    ApiKey,
+    QueryEnrichment,
+    SessionSvc,
+    ShutdownState,
+)
 from apps.api.schemas.requests.query import QueryRequest
 from apps.api.schemas.responses import SingleQueryResponse
 from apps.api.services.agent import QueryResponseDict
@@ -26,6 +32,7 @@ async def query_stream(
     _api_key: ApiKey,
     agent_service: AgentSvc,
     session_service: SessionSvc,
+    enrichment_service: QueryEnrichment,
     _shutdown: ShutdownState,
 ) -> EventSourceResponse:
     """Execute a streaming query to the agent.
@@ -45,11 +52,15 @@ async def query_stream(
         _api_key: Validated API key (via dependency).
         agent_service: Agent service instance.
         session_service: Session service instance.
+        enrichment_service: Query enrichment service for auto-injecting MCP servers.
         _shutdown: Shutdown state check (via dependency, rejects if shutting down).
 
     Returns:
         SSE event stream.
     """
+    # Enrich query with configured MCP servers from filesystem
+    query = enrichment_service.enrich_query(query)
+
     # Note: Session is created by agent_service.query_stream which emits
     # the session_id in the init event. We extract it for tracking.
     # DO NOT set query.session_id here - that would cause the SDK to try
@@ -169,6 +180,7 @@ async def query_single(
     _api_key: ApiKey,
     agent_service: AgentSvc,
     session_service: SessionSvc,
+    enrichment_service: QueryEnrichment,
     _shutdown: ShutdownState,
 ) -> QueryResponseDict:
     """Execute a non-streaming query to the agent.
@@ -180,11 +192,15 @@ async def query_single(
         _api_key: Validated API key (via dependency).
         agent_service: Agent service instance.
         session_service: Session service instance.
+        enrichment_service: Query enrichment service for auto-injecting MCP servers.
         _shutdown: Shutdown state check (via dependency, rejects if shutting down).
 
     Returns:
         Complete query response.
     """
+    # Enrich query with configured MCP servers from filesystem
+    query = enrichment_service.enrich_query(query)
+
     # Execute the query
     result = await agent_service.query_single(query)
 

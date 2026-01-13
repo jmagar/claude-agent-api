@@ -88,7 +88,10 @@ async def _handle_prompt_message(
         max_turns=message.get("max_turns"),
         allowed_tools=message.get("allowed_tools") or [],
         disallowed_tools=message.get("disallowed_tools") or [],
-        permission_mode=message.get("permission_mode") or "default",
+        permission_mode=cast(
+            "Literal['default', 'acceptEdits', 'plan', 'bypassPermissions']",
+            message.get("permission_mode") or "default",
+        ),
         include_partial_messages=message.get("include_partial_messages") or False,
     )
 

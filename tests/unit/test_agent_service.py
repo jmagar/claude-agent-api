@@ -754,7 +754,7 @@ class TestQueryStreamSessionIds:
                 self.last_request: QueryRequest | None = None
                 self.last_session_id: str | None = None
 
-            async def run(  # noqa: D401 - Async generator stub.
+            async def run(
                 self,
                 request: QueryRequest,
                 commands_service: object,
@@ -999,7 +999,7 @@ class TestQueryStreamSessionIds:
 async def test_agent_service_accepts_cache_parameter() -> None:
     """Test that AgentService can be initialized with cache dependency."""
     # This test will fail until we add cache parameter to constructor
-    from unittest.mock import AsyncMock, MagicMock
+    from unittest.mock import MagicMock
 
     from apps.api.adapters.cache import RedisCache
 

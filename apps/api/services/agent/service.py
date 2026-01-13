@@ -181,6 +181,16 @@ class AgentService:
         discovery = CommandDiscovery(project_path=project_path)
         command_schemas = discovery.discover_commands()
 
+        # Build MCP server status list for init event
+        mcp_server_status: list[dict[str, object]] = []
+        if request.mcp_servers:
+            for name, config in request.mcp_servers.items():
+                mcp_server_status.append({
+                    "name": name,
+                    "type": config.type,
+                    "status": "connected",  # Status is set to connected for display
+                })
+
         # Emit init event
         init_event = self._stream_orchestrator.build_init_event(
             session_id=session_id,
@@ -189,7 +199,7 @@ class AgentService:
             plugins=plugin_names,
             commands=command_schemas,
             permission_mode=request.permission_mode,
-            mcp_servers=[],
+            mcp_servers=mcp_server_status,
         )
         yield init_event
 

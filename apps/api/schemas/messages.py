@@ -1,6 +1,6 @@
 """SDK message type mappings and utilities."""
 
-from typing import Literal
+from typing import Any, Literal, cast
 
 from pydantic import BaseModel
 
@@ -147,7 +147,7 @@ def extract_question_from_block(block: dict[str, object]) -> str | None:
 
     tool_input = block.get("input", {})
     if isinstance(tool_input, dict):
-        question = tool_input.get("question")
+        question = cast("dict[str, Any]", tool_input).get("question")
         if isinstance(question, str):
             return question
     return None

@@ -48,6 +48,16 @@ class QueryExecutor:
         Raises:
             AgentError: If SDK execution fails.
         """
+        # Import SDK here to avoid import errors if not installed
+        from claude_agent_sdk import (
+            ClaudeSDKClient,
+            ClaudeSDKError,
+            CLIConnectionError,
+            CLIJSONDecodeError,
+            CLINotFoundError,
+            ProcessError,
+        )
+
         try:
             # Detect slash commands in prompt for observability logging
             parsed_command = commands_service.parse_command(request.prompt)
@@ -61,16 +71,6 @@ class QueryExecutor:
                     command=parsed_command["command"],
                     args=parsed_command["args"],
                 )
-
-            # Import SDK here to avoid import errors if not installed
-            from claude_agent_sdk import (
-                ClaudeSDKClient,
-                ClaudeSDKError,
-                CLIConnectionError,
-                CLIJSONDecodeError,
-                CLINotFoundError,
-                ProcessError,
-            )
 
             # Build options using OptionsBuilder
             options = OptionsBuilder(request).build()

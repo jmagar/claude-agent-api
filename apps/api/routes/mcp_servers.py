@@ -1,8 +1,10 @@
-"""MCP server management and share endpoints."""
+"""MCP server management and share endpoints with filesystem discovery."""
 
-from datetime import datetime
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any, cast
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 
 from apps.api.dependencies import ApiKey, Cache
 from apps.api.exceptions import APIError, McpShareNotFoundError
@@ -20,10 +22,16 @@ from apps.api.schemas.responses import (
     McpShareCreateResponse,
     McpSharePayloadResponse,
 )
+from apps.api.services.mcp_discovery import McpDiscoveryService
 from apps.api.services.mcp_server_configs import McpServerConfigService
 from apps.api.services.mcp_share import McpShareService
 
 router = APIRouter(prefix="/mcp-servers", tags=["MCP Servers"])
+
+
+def _get_mcp_discovery_service() -> McpDiscoveryService:
+    """Get MCP discovery service for filesystem discovery."""
+    return McpDiscoveryService(project_path=Path.cwd())
 
 
 def _parse_datetime(value: str | None) -> datetime:
@@ -33,15 +41,15 @@ def _parse_datetime(value: str | None) -> datetime:
             return datetime.fromisoformat(value)
         except ValueError:
             pass
-    return datetime.utcnow()
+    return datetime.now(UTC)
 
 
 def _sanitize_mapping(
-    mapping: dict[str, object],
+    mapping: dict[str, Any],
     sensitive_keys: list[str],
-) -> dict[str, object]:
+) -> dict[str, Any]:
     """Redact values when keys match sensitive patterns."""
-    sanitized: dict[str, object] = {}
+    sanitized: dict[str, Any] = {}
     for key, value in mapping.items():
         lower_key = key.lower()
         if any(pattern in lower_key for pattern in sensitive_keys):
@@ -57,13 +65,13 @@ def sanitize_mcp_config(config: dict[str, object]) -> dict[str, object]:
 
     if isinstance(sanitized.get("env"), dict):
         sanitized["env"] = _sanitize_mapping(
-            sanitized["env"],
+            cast("dict[str, Any]", sanitized["env"]),
             ["api_key", "apikey", "secret", "password", "token", "auth", "credential"],
         )
 
     if isinstance(sanitized.get("headers"), dict):
         sanitized["headers"] = _sanitize_mapping(
-            sanitized["headers"],
+            cast("dict[str, Any]", sanitized["headers"]),
             ["auth", "token"],
         )
 
@@ -71,7 +79,7 @@ def sanitize_mcp_config(config: dict[str, object]) -> dict[str, object]:
 
 
 def _map_server(record) -> McpServerConfigResponse:
-    """<summary>Map server record to response.</summary>"""
+    """<summary>Map database server record to response.</summary>"""
     return McpServerConfigResponse(
         id=record.id,
         name=record.name,
@@ -87,6 +95,7 @@ def _map_server(record) -> McpServerConfigResponse:
         created_at=_parse_datetime(record.created_at),
         updated_at=_parse_datetime(record.updated_at) if record.updated_at else None,
         metadata=record.metadata,
+        source="database",
     )
 
 
@@ -94,11 +103,63 @@ def _map_server(record) -> McpServerConfigResponse:
 async def list_mcp_servers(
     _api_key: ApiKey,
     cache: Cache,
+    source: str | None = Query(
+        None,
+        description="Filter by source: 'filesystem', 'database', or None for both",
+    ),
 ) -> McpServerListResponse:
-    """<summary>List MCP server configurations.</summary>"""
-    service = McpServerConfigService(cache)
-    servers = await service.list_servers()
-    return McpServerListResponse(servers=[_map_server(s) for s in servers])
+    """List all MCP server configurations from filesystem and database.
+
+    MCP servers are discovered from:
+    - Filesystem: ~/.claude.json (global), .mcp.json, .claude/mcp.json (project)
+    - Database: Servers created via API
+
+    Use the 'source' query param to filter by source.
+    Note: Filesystem server env/headers are redacted for security.
+    """
+    servers: list[McpServerConfigResponse] = []
+
+    # Get filesystem servers (unless filtering to database only)
+    if source != "database":
+        fs_service = _get_mcp_discovery_service()
+        fs_servers = fs_service.discover_servers()
+        for name, server in fs_servers.items():
+            # Redact sensitive data from filesystem servers
+            env = server.get("env", {})
+            headers = server.get("headers", {})
+            sanitized_env = _sanitize_mapping(
+                env,
+                ["api_key", "apikey", "secret", "password", "token", "auth", "credential"],
+            )
+            sanitized_headers = _sanitize_mapping(
+                headers,
+                ["auth", "token", "authorization"],
+            )
+
+            servers.append(
+                McpServerConfigResponse(
+                    id=f"fs:{name}",  # Prefix to distinguish from DB
+                    name=name,
+                    transport_type=server.get("type", "stdio"),
+                    command=server.get("command"),
+                    args=server.get("args", []),
+                    url=server.get("url"),
+                    headers=sanitized_headers,
+                    env=sanitized_env,
+                    enabled=True,
+                    status="active",
+                    source="filesystem",
+                )
+            )
+
+    # Get database servers (unless filtering to filesystem only)
+    if source != "filesystem":
+        db_service = McpServerConfigService(cache)
+        db_servers = await db_service.list_servers()
+        for s in db_servers:
+            servers.append(_map_server(s))
+
+    return McpServerListResponse(servers=servers)
 
 
 @router.post("", response_model=McpServerConfigResponse, status_code=201)
@@ -107,7 +168,11 @@ async def create_mcp_server(
     _api_key: ApiKey,
     cache: Cache,
 ) -> McpServerConfigResponse:
-    """<summary>Create a new MCP server configuration.</summary>"""
+    """Create a new MCP server configuration in the database.
+
+    Note: To add filesystem-based MCP servers, edit ~/.claude.json (global)
+    or create .mcp.json / .claude/mcp.json in your project.
+    """
     service = McpServerConfigService(cache)
     server = await service.create_server(
         name=request.name,
@@ -129,7 +194,52 @@ async def get_mcp_server(
     _api_key: ApiKey,
     cache: Cache,
 ) -> McpServerConfigResponse:
-    """<summary>Get MCP server configuration.</summary>"""
+    """Get MCP server configuration by name.
+
+    For filesystem servers, use the 'fs:' prefix (e.g., 'fs:my-server').
+    For database servers, use the name directly.
+    """
+    # Check if it's a filesystem server
+    if name.startswith("fs:"):
+        server_name = name[3:]  # Remove 'fs:' prefix
+        fs_service = _get_mcp_discovery_service()
+        fs_servers = fs_service.discover_servers()
+
+        if server_name in fs_servers:
+            server = fs_servers[server_name]
+            # Redact sensitive data
+            env = server.get("env", {})
+            headers = server.get("headers", {})
+            sanitized_env = _sanitize_mapping(
+                env,
+                ["api_key", "apikey", "secret", "password", "token", "auth", "credential"],
+            )
+            sanitized_headers = _sanitize_mapping(
+                headers,
+                ["auth", "token", "authorization"],
+            )
+
+            return McpServerConfigResponse(
+                id=name,
+                name=server_name,
+                transport_type=server.get("type", "stdio"),
+                command=server.get("command"),
+                args=server.get("args", []),
+                url=server.get("url"),
+                headers=sanitized_headers,
+                env=sanitized_env,
+                enabled=True,
+                status="active",
+                source="filesystem",
+            )
+
+        raise APIError(
+            message="Filesystem MCP server not found",
+            code="MCP_SERVER_NOT_FOUND",
+            status_code=404,
+        )
+
+    # Otherwise, look up in database
     service = McpServerConfigService(cache)
     server = await service.get_server(name)
     if server is None:
@@ -148,7 +258,19 @@ async def update_mcp_server(
     _api_key: ApiKey,
     cache: Cache,
 ) -> McpServerConfigResponse:
-    """<summary>Update MCP server configuration.</summary>"""
+    """Update a database MCP server configuration.
+
+    Note: Filesystem MCP servers cannot be updated via API.
+    Edit ~/.claude.json or .mcp.json directly.
+    """
+    # Filesystem servers cannot be updated via API
+    if name.startswith("fs:"):
+        raise APIError(
+            message="Filesystem MCP servers cannot be updated via API. Edit the config file directly.",
+            code="MCP_SERVER_READONLY",
+            status_code=400,
+        )
+
     service = McpServerConfigService(cache)
     server = await service.update_server(name, request.type, request.config)
     if server is None:
@@ -166,7 +288,19 @@ async def delete_mcp_server(
     _api_key: ApiKey,
     cache: Cache,
 ) -> None:
-    """<summary>Delete MCP server configuration.</summary>"""
+    """Delete a database MCP server configuration.
+
+    Note: Filesystem MCP servers cannot be deleted via API.
+    Edit ~/.claude.json or .mcp.json directly.
+    """
+    # Filesystem servers cannot be deleted via API
+    if name.startswith("fs:"):
+        raise APIError(
+            message="Filesystem MCP servers cannot be deleted via API. Edit the config file directly.",
+            code="MCP_SERVER_READONLY",
+            status_code=400,
+        )
+
     service = McpServerConfigService(cache)
     deleted = await service.delete_server(name)
     if not deleted:
@@ -198,9 +332,9 @@ async def list_mcp_resources(
         resources=[
             McpResourceResponse(
                 uri=str(resource.get("uri", "")),
-                name=resource.get("name"),
-                description=resource.get("description"),
-                mimeType=resource.get("mimeType"),
+                name=cast("str | None", resource.get("name")),
+                description=cast("str | None", resource.get("description")),
+                mimeType=cast("str | None", resource.get("mimeType")),
             )
             for resource in resources
         ]
@@ -228,8 +362,8 @@ async def get_mcp_resource(
         if str(resource.get("uri")) == uri:
             return McpResourceContentResponse(
                 uri=uri,
-                mimeType=resource.get("mimeType"),
-                text=resource.get("text"),
+                mimeType=cast("str | None", resource.get("mimeType")),
+                text=cast("str | None", resource.get("text")),
             )
 
     raise APIError(

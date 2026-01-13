@@ -1,7 +1,8 @@
 """Unit tests for structured logging in distributed session operations."""
 
-import pytest
 from pathlib import Path
+
+import pytest
 
 
 @pytest.mark.unit

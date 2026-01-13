@@ -10,9 +10,9 @@ from apps.api.routes import (
     query,
     session_control,
     sessions,
+    skills,
     slash_commands,
     tool_presets,
-    skills,
     websocket,
 )
 
@@ -26,8 +26,8 @@ __all__ = [
     "query",
     "session_control",
     "sessions",
+    "skills",
     "slash_commands",
     "tool_presets",
-    "skills",
     "websocket",
 ]

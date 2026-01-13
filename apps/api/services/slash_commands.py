@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import cast
 from uuid import uuid4
 
 from apps.api.protocols import Cache
@@ -43,7 +44,7 @@ class SlashCommandService:
         raw_commands = await self._cache.get_many_json(keys)
         commands: list[SlashCommandRecord] = []
 
-        for command_id, raw in zip(ids, raw_commands):
+        for command_id, raw in zip(ids, raw_commands, strict=True):
             if raw is None:
                 await self._cache.remove_from_set(self._INDEX_KEY, command_id)
                 continue
@@ -55,7 +56,7 @@ class SlashCommandService:
                     content=str(raw.get("content", "")),
                     enabled=bool(raw.get("enabled", True)),
                     created_at=str(raw.get("created_at", "")),
-                    updated_at=raw.get("updated_at"),
+                    updated_at=cast("str | None", raw.get("updated_at")),
                 )
             )
 
@@ -97,7 +98,7 @@ class SlashCommandService:
             content=str(raw.get("content", "")),
             enabled=bool(raw.get("enabled", True)),
             created_at=str(raw.get("created_at", "")),
-            updated_at=raw.get("updated_at"),
+            updated_at=cast("str | None", raw.get("updated_at")),
         )
 
     async def update_command(

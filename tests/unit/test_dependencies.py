@@ -68,7 +68,6 @@ class TestDatabaseDependencies:
 
         GREEN: This test verifies get_db yields session.
         """
-        from apps.api import dependencies
         from apps.api.config import get_settings
 
         # Initialize database

@@ -1,7 +1,7 @@
 """Unit tests for SingleQueryRunner delegation."""
 
 from collections.abc import AsyncGenerator
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 

@@ -20,7 +20,7 @@ def parse_sse_data(data: str | None) -> dict[str, object]:
         return {"raw": data}
 
     if isinstance(result, dict):
-        return cast(dict[str, object], result)
+        return cast("dict[str, object]", result)
     return {"raw": data}
 
 

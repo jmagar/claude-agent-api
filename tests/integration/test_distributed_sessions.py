@@ -1,13 +1,14 @@
 """Integration tests for distributed session state management."""
 
-import pytest
-from httpx import AsyncClient
 from uuid import uuid4
 
+import pytest
+from httpx import AsyncClient
+
+from apps.api.adapters.session_repo import SessionRepository
 from apps.api.dependencies import get_cache, get_db
 from apps.api.services.agent.service import AgentService
 from apps.api.services.session import SessionService
-from apps.api.adapters.session_repo import SessionRepository
 
 
 @pytest.mark.integration
@@ -64,7 +65,6 @@ async def test_interrupt_signal_propagates_across_instances(async_client: AsyncC
 @pytest.mark.anyio
 async def test_session_fallback_to_database_when_cache_miss(async_client: AsyncClient):
     """Test that sessions fall back to PostgreSQL when not in Redis cache."""
-    from uuid import UUID
 
     cache = await get_cache()
 

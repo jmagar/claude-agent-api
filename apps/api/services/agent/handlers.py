@@ -1,7 +1,7 @@
 """Message handlers for Agent SDK responses."""
 
 import json
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 import structlog
 
@@ -63,6 +63,20 @@ class MessageHandler:
             return None
 
         # T118: Handle partial/streaming messages when include_partial_messages is enabled
+        if msg_type == "StreamEvent" and ctx.include_partial_messages:
+            # StreamEvent.event is a dict[str, Any] containing raw Anthropic API stream event
+            event_data = getattr(message, "event", None)
+            if event_data and isinstance(event_data, dict):
+                event_type = event_data.get("type")
+                if event_type == "content_block_start":
+                    return self._handle_partial_start(event_data, ctx)
+                elif event_type == "content_block_delta":
+                    return self._handle_partial_delta(event_data, ctx)
+                elif event_type == "content_block_stop":
+                    return self._handle_partial_stop(event_data, ctx)
+            # Ignore StreamEvents without partial content data or other event types
+            return None
+
         if msg_type == "ContentBlockStart" and ctx.include_partial_messages:
             return self._handle_partial_start(message, ctx)
 
@@ -150,7 +164,7 @@ class MessageHandler:
         """
         for block in content_blocks:
             if block.type == "tool_use" and block.name == "AskUserQuestion":
-                question = block.input.get("question", "") if block.input else ""
+                question = str(block.input.get("question", "")) if block.input else ""
                 q_event = QuestionEvent(
                     data=QuestionEventData(
                         tool_use_id=block.id or "",
@@ -218,23 +232,36 @@ class MessageHandler:
         """Handle ContentBlockStart for partial message streaming.
 
         Args:
-            message: SDK ContentBlockStart message.
+            message: SDK ContentBlockStart message or dict from StreamEvent.
             _ctx: Stream context (unused, kept for API consistency).
 
         Returns:
             SSE event dict with 'event' and 'data' keys.
         """
-        index = getattr(message, "index", 0)
-        content_block = getattr(message, "content_block", None)
+        # Handle both dict (from StreamEvent) and object forms
+        if isinstance(message, dict):
+            index = message.get("index", 0)
+            content_block = message.get("content_block")
+        else:
+            index = getattr(message, "index", 0)
+            content_block = getattr(message, "content_block", None)
 
         block_schema: ContentBlockSchema | None = None
         if content_block:
-            block_schema = ContentBlockSchema(
-                type=getattr(content_block, "type", "text"),
-                text=getattr(content_block, "text", None),
-                id=getattr(content_block, "id", None),
-                name=getattr(content_block, "name", None),
-            )
+            if isinstance(content_block, dict):
+                block_schema = ContentBlockSchema(
+                    type=content_block.get("type", "text"),
+                    text=content_block.get("text"),
+                    id=content_block.get("id"),
+                    name=content_block.get("name"),
+                )
+            else:
+                block_schema = ContentBlockSchema(
+                    type=getattr(content_block, "type", "text"),
+                    text=getattr(content_block, "text", None),
+                    id=getattr(content_block, "id", None),
+                    name=getattr(content_block, "name", None),
+                )
 
         partial_start_event = PartialMessageEvent(
             data=PartialMessageEventData(
@@ -253,34 +280,58 @@ class MessageHandler:
         """Handle ContentBlockDelta for partial message streaming.
 
         Args:
-            message: SDK ContentBlockDelta message.
+            message: SDK ContentBlockDelta message or dict from StreamEvent.
             _ctx: Stream context (unused, kept for API consistency).
 
         Returns:
             SSE event dict with 'event' and 'data' keys.
         """
-        index = getattr(message, "index", 0)
-        delta = getattr(message, "delta", None)
+        # Handle both dict (from StreamEvent) and object forms
+        if isinstance(message, dict):
+            index = message.get("index", 0)
+            delta = message.get("delta")
+        else:
+            index = getattr(message, "index", 0)
+            delta = getattr(message, "delta", None)
 
         delta_schema: ContentDeltaSchema | None = None
         if delta:
-            delta_type = getattr(delta, "type", "text_delta")
-            delta_schema = ContentDeltaSchema(
-                type=delta_type,
-                text=(
-                    getattr(delta, "text", None) if delta_type == "text_delta" else None
-                ),
-                thinking=(
-                    getattr(delta, "thinking", None)
-                    if delta_type == "thinking_delta"
-                    else None
-                ),
-                partial_json=(
-                    getattr(delta, "partial_json", None)
-                    if delta_type == "input_json_delta"
-                    else None
-                ),
-            )
+            if isinstance(delta, dict):
+                delta_type = delta.get("type", "text_delta")
+                delta_schema = ContentDeltaSchema(
+                    type=delta_type,  # type: ignore[arg-type]
+                    text=delta.get("text") if delta_type == "text_delta" else None,
+                    thinking=(
+                        delta.get("thinking")
+                        if delta_type == "thinking_delta"
+                        else None
+                    ),
+                    partial_json=(
+                        delta.get("partial_json")
+                        if delta_type == "input_json_delta"
+                        else None
+                    ),
+                )
+            else:
+                delta_type = getattr(delta, "type", "text_delta")
+                delta_schema = ContentDeltaSchema(
+                    type=delta_type,  # type: ignore[arg-type]
+                    text=(
+                        getattr(delta, "text", None)
+                        if delta_type == "text_delta"
+                        else None
+                    ),
+                    thinking=(
+                        getattr(delta, "thinking", None)
+                        if delta_type == "thinking_delta"
+                        else None
+                    ),
+                    partial_json=(
+                        getattr(delta, "partial_json", None)
+                        if delta_type == "input_json_delta"
+                        else None
+                    ),
+                )
 
         partial_delta_event = PartialMessageEvent(
             data=PartialMessageEventData(
@@ -299,13 +350,17 @@ class MessageHandler:
         """Handle ContentBlockStop for partial message streaming.
 
         Args:
-            message: SDK ContentBlockStop message.
+            message: SDK ContentBlockStop message or dict from StreamEvent.
             _ctx: Stream context (unused, kept for API consistency).
 
         Returns:
             SSE event dict with 'event' and 'data' keys.
         """
-        index = getattr(message, "index", 0)
+        # Handle both dict (from StreamEvent) and object forms
+        if isinstance(message, dict):
+            index = message.get("index", 0)
+        else:
+            index = getattr(message, "index", 0)
 
         partial_stop_event = PartialMessageEvent(
             data=PartialMessageEventData(
@@ -369,7 +424,7 @@ class MessageHandler:
         for block in content:
             if isinstance(block, dict):
                 mapped = map_sdk_content_block(block)
-                blocks.append(ContentBlockSchema(**mapped))
+                blocks.append(ContentBlockSchema(**cast("dict[str, Any]", mapped)))
             else:
                 # Dataclass block
                 block_dict = {
@@ -391,7 +446,7 @@ class MessageHandler:
                     block_dict["content"] = block.content
                 if hasattr(block, "is_error"):
                     block_dict["is_error"] = block.is_error
-                blocks.append(ContentBlockSchema(**block_dict))
+                blocks.append(ContentBlockSchema(**cast("dict[str, Any]", block_dict)))
 
         return blocks
 

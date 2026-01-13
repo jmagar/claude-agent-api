@@ -1,7 +1,8 @@
 """Unit tests for documentation completeness."""
 
-import pytest
 from pathlib import Path
+
+import pytest
 
 
 @pytest.mark.unit

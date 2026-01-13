@@ -1,8 +1,9 @@
 """Agent persistence service."""
 
+import secrets
 from dataclasses import dataclass
 from datetime import UTC, datetime
-import secrets
+from typing import cast
 from uuid import uuid4
 
 from apps.api.protocols import Cache
@@ -48,7 +49,7 @@ class AgentService:
         raw_agents = await self._cache.get_many_json(keys)
         agents: list[AgentRecord] = []
 
-        for agent_id, raw in zip(ids, raw_agents):
+        for agent_id, raw in zip(ids, raw_agents, strict=True):
             if raw is None:
                 await self._cache.remove_from_set(self._INDEX_KEY, agent_id)
                 continue
@@ -58,13 +59,13 @@ class AgentService:
                     name=str(raw.get("name", "")),
                     description=str(raw.get("description", "")),
                     prompt=str(raw.get("prompt", "")),
-                    tools=list(raw.get("tools", [])) or None,
-                    model=raw.get("model"),
+                    tools=list(cast("list[str]", raw.get("tools", []))) or None,
+                    model=cast("str | None", raw.get("model")),
                     created_at=str(raw.get("created_at", "")),
-                    updated_at=raw.get("updated_at"),
-                    is_shared=raw.get("is_shared"),
-                    share_url=raw.get("share_url"),
-                    share_token=raw.get("share_token"),
+                    updated_at=cast("str | None", raw.get("updated_at")),
+                    is_shared=cast("bool | None", raw.get("is_shared")),
+                    share_url=cast("str | None", raw.get("share_url")),
+                    share_token=cast("str | None", raw.get("share_token")),
                 )
             )
 
@@ -109,13 +110,13 @@ class AgentService:
             name=str(raw.get("name", "")),
             description=str(raw.get("description", "")),
             prompt=str(raw.get("prompt", "")),
-            tools=list(raw.get("tools", [])) or None,
-            model=raw.get("model"),
+            tools=list(cast("list[str]", raw.get("tools", []))) or None,
+            model=cast("str | None", raw.get("model")),
             created_at=str(raw.get("created_at", "")),
-            updated_at=raw.get("updated_at"),
-            is_shared=raw.get("is_shared"),
-            share_url=raw.get("share_url"),
-            share_token=raw.get("share_token"),
+            updated_at=cast("str | None", raw.get("updated_at")),
+            is_shared=cast("bool | None", raw.get("is_shared")),
+            share_url=cast("str | None", raw.get("share_url")),
+            share_token=cast("str | None", raw.get("share_token")),
         )
 
     async def update_agent(

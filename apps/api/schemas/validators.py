@@ -13,7 +13,11 @@ import re
 from urllib.parse import urlparse
 
 from apps.api.constants import BUILT_IN_TOOLS
-from apps.api.types import VALID_MODEL_PREFIXES, VALID_SHORT_MODEL_NAMES
+from apps.api.types import (
+    VALID_FULL_MODEL_IDS,
+    VALID_MODEL_PREFIXES,
+    VALID_SHORT_MODEL_NAMES,
+)
 
 # Security: Pattern for dangerous shell metacharacters
 SHELL_METACHAR_PATTERN = re.compile(r"[;&|`$(){}[\]<>!\n\r\\]")
@@ -123,7 +127,7 @@ def validate_model_name(model: str | None) -> str | None:
 
     Accepts:
         - Short names: "sonnet", "opus", "haiku"
-        - Full model IDs: "claude-sonnet-4-*", "claude-opus-4-*", etc.
+        - Full model IDs: "claude-opus-4-20250514", "claude-sonnet-4-5-20250929", etc.
 
     Args:
         model: Model name to validate.
@@ -141,20 +145,24 @@ def validate_model_name(model: str | None) -> str | None:
     if not model:
         raise ValueError(
             "Model cannot be empty. Valid options: sonnet, opus, haiku, "
-            "or full model IDs like claude-sonnet-4-20250514"
+            "or full model IDs like claude-opus-4-5-20251101"
         )
 
     # Accept short model names
     if model in VALID_SHORT_MODEL_NAMES:
         return model
 
-    # Accept full model IDs with valid prefixes
+    # Accept exact full model IDs
+    if model in VALID_FULL_MODEL_IDS:
+        return model
+
+    # Accept full model IDs with valid prefixes (for future model versions)
     if any(model.startswith(prefix) for prefix in VALID_MODEL_PREFIXES):
         return model
 
     # Invalid model name
     raise ValueError(
         f"Invalid model: '{model}'. Valid options: sonnet, opus, haiku, "
-        "or full model IDs like claude-sonnet-4-20250514, "
-        "claude-3-5-sonnet-20241022"
+        "or full model IDs like claude-opus-4-5-20251101, "
+        "claude-sonnet-4-5-20250929, claude-3-7-sonnet-20250219"
     )

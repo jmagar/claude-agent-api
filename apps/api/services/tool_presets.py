@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import cast
 from uuid import uuid4
 
 import structlog
@@ -74,7 +75,7 @@ class ToolPresetService:
         raw_presets = await self._cache.get_many_json(keys)
         presets: list[ToolPreset] = []
 
-        for preset_id, raw in zip(ids, raw_presets):
+        for preset_id, raw in zip(ids, raw_presets, strict=True):
             if raw is None:
                 await self._cache.remove_from_set(self._INDEX_KEY, preset_id)
                 continue
@@ -82,9 +83,9 @@ class ToolPresetService:
                 ToolPreset(
                     id=str(raw.get("id", preset_id)),
                     name=str(raw.get("name", "")),
-                    description=raw.get("description"),
-                    allowed_tools=list(raw.get("allowed_tools", [])),
-                    disallowed_tools=list(raw.get("disallowed_tools", [])),
+                    description=cast("str | None", raw.get("description")),
+                    allowed_tools=list(cast("list[str]", raw.get("allowed_tools", []))),
+                    disallowed_tools=list(cast("list[str]", raw.get("disallowed_tools", []))),
                     is_system=bool(raw.get("is_system", False)),
                     created_at=str(raw.get("created_at", "")),
                 )
@@ -100,9 +101,9 @@ class ToolPresetService:
         return ToolPreset(
             id=str(raw.get("id", preset_id)),
             name=str(raw.get("name", "")),
-            description=raw.get("description"),
-            allowed_tools=list(raw.get("allowed_tools", [])),
-            disallowed_tools=list(raw.get("disallowed_tools", [])),
+            description=cast("str | None", raw.get("description")),
+            allowed_tools=list(cast("list[str]", raw.get("allowed_tools", []))),
+            disallowed_tools=list(cast("list[str]", raw.get("disallowed_tools", []))),
             is_system=bool(raw.get("is_system", False)),
             created_at=str(raw.get("created_at", "")),
         )

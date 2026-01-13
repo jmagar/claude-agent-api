@@ -1,6 +1,6 @@
 """Stream event orchestration helpers for AgentService."""
 
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, cast
 
 from apps.api.schemas.responses import (
     CommandInfoSchema,
@@ -10,6 +10,7 @@ from apps.api.schemas.responses import (
     ErrorEventData,
     InitEvent,
     InitEventData,
+    McpServerStatusSchema,
     ResultEvent,
     ResultEventData,
     UsageSchema,
@@ -60,10 +61,13 @@ class StreamOrchestrator:
                 session_id=session_id,
                 model=model,
                 tools=tools,
-                mcp_servers=mcp_servers or [],
+                mcp_servers=cast("list[McpServerStatusSchema]", mcp_servers or []),
                 plugins=plugins,
                 commands=commands,
-                permission_mode=permission_mode,
+                permission_mode=cast(
+                    "Literal['default', 'acceptEdits', 'plan', 'bypassPermissions']",
+                    permission_mode,
+                ),
             )
         )
         return self._message_handler.format_sse(

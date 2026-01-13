@@ -1,6 +1,6 @@
 """<summary>Track file modifications from content blocks.</summary>"""
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 from apps.api.schemas.responses import ContentBlockSchema
 from apps.api.services.agent.types import StreamContext
@@ -23,6 +23,6 @@ class FileModificationTracker:
             if isinstance(block, ContentBlockSchema):
                 typed_blocks.append(block)
             elif isinstance(block, dict):
-                typed_blocks.append(ContentBlockSchema(**block))
+                typed_blocks.append(ContentBlockSchema(**cast("dict[str, Any]", block)))
 
         self._message_handler.track_file_modifications(typed_blocks, ctx)

@@ -255,7 +255,7 @@ class TestWebSocketAuthentication:
         websocket = MockWebSocket(headers={})
         agent_service = AgentService()
 
-        await websocket_query(cast(WebSocket, websocket), agent_service, session_service)
+        await websocket_query(cast("WebSocket", websocket), agent_service, session_service)
 
         # Should reject connection
         assert not websocket.was_accepted
@@ -278,7 +278,7 @@ class TestWebSocketAuthentication:
         websocket = MockWebSocket(headers={"x-api-key": "invalid-key"})
         agent_service = AgentService()
 
-        await websocket_query(cast(WebSocket, websocket), agent_service, session_service)
+        await websocket_query(cast("WebSocket", websocket), agent_service, session_service)
 
         # Should reject connection
         assert not websocket.was_accepted
@@ -305,7 +305,7 @@ class TestWebSocketAuthentication:
         # Add a message to trigger disconnect after accept
         websocket.add_received_message({"type": "unknown"})
 
-        await websocket_query(cast(WebSocket, websocket), agent_service, session_service)
+        await websocket_query(cast("WebSocket", websocket), agent_service, session_service)
 
         # Should accept connection
         assert websocket.was_accepted
@@ -349,7 +349,7 @@ class TestWebSocketMessageHandling:
         )
 
         # Run in background task
-        task = asyncio.create_task(websocket_query(cast(WebSocket, websocket), agent_service, session_service))
+        task = asyncio.create_task(websocket_query(cast("WebSocket", websocket), agent_service, session_service))
 
         # Wait for ack message with timeout
         await wait_for_condition(
@@ -395,7 +395,7 @@ class TestWebSocketMessageHandling:
         )
 
         # Run in background task
-        task = asyncio.create_task(websocket_query(cast(WebSocket, websocket), agent_service, session_service))
+        task = asyncio.create_task(websocket_query(cast("WebSocket", websocket), agent_service, session_service))
 
         # Wait for error message with timeout
         await wait_for_condition(
@@ -445,7 +445,7 @@ class TestWebSocketMessageHandling:
         )
 
         task = asyncio.create_task(
-            websocket_query(cast(WebSocket, websocket), agent_service, session_service)
+            websocket_query(cast("WebSocket", websocket), agent_service, session_service)
         )
 
         await wait_for_condition(
@@ -494,7 +494,7 @@ class TestWebSocketMessageHandling:
         )
 
         # Run in background task
-        task = asyncio.create_task(websocket_query(cast(WebSocket, websocket), agent_service, session_service))
+        task = asyncio.create_task(websocket_query(cast("WebSocket", websocket), agent_service, session_service))
 
         # Wait for error message with timeout
         await wait_for_condition(
@@ -541,7 +541,7 @@ class TestWebSocketMessageHandling:
         )
 
         # Run in background task
-        task = asyncio.create_task(websocket_query(cast(WebSocket, websocket), agent_service, session_service))
+        task = asyncio.create_task(websocket_query(cast("WebSocket", websocket), agent_service, session_service))
 
         # Wait for error message with timeout
         await wait_for_condition(
@@ -582,7 +582,7 @@ class TestWebSocketMessageHandling:
         websocket.add_raw_message("not valid json {")
 
         # Run in background task
-        task = asyncio.create_task(websocket_query(cast(WebSocket, websocket), agent_service, session_service))
+        task = asyncio.create_task(websocket_query(cast("WebSocket", websocket), agent_service, session_service))
 
         # Wait for error message with timeout
         await wait_for_condition(
@@ -629,7 +629,7 @@ class TestWebSocketMessageHandling:
         websocket.add_received_message({"type": "unknown_type"})
 
         # Run in background task
-        task = asyncio.create_task(websocket_query(cast(WebSocket, websocket), agent_service, session_service))
+        task = asyncio.create_task(websocket_query(cast("WebSocket", websocket), agent_service, session_service))
 
         # Wait for error message with timeout
         await wait_for_condition(
@@ -694,7 +694,7 @@ class TestWebSocketStreaming:
         )
 
         # Run in background task
-        task = asyncio.create_task(websocket_query(cast(WebSocket, websocket), agent_service, session_service))
+        task = asyncio.create_task(websocket_query(cast("WebSocket", websocket), agent_service, session_service))
 
         # Wait for ack or SSE events with timeout
         await wait_for_condition(
@@ -739,7 +739,7 @@ class TestWebSocketStreaming:
 
         # Don't add any messages - will trigger disconnect immediately
 
-        await websocket_query(cast(WebSocket, websocket), agent_service, session_service)
+        await websocket_query(cast("WebSocket", websocket), agent_service, session_service)
 
         # Should have accepted and then disconnected cleanly
         assert websocket.was_accepted
@@ -783,7 +783,7 @@ class TestWebSocketStreaming:
         )
 
         # Run in background and cancel quickly
-        task = asyncio.create_task(websocket_query(cast(WebSocket, websocket), agent_service, session_service))
+        task = asyncio.create_task(websocket_query(cast("WebSocket", websocket), agent_service, session_service))
 
         # Wait for connection to be accepted before canceling
         await wait_for_condition(

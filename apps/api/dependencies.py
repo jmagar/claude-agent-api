@@ -244,6 +244,21 @@ def get_skills_service() -> SkillsService:
     return SkillsService(project_path=project_path)
 
 
+def get_query_enrichment_service() -> "QueryEnrichmentService":
+    """Get query enrichment service instance.
+
+    Returns:
+        QueryEnrichmentService instance configured with project path.
+    """
+    from pathlib import Path
+
+    from apps.api.services.query_enrichment import QueryEnrichmentService
+
+    # Use current working directory as project root
+    project_path = Path.cwd()
+    return QueryEnrichmentService(project_path=project_path)
+
+
 # Type aliases for dependency injection
 DbSession = Annotated[AsyncSession, Depends(get_db)]
 Cache = Annotated[RedisCache, Depends(get_cache)]
@@ -254,3 +269,8 @@ SessionSvc = Annotated[SessionService, Depends(get_session_service)]
 CheckpointSvc = Annotated[CheckpointService, Depends(get_checkpoint_service)]
 SkillsSvc = Annotated[SkillsService, Depends(get_skills_service)]
 ShutdownState = Annotated[ShutdownManager, Depends(check_shutdown_state)]
+
+# Import for type alias
+from apps.api.services.query_enrichment import QueryEnrichmentService
+
+QueryEnrichment = Annotated[QueryEnrichmentService, Depends(get_query_enrichment_service)]

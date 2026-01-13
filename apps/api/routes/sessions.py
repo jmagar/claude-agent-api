@@ -1,5 +1,6 @@
 """Session CRUD endpoints."""
 
+from typing import Literal, cast
 from uuid import UUID
 
 from fastapi import APIRouter, Query
@@ -30,7 +31,7 @@ async def list_sessions(
 ) -> SessionWithMetaListResponse:
     """<summary>List sessions with metadata filtering.</summary>"""
     repo = SessionRepository(db_session)
-    sessions, total = await repo.list_sessions(limit=10000, offset=0)
+    sessions, _ = await repo.list_sessions(limit=10000, offset=0)
 
     def matches(session) -> bool:
         if session.owner_api_key and session.owner_api_key != _api_key:
@@ -65,13 +66,11 @@ async def list_sessions(
             SessionWithMetaResponse(
                 id=str(s.id),
                 mode="brainstorm" if session_mode == "brainstorm" else "code",
-                status=s.status,
+                status=cast("Literal['active', 'completed', 'error']", s.status),
                 project_id=str(metadata.get("project_id"))
                 if metadata.get("project_id")
                 else None,
-                title=str(metadata.get("title"))
-                if metadata.get("title")
-                else None,
+                title=str(metadata.get("title")) if metadata.get("title") else None,
                 created_at=s.created_at,
                 updated_at=s.updated_at,
                 total_turns=s.total_turns,
@@ -81,7 +80,9 @@ async def list_sessions(
                 parent_session_id=str(s.parent_session_id)
                 if s.parent_session_id
                 else None,
-                tags=metadata.get("tags") if isinstance(metadata.get("tags"), list) else None,
+                tags=cast("list[str] | None", metadata.get("tags"))
+                if isinstance(metadata.get("tags"), list)
+                else None,
                 metadata=metadata,
             )
         )
@@ -160,7 +161,7 @@ async def promote_session(
     return SessionWithMetaResponse(
         id=str(updated.id),
         mode="code" if mode != "brainstorm" else "brainstorm",
-        status=updated.status,
+        status=cast("Literal['active', 'completed', 'error']", updated.status),
         project_id=str(project_id) if project_id else None,
         title=str(title) if title else None,
         created_at=updated.created_at,
@@ -170,7 +171,7 @@ async def promote_session(
         parent_session_id=str(updated.parent_session_id)
         if updated.parent_session_id
         else None,
-        tags=tags if isinstance(tags, list) else None,
+        tags=cast("list[str] | None", tags) if isinstance(tags, list) else None,
         metadata=metadata,
     )
 
@@ -207,7 +208,7 @@ async def update_session_tags(
     return SessionWithMetaResponse(
         id=str(updated.id),
         mode="brainstorm" if session_mode == "brainstorm" else "code",
-        status=updated.status,
+        status=cast("Literal['active', 'completed', 'error']", updated.status),
         project_id=str(metadata.get("project_id"))
         if metadata.get("project_id")
         else None,
@@ -219,6 +220,6 @@ async def update_session_tags(
         parent_session_id=str(updated.parent_session_id)
         if updated.parent_session_id
         else None,
-        tags=tags,
+        tags=cast("list[str] | None", tags),
         metadata=metadata,
     )

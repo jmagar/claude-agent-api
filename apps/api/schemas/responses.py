@@ -124,10 +124,12 @@ class SkillDefinitionResponse(BaseModel):
     description: str
     content: str
     enabled: bool = True
-    created_at: datetime
+    created_at: datetime | None = None
     updated_at: datetime | None = None
     is_shared: bool | None = None
     share_url: str | None = None
+    source: Literal["filesystem", "database"] = "database"
+    path: str | None = None  # Filesystem path for filesystem-sourced skills
 
 
 class SkillListResponse(BaseModel):
@@ -168,9 +170,10 @@ class McpServerConfigResponse(BaseModel):
     enabled: bool = True
     status: str = "active"
     error: str | None = None
-    created_at: datetime
+    created_at: datetime | None = None
     updated_at: datetime | None = None
     metadata: dict[str, object] | None = None
+    source: Literal["filesystem", "database"] = "database"
 
 
 class McpServerListResponse(BaseModel):

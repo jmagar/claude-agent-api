@@ -89,6 +89,8 @@ class OptionsBuilder:
         setting_sources_typed: list[str] | None = None
         if request.setting_sources:
             setting_sources_typed = list(request.setting_sources)
+            # Validate that "project" is included for CLAUDE.md loading
+            self._validate_setting_sources(setting_sources_typed)
 
         # Validate Skill tool if present
         self._validate_skill_tool(allowed_tools, request.cwd if request.cwd else None)
@@ -267,4 +269,20 @@ class OptionsBuilder:
             logger.warning(
                 "skill_tool_enabled_but_no_skills_found",
                 project_path=str(project_path),
+            )
+
+    def _validate_setting_sources(self, setting_sources: list[str]) -> None:
+        """Validate setting_sources configuration.
+
+        Logs a warning if setting_sources is provided but doesn't include "project",
+        which is required for loading CLAUDE.md files per SDK documentation.
+
+        Args:
+            setting_sources: List of setting source names.
+        """
+        if "project" not in setting_sources:
+            logger.warning(
+                "setting_sources_missing_project",
+                setting_sources=setting_sources,
+                hint="Include 'project' in setting_sources to load CLAUDE.md files",
             )
