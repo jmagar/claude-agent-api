@@ -16,6 +16,7 @@ from apps.api.exceptions import APIError, RequestTimeoutError
 from apps.api.middleware.auth import ApiKeyAuthMiddleware
 from apps.api.middleware.correlation import CorrelationIdMiddleware
 from apps.api.middleware.logging import RequestLoggingMiddleware, configure_logging
+from apps.api.middleware.openai_auth import BearerAuthMiddleware
 from apps.api.middleware.ratelimit import configure_rate_limiting
 from apps.api.routes import (
     agents,
@@ -32,6 +33,7 @@ from apps.api.routes import (
     tool_presets,
     websocket,
 )
+from apps.api.routes.openai import chat as openai_chat
 from apps.api.services.shutdown import get_shutdown_manager, reset_shutdown_manager
 
 logger = structlog.get_logger(__name__)
@@ -140,6 +142,7 @@ def create_app() -> FastAPI:
     # Add middleware (order matters - first added is last executed)
     # Reverse order so auth runs first, then correlation, then logging, then CORS
     app.add_middleware(ApiKeyAuthMiddleware)  # type: ignore
+    app.add_middleware(BearerAuthMiddleware)  # type: ignore
     app.add_middleware(CorrelationIdMiddleware)  # type: ignore
     app.add_middleware(RequestLoggingMiddleware, skip_paths=["/health", "/"])  # type: ignore
     app.add_middleware(
@@ -217,6 +220,9 @@ def create_app() -> FastAPI:
     app.include_router(websocket.router, prefix="/api/v1")
     app.include_router(mcp_servers.router, prefix="/api/v1")
     app.include_router(tool_presets.router, prefix="/api/v1")
+
+    # OpenAI-compatible endpoints
+    app.include_router(openai_chat.router, prefix="/v1")
 
     # Also mount health at root for convenience
     app.include_router(health.router)
