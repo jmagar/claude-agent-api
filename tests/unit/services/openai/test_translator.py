@@ -37,3 +37,28 @@ class TestRequestTranslator:
         # Then
         assert result.prompt == "USER: Hello\n\n"
         assert result.model == "sonnet"
+
+    def test_translate_system_message_extraction(self, model_mapper: ModelMapper) -> None:
+        """Test extraction of system message to system_prompt field.
+
+        Given: messages=[{"role": "system", "content": "You are helpful"}, {"role": "user", "content": "Hello"}]
+        When: translator.translate(request)
+        Then: Assert result.system_prompt == "You are helpful"
+        Then: Assert result.prompt == "USER: Hello\n\n" (system NOT in prompt)
+        """
+        # Given
+        request = ChatCompletionRequest(
+            model="gpt-4",
+            messages=[
+                OpenAIMessage(role="system", content="You are helpful"),
+                OpenAIMessage(role="user", content="Hello"),
+            ],
+        )
+        translator = RequestTranslator(model_mapper)
+
+        # When
+        result = translator.translate(request)
+
+        # Then
+        assert result.system_prompt == "You are helpful"
+        assert result.prompt == "USER: Hello\n\n"

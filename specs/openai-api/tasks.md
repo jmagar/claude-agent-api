@@ -210,7 +210,7 @@ Focus: Build translation layer test-first, one component at a time.
 
 ---
 
-### Task 1.6: RED - Write RequestTranslator test for system message extraction
+### Task 1.6: RED - Write RequestTranslator test for system message extraction ✓
 
 **RED - Write Test**:
 1. Add to `tests/unit/services/openai/test_translator.py`
