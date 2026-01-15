@@ -1,9 +1,14 @@
 """Request translator for OpenAI to Claude Agent SDK format conversion."""
 
+import time
+import uuid
+
 import structlog
 
 from apps.api.schemas.openai.requests import ChatCompletionRequest, OpenAIMessage
+from apps.api.schemas.openai.responses import OpenAIChatCompletion
 from apps.api.schemas.requests.query import QueryRequest
+from apps.api.schemas.responses import SingleQueryResponse
 from apps.api.services.openai.models import ModelMapper
 
 logger = structlog.get_logger(__name__)
@@ -116,4 +121,59 @@ class RequestTranslator:
             model=claude_model,
             system_prompt=system_prompt,
             user=request.user,  # SUPPORTED: User identifier for tracking
+        )
+
+
+class ResponseTranslator:
+    """Translates Claude Agent SDK responses to OpenAI chat completion format."""
+
+    def translate(
+        self, response: SingleQueryResponse, original_model: str
+    ) -> OpenAIChatCompletion:
+        """Translate SingleQueryResponse to OpenAI ChatCompletion format.
+
+        Args:
+            response: Claude Agent SDK SingleQueryResponse
+            original_model: Original OpenAI model name requested (e.g., "gpt-4")
+
+        Returns:
+            OpenAIChatCompletion dict with OpenAI-compatible structure
+        """
+        # Generate unique completion ID
+        completion_id = f"chatcmpl-{uuid.uuid4()}"
+
+        # Extract text content from content blocks (only type="text")
+        text_parts = []
+        for block in response.content:
+            if block.type == "text" and block.text:
+                text_parts.append(block.text)
+
+        # Concatenate text blocks with space separator
+        content = " ".join(text_parts)
+
+        # Build OpenAI ChatCompletion response
+        return OpenAIChatCompletion(
+            id=completion_id,
+            object="chat.completion",
+            created=int(time.time()),
+            model=original_model,
+            choices=[
+                {
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": content,
+                    },
+                    "finish_reason": "stop",
+                }
+            ],
+            usage={
+                "prompt_tokens": response.usage.input_tokens if response.usage else 0,
+                "completion_tokens": response.usage.output_tokens if response.usage else 0,
+                "total_tokens": (
+                    (response.usage.input_tokens + response.usage.output_tokens)
+                    if response.usage
+                    else 0
+                ),
+            },
         )

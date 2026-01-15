@@ -281,3 +281,62 @@ class TestRequestTranslator:
 
         # Then
         assert result.user == "user-123"
+
+
+@pytest.fixture
+def mock_single_query_response() -> object:
+    """Create mock SingleQueryResponse fixture for ResponseTranslator tests.
+
+    Returns:
+        Mock SingleQueryResponse with basic text content
+    """
+    from apps.api.schemas.responses import ContentBlockSchema, SingleQueryResponse, UsageSchema
+
+    return SingleQueryResponse(
+        session_id="test-session-123",
+        model="sonnet",
+        content=[ContentBlockSchema(type="text", text="Hello!")],
+        is_error=False,
+        stop_reason="completed",
+        duration_ms=1000,
+        num_turns=1,
+        usage=UsageSchema(input_tokens=10, output_tokens=5),
+    )
+
+
+class TestResponseTranslator:
+    """Test suite for ResponseTranslator."""
+
+    def test_translate_basic_response(
+        self, mock_single_query_response: object
+    ) -> None:
+        """Test translating basic SingleQueryResponse to OpenAI format.
+
+        Given: Mock SingleQueryResponse with content=[{"type": "text", "text": "Hello!"}], model="sonnet"
+        When: translator.translate(response, original_model="gpt-4")
+        Then: Assert result["choices"][0]["message"]["content"] == "Hello!"
+        Then: Assert result["model"] == "gpt-4"
+        Then: Assert result["object"] == "chat.completion"
+        Then: Assert result["id"] starts with "chatcmpl-"
+        """
+        # Import here to trigger the expected ModuleNotFoundError
+        from apps.api.services.openai.translator import ResponseTranslator
+
+        # Given
+        translator = ResponseTranslator()
+        response = mock_single_query_response
+
+        # When
+        result = translator.translate(response, original_model="gpt-4")
+
+        # Then
+        assert result["choices"][0]["message"]["content"] == "Hello!"
+        assert result["model"] == "gpt-4"
+        assert result["object"] == "chat.completion"
+        assert result["id"].startswith("chatcmpl-")
+        # Verify ID is valid UUID format (chatcmpl- prefix + UUID)
+        assert len(result["id"]) > len("chatcmpl-")
+        # Verify created timestamp is reasonable (within last hour)
+        import time
+        now = int(time.time())
+        assert abs(result["created"] - now) < 3600
