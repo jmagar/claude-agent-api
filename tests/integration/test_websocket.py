@@ -450,7 +450,7 @@ class TestWebSocketMessageHandling:
         )
 
         task = asyncio.create_task(
-            websocket_query(cast("WebSocket", websocket), agent_service)
+            websocket_query(cast("WebSocket", websocket), agent_service, session_service)
         )
 
         await wait_for_condition(

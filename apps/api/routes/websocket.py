@@ -11,9 +11,11 @@ import structlog
 from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
 
 from apps.api.config import get_settings
-from apps.api.dependencies import get_agent_service
+from apps.api.dependencies import get_agent_service, get_session_service
+from apps.api.exceptions import SessionNotFoundError
 from apps.api.schemas.requests.query import QueryRequest
 from apps.api.services.agent import AgentService
+from apps.api.services.session import SessionService
 
 logger = structlog.get_logger(__name__)
 
@@ -114,7 +116,9 @@ async def _handle_interrupt_message(
     websocket: WebSocket,
     message: WebSocketMessageDict,
     agent_service: AgentService,
+    session_service: SessionService,
     current_session_id: str | None,
+    api_key: str,
 ) -> None:
     """Handle interrupt message to stop current query.
 
@@ -122,17 +126,30 @@ async def _handle_interrupt_message(
         websocket: WebSocket connection.
         message: WebSocket message dict.
         agent_service: Agent service instance.
+        session_service: Session service instance.
         current_session_id: Current session ID if any.
+        api_key: API key of the requester.
     """
     session_id = message.get("session_id") or current_session_id
-    if session_id:
-        success = await agent_service.interrupt(session_id)
-        if success:
-            await _send_ack(websocket, "Query interrupted")
-        else:
-            await _send_error(websocket, "Session not found or not active")
-    else:
+    if not session_id:
         await _send_error(websocket, "No active session to interrupt")
+        return
+
+    # Verify session ownership before allowing interrupt
+    try:
+        session = await session_service.get_session(session_id, current_api_key=api_key)
+        if not session:
+            await _send_error(websocket, "Session not found or not authorized")
+            return
+    except SessionNotFoundError:
+        await _send_error(websocket, "Session not found or not authorized")
+        return
+
+    success = await agent_service.interrupt(session_id)
+    if success:
+        await _send_ack(websocket, "Query interrupted")
+    else:
+        await _send_error(websocket, "Session not found or not active")
 
 
 async def _handle_answer_message(
@@ -209,7 +226,9 @@ async def _process_websocket_message(
     websocket: WebSocket,
     message: WebSocketMessageDict,
     agent_service: AgentService,
+    session_service: SessionService,
     state: WebSocketState,
+    api_key: str,
 ) -> None:
     """Route and process a WebSocket message by type.
 
@@ -217,7 +236,9 @@ async def _process_websocket_message(
         websocket: WebSocket connection.
         message: WebSocket message dict.
         agent_service: Agent service instance.
+        session_service: Session service instance.
         state: WebSocket connection state.
+        api_key: API key of the requester.
     """
     msg_type = message.get("type")
 
@@ -225,7 +246,12 @@ async def _process_websocket_message(
         await _handle_prompt_message(websocket, message, agent_service, state)
     elif msg_type == "interrupt":
         await _handle_interrupt_message(
-            websocket, message, agent_service, state.current_session_id
+            websocket,
+            message,
+            agent_service,
+            session_service,
+            state.current_session_id,
+            api_key,
         )
     elif msg_type == "answer":
         await _handle_answer_message(
@@ -243,6 +269,7 @@ async def _process_websocket_message(
 async def websocket_query(
     websocket: WebSocket,
     agent_service: AgentService = Depends(get_agent_service),
+    session_service: SessionService = Depends(get_session_service),
 ) -> None:
     """WebSocket endpoint for bidirectional agent communication (T119-T120).
 
@@ -288,7 +315,9 @@ async def websocket_query(
                 await _send_error(websocket, "Invalid JSON message")
                 continue
 
-            await _process_websocket_message(websocket, message, agent_service, state)
+            await _process_websocket_message(
+                websocket, message, agent_service, session_service, state, api_key
+            )
 
     except WebSocketDisconnect:
         logger.info("WebSocket disconnected")
