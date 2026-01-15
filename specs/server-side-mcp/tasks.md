@@ -353,7 +353,7 @@ End-to-end validation with real services, backward compatibility verification.
   - **Commit**: `test(mcp): add integration test for application config`
   - _Requirements: AC-1.7_
 
-- [ ] 3.2 Write integration test for API-key override
+- [x] 3.2 Write integration test for API-key override
   - **Do**: Add `test_api_key_mcp_overrides_application()` that creates application config with server A, creates API-key config with server A (different settings), verifies API-key version used.
   - **Files**: `tests/integration/test_server_side_mcp.py`
   - **Done when**: Test verifies API-key tier overrides application tier
