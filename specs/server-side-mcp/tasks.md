@@ -377,7 +377,7 @@ End-to-end validation with real services, backward compatibility verification.
   - **Commit**: `test(mcp): add integration test for opt-out`
   - _Requirements: AC-3.4, FR-7_
 
-- [ ] 3.5 Write integration test for multi-tenant isolation
+- [x] 3.5 Write integration test for multi-tenant isolation
   - **Do**: Add `test_api_key_isolation()` that creates servers for two different API keys, verifies each key only sees its own servers, cross-tenant access impossible.
   - **Files**: `tests/integration/test_server_side_mcp.py`
   - **Done when**: Test verifies zero data leakage between tenants
