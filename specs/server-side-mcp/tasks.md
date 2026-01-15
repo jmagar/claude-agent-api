@@ -425,7 +425,7 @@ End-to-end validation with real services, backward compatibility verification.
   - **Commit**: `test(mcp): add security test for credential leakage`
   - _Requirements: AC-4.1, AC-4.2, FR-8_
 
-- [ ] 3.11 Write security test for command injection
+- [x] 3.11 Write security test for command injection
   - **Do**: Add `test_command_injection_rejected()` that attempts to create MCP server with command containing `; rm -rf /`, verifies rejection with 400 Bad Request.
   - **Files**: `tests/security/test_server_side_mcp_security.py`
   - **Done when**: Test verifies shell metacharacters blocked
@@ -433,7 +433,7 @@ End-to-end validation with real services, backward compatibility verification.
   - **Commit**: `test(mcp): add security test for command injection`
   - _Requirements: AC-4.3, FR-9_
 
-- [ ] 3.12 Write security test for SSRF prevention
+- [x] 3.12 Write security test for SSRF prevention
   - **Do**: Add `test_ssrf_attempts_blocked()` that attempts to create MCP server with URL `http://169.254.169.254/latest/meta-data/`, verifies rejection.
   - **Files**: `tests/security/test_server_side_mcp_security.py`
   - **Done when**: Test verifies internal URLs blocked
@@ -441,7 +441,7 @@ End-to-end validation with real services, backward compatibility verification.
   - **Commit**: `test(mcp): add security test for ssrf prevention`
   - _Requirements: AC-4.4, FR-9_
 
-- [ ] 3.13 [VERIFY] Quality checkpoint: `uv run pytest tests/security/test_server_side_mcp_security.py`
+- [x] 3.13 [VERIFY] Quality checkpoint: `uv run pytest tests/security/test_server_side_mcp_security.py`
   - **Do**: Run all security tests
   - **Verify**: All tests pass
   - **Done when**: Zero security vulnerabilities found
