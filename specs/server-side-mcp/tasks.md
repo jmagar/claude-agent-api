@@ -240,7 +240,7 @@ After POC validated, write comprehensive tests FIRST (RED), then ensure implemen
   - **Commit**: `test(mcp): add failing tests for ssrf prevention`
   - _Requirements: AC-4.4, FR-9_
 
-- [ ] 2.14 [GREEN] Implement SSRF validator
+- [x] 2.14 [GREEN] Implement SSRF validator
   - **Do**: Add `validate_ssrf(url: str | None)` method to `ConfigValidator`. Use existing `validate_url_not_internal()` from `apps/api/schemas/validators.py`. Handle None gracefully. Raise `ValueError` for internal URLs.
   - **Files**: `apps/api/services/mcp_config_validator.py`
   - **Done when**: All SSRF tests PASS
