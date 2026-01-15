@@ -1099,12 +1099,12 @@ Focus: Coverage verification, documentation, CI preparation.
 
 ---
 
-### Task 4.1: Verify test coverage targets
+### Task 4.1: Verify test coverage targets ✓
 
 **Do**: Run coverage analysis on all OpenAI modules
 
 **Verify**: Coverage targets met:
-- `uv run pytest tests/unit/services/openai/ -v --cov=apps.api.services.openai --cov-report=term-missing --cov-fail-under=90` - ≥90% for services
+- `uv run pytest tests/unit/services/test_openai/ -v --cov=apps.api.services.openai --cov-report=term-missing --cov-fail-under=90` - ≥90% for services
 - `uv run pytest tests/integration/ -k openai -v --cov=apps.api.routes.openai --cov-report=term-missing --cov-fail-under=80` - ≥80% for routes
 
 **Done when**: Coverage targets met
