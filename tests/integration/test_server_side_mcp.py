@@ -278,3 +278,76 @@ class TestServerSideMcpIntegration:
         # 2. Verifying app-server and api-key-server NOT injected
         # 3. Checking that config merge logic detected empty dict opt-out
         # This is covered by unit tests; integration test verifies API accepts it.
+
+    async def test_api_key_isolation(
+        self,
+        async_client: AsyncClient,
+        auth_headers: dict[str, str],
+        mock_claude_sdk: None,
+    ) -> None:
+        """Test that API keys are isolated from each other (multi-tenant isolation).
+
+        Creates MCP servers for two different API keys, verifies that each key
+        only sees its own servers and cross-tenant access is impossible.
+        """
+        from apps.api.dependencies import get_cache
+        from apps.api.services.mcp_server_configs import McpServerConfigService
+
+        cache = await get_cache()
+        mcp_service = McpServerConfigService(cache)
+
+        # Create servers for first API key (from auth_headers)
+        api_key_1 = auth_headers.get("X-API-Key", "")
+        assert api_key_1, "API key required for this test"
+
+        await mcp_service.create_server_for_api_key(
+            api_key=api_key_1,
+            name="tenant1-server",
+            transport_type="stdio",
+            config={
+                "command": "python",
+                "args": ["-m", "tenant1_module"],
+                "env": {"TENANT": "1"},
+            },
+        )
+
+        # Create servers for second API key
+        api_key_2 = "test-key-tenant-2"
+        await mcp_service.create_server_for_api_key(
+            api_key=api_key_2,
+            name="tenant2-server",
+            transport_type="stdio",
+            config={
+                "command": "python",
+                "args": ["-m", "tenant2_module"],
+                "env": {"TENANT": "2"},
+            },
+        )
+
+        # Verify tenant 1 only sees their own servers
+        tenant1_servers = await mcp_service.list_servers_for_api_key(api_key_1)
+        tenant1_names = [s.name for s in tenant1_servers]
+        assert "tenant1-server" in tenant1_names
+        assert "tenant2-server" not in tenant1_names
+
+        # Verify tenant 2 only sees their own servers
+        tenant2_servers = await mcp_service.list_servers_for_api_key(api_key_2)
+        tenant2_names = [s.name for s in tenant2_servers]
+        assert "tenant2-server" in tenant2_names
+        assert "tenant1-server" not in tenant2_names
+
+        # Verify tenant 1 cannot access tenant 2's server by name
+        tenant2_server_from_tenant1 = await mcp_service.get_server_for_api_key(
+            api_key=api_key_1, name="tenant2-server"
+        )
+        assert tenant2_server_from_tenant1 is None
+
+        # Verify tenant 2 cannot access tenant 1's server by name
+        tenant1_server_from_tenant2 = await mcp_service.get_server_for_api_key(
+            api_key=api_key_2, name="tenant1-server"
+        )
+        assert tenant1_server_from_tenant2 is None
+
+        # Cleanup: delete test servers
+        await mcp_service.delete_server_for_api_key(api_key_1, "tenant1-server")
+        await mcp_service.delete_server_for_api_key(api_key_2, "tenant2-server")
