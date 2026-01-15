@@ -20,6 +20,7 @@ from apps.api.services.agent import AgentService
 from apps.api.services.checkpoint import CheckpointService
 from apps.api.services.mcp_config_injector import McpConfigInjector
 from apps.api.services.mcp_config_loader import McpConfigLoader
+from apps.api.services.mcp_config_validator import ConfigValidator
 from apps.api.services.mcp_server_configs import McpServerConfigService
 from apps.api.services.query_enrichment import QueryEnrichmentService
 from apps.api.services.session import SessionService
@@ -317,10 +318,15 @@ async def get_mcp_config_injector(
         cache: Redis cache from dependency injection.
 
     Returns:
-        McpConfigInjector instance with loader and config service.
+        McpConfigInjector instance with loader, config service, and validator.
     """
     config_service = McpServerConfigService(cache=cache)
-    return McpConfigInjector(config_loader=loader, config_service=config_service)
+    validator = ConfigValidator()
+    return McpConfigInjector(
+        config_loader=loader,
+        config_service=config_service,
+        validator=validator,
+    )
 
 
 # Type aliases for dependency injection

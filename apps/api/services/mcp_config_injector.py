@@ -16,6 +16,7 @@ import structlog
 from apps.api.schemas.requests.config import McpServerConfigSchema
 from apps.api.schemas.requests.query import QueryRequest
 from apps.api.services.mcp_config_loader import McpConfigLoader
+from apps.api.services.mcp_config_validator import ConfigValidator
 from apps.api.services.mcp_server_configs import McpServerConfigService, McpServerRecord
 
 logger = structlog.get_logger(__name__)
@@ -28,15 +29,18 @@ class McpConfigInjector:
         self,
         config_loader: McpConfigLoader,
         config_service: McpServerConfigService,
+        validator: ConfigValidator | None = None,
     ) -> None:
         """Initialize MCP config injector.
 
         Args:
             config_loader: Loader for application-level config files.
             config_service: Service for API-key-scoped config storage.
+            validator: Optional validator for security checks and credential sanitization.
         """
         self.config_loader = config_loader
         self.config_service = config_service
+        self.validator = validator
 
     async def inject(self, request: QueryRequest, api_key: str) -> QueryRequest:
         """Inject server-side MCP configuration into request.
@@ -101,6 +105,13 @@ class McpConfigInjector:
         # Convert merged config back to Pydantic models
         merged_schemas = self._config_dict_to_schemas(merged_config)
 
+        # Sanitize merged config for safe logging (if validator available)
+        sanitized_config = (
+            self.validator.sanitize_credentials(merged_config)
+            if self.validator
+            else merged_config
+        )
+
         logger.info(
             "mcp_config_injected",
             api_key_prefix=api_key[:8] if len(api_key) >= 8 else api_key,
@@ -109,6 +120,7 @@ class McpConfigInjector:
             request_count=len(request_config) if request_config else 0,
             merged_count=len(merged_schemas),
             server_names=list(merged_schemas.keys()),
+            merged_config=sanitized_config,
         )
 
         # Create enriched request with merged MCP servers
