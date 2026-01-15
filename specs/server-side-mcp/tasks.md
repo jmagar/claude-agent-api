@@ -123,11 +123,12 @@ Focus: Validate the three-tier configuration merge works end-to-end. Skip compre
   - **Done when**: No lint errors, no type errors
   - **Commit**: `chore(mcp): pass quality checkpoint` (only if fixes needed)
 
-- [ ] 1.14 POC Checkpoint - Manual E2E test
+- [x] 1.14 POC Checkpoint - Manual E2E test
   - **Do**: Manually test complete flow: (1) Create `.mcp-server-config.json` with test server, (2) Create API key in Redis, (3) Add server via `/mcp-servers` for that key, (4) Send query request with null mcp_servers, (5) Verify server-side configs injected, (6) Send request with empty dict, verify opt-out works
   - **Done when**: Three-tier merge works end-to-end from file → database → request
   - **Verify**: Manual testing with curl commands, check logs for merged config
   - **Commit**: `feat(mcp): complete poc implementation`
+  - **RESULT**: BLOCKER FOUND - `get_agent_service()` doesn't pass `mcp_config_injector` to `AgentService()`. Must fix before Phase 2.
 
 ## Phase 2: TDD Implementation
 
