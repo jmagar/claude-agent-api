@@ -101,7 +101,7 @@ def _map_server(record) -> McpServerConfigResponse:
 
 @router.get("", response_model=McpServerListResponse)
 async def list_mcp_servers(
-    _api_key: ApiKey,
+    api_key: ApiKey,
     cache: Cache,
     source: str | None = Query(
         None,
@@ -112,7 +112,7 @@ async def list_mcp_servers(
 
     MCP servers are discovered from:
     - Filesystem: ~/.claude.json (global), .mcp.json, .claude/mcp.json (project)
-    - Database: Servers created via API
+    - Database: Servers created via API (scoped to authenticated API key)
 
     Use the 'source' query param to filter by source.
     Note: Filesystem server env/headers are redacted for security.
@@ -161,9 +161,10 @@ async def list_mcp_servers(
             )
 
     # Get database servers (unless filtering to filesystem only)
+    # Filter by authenticated API key
     if source != "filesystem":
         db_service = McpServerConfigService(cache)
-        db_servers = await db_service.list_servers()
+        db_servers = await db_service.list_servers_for_api_key(api_key)
         for s in db_servers:
             servers.append(_map_server(s))
 
@@ -173,16 +174,18 @@ async def list_mcp_servers(
 @router.post("", response_model=McpServerConfigResponse, status_code=201)
 async def create_mcp_server(
     request: McpServerCreateRequest,
-    _api_key: ApiKey,
+    api_key: ApiKey,
     cache: Cache,
 ) -> McpServerConfigResponse:
     """Create a new MCP server configuration in the database.
 
     Note: To add filesystem-based MCP servers, edit ~/.claude.json (global)
     or create .mcp.json / .claude/mcp.json in your project.
+    Server is scoped to the authenticated API key.
     """
     service = McpServerConfigService(cache)
-    server = await service.create_server(
+    server = await service.create_server_for_api_key(
+        api_key=api_key,
         name=request.name,
         transport_type=request.type,
         config=request.config,
@@ -199,13 +202,13 @@ async def create_mcp_server(
 @router.get("/{name}", response_model=McpServerConfigResponse)
 async def get_mcp_server(
     name: str,
-    _api_key: ApiKey,
+    api_key: ApiKey,
     cache: Cache,
 ) -> McpServerConfigResponse:
     """Get MCP server configuration by name.
 
     For filesystem servers, use the 'fs:' prefix (e.g., 'fs:my-server').
-    For database servers, use the name directly.
+    For database servers, use the name directly (scoped to authenticated API key).
     """
     # Check if it's a filesystem server
     if name.startswith("fs:"):
@@ -255,9 +258,9 @@ async def get_mcp_server(
             status_code=404,
         )
 
-    # Otherwise, look up in database
+    # Otherwise, look up in database (scoped to API key)
     service = McpServerConfigService(cache)
-    server = await service.get_server(name)
+    server = await service.get_server_for_api_key(api_key, name)
     if server is None:
         raise APIError(
             message="MCP server not found",
@@ -271,13 +274,14 @@ async def get_mcp_server(
 async def update_mcp_server(
     name: str,
     request: McpServerUpdateRequest,
-    _api_key: ApiKey,
+    api_key: ApiKey,
     cache: Cache,
 ) -> McpServerConfigResponse:
     """Update a database MCP server configuration.
 
     Note: Filesystem MCP servers cannot be updated via API.
     Edit ~/.claude.json or .mcp.json directly.
+    Updates are scoped to the authenticated API key.
     """
     # Filesystem servers cannot be updated via API
     if name.startswith("fs:"):
@@ -288,7 +292,9 @@ async def update_mcp_server(
         )
 
     service = McpServerConfigService(cache)
-    server = await service.update_server(name, request.type, request.config)
+    server = await service.update_server_for_api_key(
+        api_key, name, request.type, request.config
+    )
     if server is None:
         raise APIError(
             message="MCP server not found",
@@ -301,13 +307,14 @@ async def update_mcp_server(
 @router.delete("/{name}", status_code=204)
 async def delete_mcp_server(
     name: str,
-    _api_key: ApiKey,
+    api_key: ApiKey,
     cache: Cache,
 ) -> None:
     """Delete a database MCP server configuration.
 
     Note: Filesystem MCP servers cannot be deleted via API.
     Edit ~/.claude.json or .mcp.json directly.
+    Deletion is scoped to the authenticated API key.
     """
     # Filesystem servers cannot be deleted via API
     if name.startswith("fs:"):
@@ -318,7 +325,7 @@ async def delete_mcp_server(
         )
 
     service = McpServerConfigService(cache)
-    deleted = await service.delete_server(name)
+    deleted = await service.delete_server_for_api_key(api_key, name)
     if not deleted:
         raise APIError(
             message="MCP server not found",
@@ -330,12 +337,12 @@ async def delete_mcp_server(
 @router.get("/{name}/resources", response_model=McpResourceListResponse)
 async def list_mcp_resources(
     name: str,
-    _api_key: ApiKey,
+    api_key: ApiKey,
     cache: Cache,
 ) -> McpResourceListResponse:
-    """<summary>List MCP server resources.</summary>"""
+    """<summary>List MCP server resources (scoped to authenticated API key).</summary>"""
     service = McpServerConfigService(cache)
-    server = await service.get_server(name)
+    server = await service.get_server_for_api_key(api_key, name)
     if server is None:
         raise APIError(
             message="MCP server not found",
@@ -361,12 +368,12 @@ async def list_mcp_resources(
 async def get_mcp_resource(
     name: str,
     uri: str,
-    _api_key: ApiKey,
+    api_key: ApiKey,
     cache: Cache,
 ) -> McpResourceContentResponse:
-    """<summary>Get MCP resource content.</summary>"""
+    """<summary>Get MCP resource content (scoped to authenticated API key).</summary>"""
     service = McpServerConfigService(cache)
-    server = await service.get_server(name)
+    server = await service.get_server_for_api_key(api_key, name)
     if server is None:
         raise APIError(
             message="MCP server not found",

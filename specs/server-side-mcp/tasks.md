@@ -48,7 +48,7 @@ Focus: Validate the three-tier configuration merge works end-to-end. Skip compre
   - _Requirements: AC-2.1, AC-2.2, AC-2.3, FR-3_
   - _Design: McpServerConfigService (EXTENDED)_
 
-- [ ] 1.5 Update MCP server routes with API-key filtering
+- [x] 1.5 Update MCP server routes with API-key filtering
   - **Do**: Modify `apps/api/routes/mcp_servers.py`. Update `list_mcp_servers()` to call `list_servers_for_api_key(api_key)`. Update `create_mcp_server()` to call `create_server_for_api_key(api_key, ...)`. Update other CRUD operations to filter by api_key.
   - **Files**: `apps/api/routes/mcp_servers.py`
   - **Done when**: All endpoints filtered by authenticated API key from header
