@@ -774,7 +774,7 @@ Focus: Build HTTP layer with test-first approach.
 
 ---
 
-### Task 2.6: Integration test - Authentication
+### Task 2.6: Integration test - Authentication ✓
 
 **RED - Write Test**:
 1. Add tests to `tests/integration/test_openai_chat.py`:
@@ -930,7 +930,7 @@ Focus: Verify OpenAI client compatibility, refine implementation.
 3. Write test `test_openai_client_basic_completion()`:
    - Import OpenAI client
    - Create client with base_url="http://localhost:54000/v1"
-   - Call chat.completions.create() with model="gpt-4", messages=[...]
+   - Call chat.completions.create() with model="gpt-5.2-codex", messages=[...]
    - Assert response is ChatCompletion object
    - Assert choices[0].message.content is not None
 4. Use pytest fixture to start test server or use running dev server

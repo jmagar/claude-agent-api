@@ -151,3 +151,139 @@ async def test_streaming_completion_basic(async_client: AsyncClient) -> None:
         assert "object" in chunk, "Chunk missing 'object'"
         assert chunk["object"] == "chat.completion.chunk", f"Expected object='chat.completion.chunk', got: {chunk['object']}"
         assert "model" in chunk, "Chunk missing 'model'"
+
+
+@pytest.mark.anyio
+async def test_bearer_token_authentication(async_client: AsyncClient) -> None:
+    """Test Bearer token authentication works for OpenAI endpoints.
+
+    Verifies:
+    - Authorization: Bearer header works
+    - Token is extracted and mapped to X-API-Key
+    - Request succeeds with 200 status
+    """
+    # Arrange
+    request_data = {
+        "model": "gpt-4",
+        "messages": [
+            {"role": "user", "content": "Hello"}
+        ],
+        "stream": False
+    }
+    headers = {
+        "Authorization": "Bearer test-api-key-12345",
+        "Content-Type": "application/json"
+    }
+
+    # Act
+    response = await async_client.post(
+        "/v1/chat/completions",
+        json=request_data,
+        headers=headers
+    )
+
+    # Assert
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+    data = response.json()
+    assert "id" in data, "Response should have id field"
+    assert "choices" in data, "Response should have choices field"
+
+
+@pytest.mark.anyio
+async def test_x_api_key_still_works(async_client: AsyncClient) -> None:
+    """Test X-API-Key header still works (backward compatibility).
+
+    Verifies:
+    - X-API-Key authentication still works
+    - BearerAuthMiddleware doesn't break existing auth
+    - Request succeeds with 200 status
+    """
+    # Arrange
+    request_data = {
+        "model": "gpt-4",
+        "messages": [
+            {"role": "user", "content": "Hello"}
+        ],
+        "stream": False
+    }
+    headers = {
+        "X-API-Key": "test-api-key-12345",
+        "Content-Type": "application/json"
+    }
+
+    # Act
+    response = await async_client.post(
+        "/v1/chat/completions",
+        json=request_data,
+        headers=headers
+    )
+
+    # Assert
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+    data = response.json()
+    assert "id" in data, "Response should have id field"
+    assert "choices" in data, "Response should have choices field"
+
+
+@pytest.mark.anyio
+async def test_no_auth_returns_401(async_client: AsyncClient) -> None:
+    """Test missing authentication returns 401 error.
+
+    Verifies:
+    - Request without auth headers returns 401
+    - Error response follows OpenAI format (if applicable)
+    """
+    # Arrange
+    request_data = {
+        "model": "gpt-4",
+        "messages": [
+            {"role": "user", "content": "Hello"}
+        ],
+        "stream": False
+    }
+    headers = {
+        "Content-Type": "application/json"
+        # No Authorization or X-API-Key header
+    }
+
+    # Act
+    response = await async_client.post(
+        "/v1/chat/completions",
+        json=request_data,
+        headers=headers
+    )
+
+    # Assert
+    assert response.status_code == 401, f"Expected 401, got {response.status_code}: {response.text}"
+
+
+@pytest.mark.anyio
+async def test_invalid_bearer_token_returns_401(async_client: AsyncClient) -> None:
+    """Test invalid Bearer token returns 401 error.
+
+    Verifies:
+    - Invalid Bearer token returns 401
+    - Error response indicates authentication failure
+    """
+    # Arrange
+    request_data = {
+        "model": "gpt-4",
+        "messages": [
+            {"role": "user", "content": "Hello"}
+        ],
+        "stream": False
+    }
+    headers = {
+        "Authorization": "Bearer invalid-token-xyz",
+        "Content-Type": "application/json"
+    }
+
+    # Act
+    response = await async_client.post(
+        "/v1/chat/completions",
+        json=request_data,
+        headers=headers
+    )
+
+    # Assert
+    assert response.status_code == 401, f"Expected 401, got {response.status_code}: {response.text}"
