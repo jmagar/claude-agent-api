@@ -6,6 +6,7 @@ from typing import Any, cast
 from uuid import uuid4
 
 from apps.api.protocols import Cache
+from apps.api.services.mcp_redis_keys import McpRedisKeyBuilder
 
 
 @dataclass
@@ -40,11 +41,11 @@ class McpServerConfigService:
 
     def _server_key(self, api_key: str, name: str) -> str:
         """<summary>Build cache key for an MCP server scoped to API key.</summary>"""
-        return f"mcp_server:{api_key}:{name}"
+        return McpRedisKeyBuilder.server_key(api_key, name)
 
     def _index_key(self, api_key: str) -> str:
         """<summary>Build cache key for API key's server index.</summary>"""
-        return f"mcp_servers:index:{api_key}"
+        return McpRedisKeyBuilder.index_key(api_key)
 
     async def list_servers(self) -> list[McpServerRecord]:
         """<summary>List all MCP servers (legacy, not API-key scoped).</summary>"""
