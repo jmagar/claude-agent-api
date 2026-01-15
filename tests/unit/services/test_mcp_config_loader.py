@@ -5,9 +5,7 @@ Tests for application config loading, env var resolution, and merge logic.
 
 import json
 from pathlib import Path
-from unittest.mock import patch
-
-import pytest
+from typing import cast
 
 from apps.api.services.mcp_config_loader import McpConfigLoader
 
@@ -39,7 +37,8 @@ class TestLoadApplicationConfig:
         # Assert: Should return mcpServers section
         assert result == config_data["mcpServers"]
         assert "github" in result
-        assert result["github"]["command"] == "npx"
+        github_config = cast("dict[str, object]", result["github"])
+        assert github_config["command"] == "npx"
 
     def test_load_application_config_missing_file(self, tmp_path: Path) -> None:
         """Test behavior when .mcp-server-config.json is missing."""

@@ -1,17 +1,16 @@
 {
   "mcpServers": {
-    "test-server": {
-      "type": "stdio",
-      "command": "npx",
-      "args": ["-y", "@anthropic-ai/claude-mcp-server-github"],
+    "test-app-server": {
+      "command": "node",
+      "args": ["/path/to/test-server.js"],
       "env": {
-        "GITHUB_TOKEN": "${GITHUB_TOKEN}"
+        "TEST_VAR": "from_application_config"
       }
     },
-    "postgres": {
-      "type": "stdio",
-      "command": "uvx",
-      "args": ["mcp-server-postgres", "postgresql://localhost/test"]
+    "disabled-app-server": {
+      "command": "node",
+      "args": ["/path/to/disabled.js"],
+      "enabled": false
     }
   }
 }
