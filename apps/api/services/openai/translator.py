@@ -213,12 +213,16 @@ class ResponseTranslator:
             ),
         }
 
+        # Return the Claude model name from the actual response, not the OpenAI model name
+        # The response.model field contains the actual Claude model used (e.g., "sonnet")
+        model_name = response.model if response.model else original_model
+
         # Build OpenAI ChatCompletion response
         return OpenAIChatCompletion(
             id=completion_id,
             object="chat.completion",
             created=int(time.time()),
-            model=original_model,
+            model=model_name,
             choices=[choice],
             usage=usage,
         )

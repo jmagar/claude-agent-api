@@ -315,7 +315,7 @@ class TestResponseTranslator:
         Given: Mock SingleQueryResponse with content=[{"type": "text", "text": "Hello!"}], model="sonnet"
         When: translator.translate(response, original_model="gpt-4")
         Then: Assert result["choices"][0]["message"]["content"] == "Hello!"
-        Then: Assert result["model"] == "gpt-4"
+        Then: Assert result["model"] == "sonnet" (uses actual model from response)
         Then: Assert result["object"] == "chat.completion"
         Then: Assert result["id"] starts with "chatcmpl-"
         """
@@ -331,7 +331,7 @@ class TestResponseTranslator:
 
         # Then
         assert result["choices"][0]["message"]["content"] == "Hello!"
-        assert result["model"] == "gpt-4"
+        assert result["model"] == "sonnet"  # Returns actual Claude model name from response
         assert result["object"] == "chat.completion"
         assert result["id"].startswith("chatcmpl-")
         # Verify ID is valid UUID format (chatcmpl- prefix + UUID)
