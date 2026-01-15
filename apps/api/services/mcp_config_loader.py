@@ -8,6 +8,7 @@ import json
 import os
 import re
 from pathlib import Path
+from typing import cast
 
 import structlog
 
@@ -15,6 +16,9 @@ logger = structlog.get_logger(__name__)
 
 # Pattern to match environment variable placeholders like ${VAR_NAME}
 ENV_VAR_PATTERN = re.compile(r"\$\{([A-Z_][A-Z0-9_]*)\}")
+
+# JSON field name for MCP servers section
+MCP_SERVERS_FIELD = "mcpServers"
 
 
 class McpConfigLoader:
@@ -53,6 +57,7 @@ class McpConfigLoader:
 
         config_path = self.project_path / ".mcp-server-config.json"
 
+        # Handle missing file
         if not config_path.exists():
             logger.debug(
                 "application_mcp_config_not_found",
@@ -61,21 +66,29 @@ class McpConfigLoader:
             self._cached_config = {}
             return self._cached_config
 
+        # Load and parse config file
+        mcp_servers = self._load_and_parse_file(config_path)
+        self._cached_config = mcp_servers
+        return self._cached_config
+
+    def _load_and_parse_file(self, config_path: Path) -> dict[str, object]:
+        """Load and parse MCP configuration file.
+
+        Args:
+            config_path: Path to the configuration JSON file.
+
+        Returns:
+            Parsed mcpServers section, or empty dict on error.
+        """
         try:
-            content = config_path.read_text()
+            content = config_path.read_text(encoding="utf-8")
             config = json.loads(content)
 
-            # Extract mcpServers section
-            mcp_servers = config.get("mcpServers", {})
+            # Extract and validate mcpServers section
+            mcp_servers = config.get(MCP_SERVERS_FIELD, {})
 
-            if not isinstance(mcp_servers, dict):
-                logger.warning(
-                    "application_mcp_config_invalid",
-                    path=str(config_path),
-                    reason="mcpServers_not_dict",
-                )
-                self._cached_config = {}
-                return self._cached_config
+            if not self._validate_config_structure(mcp_servers, config_path):
+                return {}
 
             logger.info(
                 "application_mcp_config_loaded",
@@ -84,18 +97,50 @@ class McpConfigLoader:
                 servers=list(mcp_servers.keys()),
             )
 
-            self._cached_config = mcp_servers
-            return self._cached_config
+            return mcp_servers
 
-        except (OSError, json.JSONDecodeError) as e:
+        except OSError as e:
+            # File read errors (permissions, I/O issues)
             logger.warning(
-                "application_mcp_config_load_failed",
+                "application_mcp_config_read_failed",
                 path=str(config_path),
                 error=str(e),
                 error_type=type(e).__name__,
             )
-            self._cached_config = {}
-            return self._cached_config
+            return {}
+
+        except json.JSONDecodeError as e:
+            # JSON parsing errors (malformed JSON)
+            logger.warning(
+                "application_mcp_config_parse_failed",
+                path=str(config_path),
+                error=str(e),
+                line=e.lineno,
+                column=e.colno,
+            )
+            return {}
+
+    def _validate_config_structure(
+        self, mcp_servers: object, config_path: Path
+    ) -> bool:
+        """Validate that mcpServers section has correct structure.
+
+        Args:
+            mcp_servers: The extracted mcpServers value to validate.
+            config_path: Path to config file (for logging).
+
+        Returns:
+            True if valid (is a dict), False otherwise.
+        """
+        if not isinstance(mcp_servers, dict):
+            logger.warning(
+                "application_mcp_config_invalid",
+                path=str(config_path),
+                reason="mcpServers_not_dict",
+                actual_type=type(mcp_servers).__name__,
+            )
+            return False
+        return True
 
     def resolve_env_vars(self, config: dict[str, object]) -> dict[str, object]:
         """Resolve environment variable placeholders in configuration.
@@ -105,16 +150,33 @@ class McpConfigLoader:
         is not found in the environment, the placeholder is left as-is and a
         warning is logged.
 
+        Environment variable names must match pattern: ${[A-Z_][A-Z0-9_]*}
+        (uppercase letters, underscores, numbers, cannot start with digit).
+
         Args:
             config: Configuration dict that may contain ${VAR} placeholders.
 
         Returns:
             Configuration dict with environment variables resolved.
+
+        Example:
+            >>> loader = McpConfigLoader()
+            >>> config = {"token": "${GITHUB_TOKEN}", "count": 42}
+            >>> loader.resolve_env_vars(config)
+            {"token": "ghp_actual_token_value", "count": 42}
         """
-        return self._resolve_value(config)  # type: ignore[return-value]
+        resolved = self._resolve_value(config)
+        # Type checker needs explicit cast since _resolve_value returns object
+        return cast(dict[str, object], resolved)
 
     def _resolve_value(self, value: object) -> object:
         """Recursively resolve environment variables in a value.
+
+        Handles different value types:
+        - str: Searches for ${VAR} patterns and replaces with env values
+        - dict: Recursively processes all values
+        - list: Recursively processes all items
+        - other: Returns unchanged (int, bool, None, etc.)
 
         Args:
             value: Any value that might contain env var placeholders.
@@ -129,19 +191,37 @@ class McpConfigLoader:
         elif isinstance(value, list):
             return [self._resolve_value(item) for item in value]
         else:
+            # Primitive types (int, bool, None) pass through unchanged
             return value
 
     def _resolve_string(self, text: str) -> str:
         """Resolve environment variables in a string.
+
+        Replaces all occurrences of ${VAR_NAME} with environment variable values.
+        Multiple placeholders in one string are all resolved. If a variable is
+        not found, the placeholder is left unchanged and a warning is logged.
 
         Args:
             text: String that may contain ${VAR} placeholders.
 
         Returns:
             String with environment variables replaced.
+
+        Example:
+            >>> # With GITHUB_TOKEN=secret in environment
+            >>> loader._resolve_string("Bearer ${GITHUB_TOKEN}")
+            "Bearer secret"
         """
 
         def replace_var(match: re.Match[str]) -> str:
+            """Replace a single environment variable placeholder.
+
+            Args:
+                match: Regex match object for ${VAR_NAME} pattern.
+
+            Returns:
+                Environment variable value or original placeholder if not found.
+            """
             var_name = match.group(1)
             env_value = os.environ.get(var_name)
 
@@ -172,21 +252,31 @@ class McpConfigLoader:
         Implements configuration merge with precedence:
         Application < API-Key < Request (lowest to highest priority).
 
-        Special handling for opt-out:
-        - If request == {} (empty dict), return empty dict (explicit opt-out).
-        - If request is None, merge application and api_key configs.
-        - If request has values, merge all three tiers.
+        **Merge Behavior:**
+        - Same-name servers from higher tier completely replace lower tier
+          (shallow replacement, not deep merge of server properties)
+        - Empty application or api_key tiers are valid (no servers at that level)
 
-        Same-name servers from higher tier completely replace lower tier
-        (dict update, not deep merge).
+        **Opt-Out Mechanism:**
+        - `request == {}` (empty dict): Explicit opt-out, returns empty dict
+        - `request == None`: Use server-side configs (application + api_key)
+        - `request == {...}`: Merge all three tiers
 
         Args:
-            application: Application-level config from file.
-            api_key: API-key-level config from database.
-            request: Request-level config (optional, None if not provided).
+            application: Application-level config from .mcp-server-config.json file.
+            api_key: API-key-level config from Redis database.
+            request: Request-level config from API request body (optional).
 
         Returns:
-            Merged configuration dict.
+            Merged configuration dict mapping server name to config.
+
+        Example:
+            >>> loader = McpConfigLoader()
+            >>> app = {"github": {"command": "mcp-github"}}
+            >>> key = {"slack": {"url": "http://slack"}}
+            >>> req = {"github": {"command": "mcp-github-v2"}}
+            >>> loader.merge_configs(app, key, req)
+            {"github": {"command": "mcp-github-v2"}, "slack": {"url": "..."}}
         """
         # Handle explicit opt-out (empty dict means "no MCP servers")
         if request is not None and len(request) == 0:
@@ -196,13 +286,13 @@ class McpConfigLoader:
             )
             return {}
 
-        # Start with application config
+        # Start with application config (lowest precedence)
         merged = dict(application)
 
-        # Layer on API-key config
+        # Layer on API-key config (middle precedence)
         merged.update(api_key)
 
-        # Layer on request config (if provided and not None)
+        # Layer on request config (highest precedence, if provided)
         if request is not None:
             merged.update(request)
 

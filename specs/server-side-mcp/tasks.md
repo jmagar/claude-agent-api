@@ -169,7 +169,7 @@ After POC validated, write comprehensive tests FIRST (RED), then ensure implemen
   - **Commit**: `feat(mcp): implement recursive env var resolution`
   - _Requirements: AC-1.4, FR-2_
 
-- [ ] 2.5 [REFACTOR] Clean up config loader implementation
+- [x] 2.5 [REFACTOR] Clean up config loader implementation
   - **Do**: Extract helper methods for JSON parsing, validation, caching. Add comprehensive docstrings (Google style). Improve error messages. Add type hints for all internal methods. Keep tests green throughout.
   - **Files**: `apps/api/services/mcp_config_loader.py`
   - **Done when**: Code is cleaner, tests still pass, no functional changes
