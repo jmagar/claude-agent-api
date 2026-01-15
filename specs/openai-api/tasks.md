@@ -251,7 +251,7 @@ Focus: Build translation layer test-first, one component at a time.
 
 ---
 
-### Task 1.7: RED - Write RequestTranslator test for multi-turn conversation
+### Task 1.7: RED - Write RequestTranslator test for multi-turn conversation ✓
 
 **RED - Write Test**:
 1. Add test `test_translate_multi_turn_conversation()`:

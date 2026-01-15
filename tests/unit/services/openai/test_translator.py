@@ -62,3 +62,29 @@ class TestRequestTranslator:
         # Then
         assert result.system_prompt == "You are helpful"
         assert result.prompt == "USER: Hello\n\n"
+
+    def test_translate_multi_turn_conversation(self, model_mapper: ModelMapper) -> None:
+        """Test translating multi-turn conversation with user and assistant messages.
+
+        Given: messages=[user, assistant, user] with different content
+        When: translator.translate(request)
+        Then: Assert prompt contains all messages with role prefixes in order
+        """
+        # Given
+        request = ChatCompletionRequest(
+            model="gpt-4",
+            messages=[
+                OpenAIMessage(role="user", content="What is 2+2?"),
+                OpenAIMessage(role="assistant", content="2+2 equals 4."),
+                OpenAIMessage(role="user", content="What about 3+3?"),
+            ],
+        )
+        translator = RequestTranslator(model_mapper)
+
+        # When
+        result = translator.translate(request)
+
+        # Then
+        expected_prompt = "USER: What is 2+2?\n\nASSISTANT: 2+2 equals 4.\n\nUSER: What about 3+3?\n\n"
+        assert result.prompt == expected_prompt
+        assert result.model == "sonnet"
