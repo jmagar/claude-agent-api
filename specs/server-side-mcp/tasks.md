@@ -83,7 +83,7 @@ Focus: Validate the three-tier configuration merge works end-to-end. Skip compre
   - _Requirements: AC-1.7, AC-3.3, FR-5_
   - _Design: McpConfigInjector component_
 
-- [ ] 1.9 [VERIFY] Quality checkpoint: `uv run ruff check . && uv run ty check`
+- [x] 1.9 [VERIFY] Quality checkpoint: `uv run ruff check . && uv run ty check`
   - **Do**: Run quality checks on new injector and updated loader
   - **Verify**: All commands exit 0
   - **Done when**: No lint errors, no type errors

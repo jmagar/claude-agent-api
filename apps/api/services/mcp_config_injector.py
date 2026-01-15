@@ -8,14 +8,13 @@ Coordinates loading and merging of MCP server configurations from three tiers:
 Enriches QueryRequest with merged server-side MCP configurations.
 """
 
-from pathlib import Path
 
 import structlog
 
 from apps.api.schemas.requests.config import McpServerConfigSchema
 from apps.api.schemas.requests.query import QueryRequest
 from apps.api.services.mcp_config_loader import McpConfigLoader
-from apps.api.services.mcp_server_configs import McpServerConfigService
+from apps.api.services.mcp_server_configs import McpServerConfigService, McpServerRecord
 
 logger = structlog.get_logger(__name__)
 
@@ -85,7 +84,7 @@ class McpConfigInjector:
 
         # Merge configs with correct precedence
         merged_config = self.config_loader.merge_configs(
-            application=app_config_resolved,  # type: ignore[arg-type]
+            application=app_config_resolved,
             api_key=api_key_config,
             request=request_config,
         )
@@ -107,8 +106,8 @@ class McpConfigInjector:
         return request.model_copy(update={"mcp_servers": merged_schemas})
 
     def _records_to_config_dict(
-        self, records: list[object]
-    ) -> dict[str, dict[str, object]]:
+        self, records: list[McpServerRecord]
+    ) -> dict[str, object]:
         """Convert McpServerRecord list to config dict format.
 
         Args:
@@ -117,13 +116,9 @@ class McpConfigInjector:
         Returns:
             Dict mapping server name to server config dict.
         """
-        from apps.api.services.mcp_server_configs import McpServerRecord
-
-        config_dict: dict[str, dict[str, object]] = {}
+        config_dict: dict[str, object] = {}
 
         for record in records:
-            if not isinstance(record, McpServerRecord):
-                continue
 
             # Skip disabled servers
             if not record.enabled:
@@ -155,7 +150,7 @@ class McpConfigInjector:
 
     def _schemas_to_config_dict(
         self, schemas: dict[str, McpServerConfigSchema]
-    ) -> dict[str, dict[str, object]]:
+    ) -> dict[str, object]:
         """Convert Pydantic schemas to config dict format.
 
         Args:
@@ -164,7 +159,7 @@ class McpConfigInjector:
         Returns:
             Dict mapping server name to server config dict.
         """
-        config_dict: dict[str, dict[str, object]] = {}
+        config_dict: dict[str, object] = {}
 
         for name, schema in schemas.items():
             config_dict[name] = schema.model_dump(exclude_defaults=False)
