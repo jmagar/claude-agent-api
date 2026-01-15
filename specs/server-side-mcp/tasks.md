@@ -57,7 +57,7 @@ Focus: Validate the three-tier configuration merge works end-to-end. Skip compre
   - _Requirements: AC-2.5, AC-2.6_
   - _Design: Route-Level Filtering_
 
-- [ ] 1.6 [VERIFY] Quality checkpoint: `uv run ruff check . && uv run ty check`
+- [x] 1.6 [VERIFY] Quality checkpoint: `uv run ruff check . && uv run ty check`
   - **Do**: Run quality checks on modified services and routes
   - **Verify**: All commands exit 0
   - **Done when**: No lint errors, no type errors

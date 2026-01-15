@@ -229,7 +229,7 @@ async def test_multiple_commands_discovered(
     for command in commands:
         if not isinstance(command, dict):
             continue
-        command = cast(dict[str, object], command)
+        command = cast("dict[str, object]", command)
         name = command.get("name")
         if isinstance(name, str):
             command_names.add(name)
