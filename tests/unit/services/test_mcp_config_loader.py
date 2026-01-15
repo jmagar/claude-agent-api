@@ -99,7 +99,7 @@ class TestResolveEnvVars:
         """Test successful resolution of environment variable placeholders."""
         # Arrange: Mock environment variable
         with patch.dict(os.environ, {"TEST_TOKEN": "secret123"}):
-            config = {
+            config: dict[str, object] = {
                 "github": {
                     "command": "npx",
                     "env": {"GITHUB_TOKEN": "${TEST_TOKEN}"},
@@ -119,7 +119,7 @@ class TestResolveEnvVars:
         """Test behavior when environment variable is not found."""
         # Arrange: Config with undefined env var
         with patch.dict(os.environ, {}, clear=True):
-            config = {
+            config: dict[str, object] = {
                 "server": {
                     "env": {"MISSING_VAR": "${UNDEFINED_VAR}"},
                 }
@@ -138,7 +138,7 @@ class TestResolveEnvVars:
         """Test deep resolution in nested dicts."""
         # Arrange: Deeply nested config with env vars
         with patch.dict(os.environ, {"DB_USER": "admin", "DB_PASS": "secret"}):
-            config = {
+            config: dict[str, object] = {
                 "database": {
                     "connection": {
                         "credentials": {
@@ -167,7 +167,7 @@ class TestResolveEnvVars:
         """Test resolution in list items."""
         # Arrange: Config with env vars in list
         with patch.dict(os.environ, {"ARG1": "value1", "ARG2": "value2"}):
-            config = {
+            config: dict[str, object] = {
                 "server": {
                     "args": ["--user", "${ARG1}", "--pass", "${ARG2}"],
                 }
