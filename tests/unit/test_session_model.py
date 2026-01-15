@@ -6,14 +6,14 @@ from apps.api.models.session import Session
 
 
 def test_session_relationships_use_lazy_select() -> None:
-    """Ensure relationships do not eagerly load by default."""
+    """Ensure relationships use selectin for optimal performance."""
     assert isinstance(Session.messages.property, RelationshipProperty)
     assert isinstance(Session.checkpoints.property, RelationshipProperty)
     assert isinstance(Session.parent_session.property, RelationshipProperty)
 
-    assert Session.messages.property.lazy == "select"
-    assert Session.checkpoints.property.lazy == "select"
-    assert Session.parent_session.property.lazy == "select"
+    assert Session.messages.property.lazy == "selectin"
+    assert Session.checkpoints.property.lazy == "selectin"
+    assert Session.parent_session.property.lazy == "selectin"
 
 
 def test_session_owner_api_key_index_exists() -> None:

@@ -144,6 +144,7 @@ class SessionRepository:
     async def list_sessions(
         self,
         status: str | None = None,
+        owner_api_key: str | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> tuple[Sequence[Session], int]:
@@ -151,6 +152,7 @@ class SessionRepository:
 
         Args:
             status: Filter by status.
+            owner_api_key: Filter by owner API key.
             limit: Maximum results.
             offset: Pagination offset.
 
@@ -164,6 +166,10 @@ class SessionRepository:
         if status:
             stmt = stmt.where(Session.status == status)
             count_stmt = count_stmt.where(Session.status == status)
+
+        if owner_api_key:
+            stmt = stmt.where(Session.owner_api_key == owner_api_key)
+            count_stmt = count_stmt.where(Session.owner_api_key == owner_api_key)
 
         # Get total count
         count_result = await self._db.execute(count_stmt)

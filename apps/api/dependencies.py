@@ -134,7 +134,7 @@ def verify_api_key(
     _request: Request,
     x_api_key: Annotated[str | None, Header()] = None,
 ) -> str:
-    """Verify API key from header.
+    """Verify API key from header or request state.
 
     Args:
         request: FastAPI request.
@@ -148,6 +148,11 @@ def verify_api_key(
     """
     settings = get_settings()
 
+    # Check request.state first (set by middleware)
+    if hasattr(_request, "state") and hasattr(_request.state, "api_key"):
+        return _request.state.api_key
+
+    # Then check header
     if not x_api_key:
         raise AuthenticationError("Missing API key")
 
@@ -188,16 +193,18 @@ def set_agent_service_singleton(service: AgentService | None) -> None:
 
 async def get_session_service(
     cache: Annotated[RedisCache, Depends(get_cache)],
+    db_repo: Annotated[SessionRepository | None, Depends(lambda: None)] = None,
 ) -> SessionService:
-    """Get session service instance with injected cache.
+    """Get session service instance with injected cache and optional DB repository.
 
     Args:
         cache: Redis cache from dependency injection.
+        db_repo: Optional database repository for persistent storage.
 
     Returns:
         SessionService instance.
     """
-    return SessionService(cache=cache)
+    return SessionService(cache=cache, db_repo=db_repo)
 
 
 async def get_checkpoint_service(

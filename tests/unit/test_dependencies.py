@@ -318,8 +318,9 @@ class TestAuthenticationDependencies:
         settings = get_settings()
         valid_key = settings.api_key.get_secret_value()
 
-        # Mock request
+        # Mock request without state.api_key so header is used
         mock_request = Mock(spec=Request)
+        mock_request.state = Mock(spec=[])  # Empty state, no api_key attribute
 
         # Verify key
         result = verify_api_key(mock_request, x_api_key=valid_key)
@@ -332,8 +333,9 @@ class TestAuthenticationDependencies:
 
         GREEN: This test verifies invalid key rejection.
         """
-        # Mock request
+        # Mock request without state.api_key so header is used
         mock_request = Mock(spec=Request)
+        mock_request.state = Mock(spec=[])  # Empty state, no api_key attribute
 
         with pytest.raises(AuthenticationError, match="Invalid API key"):
             verify_api_key(mock_request, x_api_key="invalid-key")
@@ -344,8 +346,9 @@ class TestAuthenticationDependencies:
 
         GREEN: This test verifies missing key rejection.
         """
-        # Mock request
+        # Mock request without state.api_key so header check happens
         mock_request = Mock(spec=Request)
+        mock_request.state = Mock(spec=[])  # Empty state, no api_key attribute
 
         with pytest.raises(AuthenticationError, match="Missing API key"):
             verify_api_key(mock_request, x_api_key=None)
@@ -372,8 +375,9 @@ class TestAuthenticationDependencies:
         settings = get_settings()
         valid_key = settings.api_key.get_secret_value()
 
-        # Mock request
+        # Mock request without state.api_key so header is used
         mock_request = Mock(spec=Request)
+        mock_request.state = Mock(spec=[])  # Empty state, no api_key attribute
 
         # Pass key as header parameter
         result = verify_api_key(mock_request, x_api_key=valid_key)
@@ -388,8 +392,9 @@ class TestAuthenticationDependencies:
         """
         from apps.api.config import get_settings
 
-        # Mock request
+        # Mock request without state.api_key so header is used
         mock_request = Mock(spec=Request)
+        mock_request.state = Mock(spec=[])  # Empty state, no api_key attribute
 
         # Test that we use secrets.compare_digest (timing-safe)
         # by verifying that similar keys are rejected

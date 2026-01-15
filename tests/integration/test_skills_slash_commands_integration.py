@@ -119,6 +119,8 @@ Content""")
 
     # Change working directory for test isolation
     monkeypatch.chdir(tmp_path)
+    # Mock Path.home() to prevent discovering real global skills
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
 
     # Get skills via API
     skills_response = await async_client.get("/api/v1/skills", headers=auth_headers)
@@ -247,6 +249,8 @@ Content""")
 
     # Change working directory
     monkeypatch.chdir(tmp_path)
+    # Mock Path.home() to prevent discovering real global skills
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
 
     # Get skills via API
     skills_response = await async_client.get("/api/v1/skills", headers=auth_headers)

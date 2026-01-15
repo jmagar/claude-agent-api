@@ -86,6 +86,7 @@ class Session(Base):
             parent_session_id,
             postgresql_where=parent_session_id.isnot(None),
         ),
+        Index("idx_sessions_owner_api_key", owner_api_key),
     )
 
     def __repr__(self) -> str:
