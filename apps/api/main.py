@@ -4,7 +4,7 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 import structlog
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -36,6 +36,7 @@ from apps.api.routes import (
     websocket,
 )
 from apps.api.routes.openai import chat as openai_chat
+from apps.api.routes.openai import models as openai_models
 from apps.api.services.openai.errors import ErrorTranslator
 from apps.api.services.shutdown import get_shutdown_manager, reset_shutdown_manager
 
@@ -331,6 +332,38 @@ def create_app() -> FastAPI:
             },
         )
 
+    @app.exception_handler(HTTPException)
+    async def http_exception_handler(
+        request: Request,
+        exc: HTTPException,
+    ) -> JSONResponse:
+        """Handle HTTPException (used by models endpoint).
+
+        For OpenAI endpoints (/v1/*), converts to OpenAI error format.
+        For native endpoints, uses FastAPI's default format.
+        """
+        # Check if this is an OpenAI endpoint
+        if request.url.path.startswith("/v1/"):
+            # Convert HTTPException to APIError for translation
+            api_error = APIError(
+                message=str(exc.detail),
+                code="NOT_FOUND" if exc.status_code == 404 else "VALIDATION_ERROR",
+                status_code=exc.status_code,
+            )
+
+            # Translate to OpenAI error format
+            openai_error = ErrorTranslator.translate(api_error)
+            return JSONResponse(
+                status_code=exc.status_code,
+                content=openai_error,
+            )
+
+        # Use FastAPI default format for native endpoints
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"detail": exc.detail},
+        )
+
     # Include routers
     app.include_router(health.router, prefix="/api/v1")
     app.include_router(projects.router, prefix="/api/v1")
@@ -348,6 +381,7 @@ def create_app() -> FastAPI:
 
     # OpenAI-compatible endpoints
     app.include_router(openai_chat.router, prefix="/v1")
+    app.include_router(openai_models.router, prefix="/v1")
 
     # Also mount health at root for convenience
     app.include_router(health.router)

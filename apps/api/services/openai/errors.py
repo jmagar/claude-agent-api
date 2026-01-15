@@ -48,6 +48,7 @@ class ErrorTranslator:
         status_map = {
             401: "authentication_error",
             400: "invalid_request_error",
+            404: "invalid_request_error",
             429: "rate_limit_exceeded",
         }
         # Default to api_error for 5xx and other status codes
