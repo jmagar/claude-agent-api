@@ -91,7 +91,7 @@ Focus: Validate the three-tier configuration merge works end-to-end. Skip compre
 
 ### 1.4 Integration POC
 
-- [ ] 1.10 Wire config injector into AgentService
+- [x] 1.10 Wire config injector into AgentService
   - **Do**: Modify `apps/api/services/agent/service.py`. Add `McpConfigInjector` as dependency in `__init__`. In `query_stream()` method, call `enriched_request = await self.mcp_injector.inject(request, api_key)` BEFORE `OptionsBuilder(enriched_request).build()`. Update all query methods similarly.
   - **Files**: `apps/api/services/agent/service.py`
   - **Done when**: All query methods inject server-side MCP before SDK execution
