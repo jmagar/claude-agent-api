@@ -182,3 +182,136 @@ class TestResolveEnvVars:
             args = cast("list[str]", server_config["args"])
             assert args[1] == "value1"
             assert args[3] == "value2"
+
+
+# RED PHASE: Tests for merge_configs()
+class TestMergeConfigs:
+    """Tests for merge_configs() method - three-tier merge precedence."""
+
+    def test_merge_configs_request_overrides_all(self) -> None:
+        """Test that request-level config has highest priority."""
+        # Arrange: All three tiers present, request should win
+        application_config: dict[str, object] = {
+            "app-server": {"command": "app-cmd"},
+        }
+        api_key_config: dict[str, object] = {
+            "key-server": {"command": "key-cmd"},
+        }
+        request_config: dict[str, object] = {
+            "request-server": {"command": "request-cmd"},
+        }
+
+        loader = McpConfigLoader()
+
+        # Act: Merge all three tiers
+        result = loader.merge_configs(
+            application_config=application_config,
+            api_key_config=api_key_config,
+            request_config=request_config,
+        )
+
+        # Assert: Request-level config should completely replace others
+        # NOTE: This test will FAIL because merge_configs() doesn't exist yet
+        assert "request-server" in result
+        assert "key-server" not in result
+        assert "app-server" not in result
+
+    def test_merge_configs_api_key_overrides_application(self) -> None:
+        """Test that api-key config overrides application config."""
+        # Arrange: Application and api-key configs, no request config
+        application_config: dict[str, object] = {
+            "app-server": {"command": "app-cmd"},
+        }
+        api_key_config: dict[str, object] = {
+            "key-server": {"command": "key-cmd"},
+        }
+
+        loader = McpConfigLoader()
+
+        # Act: Merge with null request (use server-side configs)
+        result = loader.merge_configs(
+            application_config=application_config,
+            api_key_config=api_key_config,
+            request_config=None,
+        )
+
+        # Assert: Should merge application + api-key (api-key wins conflicts)
+        assert "app-server" in result
+        assert "key-server" in result
+
+    def test_merge_configs_empty_request_opts_out(self) -> None:
+        """Test that empty dict {} explicitly opts out of server-side configs."""
+        # Arrange: Server-side configs exist, request is empty dict
+        application_config: dict[str, object] = {
+            "app-server": {"command": "app-cmd"},
+        }
+        api_key_config: dict[str, object] = {
+            "key-server": {"command": "key-cmd"},
+        }
+        request_config: dict[str, object] = {}
+
+        loader = McpConfigLoader()
+
+        # Act: Merge with empty request dict
+        result = loader.merge_configs(
+            application_config=application_config,
+            api_key_config=api_key_config,
+            request_config=request_config,
+        )
+
+        # Assert: Should return empty dict (opt-out)
+        assert result == {}
+
+    def test_merge_configs_null_request_uses_defaults(self) -> None:
+        """Test that null request uses server-side configs."""
+        # Arrange: Application config only, null request
+        application_config: dict[str, object] = {
+            "app-server": {"command": "app-cmd"},
+        }
+
+        loader = McpConfigLoader()
+
+        # Act: Merge with null request
+        result = loader.merge_configs(
+            application_config=application_config,
+            api_key_config={},
+            request_config=None,
+        )
+
+        # Assert: Should return application config
+        assert "app-server" in result
+        app_server = cast("dict[str, object]", result["app-server"])
+        assert app_server["command"] == "app-cmd"
+
+    def test_merge_configs_complete_replacement(self) -> None:
+        """Test that merge is complete replacement, not deep merge."""
+        # Arrange: Same server name in application and api-key tiers
+        application_config: dict[str, object] = {
+            "shared-server": {
+                "command": "app-cmd",
+                "args": ["--app"],
+                "env": {"APP_VAR": "app-value"},
+            },
+        }
+        api_key_config: dict[str, object] = {
+            "shared-server": {
+                "command": "key-cmd",
+                "args": ["--key"],
+            },
+        }
+
+        loader = McpConfigLoader()
+
+        # Act: Merge with null request
+        result = loader.merge_configs(
+            application_config=application_config,
+            api_key_config=api_key_config,
+            request_config=None,
+        )
+
+        # Assert: api-key config should COMPLETELY REPLACE application config
+        # (Not deep merge - env field should be gone)
+        shared_server = cast("dict[str, object]", result["shared-server"])
+        assert shared_server["command"] == "key-cmd"
+        assert shared_server["args"] == ["--key"]
+        assert "env" not in shared_server  # Complete replacement, not merge
