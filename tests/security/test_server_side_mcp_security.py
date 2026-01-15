@@ -155,3 +155,54 @@ class TestCommandInjectionPrevention:
             data = response.json()
             assert "error" in data or "detail" in data, \
                 f"Response should contain error information: {data}"
+
+
+class TestSSRFPrevention:
+    """Security tests for SSRF (Server-Side Request Forgery) prevention."""
+
+    @pytest.mark.anyio
+    async def test_ssrf_attempts_blocked(
+        self,
+        async_client: AsyncClient,
+        auth_headers: dict[str, str],
+    ) -> None:
+        """Test that SSRF attempts are blocked.
+
+        Verifies:
+        - Internal/private IP addresses are rejected
+        - Cloud metadata endpoints are blocked
+        - Localhost variants are blocked
+        """
+        # Test various SSRF payloads targeting internal resources
+        ssrf_payloads = [
+            "http://169.254.169.254/latest/meta-data/",  # AWS metadata
+            "http://metadata.google.internal/",  # GCP metadata
+            "http://127.0.0.1:8080/admin",  # Localhost
+            "http://localhost/admin",  # Localhost variant
+            "http://0.0.0.0/",  # All interfaces
+            "http://10.0.0.1/internal",  # Private IP (Class A)
+            "http://172.16.0.1/internal",  # Private IP (Class B)
+            "http://192.168.1.1/admin",  # Private IP (Class C)
+        ]
+
+        for payload in ssrf_payloads:
+            # Attempt to create MCP server with internal URL
+            response = await async_client.post(
+                "/api/v1/mcp-servers",
+                json={
+                    "name": "ssrf-server",
+                    "transport_type": "sse",
+                    "url": payload,
+                },
+                headers=auth_headers,
+            )
+
+            # Should reject with 400 or 422
+            assert response.status_code in (400, 422), \
+                f"SSRF payload should be rejected: {payload} " \
+                f"(got {response.status_code})"
+
+            # Verify error response structure
+            data = response.json()
+            assert "error" in data or "detail" in data, \
+                f"Response should contain error information: {data}"
