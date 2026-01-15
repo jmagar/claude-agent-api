@@ -165,7 +165,9 @@ def verify_api_key(
     return x_api_key
 
 
-def get_agent_service() -> AgentService:
+async def get_agent_service(
+    cache: Annotated[RedisCache, Depends(get_cache)],
+) -> AgentService:
     """Get agent service instance.
 
     Creates a new instance per request to avoid sharing mutable
@@ -174,14 +176,23 @@ def get_agent_service() -> AgentService:
     In tests, if a global singleton is set via set_agent_service_singleton(),
     that instance is returned instead to allow test fixtures to share state.
 
+    Args:
+        cache: Redis cache from dependency injection.
+
     Returns:
-        AgentService instance with cache configured.
+        AgentService instance with cache and config injector configured.
     """
     # Use singleton if set (for tests)
     if _agent_service is not None:
         return _agent_service
-    # Otherwise create new instance per request with cache
-    return AgentService(cache=_redis_cache)
+
+    # Create MCP config injector
+    loader = get_mcp_config_loader()
+    config_service = McpServerConfigService(cache=cache)
+    config_injector = McpConfigInjector(config_loader=loader, config_service=config_service)
+
+    # Otherwise create new instance per request with cache and injector
+    return AgentService(cache=cache, mcp_config_injector=config_injector)
 
 
 def set_agent_service_singleton(service: AgentService | None) -> None:
