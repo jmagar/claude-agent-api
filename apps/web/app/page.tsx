@@ -87,8 +87,9 @@ import {
 import { Shimmer } from "@/components/ai-elements/shimmer";
 import { Suggestions, Suggestion } from "@/components/ai-elements/suggestion";
 import { Loader } from "@/components/ai-elements/loader";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useChat } from "@ai-sdk/react";
+import { nanoid } from "nanoid";
 import {
   CopyIcon,
   GlobeIcon,
@@ -157,6 +158,14 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const [model, setModel] = useState<string>(models[1]?.value ?? "gpt-4o-mini");
   const [webSearch, setWebSearch] = useState(false);
+  const [permissionMode, setPermissionMode] = useState<'default' | 'acceptEdits' | 'plan' | 'bypassPermissions'>('bypassPermissions');
+  const [sessionId, setSessionId] = useState<string>("");
+
+  // Generate session ID on mount
+  useEffect(() => {
+    setSessionId(nanoid());
+  }, []);
+
   const { messages, sendMessage, status, regenerate } = useChat();
 
   const handleSubmit = (message: PromptInputMessage) => {
@@ -176,6 +185,8 @@ export default function ChatPage() {
         body: {
           model: model,
           webSearch: webSearch,
+          permissionMode: permissionMode,
+          sessionId: sessionId,
         },
       }
     );
@@ -189,6 +200,8 @@ export default function ChatPage() {
         body: {
           model: model,
           webSearch: webSearch,
+          permissionMode: permissionMode,
+          sessionId: sessionId,
         },
       }
     );

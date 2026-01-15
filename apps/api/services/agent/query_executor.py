@@ -1,8 +1,8 @@
 """Query execution helpers for AgentService."""
 
 import asyncio
-from collections.abc import AsyncGenerator, AsyncIterable
-from typing import TYPE_CHECKING, cast
+from collections.abc import AsyncGenerator
+from typing import TYPE_CHECKING
 
 import structlog
 
@@ -128,12 +128,12 @@ class QueryExecutor:
                         image_count=len(request.images),
                     )
                     # Pass multimodal content to SDK
-                    # SDK type hints require AsyncIterable but accepts lists at runtime
-                    multimodal_content = cast(
-                        "AsyncIterable[dict[str, str | dict[str, str]]]",
-                        content,
-                    )
-                    await client.query(multimodal_content)
+                    # SDK requires AsyncIterable, so convert list to async generator
+                    async def content_generator() -> AsyncGenerator[dict[str, str | dict[str, str]], None]:
+                        for item in content:
+                            yield item
+
+                    await client.query(content_generator())
                 else:
                     # Standard text-only prompt
                     await client.query(request.prompt)
