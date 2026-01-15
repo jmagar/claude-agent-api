@@ -26,7 +26,6 @@ from apps.api.config import get_settings
 from apps.api.dependencies import close_cache, close_db, init_cache, init_db
 from apps.api.main import create_app
 from tests.helpers.e2e_client import (
-    get_e2e_api_key,
     get_e2e_base_url,
     get_e2e_timeout_seconds,
     should_use_live_e2e_client,
@@ -66,8 +65,12 @@ def anyio_backend() -> str:
 
 @pytest.fixture
 def test_api_key() -> str:
-    """API key for testing."""
-    return get_e2e_api_key(os.environ) or "test-api-key-12345"
+    """API key for testing.
+
+    Uses API_KEY from environment (set by CI or conftest defaults).
+    Falls back to hardcoded value if not set.
+    """
+    return os.environ.get("API_KEY", "test-api-key-12345")
 
 
 @pytest.fixture
