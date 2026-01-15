@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "test-server": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@anthropic-ai/claude-mcp-server-github"],
+      "env": {
+        "GITHUB_TOKEN": "${GITHUB_TOKEN}"
+      }
+    },
+    "postgres": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": ["mcp-server-postgres", "postgresql://localhost/test"]
+    }
+  }
+}
