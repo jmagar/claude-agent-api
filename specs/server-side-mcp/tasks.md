@@ -409,7 +409,7 @@ End-to-end validation with real services, backward compatibility verification.
   - **Commit**: `test(mcp): add contract test for openai compatibility`
   - _Requirements: AC-5.1, AC-5.2_
 
-- [ ] 3.9 [VERIFY] Quality checkpoint: `uv run pytest tests/contract/test_server_side_mcp_contract.py`
+- [x] 3.9 [VERIFY] Quality checkpoint: `uv run pytest tests/contract/test_server_side_mcp_contract.py`
   - **Do**: Run all contract tests
   - **Verify**: All tests pass
   - **Done when**: 100% backward compatibility verified
