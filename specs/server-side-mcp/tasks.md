@@ -369,7 +369,7 @@ End-to-end validation with real services, backward compatibility verification.
   - **Commit**: `test(mcp): add integration test for request override`
   - _Requirements: AC-3.1_
 
-- [ ] 3.4 Write integration test for opt-out mechanism
+- [x] 3.4 Write integration test for opt-out mechanism
   - **Do**: Add `test_opt_out_mechanism_disables_server_side_mcp()` that sets up server-side configs, sends request with `mcp_servers: {}`, verifies no MCP servers injected.
   - **Files**: `tests/integration/test_server_side_mcp.py`
   - **Done when**: Test verifies empty dict disables all server-side configs
