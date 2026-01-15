@@ -122,13 +122,13 @@ Focus: Build translation layer test-first, one component at a time.
 **RED - Write Test**:
 1. Create `tests/unit/services/openai/test_models.py`
 2. Write test class `TestModelMapper` with tests:
-   - `test_to_claude_maps_gpt4_to_sonnet()` - Assert mapper.to_claude("gpt-4") == "sonnet"
+   - `test_to_claude_maps_gpt4_to_sonnet()` - Assert mapper.to_claude("gpt-5.2-codex") == "sonnet"
    - `test_to_claude_raises_on_unknown_model()` - Assert raises ValueError with unknown model
-   - `test_to_openai_maps_sonnet_to_gpt4()` - Assert mapper.to_openai("sonnet") == "gpt-4"
+   - `test_to_openai_maps_sonnet_to_gpt4()` - Assert mapper.to_openai("sonnet") == "gpt-5.2-codex"
    - `test_to_openai_raises_on_unknown_model()` - Assert raises ValueError
    - `test_list_models_returns_correct_count()` - Assert len(models) == 3 (for default mapping)
    - `test_list_models_has_correct_format()` - Assert each model has id, object, created, owned_by
-3. Fixture: `@pytest.fixture` returning `ModelMapper({"gpt-4": "sonnet", "gpt-3.5-turbo": "haiku", "gpt-4o": "opus"})`
+3. Fixture: `@pytest.fixture` returning `ModelMapper({"gpt-5.2-codex": "sonnet", "gpt-3.5-turbo": "haiku", "gpt-4o": "opus"})`
 
 **Verify RED**:
 - Command: `uv run pytest tests/unit/services/openai/test_models.py -v`
@@ -170,11 +170,11 @@ Focus: Build translation layer test-first, one component at a time.
 1. Create `tests/unit/services/openai/test_translator.py`
 2. Create test class `TestRequestTranslator`
 3. Write test `test_translate_single_user_message()`:
-   - Given: ChatCompletionRequest with model="gpt-4", messages=[{"role": "user", "content": "Hello"}]
+   - Given: ChatCompletionRequest with model="gpt-5.2-codex", messages=[{"role": "user", "content": "Hello"}]
    - When: translator.translate(request)
    - Then: Assert result.prompt == "USER: Hello\n\n"
    - Then: Assert result.model == "sonnet" (via mock ModelMapper)
-4. Create mock ModelMapper fixture that returns "sonnet" for "gpt-4"
+4. Create mock ModelMapper fixture that returns "sonnet" for "gpt-5.2-codex"
 
 **Verify RED**:
 - Command: `uv run pytest tests/unit/services/openai/test_translator.py::TestRequestTranslator::test_translate_single_user_message -v`
@@ -379,9 +379,9 @@ Focus: Build translation layer test-first, one component at a time.
 1. Add `TestResponseTranslator` class to `tests/unit/services/openai/test_translator.py`
 2. Write test `test_translate_basic_response()`:
    - Given: Mock SingleQueryResponse with content=[{"type": "text", "text": "Hello!"}], model="sonnet"
-   - When: translator.translate(response, original_model="gpt-4")
+   - When: translator.translate(response, original_model="gpt-5.2-codex")
    - Then: Assert result["choices"][0]["message"]["content"] == "Hello!"
-   - Then: Assert result["model"] == "gpt-4"
+   - Then: Assert result["model"] == "gpt-5.2-codex"
    - Then: Assert result["object"] == "chat.completion"
    - Then: Assert result["id"] starts with "chatcmpl-"
 3. Create fixture for mock SingleQueryResponse
@@ -809,7 +809,7 @@ Focus: Build HTTP layer with test-first approach.
 
 ---
 
-### Task 2.7: Integration test - Error handling
+### Task 2.7: Integration test - Error handling ✓
 
 **RED - Write Test**:
 1. Add tests to `tests/integration/test_openai_chat.py`:
@@ -868,7 +868,7 @@ Focus: Build HTTP layer with test-first approach.
 2. Write tests:
    - `test_list_models_returns_list()` - GET /v1/models returns list
    - `test_list_models_has_openai_format()` - Response structure correct
-   - `test_get_model_by_id_returns_model()` - GET /v1/models/gpt-4 works
+   - `test_get_model_by_id_returns_model()` - GET /v1/models/gpt-5.2-codex works
    - `test_get_invalid_model_returns_404()` - GET /v1/models/invalid → 404
    - `test_404_has_openai_error_format()` - 404 error is OpenAI format
 
