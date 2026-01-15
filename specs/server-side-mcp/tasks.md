@@ -310,7 +310,7 @@ After POC validated, write comprehensive tests FIRST (RED), then ensure implemen
 
 ### 2.5 API-Key Scoping Tests (TDD: RED-GREEN-REFACTOR)
 
-- [ ] 2.23 [RED] Write failing tests for API-key scoped storage
+- [x] 2.23 [RED] Write failing tests for API-key scoped storage
   - **Do**: Create `tests/unit/services/test_mcp_server_configs_scoped.py`. Write test functions: `test_server_key_includes_api_key()` (pattern check), `test_list_servers_for_api_key_isolation()` (no cross-tenant access), `test_create_server_for_api_key()` (scoped creation), `test_index_key_scoped()` (index pattern). Tests should FAIL due to signature changes.
   - **Files**: `tests/unit/services/test_mcp_server_configs_scoped.py`
   - **Done when**: All scoping tests written and FAILING
@@ -318,7 +318,7 @@ After POC validated, write comprehensive tests FIRST (RED), then ensure implemen
   - **Commit**: `test(mcp): add failing tests for api-key scoping`
   - _Requirements: AC-2.2, AC-2.3, FR-3_
 
-- [ ] 2.24 [GREEN] Update service to pass scoping tests
+- [x] 2.24 [GREEN] Update service to pass scoping tests
   - **Do**: Ensure `McpServerConfigService` method signatures and implementations match test expectations. Fix any bugs found by tests. Ensure Redis key patterns correct.
   - **Files**: `apps/api/services/mcp_server_configs.py`
   - **Done when**: All scoping tests PASS
@@ -326,14 +326,14 @@ After POC validated, write comprehensive tests FIRST (RED), then ensure implemen
   - **Commit**: `feat(mcp): complete api-key scoping implementation`
   - _Requirements: AC-2.2, AC-2.3, FR-3_
 
-- [ ] 2.25 [REFACTOR] Extract key generation logic
+- [x] 2.25 [REFACTOR] Extract key generation logic
   - **Do**: Extract `_server_key()` and `_index_key()` methods to separate key builder helper. Add validation for api_key format. Keep tests green.
   - **Files**: `apps/api/services/mcp_server_configs.py`
   - **Done when**: Key generation centralized, tests still pass
   - **Verify**: `uv run pytest tests/unit/services/test_mcp_server_configs_scoped.py -v` all PASSED
   - **Commit**: `refactor(mcp): centralize redis key generation`
 
-- [ ] 2.26 [VERIFY] Quality checkpoint: `uv run ruff check . && uv run ty check && uv run pytest tests/unit/services/test_mcp_server_configs_scoped.py`
+- [x] 2.26 [VERIFY] Quality checkpoint: `uv run ruff check . && uv run ty check && uv run pytest tests/unit/services/test_mcp_server_configs_scoped.py`
   - **Do**: Run quality checks on updated service
   - **Verify**: All commands exit 0
   - **Done when**: Lint clean, types clean, all scoping tests green
