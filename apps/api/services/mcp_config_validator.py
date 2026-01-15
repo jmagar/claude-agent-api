@@ -6,7 +6,21 @@ Provides validation for:
 - Credential sanitization
 """
 
+import copy
+
 from apps.api.schemas.validators import SHELL_METACHAR_PATTERN, validate_url_not_internal
+
+# Patterns for sensitive keys (case-insensitive)
+SENSITIVE_PATTERNS = [
+    "api_key",
+    "apikey",
+    "secret",
+    "password",
+    "token",
+    "auth",
+    "credential",
+    "authorization",
+]
 
 
 class ConfigValidator:
@@ -73,3 +87,58 @@ class ConfigValidator:
 
         # Use existing validator from schemas/validators.py
         return validate_url_not_internal(url)
+
+    def sanitize_credentials(self, config: dict[str, object]) -> dict[str, object]:
+        """Sanitize credentials for safe logging.
+
+        Args:
+            config: Configuration dict that may contain sensitive data.
+
+        Returns:
+            Deep copy of config with sensitive values replaced by "***REDACTED***".
+
+        Examples:
+            >>> validator = ConfigValidator()
+            >>> config = {"env": {"API_KEY": "secret", "PATH": "/usr/bin"}}
+            >>> sanitized = validator.sanitize_credentials(config)
+            >>> sanitized["env"]["API_KEY"]
+            '***REDACTED***'
+            >>> sanitized["env"]["PATH"]
+            '/usr/bin'
+        """
+        # Deep copy to avoid mutating original
+        sanitized = copy.deepcopy(config)
+        self._sanitize_recursive(sanitized)
+        return sanitized
+
+    def _sanitize_recursive(self, obj: object) -> None:
+        """Recursively sanitize sensitive keys in nested structures.
+
+        Args:
+            obj: Object to sanitize (modified in-place).
+        """
+        if isinstance(obj, dict):
+            for key, value in obj.items():
+                # Check if key matches sensitive pattern
+                if self._is_sensitive_key(key):
+                    obj[key] = "***REDACTED***"
+                else:
+                    # Recurse into nested structures
+                    self._sanitize_recursive(value)
+        elif isinstance(obj, list):
+            for item in obj:
+                self._sanitize_recursive(item)
+
+    def _is_sensitive_key(self, key: str) -> bool:
+        """Check if a key name is sensitive.
+
+        Args:
+            key: Key name to check.
+
+        Returns:
+            True if key matches sensitive patterns.
+        """
+        # Normalize key: lowercase and replace hyphens with underscores
+        # This handles X-API-Key, X-Auth-Token, etc.
+        key_normalized = key.lower().replace("-", "_")
+        return any(pattern in key_normalized for pattern in SENSITIVE_PATTERNS)

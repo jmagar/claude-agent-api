@@ -256,7 +256,7 @@ After POC validated, write comprehensive tests FIRST (RED), then ensure implemen
   - **Commit**: `test(mcp): add failing tests for credential sanitization`
   - _Requirements: AC-4.2, FR-8_
 
-- [ ] 2.16 [GREEN] Implement credential sanitizer
+- [x] 2.16 [GREEN] Implement credential sanitizer
   - **Do**: Add `sanitize_credentials(config: dict[str, object]) -> dict[str, object]` method. Define `SENSITIVE_PATTERNS = ["api_key", "apikey", "secret", "password", "token", "auth", "credential", "authorization"]`. Replace matching keys with `"***REDACTED***"`. Handle nested dicts recursively.
   - **Files**: `apps/api/services/mcp_config_validator.py`
   - **Done when**: All sanitization tests PASS
