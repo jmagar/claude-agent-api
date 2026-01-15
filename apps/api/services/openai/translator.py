@@ -2,11 +2,17 @@
 
 import time
 import uuid
+from typing import Literal
 
 import structlog
 
 from apps.api.schemas.openai.requests import ChatCompletionRequest, OpenAIMessage
-from apps.api.schemas.openai.responses import OpenAIChatCompletion
+from apps.api.schemas.openai.responses import (
+    OpenAIChatCompletion,
+    OpenAIChoice,
+    OpenAIResponseMessage,
+    OpenAIUsage,
+)
 from apps.api.schemas.requests.query import QueryRequest
 from apps.api.schemas.responses import SingleQueryResponse
 from apps.api.services.openai.models import ModelMapper
@@ -127,14 +133,16 @@ class RequestTranslator:
 class ResponseTranslator:
     """Translates Claude Agent SDK responses to OpenAI chat completion format."""
 
-    def _map_stop_reason(self, stop_reason: str | None) -> str:
+    def _map_stop_reason(
+        self, stop_reason: str | None
+    ) -> Literal["stop", "length", "error"]:
         """Map Claude Agent SDK stop_reason to OpenAI finish_reason.
 
         Args:
             stop_reason: Claude Agent SDK stop_reason value
 
         Returns:
-            OpenAI finish_reason string
+            OpenAI finish_reason: "stop", "length", or "error"
 
         Mapping:
             - completed → stop
@@ -181,29 +189,36 @@ class ResponseTranslator:
         # Map stop_reason to finish_reason
         finish_reason = self._map_stop_reason(response.stop_reason)
 
+        # Build response message
+        message: OpenAIResponseMessage = {
+            "role": "assistant",
+            "content": content,
+        }
+
+        # Build choice object
+        choice: OpenAIChoice = {
+            "index": 0,
+            "message": message,
+            "finish_reason": finish_reason,
+        }
+
+        # Build usage object
+        usage: OpenAIUsage = {
+            "prompt_tokens": response.usage.input_tokens if response.usage else 0,
+            "completion_tokens": response.usage.output_tokens if response.usage else 0,
+            "total_tokens": (
+                (response.usage.input_tokens + response.usage.output_tokens)
+                if response.usage
+                else 0
+            ),
+        }
+
         # Build OpenAI ChatCompletion response
         return OpenAIChatCompletion(
             id=completion_id,
             object="chat.completion",
             created=int(time.time()),
             model=original_model,
-            choices=[
-                {
-                    "index": 0,
-                    "message": {
-                        "role": "assistant",
-                        "content": content,
-                    },
-                    "finish_reason": finish_reason,
-                }
-            ],
-            usage={
-                "prompt_tokens": response.usage.input_tokens if response.usage else 0,
-                "completion_tokens": response.usage.output_tokens if response.usage else 0,
-                "total_tokens": (
-                    (response.usage.input_tokens + response.usage.output_tokens)
-                    if response.usage
-                    else 0
-                ),
-            },
+            choices=[choice],
+            usage=usage,
         )

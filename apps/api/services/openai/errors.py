@@ -44,12 +44,11 @@ class ErrorTranslator:
         Returns:
             OpenAI error type string.
         """
-        if status_code == 401:
-            return "authentication_error"
-        elif status_code == 400:
-            return "invalid_request_error"
-        elif status_code == 429:
-            return "rate_limit_exceeded"
-        else:
-            # Default to api_error for 5xx and other status codes
-            return "api_error"
+        # Map status codes to OpenAI error types
+        status_map = {
+            401: "authentication_error",
+            400: "invalid_request_error",
+            429: "rate_limit_exceeded",
+        }
+        # Default to api_error for 5xx and other status codes
+        return status_map.get(status_code, "api_error")
