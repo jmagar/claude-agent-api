@@ -284,7 +284,7 @@ Focus: Build translation layer test-first, one component at a time.
 
 ---
 
-### Task 1.8: RED - Write RequestTranslator test for max_tokens handling
+### Task 1.8: RED - Write RequestTranslator test for max_tokens handling ✓
 
 **SDK Research Finding**: Claude Agent SDK does NOT support max_tokens parameter. Accept for compatibility, log WARNING, do NOT map to max_turns (incompatible semantics).
 

@@ -1,8 +1,12 @@
 """Request translator for OpenAI to Claude Agent SDK format conversion."""
 
+import structlog
+
 from apps.api.schemas.openai.requests import ChatCompletionRequest, OpenAIMessage
 from apps.api.schemas.requests.query import QueryRequest
 from apps.api.services.openai.models import ModelMapper
+
+logger = structlog.get_logger(__name__)
 
 
 class RequestTranslator:
@@ -15,6 +19,20 @@ class RequestTranslator:
             model_mapper: ModelMapper instance for converting model names
         """
         self._model_mapper = model_mapper
+
+    def _log_unsupported_parameter(self, parameter_name: str) -> None:
+        """Log WARNING for unsupported OpenAI parameter.
+
+        Helper function to log structured warnings when OpenAI parameters
+        are not supported by Claude Agent SDK.
+
+        Args:
+            parameter_name: Name of the unsupported parameter
+        """
+        logger.warning(
+            "Parameter not supported by Claude Agent SDK, ignoring",
+            parameter=parameter_name,
+        )
 
     def _separate_system_messages(
         self, messages: list[OpenAIMessage]
@@ -63,6 +81,10 @@ class RequestTranslator:
         # Map model name
         claude_model = self._model_mapper.to_claude(request.model)
 
+        # Log warning for max_tokens (unsupported - incompatible with max_turns semantics)
+        if request.max_tokens is not None:
+            self._log_unsupported_parameter("max_tokens")
+
         # Separate system messages from user/assistant messages
         system_prompt, conversation_messages = self._separate_system_messages(
             request.messages
@@ -77,6 +99,9 @@ class RequestTranslator:
         prompt = "".join(prompt_parts)
 
         # Create QueryRequest with system_prompt if present
+        # NOTE: We do NOT set max_turns when max_tokens is present because they have
+        # incompatible semantics: max_tokens limits output tokens, max_turns limits
+        # conversation turns. There's no reliable conversion between them.
         return QueryRequest(
             prompt=prompt,
             model=claude_model,

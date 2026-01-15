@@ -88,3 +88,79 @@ class TestRequestTranslator:
         expected_prompt = "USER: What is 2+2?\n\nASSISTANT: 2+2 equals 4.\n\nUSER: What about 3+3?\n\n"
         assert result.prompt == expected_prompt
         assert result.model == "sonnet"
+
+    def test_translate_max_tokens_ignored(
+        self, model_mapper: ModelMapper, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Test that max_tokens is accepted but NOT mapped to max_turns, WARNING logged.
+
+        Given: ChatCompletionRequest with max_tokens=1000
+        When: translator.translate(request)
+        Then: max_tokens accepted but NOT mapped to max_turns
+        Then: WARNING logged about unsupported parameter
+        """
+        # Given
+        request = ChatCompletionRequest(
+            model="gpt-4",
+            messages=[OpenAIMessage(role="user", content="Hello")],
+            max_tokens=1000,
+        )
+        translator = RequestTranslator(model_mapper)
+
+        # When
+        result = translator.translate(request)
+
+        # Then
+        # Verify max_turns field is NOT set (should not exist or be None)
+        assert not hasattr(result, "max_turns") or result.max_turns is None
+        # Verify warning was logged - structlog outputs to stdout/stderr
+        captured = capsys.readouterr()
+        output = captured.out + captured.err
+        assert "max_tokens" in output.lower()
+        assert "not supported" in output.lower()
+
+    def test_translate_max_tokens_none(self, model_mapper: ModelMapper) -> None:
+        """Test that max_tokens=None does not set max_turns.
+
+        Given: ChatCompletionRequest with max_tokens=None
+        When: translator.translate(request)
+        Then: max_turns field not set
+        """
+        # Given
+        request = ChatCompletionRequest(
+            model="gpt-4",
+            messages=[OpenAIMessage(role="user", content="Hello")],
+            max_tokens=None,
+        )
+        translator = RequestTranslator(model_mapper)
+
+        # When
+        result = translator.translate(request)
+
+        # Then
+        assert not hasattr(result, "max_turns") or result.max_turns is None
+
+    def test_translate_max_tokens_does_not_set_max_turns(
+        self, model_mapper: ModelMapper
+    ) -> None:
+        """Verify max_turns field is NOT set when max_tokens is present.
+
+        Given: ChatCompletionRequest with max_tokens=1000
+        When: translator.translate(request)
+        Then: Verify max_turns field NOT set (incompatible semantics)
+        """
+        # Given
+        request = ChatCompletionRequest(
+            model="gpt-4",
+            messages=[OpenAIMessage(role="user", content="Hello")],
+            max_tokens=1000,
+        )
+        translator = RequestTranslator(model_mapper)
+
+        # When
+        result = translator.translate(request)
+
+        # Then - Explicitly verify max_turns not set
+        # QueryRequest doesn't have max_turns field, so this is verifying it's not added
+        result_dict = result.model_dump(exclude_unset=True)
+        assert "max_turns" not in result_dict
