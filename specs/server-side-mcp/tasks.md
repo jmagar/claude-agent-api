@@ -279,7 +279,7 @@ After POC validated, write comprehensive tests FIRST (RED), then ensure implemen
 
 ### 2.4 Config Injector Tests (TDD: RED-GREEN-REFACTOR)
 
-- [ ] 2.19 [RED] Write failing tests for config injection
+- [x] 2.19 [RED] Write failing tests for config injection
   - **Do**: Create `tests/unit/services/test_mcp_config_injector.py`. Write test functions: `test_inject_with_null_request_mcp_servers()` (uses server-side), `test_inject_with_empty_dict_opts_out()` (returns unchanged), `test_inject_logs_sanitized_config()` (verify logging), `test_inject_with_request_override()` (preserves request config). Mock loader and validator dependencies. Tests should FAIL.
   - **Files**: `tests/unit/services/test_mcp_config_injector.py`
   - **Done when**: All injector tests written and FAILING
