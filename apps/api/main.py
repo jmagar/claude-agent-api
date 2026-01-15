@@ -5,14 +5,16 @@ from contextlib import asynccontextmanager
 
 import structlog
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from packaging.version import parse as parse_version
+from pydantic import ValidationError as PydanticValidationError
 
 from apps.api import __version__
 from apps.api.config import get_settings
 from apps.api.dependencies import close_cache, close_db, init_cache, init_db
-from apps.api.exceptions import APIError, RequestTimeoutError
+from apps.api.exceptions import APIError, RequestTimeoutError, ValidationError
 from apps.api.middleware.auth import ApiKeyAuthMiddleware
 from apps.api.middleware.correlation import CorrelationIdMiddleware
 from apps.api.middleware.logging import RequestLoggingMiddleware, configure_logging
@@ -34,6 +36,7 @@ from apps.api.routes import (
     websocket,
 )
 from apps.api.routes.openai import chat as openai_chat
+from apps.api.services.openai.errors import ErrorTranslator
 from apps.api.services.shutdown import get_shutdown_manager, reset_shutdown_manager
 
 logger = structlog.get_logger(__name__)
@@ -158,11 +161,133 @@ def create_app() -> FastAPI:
 
     # Register exception handlers
     @app.exception_handler(APIError)
-    async def api_error_handler(_request: Request, exc: APIError) -> JSONResponse:
-        """Handle API errors."""
+    async def api_error_handler(request: Request, exc: APIError) -> JSONResponse:
+        """Handle API errors.
+
+        For OpenAI-compatible endpoints (/v1/*), translates errors to OpenAI format.
+        For native endpoints (/api/v1/*), uses standard API error format.
+        """
+        # Check if this is an OpenAI endpoint
+        if request.url.path.startswith("/v1/"):
+            # Translate to OpenAI error format
+            openai_error = ErrorTranslator.translate(exc)
+            return JSONResponse(
+                status_code=exc.status_code,
+                content=openai_error,
+            )
+
+        # Use standard API error format for native endpoints
         return JSONResponse(
             status_code=exc.status_code,
             content=exc.to_dict(),
+        )
+
+    @app.exception_handler(ValueError)
+    async def value_error_handler(request: Request, exc: ValueError) -> JSONResponse:
+        """Handle ValueError exceptions (e.g., unknown model names).
+
+        For OpenAI endpoints (/v1/*), converts to OpenAI error format with 400 status.
+        For native endpoints, uses standard validation error format.
+        """
+        # Convert ValueError to APIError with 400 status (bad request)
+        # Using code VALIDATION_ERROR for consistency
+        api_error = APIError(
+            message=str(exc),
+            code="VALIDATION_ERROR",
+            status_code=400,
+        )
+
+        # Check if this is an OpenAI endpoint
+        if request.url.path.startswith("/v1/"):
+            # Translate to OpenAI error format
+            openai_error = ErrorTranslator.translate(api_error)
+            return JSONResponse(
+                status_code=400,
+                content=openai_error,
+            )
+
+        # Use standard error format for native endpoints
+        return JSONResponse(
+            status_code=api_error.status_code,
+            content=api_error.to_dict(),
+        )
+
+    @app.exception_handler(RequestValidationError)
+    async def request_validation_error_handler(
+        request: Request,
+        exc: RequestValidationError,
+    ) -> JSONResponse:
+        """Handle FastAPI request validation errors (Pydantic validation before route handler).
+
+        For OpenAI endpoints (/v1/*), converts to OpenAI error format with 400 status.
+        For native endpoints, uses FastAPI's default 422 format.
+        """
+        # Check if this is an OpenAI endpoint
+        if request.url.path.startswith("/v1/"):
+            # Extract first error message for simplicity
+            errors = exc.errors()
+            first_error = errors[0] if errors else {}
+            error_msg = first_error.get("msg", "Validation failed")
+            field = ".".join(str(loc) for loc in first_error.get("loc", []))
+
+            # Create APIError with 400 status for OpenAI translation
+            api_error = APIError(
+                message=error_msg,
+                code="VALIDATION_ERROR",
+                status_code=400,
+                details={"field": field} if field else {},
+            )
+
+            # Translate to OpenAI error format
+            openai_error = ErrorTranslator.translate(api_error)
+            return JSONResponse(
+                status_code=400,
+                content=openai_error,
+            )
+
+        # For native endpoints, use FastAPI default format (422)
+        return JSONResponse(
+            status_code=422,
+            content={"detail": exc.errors()},
+        )
+
+    @app.exception_handler(PydanticValidationError)
+    async def pydantic_validation_error_handler(
+        request: Request,
+        exc: PydanticValidationError,
+    ) -> JSONResponse:
+        """Handle Pydantic validation errors (raised in route handlers).
+
+        For OpenAI endpoints (/v1/*), converts to OpenAI error format with 400 status.
+        For native endpoints, uses FastAPI's default 422 format.
+        """
+        # Check if this is an OpenAI endpoint
+        if request.url.path.startswith("/v1/"):
+            # Extract first error message for simplicity
+            errors = exc.errors()
+            first_error = errors[0] if errors else {}
+            error_msg = first_error.get("msg", "Validation failed")
+            field = ".".join(str(loc) for loc in first_error.get("loc", []))
+
+            # Create APIError with 400 status for OpenAI translation
+            api_error = APIError(
+                message=error_msg,
+                code="VALIDATION_ERROR",
+                status_code=400,
+                details={"field": field} if field else {},
+            )
+
+            # Translate to OpenAI error format
+            openai_error = ErrorTranslator.translate(api_error)
+            return JSONResponse(
+                status_code=400,
+                content=openai_error,
+            )
+
+        # For native endpoints, use FastAPI default format (422)
+        return JSONResponse(
+            status_code=422,
+            content={"detail": exc.errors()},
         )
 
     @app.exception_handler(TimeoutError)

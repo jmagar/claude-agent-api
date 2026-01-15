@@ -287,3 +287,151 @@ async def test_invalid_bearer_token_returns_401(async_client: AsyncClient) -> No
 
     # Assert
     assert response.status_code == 401, f"Expected 401, got {response.status_code}: {response.text}"
+
+
+@pytest.mark.anyio
+async def test_invalid_model_returns_400(async_client: AsyncClient) -> None:
+    """Test unknown model name returns 400 error with OpenAI format.
+
+    Verifies:
+    - Unknown model returns 400 (invalid_request_error)
+    - Error follows OpenAI format: error.type, error.message, error.code
+    - Error message indicates model not found
+    """
+    # Arrange
+    request_data = {
+        "model": "gpt-unknown-model",
+        "messages": [
+            {"role": "user", "content": "Hello"}
+        ],
+        "stream": False
+    }
+    headers = {
+        "Authorization": "Bearer test-api-key-12345",
+        "Content-Type": "application/json"
+    }
+
+    # Act
+    response = await async_client.post(
+        "/v1/chat/completions",
+        json=request_data,
+        headers=headers
+    )
+
+    # Assert
+    assert response.status_code == 400, f"Expected 400, got {response.status_code}: {response.text}"
+
+    data = response.json()
+    assert "error" in data, "Response missing 'error' field"
+    error = data["error"]
+
+    # Verify OpenAI error format
+    assert "type" in error, "Error missing 'type' field"
+    assert error["type"] == "invalid_request_error", f"Expected type='invalid_request_error', got: {error['type']}"
+
+    assert "message" in error, "Error missing 'message' field"
+    assert isinstance(error["message"], str), "Error message should be a string"
+    assert len(error["message"]) > 0, "Error message should not be empty"
+
+    assert "code" in error, "Error missing 'code' field"
+
+
+@pytest.mark.anyio
+async def test_empty_messages_returns_400(async_client: AsyncClient) -> None:
+    """Test empty messages array returns 400 error with OpenAI format.
+
+    Verifies:
+    - Empty messages array returns 400 (invalid_request_error)
+    - Error follows OpenAI format
+    - Error message indicates validation failure
+    """
+    # Arrange
+    request_data = {
+        "model": "gpt-4",
+        "messages": [],  # Empty messages
+        "stream": False
+    }
+    headers = {
+        "Authorization": "Bearer test-api-key-12345",
+        "Content-Type": "application/json"
+    }
+
+    # Act
+    response = await async_client.post(
+        "/v1/chat/completions",
+        json=request_data,
+        headers=headers
+    )
+
+    # Assert
+    assert response.status_code == 400, f"Expected 400, got {response.status_code}: {response.text}"
+
+    data = response.json()
+    assert "error" in data, "Response missing 'error' field"
+    error = data["error"]
+
+    # Verify OpenAI error format
+    assert "type" in error, "Error missing 'type' field"
+    assert error["type"] == "invalid_request_error", f"Expected type='invalid_request_error', got: {error['type']}"
+
+    assert "message" in error, "Error missing 'message' field"
+    assert isinstance(error["message"], str), "Error message should be a string"
+
+
+@pytest.mark.anyio
+async def test_error_format_is_openai_compatible(async_client: AsyncClient) -> None:
+    """Test error responses follow OpenAI error structure exactly.
+
+    Verifies:
+    - Error response has top-level "error" object
+    - error.type is a string (e.g., "invalid_request_error", "authentication_error")
+    - error.message is a descriptive string
+    - error.code is present (machine-readable code)
+    - Structure matches OpenAI API error format
+    """
+    # Arrange - Trigger validation error with invalid model
+    request_data = {
+        "model": "invalid-model-xyz",
+        "messages": [
+            {"role": "user", "content": "Test"}
+        ],
+        "stream": False
+    }
+    headers = {
+        "Authorization": "Bearer test-api-key-12345",
+        "Content-Type": "application/json"
+    }
+
+    # Act
+    response = await async_client.post(
+        "/v1/chat/completions",
+        json=request_data,
+        headers=headers
+    )
+
+    # Assert - Should return 400 for invalid model
+    assert response.status_code == 400, f"Expected 400, got {response.status_code}: {response.text}"
+
+    data = response.json()
+
+    # Verify top-level structure
+    assert isinstance(data, dict), "Response should be a dictionary"
+    assert "error" in data, "Response must have 'error' key"
+    assert len(data.keys()) == 1, "Response should ONLY contain 'error' key (OpenAI format)"
+
+    # Verify error object structure
+    error = data["error"]
+    assert isinstance(error, dict), "error should be a dictionary"
+
+    # Verify required fields
+    assert "type" in error, "error missing 'type' field"
+    assert isinstance(error["type"], str), "error.type must be a string"
+    assert error["type"] in ["invalid_request_error", "authentication_error", "rate_limit_exceeded", "api_error"], \
+        f"error.type must be valid OpenAI error type, got: {error['type']}"
+
+    assert "message" in error, "error missing 'message' field"
+    assert isinstance(error["message"], str), "error.message must be a string"
+    assert len(error["message"]) > 0, "error.message must not be empty"
+
+    assert "code" in error, "error missing 'code' field"
+    assert isinstance(error["code"], str), "error.code must be a string"
