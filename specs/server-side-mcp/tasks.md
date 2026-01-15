@@ -192,7 +192,7 @@ After POC validated, write comprehensive tests FIRST (RED), then ensure implemen
   - **Commit**: `test(mcp): add failing tests for config merge`
   - _Requirements: AC-3.1, AC-3.2, AC-3.4, AC-3.5, FR-4_
 
-- [ ] 2.8 [GREEN] Make merge precedence tests pass
+- [x] 2.8 [GREEN] Make merge precedence tests pass
   - **Do**: Update `McpConfigLoader.merge_configs()` to pass all tests. Implement correct precedence order. Handle opt-out case explicitly. Ensure replacement semantics (not deep merge). Add assertions for invalid inputs.
   - **Files**: `apps/api/services/mcp_config_loader.py`
   - **Done when**: All 5 merge tests PASS
