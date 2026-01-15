@@ -67,3 +67,106 @@ class TestCommandInjectionValidation:
         # None should be handled gracefully (no validation needed)
         result = validator.validate_command_injection(None)
         assert result is None
+
+
+class TestSSRFPrevention:
+    """Test SSRF prevention for URL validation."""
+
+    def test_validate_ssrf_internal_ip(self) -> None:
+        """Reject internal IP ranges (RFC 1918)."""
+        from apps.api.services.mcp_config_validator import ConfigValidator
+
+        validator = ConfigValidator()
+
+        # RFC 1918 private IP ranges
+        internal_urls = [
+            "http://10.0.0.1/api",  # 10.0.0.0/8
+            "http://172.16.0.1/data",  # 172.16.0.0/12
+            "http://192.168.1.1/admin",  # 192.168.0.0/16
+            "http://10.255.255.255/",
+            "http://172.31.255.255/",
+            "http://192.168.255.255/",
+        ]
+
+        for url in internal_urls:
+            with pytest.raises(ValueError, match="internal resource"):
+                validator.validate_ssrf(url)
+
+    def test_validate_ssrf_localhost(self) -> None:
+        """Reject localhost and loopback addresses."""
+        from apps.api.services.mcp_config_validator import ConfigValidator
+
+        validator = ConfigValidator()
+
+        localhost_urls = [
+            "http://localhost/api",
+            "http://127.0.0.1/",
+            "http://127.0.0.2/",
+            "http://127.255.255.255/",
+            "http://[::1]/api",  # IPv6 loopback
+        ]
+
+        for url in localhost_urls:
+            with pytest.raises(ValueError, match="internal resource"):
+                validator.validate_ssrf(url)
+
+    def test_validate_ssrf_metadata_endpoint(self) -> None:
+        """Reject cloud metadata endpoints."""
+        from apps.api.services.mcp_config_validator import ConfigValidator
+
+        validator = ConfigValidator()
+
+        metadata_urls = [
+            "http://169.254.169.254/latest/meta-data/",  # AWS
+            "http://metadata.google.internal/",  # GCP
+            "http://instance-data/",  # Generic
+        ]
+
+        for url in metadata_urls:
+            with pytest.raises(ValueError, match="internal resource"):
+                validator.validate_ssrf(url)
+
+    def test_validate_ssrf_link_local(self) -> None:
+        """Reject link-local addresses."""
+        from apps.api.services.mcp_config_validator import ConfigValidator
+
+        validator = ConfigValidator()
+
+        link_local_urls = [
+            "http://169.254.0.1/",  # IPv4 link-local
+            "http://[fe80::1]/",  # IPv6 link-local
+        ]
+
+        for url in link_local_urls:
+            with pytest.raises(ValueError, match="internal resource"):
+                validator.validate_ssrf(url)
+
+    def test_validate_ssrf_valid_url(self) -> None:
+        """Allow public URLs."""
+        from apps.api.services.mcp_config_validator import ConfigValidator
+
+        validator = ConfigValidator()
+
+        # Public URLs should pass validation
+        valid_urls = [
+            "http://example.com/api",
+            "https://api.github.com/repos",
+            "http://8.8.8.8/",  # Google DNS (public IP)
+            "https://1.1.1.1/",  # Cloudflare DNS (public IP)
+            "http://mcp-server.example.com:8080/",
+        ]
+
+        for url in valid_urls:
+            # Should not raise
+            result = validator.validate_ssrf(url)
+            assert result == url
+
+    def test_validate_ssrf_null(self) -> None:
+        """Handle None URL gracefully."""
+        from apps.api.services.mcp_config_validator import ConfigValidator
+
+        validator = ConfigValidator()
+
+        # None should be handled gracefully (no validation needed)
+        result = validator.validate_ssrf(None)
+        assert result is None

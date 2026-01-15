@@ -232,7 +232,7 @@ After POC validated, write comprehensive tests FIRST (RED), then ensure implemen
   - **Commit**: `feat(mcp): implement command injection validator`
   - _Requirements: AC-4.3, FR-9_
 
-- [ ] 2.13 [RED] Write failing tests for SSRF prevention
+- [x] 2.13 [RED] Write failing tests for SSRF prevention
   - **Do**: Add test functions: `test_validate_ssrf_internal_ip()` (reject 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16), `test_validate_ssrf_localhost()` (reject localhost/127.0.0.1), `test_validate_ssrf_metadata_endpoint()` (reject 169.254.169.254), `test_validate_ssrf_link_local()` (reject link-local), `test_validate_ssrf_valid_url()` (allow public URLs), `test_validate_ssrf_null()` (handle None). Tests should FAIL.
   - **Files**: `tests/unit/services/test_mcp_config_validator.py`
   - **Done when**: All SSRF tests written and FAILING
