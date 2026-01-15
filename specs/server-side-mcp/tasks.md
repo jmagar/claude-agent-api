@@ -248,7 +248,7 @@ After POC validated, write comprehensive tests FIRST (RED), then ensure implemen
   - **Commit**: `feat(mcp): implement ssrf prevention validator`
   - _Requirements: AC-4.4, FR-9_
 
-- [ ] 2.15 [RED] Write failing tests for credential sanitization
+- [x] 2.15 [RED] Write failing tests for credential sanitization
   - **Do**: Add test functions: `test_sanitize_credentials_env_vars()` (redact sensitive env keys), `test_sanitize_credentials_headers()` (redact auth headers), `test_sanitize_credentials_preserves_safe_fields()` (don't redact command, type, etc), `test_sanitize_credentials_nested()` (deep sanitization). Tests should FAIL.
   - **Files**: `tests/unit/services/test_mcp_config_validator.py`
   - **Done when**: All sanitization tests written and FAILING

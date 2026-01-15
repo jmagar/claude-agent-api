@@ -170,3 +170,118 @@ class TestSSRFPrevention:
         # None should be handled gracefully (no validation needed)
         result = validator.validate_ssrf(None)
         assert result is None
+
+
+class TestCredentialSanitization:
+    """Test credential sanitization for logging safety."""
+
+    def test_sanitize_credentials_env_vars(self) -> None:
+        """Redact sensitive environment variable keys."""
+        from apps.api.services.mcp_config_validator import ConfigValidator
+
+        validator = ConfigValidator()
+
+        config = {
+            "name": "github",
+            "type": "stdio",
+            "env": {
+                "GITHUB_TOKEN": "ghp_secret123",
+                "API_KEY": "sk-secret456",
+                "SECRET_KEY": "secret789",
+                "PASSWORD": "password123",
+                "AUTH_TOKEN": "bearer_token",
+                "SAFE_VALUE": "not_redacted",
+            },
+        }
+
+        sanitized = validator.sanitize_credentials(config)
+
+        # Sensitive keys should be redacted
+        assert sanitized["env"]["GITHUB_TOKEN"] == "***REDACTED***"
+        assert sanitized["env"]["API_KEY"] == "***REDACTED***"
+        assert sanitized["env"]["SECRET_KEY"] == "***REDACTED***"
+        assert sanitized["env"]["PASSWORD"] == "***REDACTED***"
+        assert sanitized["env"]["AUTH_TOKEN"] == "***REDACTED***"
+
+        # Safe keys should be preserved
+        assert sanitized["env"]["SAFE_VALUE"] == "not_redacted"
+
+    def test_sanitize_credentials_headers(self) -> None:
+        """Redact sensitive header keys."""
+        from apps.api.services.mcp_config_validator import ConfigValidator
+
+        validator = ConfigValidator()
+
+        config = {
+            "name": "api-server",
+            "type": "sse",
+            "url": "http://example.com",
+            "headers": {
+                "Authorization": "Bearer secret_token",
+                "X-API-Key": "sk-secret",
+                "X-Auth-Token": "token123",
+                "Content-Type": "application/json",  # Safe header
+            },
+        }
+
+        sanitized = validator.sanitize_credentials(config)
+
+        # Sensitive headers should be redacted
+        assert sanitized["headers"]["Authorization"] == "***REDACTED***"
+        assert sanitized["headers"]["X-API-Key"] == "***REDACTED***"
+        assert sanitized["headers"]["X-Auth-Token"] == "***REDACTED***"
+
+        # Safe headers should be preserved
+        assert sanitized["headers"]["Content-Type"] == "application/json"
+
+    def test_sanitize_credentials_preserves_safe_fields(self) -> None:
+        """Don't redact safe fields like command, type, name."""
+        from apps.api.services.mcp_config_validator import ConfigValidator
+
+        validator = ConfigValidator()
+
+        config = {
+            "name": "postgres-server",
+            "type": "stdio",
+            "command": "npx postgres-mcp-server",
+            "args": ["--host", "localhost"],
+            "enabled": True,
+        }
+
+        sanitized = validator.sanitize_credentials(config)
+
+        # Safe fields should be unchanged
+        assert sanitized["name"] == "postgres-server"
+        assert sanitized["type"] == "stdio"
+        assert sanitized["command"] == "npx postgres-mcp-server"
+        assert sanitized["args"] == ["--host", "localhost"]
+        assert sanitized["enabled"] is True
+
+    def test_sanitize_credentials_nested(self) -> None:
+        """Deep sanitization of nested structures."""
+        from apps.api.services.mcp_config_validator import ConfigValidator
+
+        validator = ConfigValidator()
+
+        config = {
+            "servers": {
+                "github": {
+                    "env": {
+                        "TOKEN": "secret123",
+                        "API_KEY": "secret456",
+                    },
+                },
+                "slack": {
+                    "headers": {
+                        "Authorization": "Bearer token",
+                    },
+                },
+            },
+        }
+
+        sanitized = validator.sanitize_credentials(config)
+
+        # Nested sensitive keys should be redacted
+        assert sanitized["servers"]["github"]["env"]["TOKEN"] == "***REDACTED***"
+        assert sanitized["servers"]["github"]["env"]["API_KEY"] == "***REDACTED***"
+        assert sanitized["servers"]["slack"]["headers"]["Authorization"] == "***REDACTED***"
