@@ -1,8 +1,11 @@
 """OpenAI-compatible chat completions endpoint."""
 
+import json
+from collections.abc import AsyncGenerator
 from typing import Annotated
 
 from fastapi import APIRouter, Depends
+from sse_starlette import EventSourceResponse
 
 from apps.api.dependencies import get_agent_service
 from apps.api.routes.openai.dependencies import (
@@ -10,25 +13,26 @@ from apps.api.routes.openai.dependencies import (
     get_response_translator,
 )
 from apps.api.schemas.openai.requests import ChatCompletionRequest
-from apps.api.schemas.openai.responses import OpenAIChatCompletion
+from apps.api.schemas.openai.responses import OpenAIChatCompletion, OpenAIStreamChunk
 from apps.api.schemas.responses import SingleQueryResponse
 from apps.api.services.agent.service import AgentService
+from apps.api.services.openai.streaming import StreamingAdapter
 from apps.api.services.openai.translator import RequestTranslator, ResponseTranslator
 
 router = APIRouter(prefix="/chat", tags=["openai"])
 
 
-@router.post("/completions")
+@router.post("/completions", response_model=None)
 async def create_chat_completion(
     request: ChatCompletionRequest,
     request_translator: Annotated[RequestTranslator, Depends(get_request_translator)],
     response_translator: Annotated[ResponseTranslator, Depends(get_response_translator)],
     agent_service: Annotated[AgentService, Depends(get_agent_service)],
-) -> OpenAIChatCompletion:
+) -> OpenAIChatCompletion | EventSourceResponse:
     """Create a chat completion in OpenAI format.
 
-    Non-streaming endpoint that translates OpenAI requests to Claude Agent SDK format,
-    executes the query, and translates the response back to OpenAI format.
+    Supports both streaming and non-streaming completions. When stream=true,
+    returns SSE event stream. When stream=false, returns JSON response.
 
     Args:
         request: OpenAI chat completion request
@@ -37,7 +41,8 @@ async def create_chat_completion(
         agent_service: Agent service for executing queries
 
     Returns:
-        OpenAI-formatted chat completion response
+        OpenAIChatCompletion: Non-streaming JSON response (stream=false)
+        EventSourceResponse: SSE event stream (stream=true)
 
     Raises:
         ValueError: If model name is not recognized
@@ -45,13 +50,57 @@ async def create_chat_completion(
     # Translate OpenAI request to Claude QueryRequest
     query_request = request_translator.translate(request)
 
-    # Execute query using agent service (non-streaming)
-    response_dict = await agent_service.query_single(query_request)
+    # Handle streaming vs non-streaming
+    if request.stream:
+        # Streaming: Return SSE event stream
+        async def event_generator() -> AsyncGenerator[str, None]:
+            """Generate SSE events from Claude SDK stream."""
+            # Get native SDK event stream
+            native_events = agent_service.query_stream(query_request)
 
-    # Convert dict to Pydantic model for type safety
-    response = SingleQueryResponse(**response_dict)
+            # Adapt to OpenAI streaming format
+            adapter = StreamingAdapter(original_model=request.model)
 
-    # Translate Claude response to OpenAI format
-    openai_response = response_translator.translate(response, original_model=request.model)
+            # Create async generator that yields (event_type, event_data) tuples
+            async def native_event_tuples() -> AsyncGenerator[tuple[str, dict], None]:
+                """Parse native SSE events into (event_type, data) tuples."""
+                async for event in native_events:
+                    # Native events are dicts with 'event' and 'data' keys
+                    # where 'data' is a JSON string that needs to be parsed
+                    if isinstance(event, dict):
+                        event_type = event.get("event", "")
+                        event_data_raw = event.get("data", "{}")
+                        # Parse JSON string to dict
+                        if isinstance(event_data_raw, str):
+                            try:
+                                event_data = json.loads(event_data_raw)
+                            except json.JSONDecodeError:
+                                continue  # Skip malformed events
+                        else:
+                            event_data = event_data_raw
+                        # Only yield events that streaming adapter expects
+                        if event_type in ("partial", "result"):
+                            yield (event_type, event_data)
 
-    return openai_response
+            # Adapt events and yield as SSE format
+            # EventSourceResponse from sse_starlette automatically adds "data: " prefix
+            # and "\n\n" suffix, so we only need to yield the content
+            async for chunk in adapter.adapt_stream(native_event_tuples()):
+                if chunk == "[DONE]":
+                    yield "[DONE]"
+                else:
+                    # Serialize chunk to JSON and yield (sse_starlette adds data: prefix)
+                    yield json.dumps(chunk)
+
+        return EventSourceResponse(event_generator())
+    else:
+        # Non-streaming: Execute query and return JSON
+        response_dict = await agent_service.query_single(query_request)
+
+        # Convert dict to Pydantic model for type safety
+        response = SingleQueryResponse(**response_dict)
+
+        # Translate Claude response to OpenAI format
+        openai_response = response_translator.translate(response, original_model=request.model)
+
+        return openai_response
