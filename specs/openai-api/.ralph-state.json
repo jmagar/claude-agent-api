@@ -1,0 +1,13 @@
+{
+  "source": "spec",
+  "name": "openai-api",
+  "basePath": "./specs/openai-api",
+  "phase": "tasks",
+  "taskIndex": 0,
+  "totalTasks": 48,
+  "taskIteration": 1,
+  "maxTaskIterations": 5,
+  "globalIteration": 1,
+  "maxGlobalIterations": 100,
+  "awaitingApproval": true
+}
