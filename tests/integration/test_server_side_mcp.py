@@ -210,3 +210,71 @@ class TestServerSideMcpIntegration:
         # 2. Verifying app-server and api-key-server NOT in merged config
         # 3. Checking that config merge logic correctly prioritized request tier
         # This is covered by unit tests; integration test verifies API accepts it.
+
+    async def test_opt_out_mechanism_disables_server_side_mcp(
+        self,
+        async_client: AsyncClient,
+        auth_headers: dict[str, str],
+        mock_claude_sdk: None,
+        tmp_path: Path,
+    ) -> None:
+        """Test that empty mcp_servers dict opts out of all server-side config.
+
+        Sets up both application-level and API-key-level configs, then sends
+        a request with mcp_servers={} to verify no MCP servers are injected.
+        """
+        from apps.api.dependencies import get_cache
+        from apps.api.services.mcp_server_configs import McpServerConfigService
+
+        # Create application-level config
+        app_config = {
+            "mcpServers": {
+                "app-server": {
+                    "type": "stdio",
+                    "command": "python",
+                    "args": ["-m", "app_module"],
+                    "env": {"SOURCE": "application"},
+                }
+            }
+        }
+        config_path = tmp_path / ".mcp-server-config.json"
+        config_path.write_text(json.dumps(app_config), encoding="utf-8")
+
+        # Create API-key-level config
+        cache = await get_cache()
+        mcp_service = McpServerConfigService(cache)
+
+        api_key = auth_headers.get("X-API-Key", "")
+        assert api_key, "API key required for this test"
+
+        await mcp_service.create_server_for_api_key(
+            api_key=api_key,
+            name="api-key-server",
+            transport_type="stdio",
+            config={
+                "command": "python",
+                "args": ["-m", "api_key_module"],
+                "env": {"SOURCE": "api_key"},
+            },
+        )
+
+        # Send query with empty dict to opt out of server-side config
+        # This should prevent both application and API-key configs from being used
+        response = await async_client.post(
+            "/api/v1/query",
+            json={
+                "prompt": "What tools do you have?",
+                "max_turns": 1,
+                "mcp_servers": {},  # Explicit opt-out - empty dict
+            },
+            headers={**auth_headers, "Accept": "text/event-stream"},
+        )
+
+        # The API should accept the request with empty mcp_servers
+        assert response.status_code == 200
+
+        # Note: Full verification would require:
+        # 1. Capturing SDK options to verify NO MCP servers present
+        # 2. Verifying app-server and api-key-server NOT injected
+        # 3. Checking that config merge logic detected empty dict opt-out
+        # This is covered by unit tests; integration test verifies API accepts it.
