@@ -200,7 +200,7 @@ After POC validated, write comprehensive tests FIRST (RED), then ensure implemen
   - **Commit**: `feat(mcp): implement correct merge precedence`
   - _Requirements: AC-3.1, AC-3.2, AC-3.4, AC-3.5, FR-4_
 
-- [ ] 2.9 [REFACTOR] Optimize merge logic
+- [x] 2.9 [REFACTOR] Optimize merge logic
   - **Do**: Simplify merge implementation using dict unpacking. Add inline comments explaining precedence. Extract opt-out logic to separate method. Keep tests green.
   - **Files**: `apps/api/services/mcp_config_loader.py`
   - **Done when**: Merge code is clearer, tests still pass
