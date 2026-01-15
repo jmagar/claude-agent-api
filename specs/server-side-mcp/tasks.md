@@ -39,7 +39,7 @@ Focus: Validate the three-tier configuration merge works end-to-end. Skip compre
 
 ### 1.2 Database Integration POC
 
-- [ ] 1.4 Extend McpServerConfigService with API-key scoping
+- [x] 1.4 Extend McpServerConfigService with API-key scoping
   - **Do**: Modify `apps/api/services/mcp_server_configs.py`. Change `_server_key(name: str)` to `_server_key(api_key: str, name: str)` returning `f"mcp_server:{api_key}:{name}"`. Add `_index_key(api_key: str)` returning `f"mcp_servers:index:{api_key}"`. Add `list_servers_for_api_key(api_key: str)` that scans keys with pattern. Update existing methods to accept `api_key` parameter.
   - **Files**: `apps/api/services/mcp_server_configs.py`
   - **Done when**: Redis keys include api_key scope, list/create/update/delete methods accept api_key parameter
