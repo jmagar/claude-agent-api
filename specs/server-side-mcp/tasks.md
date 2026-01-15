@@ -417,7 +417,7 @@ End-to-end validation with real services, backward compatibility verification.
 
 ### 3.3 Security Tests
 
-- [ ] 3.10 Write security test for credential isolation
+- [x] 3.10 Write security test for credential isolation
   - **Do**: Create `tests/security/test_server_side_mcp_security.py`. Write `test_application_config_env_vars_not_leaked()` that sets up config with `${SECRET}`, queries `/mcp-servers`, verifies response has `***REDACTED***` not actual value.
   - **Files**: `tests/security/test_server_side_mcp_security.py`
   - **Done when**: Test verifies credentials never leaked in API responses
