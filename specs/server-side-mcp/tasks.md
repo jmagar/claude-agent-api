@@ -271,7 +271,7 @@ After POC validated, write comprehensive tests FIRST (RED), then ensure implemen
   - **Verify**: `uv run pytest tests/unit/services/test_mcp_config_validator.py -v` all PASSED
   - **Commit**: `refactor(mcp): add comprehensive validator method`
 
-- [ ] 2.18 [VERIFY] Quality checkpoint: `uv run ruff check . && uv run ty check && uv run pytest tests/unit/services/test_mcp_config_validator.py`
+- [x] 2.18 [VERIFY] Quality checkpoint: `uv run ruff check . && uv run ty check && uv run pytest tests/unit/services/test_mcp_config_validator.py`
   - **Do**: Run quality checks on validator
   - **Verify**: All commands exit 0
   - **Done when**: Lint clean, types clean, all validator tests green

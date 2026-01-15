@@ -7,8 +7,12 @@ Provides validation for:
 """
 
 import copy
+from typing import Any, cast
 
-from apps.api.schemas.validators import SHELL_METACHAR_PATTERN, validate_url_not_internal
+from apps.api.schemas.validators import (
+    SHELL_METACHAR_PATTERN,
+    validate_url_not_internal,
+)
 
 # Patterns for sensitive keys (case-insensitive)
 SENSITIVE_PATTERNS = [
@@ -164,10 +168,13 @@ class ConfigValidator:
             obj: Object to sanitize (modified in-place).
         """
         if isinstance(obj, dict):
-            for key, value in obj.items():
+            # Cast to mutable dict for type checker
+            mutable_dict = cast(dict[str, Any], obj)
+
+            for key, value in mutable_dict.items():
                 # Check if key matches sensitive pattern
                 if self._is_sensitive_key(key):
-                    obj[key] = "***REDACTED***"
+                    mutable_dict[key] = "***REDACTED***"
                 else:
                     # Recurse into nested structures
                     self._sanitize_recursive(value)
