@@ -18,6 +18,9 @@ from apps.api.config import Settings, get_settings
 from apps.api.exceptions import AuthenticationError, ServiceUnavailableError
 from apps.api.services.agent import AgentService
 from apps.api.services.checkpoint import CheckpointService
+from apps.api.services.mcp_config_injector import McpConfigInjector
+from apps.api.services.mcp_config_loader import McpConfigLoader
+from apps.api.services.mcp_server_configs import McpServerConfigService
 from apps.api.services.query_enrichment import QueryEnrichmentService
 from apps.api.services.session import SessionService
 from apps.api.services.shutdown import ShutdownManager, get_shutdown_manager
@@ -279,6 +282,36 @@ def get_query_enrichment_service() -> "QueryEnrichmentService":
     return QueryEnrichmentService(project_path=project_path)
 
 
+def get_mcp_config_loader() -> McpConfigLoader:
+    """Get MCP config loader instance.
+
+    Returns:
+        McpConfigLoader instance configured with project path.
+    """
+    from pathlib import Path
+
+    # Use current working directory as project root
+    project_path = Path.cwd()
+    return McpConfigLoader(project_path=project_path)
+
+
+async def get_mcp_config_injector(
+    loader: Annotated[McpConfigLoader, Depends(get_mcp_config_loader)],
+    cache: Annotated[RedisCache, Depends(get_cache)],
+) -> McpConfigInjector:
+    """Get MCP config injector instance.
+
+    Args:
+        loader: MCP config loader from dependency injection.
+        cache: Redis cache from dependency injection.
+
+    Returns:
+        McpConfigInjector instance with loader and config service.
+    """
+    config_service = McpServerConfigService(cache=cache)
+    return McpConfigInjector(config_loader=loader, config_service=config_service)
+
+
 # Type aliases for dependency injection
 DbSession = Annotated[AsyncSession, Depends(get_db)]
 Cache = Annotated[RedisCache, Depends(get_cache)]
@@ -292,3 +325,5 @@ ShutdownState = Annotated[ShutdownManager, Depends(check_shutdown_state)]
 QueryEnrichment = Annotated[
     QueryEnrichmentService, Depends(get_query_enrichment_service)
 ]
+McpConfigLdr = Annotated[McpConfigLoader, Depends(get_mcp_config_loader)]
+McpConfigInj = Annotated[McpConfigInjector, Depends(get_mcp_config_injector)]
