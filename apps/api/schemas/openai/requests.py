@@ -23,5 +23,6 @@ class ChatCompletionRequest(BaseModel):
     temperature: float | None = Field(default=None, ge=0, le=2)
     max_tokens: int | None = None
     top_p: float | None = None
+    stop: list[str] | str | None = None
     stream: bool = False
     user: str | None = None

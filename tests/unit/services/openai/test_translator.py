@@ -164,3 +164,120 @@ class TestRequestTranslator:
         # QueryRequest doesn't have max_turns field, so this is verifying it's not added
         result_dict = result.model_dump(exclude_unset=True)
         assert "max_turns" not in result_dict
+
+    def test_translate_temperature_warning(
+        self, model_mapper: ModelMapper, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Test that temperature parameter logs WARNING and is NOT passed to QueryRequest.
+
+        Given: ChatCompletionRequest with temperature=0.7
+        When: translator.translate(request)
+        Then: WARNING logged about unsupported parameter
+        Then: temperature NOT included in QueryRequest
+        """
+        # Given
+        request = ChatCompletionRequest(
+            model="gpt-4",
+            messages=[OpenAIMessage(role="user", content="Hello")],
+            temperature=0.7,
+        )
+        translator = RequestTranslator(model_mapper)
+
+        # When
+        result = translator.translate(request)
+
+        # Then
+        # Verify warning was logged - structlog outputs to stdout/stderr
+        captured = capsys.readouterr()
+        output = captured.out + captured.err
+        assert "temperature" in output.lower()
+        assert "not supported" in output.lower()
+
+        # Verify temperature is NOT in result (QueryRequest doesn't have temperature field)
+        result_dict = result.model_dump(exclude_unset=True)
+        assert "temperature" not in result_dict
+
+    def test_translate_top_p_warning(
+        self, model_mapper: ModelMapper, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Test that top_p parameter logs WARNING and is NOT passed to QueryRequest.
+
+        Given: ChatCompletionRequest with top_p=0.9
+        When: translator.translate(request)
+        Then: WARNING logged about unsupported parameter
+        Then: top_p NOT included in QueryRequest
+        """
+        # Given
+        request = ChatCompletionRequest(
+            model="gpt-4",
+            messages=[OpenAIMessage(role="user", content="Hello")],
+            top_p=0.9,
+        )
+        translator = RequestTranslator(model_mapper)
+
+        # When
+        result = translator.translate(request)
+
+        # Then
+        # Verify warning was logged - structlog outputs to stdout/stderr
+        captured = capsys.readouterr()
+        output = captured.out + captured.err
+        assert "top_p" in output.lower()
+        assert "not supported" in output.lower()
+
+        # Verify top_p is NOT in result (QueryRequest doesn't have top_p field)
+        result_dict = result.model_dump(exclude_unset=True)
+        assert "top_p" not in result_dict
+
+    def test_translate_stop_warning(
+        self, model_mapper: ModelMapper, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Test that stop sequences parameter logs WARNING and is NOT passed to QueryRequest.
+
+        Given: ChatCompletionRequest with stop=["END"]
+        When: translator.translate(request)
+        Then: WARNING logged about unsupported parameter
+        Then: stop NOT included in QueryRequest
+        """
+        # Given
+        request = ChatCompletionRequest(
+            model="gpt-4",
+            messages=[OpenAIMessage(role="user", content="Hello")],
+            stop=["END"],
+        )
+        translator = RequestTranslator(model_mapper)
+
+        # When
+        result = translator.translate(request)
+
+        # Then
+        # Verify warning was logged - structlog outputs to stdout/stderr
+        captured = capsys.readouterr()
+        output = captured.out + captured.err
+        assert "stop" in output.lower()
+        assert "not supported" in output.lower()
+
+        # Verify stop is NOT in result (QueryRequest doesn't have stop field)
+        result_dict = result.model_dump(exclude_unset=True)
+        assert "stop" not in result_dict
+
+    def test_translate_user_field(self, model_mapper: ModelMapper) -> None:
+        """Test that user field is properly mapped to QueryRequest.user (SUPPORTED).
+
+        Given: ChatCompletionRequest with user="user-123"
+        When: translator.translate(request)
+        Then: QueryRequest.user == "user-123"
+        """
+        # Given
+        request = ChatCompletionRequest(
+            model="gpt-4",
+            messages=[OpenAIMessage(role="user", content="Hello")],
+            user="user-123",
+        )
+        translator = RequestTranslator(model_mapper)
+
+        # When
+        result = translator.translate(request)
+
+        # Then
+        assert result.user == "user-123"

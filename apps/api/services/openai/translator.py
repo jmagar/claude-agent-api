@@ -81,9 +81,18 @@ class RequestTranslator:
         # Map model name
         claude_model = self._model_mapper.to_claude(request.model)
 
-        # Log warning for max_tokens (unsupported - incompatible with max_turns semantics)
+        # Log warnings for unsupported parameters (SDK doesn't support sampling controls)
         if request.max_tokens is not None:
             self._log_unsupported_parameter("max_tokens")
+
+        if request.temperature is not None:
+            self._log_unsupported_parameter("temperature")
+
+        if request.top_p is not None:
+            self._log_unsupported_parameter("top_p")
+
+        if request.stop is not None:
+            self._log_unsupported_parameter("stop")
 
         # Separate system messages from user/assistant messages
         system_prompt, conversation_messages = self._separate_system_messages(
@@ -106,4 +115,5 @@ class RequestTranslator:
             prompt=prompt,
             model=claude_model,
             system_prompt=system_prompt,
+            user=request.user,  # SUPPORTED: User identifier for tracking
         )
