@@ -1,5 +1,6 @@
 """OpenAI-compatible API schemas."""
 
+from .requests import ChatCompletionRequest, OpenAIMessage
 from .responses import (
     OpenAIChatCompletion,
     OpenAIChoice,
@@ -15,6 +16,8 @@ from .responses import (
 )
 
 __all__ = [
+    "ChatCompletionRequest",
+    "OpenAIMessage",
     "OpenAIChatCompletion",
     "OpenAIChoice",
     "OpenAIDelta",

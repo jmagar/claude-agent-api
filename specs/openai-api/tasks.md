@@ -90,7 +90,7 @@ Focus: Build translation layer test-first, one component at a time.
 
 ---
 
-### Task 1.3: Create Pydantic request schemas (no tests needed for schema definitions)
+### Task 1.3: Create Pydantic request schemas (no tests needed for schema definitions) ✓
 
 **Do**:
 1. Create `apps/api/schemas/openai/requests.py`:
