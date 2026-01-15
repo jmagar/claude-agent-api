@@ -127,6 +127,33 @@ class RequestTranslator:
 class ResponseTranslator:
     """Translates Claude Agent SDK responses to OpenAI chat completion format."""
 
+    def _map_stop_reason(self, stop_reason: str | None) -> str:
+        """Map Claude Agent SDK stop_reason to OpenAI finish_reason.
+
+        Args:
+            stop_reason: Claude Agent SDK stop_reason value
+
+        Returns:
+            OpenAI finish_reason string
+
+        Mapping:
+            - completed → stop
+            - max_turns_reached → length
+            - interrupted → stop
+            - error → error
+            - None → stop (default)
+        """
+        if stop_reason == "completed":
+            return "stop"
+        if stop_reason == "max_turns_reached":
+            return "length"
+        if stop_reason == "interrupted":
+            return "stop"
+        if stop_reason == "error":
+            return "error"
+        # Default to "stop" if unknown
+        return "stop"
+
     def translate(
         self, response: SingleQueryResponse, original_model: str
     ) -> OpenAIChatCompletion:
@@ -151,6 +178,9 @@ class ResponseTranslator:
         # Concatenate text blocks with space separator
         content = " ".join(text_parts)
 
+        # Map stop_reason to finish_reason
+        finish_reason = self._map_stop_reason(response.stop_reason)
+
         # Build OpenAI ChatCompletion response
         return OpenAIChatCompletion(
             id=completion_id,
@@ -164,7 +194,7 @@ class ResponseTranslator:
                         "role": "assistant",
                         "content": content,
                     },
-                    "finish_reason": "stop",
+                    "finish_reason": finish_reason,
                 }
             ],
             usage={

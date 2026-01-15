@@ -374,3 +374,123 @@ class TestResponseTranslator:
         assert result["usage"]["prompt_tokens"] == 10
         assert result["usage"]["completion_tokens"] == 20
         assert result["usage"]["total_tokens"] == 30
+
+    def test_translate_stop_reason_completed(self) -> None:
+        """Test stop_reason 'completed' maps to finish_reason 'stop'.
+
+        Given: SingleQueryResponse with stop_reason="completed"
+        When: translator.translate(response)
+        Then: Assert result["choices"][0]["finish_reason"] == "stop"
+        """
+        # Import here to match other tests
+        from apps.api.schemas.responses import ContentBlockSchema, SingleQueryResponse, UsageSchema
+        from apps.api.services.openai.translator import ResponseTranslator
+
+        # Given
+        response = SingleQueryResponse(
+            session_id="test-session-789",
+            model="sonnet",
+            content=[ContentBlockSchema(type="text", text="Done")],
+            is_error=False,
+            stop_reason="completed",
+            duration_ms=1000,
+            num_turns=1,
+            usage=UsageSchema(input_tokens=5, output_tokens=10),
+        )
+        translator = ResponseTranslator()
+
+        # When
+        result = translator.translate(response, original_model="gpt-4")
+
+        # Then
+        assert result["choices"][0]["finish_reason"] == "stop"
+
+    def test_translate_stop_reason_max_turns(self) -> None:
+        """Test stop_reason 'max_turns_reached' maps to finish_reason 'length'.
+
+        Given: SingleQueryResponse with stop_reason="max_turns_reached"
+        When: translator.translate(response)
+        Then: Assert result["choices"][0]["finish_reason"] == "length"
+        """
+        # Import here to match other tests
+        from apps.api.schemas.responses import ContentBlockSchema, SingleQueryResponse, UsageSchema
+        from apps.api.services.openai.translator import ResponseTranslator
+
+        # Given
+        response = SingleQueryResponse(
+            session_id="test-session-abc",
+            model="sonnet",
+            content=[ContentBlockSchema(type="text", text="Truncated")],
+            is_error=False,
+            stop_reason="max_turns_reached",
+            duration_ms=2000,
+            num_turns=10,
+            usage=UsageSchema(input_tokens=100, output_tokens=200),
+        )
+        translator = ResponseTranslator()
+
+        # When
+        result = translator.translate(response, original_model="gpt-4")
+
+        # Then
+        assert result["choices"][0]["finish_reason"] == "length"
+
+    def test_translate_stop_reason_error(self) -> None:
+        """Test stop_reason 'error' maps to finish_reason 'error'.
+
+        Given: SingleQueryResponse with stop_reason="error"
+        When: translator.translate(response)
+        Then: Assert result["choices"][0]["finish_reason"] == "error"
+        """
+        # Import here to match other tests
+        from apps.api.schemas.responses import ContentBlockSchema, SingleQueryResponse, UsageSchema
+        from apps.api.services.openai.translator import ResponseTranslator
+
+        # Given
+        response = SingleQueryResponse(
+            session_id="test-session-def",
+            model="sonnet",
+            content=[ContentBlockSchema(type="text", text="Error occurred")],
+            is_error=True,
+            stop_reason="error",
+            duration_ms=500,
+            num_turns=1,
+            usage=UsageSchema(input_tokens=5, output_tokens=3),
+        )
+        translator = ResponseTranslator()
+
+        # When
+        result = translator.translate(response, original_model="gpt-4")
+
+        # Then
+        assert result["choices"][0]["finish_reason"] == "error"
+
+    def test_translate_stop_reason_interrupted(self) -> None:
+        """Test stop_reason 'interrupted' maps to finish_reason 'stop'.
+
+        Given: SingleQueryResponse with stop_reason="interrupted"
+        When: translator.translate(response)
+        Then: Assert result["choices"][0]["finish_reason"] == "stop"
+        """
+        # Import here to match other tests
+        from apps.api.schemas.responses import ContentBlockSchema, SingleQueryResponse, UsageSchema
+        from apps.api.services.openai.translator import ResponseTranslator
+
+        # Given
+        response = SingleQueryResponse(
+            session_id="test-session-ghi",
+            model="sonnet",
+            content=[ContentBlockSchema(type="text", text="Interrupted")],
+            is_error=False,
+            stop_reason="interrupted",
+            duration_ms=800,
+            num_turns=2,
+            usage=UsageSchema(input_tokens=15, output_tokens=20),
+        )
+        translator = ResponseTranslator()
+
+        # When
+        result = translator.translate(response, original_model="gpt-4")
+
+        # Then
+        assert result["choices"][0]["finish_reason"] == "stop"
