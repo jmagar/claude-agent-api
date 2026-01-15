@@ -340,3 +340,37 @@ class TestResponseTranslator:
         import time
         now = int(time.time())
         assert abs(result["created"] - now) < 3600
+
+    def test_translate_usage_mapping(self) -> None:
+        """Test usage token mapping from SingleQueryResponse to OpenAI format.
+
+        Given: SingleQueryResponse with usage.input_tokens=10, output_tokens=20
+        When: translator.translate(response)
+        Then: Assert result["usage"]["prompt_tokens"] == 10
+        Then: Assert result["usage"]["completion_tokens"] == 20
+        Then: Assert result["usage"]["total_tokens"] == 30
+        """
+        # Import here to match other tests
+        from apps.api.schemas.responses import ContentBlockSchema, SingleQueryResponse, UsageSchema
+        from apps.api.services.openai.translator import ResponseTranslator
+
+        # Given
+        response = SingleQueryResponse(
+            session_id="test-session-456",
+            model="sonnet",
+            content=[ContentBlockSchema(type="text", text="Response")],
+            is_error=False,
+            stop_reason="completed",
+            duration_ms=500,
+            num_turns=1,
+            usage=UsageSchema(input_tokens=10, output_tokens=20),
+        )
+        translator = ResponseTranslator()
+
+        # When
+        result = translator.translate(response, original_model="gpt-4")
+
+        # Then
+        assert result["usage"]["prompt_tokens"] == 10
+        assert result["usage"]["completion_tokens"] == 20
+        assert result["usage"]["total_tokens"] == 30
