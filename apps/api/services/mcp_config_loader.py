@@ -167,7 +167,7 @@ class McpConfigLoader:
         """
         resolved = self._resolve_value(config)
         # Type checker needs explicit cast since _resolve_value returns object
-        return cast(dict[str, object], resolved)
+        return cast("dict[str, object]", resolved)
 
     def _resolve_value(self, value: object) -> object:
         """Recursively resolve environment variables in a value.
