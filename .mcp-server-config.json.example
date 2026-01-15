@@ -1,0 +1,66 @@
+{
+  "$schema": "https://modelcontextprotocol.io/schema/mcp-server-config.json",
+  "mcpServers": {
+    "github": {
+      "_comment": "GitHub MCP server using stdio transport - accesses GitHub API for repository operations",
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-github"
+      ],
+      "env": {
+        "GITHUB_TOKEN": "${GITHUB_PERSONAL_ACCESS_TOKEN}"
+      },
+      "enabled": true
+    },
+    "postgres": {
+      "_comment": "PostgreSQL MCP server using stdio transport - enables SQL queries against configured database",
+      "type": "stdio",
+      "command": "uvx",
+      "args": [
+        "mcp-server-postgres",
+        "--connection-string",
+        "${POSTGRES_CONNECTION_STRING}"
+      ],
+      "env": {
+        "POSTGRES_CONNECTION_STRING": "${DATABASE_URL}"
+      },
+      "enabled": true
+    },
+    "slack": {
+      "_comment": "Slack MCP server using SSE transport - sends messages and manages channels. Disabled by default to show opt-out pattern.",
+      "type": "sse",
+      "url": "${SLACK_MCP_SERVER_URL}",
+      "headers": {
+        "Authorization": "Bearer ${SLACK_BOT_TOKEN}"
+      },
+      "enabled": false
+    }
+  },
+  "_usage_notes": {
+    "description": "Server-side MCP configuration for Claude Agent API",
+    "environment_variables": [
+      "Use ${VAR_NAME} syntax to reference environment variables",
+      "Variables are resolved at application startup time",
+      "Missing variables will be logged as warnings and left as-is"
+    ],
+    "transport_types": [
+      "stdio: Local process communication (command + args)",
+      "sse: HTTP Server-Sent Events (url + optional headers)"
+    ],
+    "enabled_flag": [
+      "Set 'enabled: false' to disable a server without removing it",
+      "Disabled servers are skipped during configuration loading"
+    ],
+    "merge_precedence": [
+      "Application-level (this file) has LOWEST priority",
+      "API-key-level (database) overrides application-level",
+      "Request-level (per-request mcp_servers field) has HIGHEST priority"
+    ],
+    "opt_out_mechanism": [
+      "Send 'mcp_servers: {}' (empty dict) in request to disable all MCP servers",
+      "Send 'mcp_servers: null' to use application + API-key defaults"
+    ]
+  }
+}
