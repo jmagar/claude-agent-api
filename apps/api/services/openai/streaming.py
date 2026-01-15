@@ -2,12 +2,11 @@
 
 import time
 import uuid
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
 
 from apps.api.schemas.openai.responses import (
     OpenAIDelta,
     OpenAIStreamChunk,
-    OpenAIStreamChoice,
 )
 from apps.api.types import (
     MessageEventDataDict,
