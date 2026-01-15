@@ -29,7 +29,7 @@ router = APIRouter(prefix="/query", tags=["Query"])
 async def query_stream(
     request: Request,
     query: QueryRequest,
-    _api_key: ApiKey,
+    api_key: ApiKey,
     agent_service: AgentSvc,
     session_service: SessionSvc,
     enrichment_service: QueryEnrichment,
@@ -74,7 +74,7 @@ async def query_stream(
         num_turns = 0
         total_cost_usd: float | None = None
         try:
-            async for event in agent_service.query_stream(query):
+            async for event in agent_service.query_stream(query, api_key):
                 event_type = event.get("event", "")
                 event_data = event.get("data", "{}")
 
@@ -104,7 +104,7 @@ async def query_stream(
                             await session_service.create_session(
                                 model=model,
                                 session_id=session_id,
-                                owner_api_key=_api_key,
+                                owner_api_key=api_key,
                             )
                     except json.JSONDecodeError as e:
                         logger.error(
@@ -161,7 +161,7 @@ async def query_stream(
                     status=status,
                     total_turns=num_turns,
                     total_cost_usd=total_cost_usd,
-                    current_api_key=_api_key,
+                    current_api_key=api_key,
                 )
 
     return EventSourceResponse(
@@ -177,7 +177,7 @@ async def query_stream(
 @router.post("/single", response_model=SingleQueryResponse)
 async def query_single(
     query: QueryRequest,
-    _api_key: ApiKey,
+    api_key: ApiKey,
     agent_service: AgentSvc,
     session_service: SessionSvc,
     enrichment_service: QueryEnrichment,
@@ -189,7 +189,7 @@ async def query_single(
 
     Args:
         query: Query request body.
-        _api_key: Validated API key (via dependency).
+        api_key: Validated API key (via dependency).
         agent_service: Agent service instance.
         session_service: Session service instance.
         enrichment_service: Query enrichment service for auto-injecting MCP servers.
@@ -202,7 +202,7 @@ async def query_single(
     query = enrichment_service.enrich_query(query)
 
     # Execute the query
-    result = await agent_service.query_single(query)
+    result = await agent_service.query_single(query, api_key)
 
     # Persist the session if this is a new session (not resuming)
     if query.session_id is None:
@@ -212,7 +212,7 @@ async def query_single(
             await session_service.create_session(
                 model=model,
                 session_id=session_id,
-                owner_api_key=_api_key,
+                owner_api_key=api_key,
             )
 
             # Update session status based on result
@@ -224,7 +224,7 @@ async def query_single(
                 status=status,
                 total_turns=result["num_turns"],
                 total_cost_usd=result.get("total_cost_usd"),
-                current_api_key=_api_key,
+                current_api_key=api_key,
             )
         except Exception as e:
             logger.error(

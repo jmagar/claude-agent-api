@@ -7,7 +7,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends
 from sse_starlette import EventSourceResponse
 
-from apps.api.dependencies import get_agent_service
+from apps.api.dependencies import get_agent_service, verify_api_key
 from apps.api.routes.openai.dependencies import (
     get_request_translator,
     get_response_translator,
@@ -26,6 +26,7 @@ router = APIRouter(prefix="/chat", tags=["openai"])
 @router.post("/completions", response_model=None)
 async def create_chat_completion(
     request: ChatCompletionRequest,
+    api_key: Annotated[str, Depends(verify_api_key)],
     request_translator: Annotated[RequestTranslator, Depends(get_request_translator)],
     response_translator: Annotated[
         ResponseTranslator, Depends(get_response_translator)
@@ -59,7 +60,7 @@ async def create_chat_completion(
         async def event_generator() -> AsyncGenerator[str, None]:
             """Generate SSE events from Claude SDK stream."""
             # Get native SDK event stream
-            native_events = agent_service.query_stream(query_request)
+            native_events = agent_service.query_stream(query_request, api_key)
 
             # Adapt to OpenAI streaming format
             adapter = StreamingAdapter(original_model=request.model)
@@ -100,7 +101,7 @@ async def create_chat_completion(
         return EventSourceResponse(event_generator())
     else:
         # Non-streaming: Execute query and return JSON
-        response_dict = await agent_service.query_single(query_request)
+        response_dict = await agent_service.query_single(query_request, api_key)
 
         # Convert dict to Pydantic model for type safety
         # Pydantic will handle nested dict → model conversion automatically

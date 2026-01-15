@@ -22,6 +22,7 @@ from apps.api.services.agent.single_query_runner import SingleQueryRunner
 from apps.api.services.agent.stream_orchestrator import StreamOrchestrator
 from apps.api.services.agent.stream_query_runner import StreamQueryRunner
 from apps.api.services.agent.types import QueryResponseDict, StreamContext
+from apps.api.services.mcp_config_injector import McpConfigInjector
 from apps.api.services.webhook import WebhookService
 
 if TYPE_CHECKING:
@@ -49,6 +50,7 @@ class AgentService:
         session_control: SessionControl | None = None,
         checkpoint_manager: CheckpointManager | None = None,
         file_modification_tracker: FileModificationTracker | None = None,
+        mcp_config_injector: McpConfigInjector | None = None,
     ) -> None:
         """Initialize agent service.
 
@@ -59,6 +61,8 @@ class AgentService:
                               Required for enable_file_checkpointing functionality.
             cache: Optional Cache instance for distributed session tracking.
                    Required for horizontal scaling across multiple instances.
+            mcp_config_injector: Optional McpConfigInjector for server-side MCP config.
+                               If not provided, MCP injection is skipped.
         """
         self._settings = get_settings()
         self._webhook_service = webhook_service or WebhookService()
@@ -85,6 +89,7 @@ class AgentService:
         self._file_modification_tracker = (
             file_modification_tracker or FileModificationTracker(self._message_handler)
         )
+        self._mcp_config_injector = mcp_config_injector
 
     async def _register_active_session(self, session_id: str) -> None:
         """Register session as active in Redis for distributed tracking.
@@ -155,7 +160,7 @@ class AgentService:
         return self._checkpoint_service
 
     async def query_stream(
-        self, request: "QueryRequest"
+        self, request: "QueryRequest", api_key: str = ""
     ) -> AsyncGenerator[dict[str, str], None]:
         """Stream a query to the agent (distributed-aware).
 
@@ -164,10 +169,15 @@ class AgentService:
 
         Args:
             request: Query request.
+            api_key: API key for scoped MCP server configuration. Empty string disables injection.
 
         Yields:
             SSE event dicts with 'event' and 'data' keys.
         """
+        # Inject server-side MCP configuration before execution
+        if self._mcp_config_injector and api_key:
+            request = await self._mcp_config_injector.inject(request, api_key)
+
         session_id = request.session_id or str(uuid4())
         model = request.model or "sonnet"
 
@@ -248,15 +258,20 @@ class AgentService:
         async for event in self._query_executor.mock_response(request, ctx):
             yield event
 
-    async def query_single(self, request: "QueryRequest") -> "QueryResponseDict":
+    async def query_single(self, request: "QueryRequest", api_key: str = "") -> "QueryResponseDict":
         """Execute non-streaming query.
 
         Args:
             request: Query request.
+            api_key: API key for scoped MCP server configuration. Empty string disables injection.
 
         Returns:
             Complete response dictionary.
         """
+        # Inject server-side MCP configuration before execution
+        if self._mcp_config_injector and api_key:
+            request = await self._mcp_config_injector.inject(request, api_key)
+
         project_path = Path(request.cwd) if request.cwd else Path.cwd()
         discovery = CommandDiscovery(project_path=project_path)
         return await self._single_query_runner.run(request, discovery.commands_service)

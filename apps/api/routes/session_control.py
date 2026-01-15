@@ -22,7 +22,7 @@ router = APIRouter(prefix="/sessions", tags=["Session Control"])
 async def resume_session(
     session_id: str,
     request: ResumeRequest,
-    _api_key: ApiKey,
+    api_key: ApiKey,
     agent_service: AgentSvc,
     session_service: SessionSvc,
     _shutdown: ShutdownState,
@@ -32,7 +32,7 @@ async def resume_session(
     Args:
         session_id: Session ID to resume.
         request: Resume request with prompt.
-        _api_key: Validated API key (via dependency).
+        api_key: Validated API key (via dependency).
         agent_service: Agent service instance.
         session_service: Session service instance.
         _shutdown: Shutdown state check (via dependency, rejects if shutting down).
@@ -46,7 +46,7 @@ async def resume_session(
     # Verify session exists
     session = await session_service.get_session(
         session_id,
-        current_api_key=_api_key,
+        current_api_key=api_key,
     )
     if not session:
         raise SessionNotFoundError(session_id)
@@ -66,7 +66,7 @@ async def resume_session(
     )
 
     return EventSourceResponse(
-        agent_service.query_stream(query_request),
+        agent_service.query_stream(query_request, api_key),
         ping=15,
         headers={
             "Cache-Control": "no-cache",
@@ -79,7 +79,7 @@ async def resume_session(
 async def fork_session(
     session_id: str,
     request: ForkRequest,
-    _api_key: ApiKey,
+    api_key: ApiKey,
     agent_service: AgentSvc,
     session_service: SessionSvc,
     _shutdown: ShutdownState,
@@ -92,7 +92,7 @@ async def fork_session(
     Args:
         session_id: Parent session ID to fork from.
         request: Fork request with prompt and optional overrides.
-        _api_key: Validated API key (via dependency).
+        api_key: Validated API key (via dependency).
         agent_service: Agent service instance.
         session_service: Session service instance.
         _shutdown: Shutdown state check (via dependency, rejects if shutting down).
@@ -106,7 +106,7 @@ async def fork_session(
     # Verify parent session exists
     parent_session = await session_service.get_session(
         session_id,
-        current_api_key=_api_key,
+        current_api_key=api_key,
     )
     if not parent_session:
         raise SessionNotFoundError(session_id)
@@ -116,7 +116,7 @@ async def fork_session(
     forked_session = await session_service.create_session(
         model=model,
         parent_session_id=session_id,
-        owner_api_key=_api_key,
+        owner_api_key=api_key,
     )
 
     # Build query request with fork flag and NEW session_id
@@ -134,7 +134,7 @@ async def fork_session(
     )
 
     return EventSourceResponse(
-        agent_service.query_stream(query_request),
+        agent_service.query_stream(query_request, api_key),
         ping=15,
         headers={
             "Cache-Control": "no-cache",

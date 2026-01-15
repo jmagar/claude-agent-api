@@ -68,6 +68,7 @@ async def _handle_prompt_message(
     message: WebSocketMessageDict,
     agent_service: AgentService,
     state: WebSocketState,
+    api_key: str,
 ) -> None:
     """Handle prompt message to start a new query.
 
@@ -76,6 +77,7 @@ async def _handle_prompt_message(
         message: WebSocket message dict.
         agent_service: Agent service instance.
         state: WebSocket connection state.
+        api_key: API key for scoped MCP server configuration.
     """
     prompt = message.get("prompt")
     if not prompt:
@@ -105,7 +107,7 @@ async def _handle_prompt_message(
 
     # Start streaming query
     state.query_task = asyncio.create_task(
-        _stream_query(websocket, agent_service, request)
+        _stream_query(websocket, agent_service, request, api_key)
     )
     state.current_session_id = request.session_id
 
@@ -243,7 +245,7 @@ async def _process_websocket_message(
     msg_type = message.get("type")
 
     if msg_type == "prompt":
-        await _handle_prompt_message(websocket, message, agent_service, state)
+        await _handle_prompt_message(websocket, message, agent_service, state, api_key)
     elif msg_type == "interrupt":
         await _handle_interrupt_message(
             websocket,
@@ -335,6 +337,7 @@ async def _stream_query(
     websocket: WebSocket,
     agent_service: AgentService,
     request: QueryRequest,
+    api_key: str,
 ) -> None:
     """Stream query results to WebSocket.
 
@@ -342,9 +345,10 @@ async def _stream_query(
         websocket: WebSocket connection.
         agent_service: Agent service instance.
         request: Query request.
+        api_key: API key for scoped MCP server configuration.
     """
     try:
-        async for sse_event in agent_service.query_stream(request):
+        async for sse_event in agent_service.query_stream(request, api_key):
             # SSE event is a dict with 'event' and 'data' keys
             # Parse the JSON data string to send as structured WebSocket message
             event_type = sse_event.get("event", "")
