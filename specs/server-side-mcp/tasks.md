@@ -136,7 +136,7 @@ After POC validated, write comprehensive tests FIRST (RED), then ensure implemen
 
 ### 2.1 Config Loader Tests (TDD: RED-GREEN-REFACTOR)
 
-- [ ] 2.1 [RED] Write failing tests for application config loading
+- [x] 2.1 [RED] Write failing tests for application config loading
   - **Do**: Create `tests/unit/services/test_mcp_config_loader.py`. Write test functions: `test_load_application_config_success()` (reads valid file), `test_load_application_config_missing_file()` (returns empty dict), `test_load_application_config_malformed_json()` (logs warning, returns empty dict), `test_load_application_config_caching()` (verify single file read). Tests should FAIL initially.
   - **Files**: `tests/unit/services/test_mcp_config_loader.py`
   - **Done when**: All 4 tests written and FAILING (RED phase complete)
