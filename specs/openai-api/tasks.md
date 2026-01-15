@@ -27,7 +27,7 @@ Focus: Build translation layer test-first, one component at a time.
 
 ---
 
-### Task 1.1: Create package structure (no tests needed)
+### Task 1.1: Create package structure (no tests needed) ✓
 
 **Do**:
 1. Create directory structure:
