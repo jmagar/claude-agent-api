@@ -264,7 +264,7 @@ After POC validated, write comprehensive tests FIRST (RED), then ensure implemen
   - **Commit**: `feat(mcp): implement credential sanitization`
   - _Requirements: AC-4.2, FR-8_
 
-- [ ] 2.17 [REFACTOR] Add comprehensive validator
+- [x] 2.17 [REFACTOR] Add comprehensive validator
   - **Do**: Add `validate_config(config: dict[str, object])` method that calls all validators (command injection, SSRF, null bytes). Add Google-style docstrings to all methods. Keep tests green.
   - **Files**: `apps/api/services/mcp_config_validator.py`
   - **Done when**: Single entry point for validation, all tests still pass

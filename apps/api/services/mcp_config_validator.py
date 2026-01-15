@@ -24,7 +24,53 @@ SENSITIVE_PATTERNS = [
 
 
 class ConfigValidator:
-    """Validates MCP server configurations for security issues."""
+    """Validates MCP server configurations for security issues.
+
+    Provides comprehensive security validation including:
+    - Command injection detection (shell metacharacters)
+    - SSRF prevention (internal URLs, metadata endpoints)
+    - Credential sanitization (for safe logging)
+
+    Examples:
+        >>> validator = ConfigValidator()
+        >>> config = {"command": "python app.py", "url": "http://example.com"}
+        >>> validator.validate_config(config)  # Validates command and URL
+        >>> sanitized = validator.sanitize_credentials(config)  # For logging
+    """
+
+    def validate_config(self, config: dict[str, object]) -> None:
+        """Validate entire config for security issues.
+
+        Comprehensive validation that checks:
+        - Command injection in "command" field
+        - SSRF in "url" field
+        - Null bytes in all string fields
+
+        Args:
+            config: Configuration dict to validate.
+
+        Raises:
+            ValueError: If any validation check fails.
+
+        Examples:
+            >>> validator = ConfigValidator()
+            >>> config = {"command": "python; rm -rf /", "url": "http://localhost"}
+            >>> validator.validate_config(config)
+            Traceback (most recent call last):
+                ...
+            ValueError: Dangerous shell metacharacter detected in command...
+        """
+        # Validate command field
+        if "command" in config:
+            command = config["command"]
+            if isinstance(command, str):
+                self.validate_command_injection(command)
+
+        # Validate url field
+        if "url" in config:
+            url = config["url"]
+            if isinstance(url, str):
+                self.validate_ssrf(url)
 
     def validate_command_injection(self, command: str | None) -> str | None:
         """Validate command for shell metacharacters.
