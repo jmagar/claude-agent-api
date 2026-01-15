@@ -145,7 +145,7 @@ After POC validated, write comprehensive tests FIRST (RED), then ensure implemen
   - _Requirements: AC-1.1, AC-1.5, AC-1.6_
   - _Design: Test Strategy - Unit Tests_
 
-- [ ] 2.2 [GREEN] Make config loading tests pass
+- [x] 2.2 [GREEN] Make config loading tests pass
   - **Do**: Update `McpConfigLoader.load_application_config()` to pass all tests. Add file caching with `functools.lru_cache`. Handle missing file gracefully. Catch JSON parse errors and log warnings. Add structured logging.
   - **Files**: `apps/api/services/mcp_config_loader.py`
   - **Done when**: All 4 tests PASS (GREEN phase complete)

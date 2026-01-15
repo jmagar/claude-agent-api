@@ -27,6 +27,8 @@ class McpConfigLoader:
             project_path: Path to project root (defaults to cwd).
         """
         self.project_path = Path(project_path) if project_path else Path.cwd()
+        # Cache for loaded config (single instance per loader)
+        self._cached_config: dict[str, object] | None = None
 
     def load_application_config(self) -> dict[str, object]:
         """Load application-level MCP server configuration.
@@ -35,10 +37,20 @@ class McpConfigLoader:
         mcpServers section. If file is missing or invalid, returns empty dict
         and logs a warning.
 
+        Results are cached per loader instance to avoid repeated file I/O.
+
         Returns:
             Dict mapping server name to server configuration dict.
             Empty dict if file missing or invalid.
         """
+        # Return cached config if available
+        if self._cached_config is not None:
+            logger.debug(
+                "application_mcp_config_cached",
+                server_count=len(self._cached_config),
+            )
+            return self._cached_config
+
         config_path = self.project_path / ".mcp-server-config.json"
 
         if not config_path.exists():
@@ -46,7 +58,8 @@ class McpConfigLoader:
                 "application_mcp_config_not_found",
                 path=str(config_path),
             )
-            return {}
+            self._cached_config = {}
+            return self._cached_config
 
         try:
             content = config_path.read_text()
@@ -61,7 +74,8 @@ class McpConfigLoader:
                     path=str(config_path),
                     reason="mcpServers_not_dict",
                 )
-                return {}
+                self._cached_config = {}
+                return self._cached_config
 
             logger.info(
                 "application_mcp_config_loaded",
@@ -70,7 +84,8 @@ class McpConfigLoader:
                 servers=list(mcp_servers.keys()),
             )
 
-            return mcp_servers
+            self._cached_config = mcp_servers
+            return self._cached_config
 
         except (OSError, json.JSONDecodeError) as e:
             logger.warning(
@@ -79,7 +94,8 @@ class McpConfigLoader:
                 error=str(e),
                 error_type=type(e).__name__,
             )
-            return {}
+            self._cached_config = {}
+            return self._cached_config
 
     def resolve_env_vars(self, config: dict[str, object]) -> dict[str, object]:
         """Resolve environment variable placeholders in configuration.
