@@ -5,12 +5,17 @@ in the project root directory.
 """
 
 import json
+import os
+import re
 from pathlib import Path
 from typing import Any
 
 import structlog
 
 logger = structlog.get_logger(__name__)
+
+# Pattern to match environment variable placeholders like ${VAR_NAME}
+ENV_VAR_PATTERN = re.compile(r"\$\{([A-Z_][A-Z0-9_]*)\}")
 
 
 class McpConfigLoader:
@@ -76,3 +81,67 @@ class McpConfigLoader:
                 error_type=type(e).__name__,
             )
             return {}
+
+    def resolve_env_vars(self, config: dict[str, object]) -> dict[str, object]:
+        """Resolve environment variable placeholders in configuration.
+
+        Recursively processes the configuration dict and replaces placeholders
+        like ${VAR_NAME} with actual environment variable values. If a variable
+        is not found in the environment, the placeholder is left as-is and a
+        warning is logged.
+
+        Args:
+            config: Configuration dict that may contain ${VAR} placeholders.
+
+        Returns:
+            Configuration dict with environment variables resolved.
+        """
+        return self._resolve_value(config)  # type: ignore[return-value]
+
+    def _resolve_value(self, value: object) -> object:
+        """Recursively resolve environment variables in a value.
+
+        Args:
+            value: Any value that might contain env var placeholders.
+
+        Returns:
+            Value with placeholders resolved.
+        """
+        if isinstance(value, str):
+            return self._resolve_string(value)
+        elif isinstance(value, dict):
+            return {k: self._resolve_value(v) for k, v in value.items()}
+        elif isinstance(value, list):
+            return [self._resolve_value(item) for item in value]
+        else:
+            return value
+
+    def _resolve_string(self, text: str) -> str:
+        """Resolve environment variables in a string.
+
+        Args:
+            text: String that may contain ${VAR} placeholders.
+
+        Returns:
+            String with environment variables replaced.
+        """
+
+        def replace_var(match: re.Match[str]) -> str:
+            var_name = match.group(1)
+            env_value = os.environ.get(var_name)
+
+            if env_value is None:
+                logger.warning(
+                    "env_var_not_found",
+                    var_name=var_name,
+                    placeholder=match.group(0),
+                )
+                return match.group(0)  # Return original placeholder
+
+            logger.debug(
+                "env_var_resolved",
+                var_name=var_name,
+            )
+            return env_value
+
+        return ENV_VAR_PATTERN.sub(replace_var, text)

@@ -22,7 +22,7 @@ Focus: Validate the three-tier configuration merge works end-to-end. Skip compre
   - _Requirements: AC-1.1, AC-1.2_
   - _Design: McpConfigLoader component_
 
-- [ ] 1.2 Add environment variable resolution to config loader
+- [x] 1.2 Add environment variable resolution to config loader
   - **Do**: Add `resolve_env_vars(config: dict[str, object]) -> dict[str, object]` method. Use regex pattern `\$\{([A-Z_][A-Z0-9_]*)\}` to find placeholders. Replace with `os.environ.get(var_name)`, leave placeholder if not found. Recursively process nested dicts and lists.
   - **Files**: `apps/api/services/mcp_config_loader.py`
   - **Done when**: Environment variables like `${GITHUB_TOKEN}` are replaced with actual values from server environment
