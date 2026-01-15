@@ -1,7 +1,5 @@
 """Unit tests for protocol interfaces."""
 
-from typing import get_origin
-
 from apps.api.protocols import SessionRepository
 
 
