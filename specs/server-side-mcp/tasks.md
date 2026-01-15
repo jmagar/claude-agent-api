@@ -287,7 +287,7 @@ After POC validated, write comprehensive tests FIRST (RED), then ensure implemen
   - **Commit**: `test(mcp): add failing tests for config injector`
   - _Requirements: AC-3.5, AC-3.6, FR-5_
 
-- [ ] 2.20 [GREEN] Make config injector tests pass
+- [x] 2.20 [GREEN] Make config injector tests pass
   - **Do**: Update `McpConfigInjector.inject()` to pass all tests. Add structured logging with sanitized config. Handle opt-out case explicitly. Coordinate loader and validator calls properly.
   - **Files**: `apps/api/services/mcp_config_injector.py`
   - **Done when**: All injector tests PASS
