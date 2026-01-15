@@ -153,7 +153,7 @@ After POC validated, write comprehensive tests FIRST (RED), then ensure implemen
   - **Commit**: `feat(mcp): implement robust config file loading`
   - _Requirements: AC-1.1, AC-1.5, AC-1.6_
 
-- [ ] 2.3 [RED] Write failing tests for env var resolution
+- [x] 2.3 [RED] Write failing tests for env var resolution
   - **Do**: Add test functions: `test_resolve_env_vars_success()` (resolves `${VAR}`), `test_resolve_env_vars_missing_var()` (leaves placeholder, logs warning), `test_resolve_env_vars_nested_objects()` (deep resolution in nested dicts), `test_resolve_env_vars_in_arrays()` (resolution in list items). Mock `os.environ` in tests. Tests should FAIL.
   - **Files**: `tests/unit/services/test_mcp_config_loader.py`
   - **Done when**: All env var tests written and FAILING
