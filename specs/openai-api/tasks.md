@@ -1051,7 +1051,7 @@ Focus: Verify OpenAI client compatibility, refine implementation.
 
 ---
 
-### Task 3.5: Refactor - Add structured logging
+- [x] ### Task 3.5: Refactor - Add structured logging
 
 **Do**:
 1. Add structlog loggers to all services:

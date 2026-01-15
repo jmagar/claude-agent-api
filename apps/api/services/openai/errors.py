@@ -1,7 +1,11 @@
 """OpenAI error translation service."""
 
+import structlog
+
 from apps.api.exceptions.base import APIError
 from apps.api.schemas.openai.responses import OpenAIError
+
+logger = structlog.get_logger(__name__)
 
 
 class ErrorTranslator:
@@ -25,6 +29,13 @@ class ErrorTranslator:
         """
         # Map status code to OpenAI error type
         error_type = ErrorTranslator._map_status_to_type(error.status_code)
+
+        logger.info(
+            "Translating error to OpenAI format",
+            status_code=error.status_code,
+            error_type=error_type,
+            error_code=error.code,
+        )
 
         return {
             "error": {

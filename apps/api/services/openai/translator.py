@@ -123,6 +123,13 @@ class RequestTranslator:
         Raises:
             ValueError: If the model name is not recognized
         """
+        logger.debug(
+            "Starting request translation",
+            openai_model=request.model,
+            message_count=len(request.messages),
+            stream=request.stream,
+        )
+
         # Map model name
         claude_model = self._model_mapper.to_claude(request.model)
 
@@ -151,12 +158,21 @@ class RequestTranslator:
         # NOTE: We do NOT set max_turns when max_tokens is present because they have
         # incompatible semantics: max_tokens limits output tokens, max_turns limits
         # conversation turns. There's no reliable conversion between them.
-        return QueryRequest(
+        query_request = QueryRequest(
             prompt=prompt,
             model=claude_model,
             system_prompt=system_prompt,
             user=request.user,  # SUPPORTED: User identifier for tracking
         )
+
+        logger.info(
+            "Request translation complete",
+            claude_model=claude_model,
+            has_system_prompt=system_prompt is not None,
+            conversation_message_count=len(conversation_messages),
+        )
+
+        return query_request
 
 
 class ResponseTranslator:
@@ -203,6 +219,13 @@ class ResponseTranslator:
         Returns:
             OpenAIChatCompletion dict with OpenAI-compatible structure
         """
+        logger.debug(
+            "Starting response translation",
+            claude_model=response.model,
+            content_block_count=len(response.content),
+            stop_reason=response.stop_reason,
+        )
+
         # Generate unique completion ID
         completion_id = f"chatcmpl-{uuid.uuid4()}"
 
@@ -247,7 +270,7 @@ class ResponseTranslator:
         model_name = response.model if response.model else original_model
 
         # Build OpenAI ChatCompletion response
-        return OpenAIChatCompletion(
+        completion = OpenAIChatCompletion(
             id=completion_id,
             object="chat.completion",
             created=int(time.time()),
@@ -255,3 +278,14 @@ class ResponseTranslator:
             choices=[choice],
             usage=usage,
         )
+
+        logger.info(
+            "Response translation complete",
+            completion_id=completion_id,
+            content_length=len(content),
+            finish_reason=finish_reason,
+            prompt_tokens=usage["prompt_tokens"],
+            completion_tokens=usage["completion_tokens"],
+        )
+
+        return completion

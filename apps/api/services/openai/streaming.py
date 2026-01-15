@@ -4,6 +4,8 @@ import time
 import uuid
 from collections.abc import AsyncGenerator
 
+import structlog
+
 from apps.api.schemas.openai.responses import (
     OpenAIDelta,
     OpenAIStreamChunk,
@@ -12,6 +14,8 @@ from apps.api.types import (
     MessageEventDataDict,
     ResultEventDataDict,
 )
+
+logger = structlog.get_logger(__name__)
 
 
 class StreamingAdapter:
@@ -65,7 +69,14 @@ class StreamingAdapter:
                 elif event_type == "result":
                     yield chunk with finish_reason
         """
+        logger.info(
+            "Starting stream adaptation",
+            completion_id=self.completion_id,
+            original_model=self.original_model,
+        )
+
         created_timestamp = int(time.time())
+        chunk_count = 0
 
         async for event_type, event_data in native_events:
             # First chunk: yield role delta
@@ -113,6 +124,12 @@ class StreamingAdapter:
                                         ],
                                     }
                                     yield content_chunk
+                                    chunk_count += 1
+                                    logger.debug(
+                                        "Yielded content chunk",
+                                        completion_id=self.completion_id,
+                                        text_length=len(text),
+                                    )
 
             # Handle result events (finish reason)
             elif event_type == "result":
@@ -137,6 +154,16 @@ class StreamingAdapter:
                         ],
                     }
                     yield finish_chunk
+                    logger.debug(
+                        "Yielded finish chunk",
+                        completion_id=self.completion_id,
+                        finish_reason=finish_reason,
+                    )
 
         # Yield [DONE] marker at end
         yield "[DONE]"
+        logger.info(
+            "Stream adaptation complete",
+            completion_id=self.completion_id,
+            chunk_count=chunk_count,
+        )
