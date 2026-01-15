@@ -295,14 +295,14 @@ After POC validated, write comprehensive tests FIRST (RED), then ensure implemen
   - **Commit**: `feat(mcp): implement complete config injection`
   - _Requirements: AC-3.5, AC-3.6, FR-5_
 
-- [ ] 2.21 [REFACTOR] Add error handling to injector
+- [x] 2.21 [REFACTOR] Add error handling to injector
   - **Do**: Add try-catch blocks for loader/validator errors. Log errors with correlation IDs. Return original request if injection fails (graceful degradation). Keep tests green.
   - **Files**: `apps/api/services/mcp_config_injector.py`
   - **Done when**: Error handling robust, tests still pass
   - **Verify**: `uv run pytest tests/unit/services/test_mcp_config_injector.py -v` all PASSED
   - **Commit**: `refactor(mcp): add error handling to injector`
 
-- [ ] 2.22 [VERIFY] Quality checkpoint: `uv run ruff check . && uv run ty check && uv run pytest tests/unit/services/test_mcp_config_injector.py`
+- [x] 2.22 [VERIFY] Quality checkpoint: `uv run ruff check . && uv run ty check && uv run pytest tests/unit/services/test_mcp_config_injector.py`
   - **Do**: Run quality checks on injector
   - **Verify**: All commands exit 0
   - **Done when**: Lint clean, types clean, all injector tests green
