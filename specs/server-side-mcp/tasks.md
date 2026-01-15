@@ -74,7 +74,7 @@ Focus: Validate the three-tier configuration merge works end-to-end. Skip compre
   - _Requirements: AC-3.1, AC-3.2, AC-3.4, AC-3.5, FR-4_
   - _Design: Configuration Merge Strategy_
 
-- [ ] 1.8 Create config injector service
+- [x] 1.8 Create config injector service
   - **Do**: Create `apps/api/services/mcp_config_injector.py` with `McpConfigInjector` class. Implement `inject(request: QueryRequest, api_key: str) -> QueryRequest` that loads configs via loader, merges them, updates request.mcp_servers field, returns enriched request. Handle opt-out case (empty dict).
   - **Files**: `apps/api/services/mcp_config_injector.py`
   - **Done when**: Takes request, returns enriched request with merged MCP servers
