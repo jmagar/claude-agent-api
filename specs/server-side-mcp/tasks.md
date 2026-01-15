@@ -184,7 +184,7 @@ After POC validated, write comprehensive tests FIRST (RED), then ensure implemen
 
 ### 2.2 Merge Logic Tests (TDD: RED-GREEN-REFACTOR)
 
-- [ ] 2.7 [RED] Write failing tests for config merge precedence
+- [x] 2.7 [RED] Write failing tests for config merge precedence
   - **Do**: Add test functions: `test_merge_configs_request_overrides_all()` (request tier highest), `test_merge_configs_api_key_overrides_application()` (api-key tier middle), `test_merge_configs_empty_request_opts_out()` (empty dict disables all), `test_merge_configs_null_request_uses_defaults()` (null = merge server-side), `test_merge_configs_complete_replacement()` (not deep merge). Tests should FAIL.
   - **Files**: `tests/unit/services/test_mcp_config_loader.py`
   - **Done when**: All 5 merge tests written and FAILING
