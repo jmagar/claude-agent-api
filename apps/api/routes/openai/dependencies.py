@@ -4,21 +4,18 @@ from typing import Annotated
 
 from fastapi import Depends
 
-from apps.api.config import Settings, get_settings
 from apps.api.services.openai.models import ModelMapper
 from apps.api.services.openai.translator import RequestTranslator, ResponseTranslator
 
 
-def get_model_mapper(settings: Annotated[Settings, Depends(get_settings)]) -> ModelMapper:
+def get_model_mapper() -> ModelMapper:
     """Get ModelMapper instance with configured model mappings.
-
-    Args:
-        settings: Application settings with model mappings
 
     Returns:
         ModelMapper instance for OpenAI ↔ Claude model name translation
     """
     # Default mapping if not configured
+    # TODO: Make this configurable via settings in the future
     mapping = {
         "gpt-4": "sonnet",
         "gpt-3.5-turbo": "haiku",

@@ -13,11 +13,12 @@ from apps.api.routes.openai.dependencies import (
     get_response_translator,
 )
 from apps.api.schemas.openai.requests import ChatCompletionRequest
-from apps.api.schemas.openai.responses import OpenAIChatCompletion, OpenAIStreamChunk
+from apps.api.schemas.openai.responses import OpenAIChatCompletion
 from apps.api.schemas.responses import SingleQueryResponse
 from apps.api.services.agent.service import AgentService
 from apps.api.services.openai.streaming import StreamingAdapter
 from apps.api.services.openai.translator import RequestTranslator, ResponseTranslator
+from apps.api.types import MessageEventDataDict, ResultEventDataDict
 
 router = APIRouter(prefix="/chat", tags=["openai"])
 
@@ -62,7 +63,9 @@ async def create_chat_completion(
             adapter = StreamingAdapter(original_model=request.model)
 
             # Create async generator that yields (event_type, event_data) tuples
-            async def native_event_tuples() -> AsyncGenerator[tuple[str, dict], None]:
+            async def native_event_tuples() -> AsyncGenerator[
+                tuple[str, MessageEventDataDict | ResultEventDataDict], None
+            ]:
                 """Parse native SSE events into (event_type, data) tuples."""
                 async for event in native_events:
                     # Native events are dicts with 'event' and 'data' keys
@@ -98,7 +101,8 @@ async def create_chat_completion(
         response_dict = await agent_service.query_single(query_request)
 
         # Convert dict to Pydantic model for type safety
-        response = SingleQueryResponse(**response_dict)
+        # Pydantic will handle nested dict → model conversion automatically
+        response = SingleQueryResponse.model_validate(response_dict)
 
         # Translate Claude response to OpenAI format
         openai_response = response_translator.translate(response, original_model=request.model)
