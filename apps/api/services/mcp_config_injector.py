@@ -93,9 +93,9 @@ class McpConfigInjector:
 
         # Merge configs with correct precedence
         merged_config = self.config_loader.merge_configs(
-            application=app_config_resolved,
-            api_key=api_key_config,
-            request=request_config,
+            application_config=app_config_resolved,
+            api_key_config=api_key_config,
+            request_config=request_config,
         )
 
         # Convert merged config back to Pydantic models
