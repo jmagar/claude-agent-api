@@ -144,3 +144,58 @@ class McpConfigLoader:
             return env_value
 
         return ENV_VAR_PATTERN.sub(replace_var, text)
+
+    def merge_configs(
+        self,
+        application: dict[str, object],
+        api_key: dict[str, object],
+        request: dict[str, object] | None,
+    ) -> dict[str, object]:
+        """Merge three-tier MCP server configuration.
+
+        Implements configuration merge with precedence:
+        Application < API-Key < Request (lowest to highest priority).
+
+        Special handling for opt-out:
+        - If request == {} (empty dict), return empty dict (explicit opt-out).
+        - If request is None, merge application and api_key configs.
+        - If request has values, merge all three tiers.
+
+        Same-name servers from higher tier completely replace lower tier
+        (dict update, not deep merge).
+
+        Args:
+            application: Application-level config from file.
+            api_key: API-key-level config from database.
+            request: Request-level config (optional, None if not provided).
+
+        Returns:
+            Merged configuration dict.
+        """
+        # Handle explicit opt-out (empty dict means "no MCP servers")
+        if request is not None and len(request) == 0:
+            logger.debug(
+                "mcp_config_opt_out",
+                reason="request_empty_dict",
+            )
+            return {}
+
+        # Start with application config
+        merged = dict(application)
+
+        # Layer on API-key config
+        merged.update(api_key)
+
+        # Layer on request config (if provided and not None)
+        if request is not None:
+            merged.update(request)
+
+        logger.debug(
+            "mcp_config_merged",
+            application_count=len(application),
+            api_key_count=len(api_key),
+            request_count=len(request) if request else 0,
+            merged_count=len(merged),
+        )
+
+        return merged

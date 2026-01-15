@@ -65,7 +65,7 @@ Focus: Validate the three-tier configuration merge works end-to-end. Skip compre
 
 ### 1.3 Merge Logic POC
 
-- [ ] 1.7 Implement basic config merge in loader
+- [x] 1.7 Implement basic config merge in loader
   - **Do**: Add `merge_configs(application: dict, api_key: dict, request: dict | None) -> dict` method to `McpConfigLoader`. If `request == {}`, return empty dict (opt-out). If `request is None`, merge application and api_key. If request has values, merge all three. Same-name servers from higher tier completely replace lower tier (dict update, not deep merge).
   - **Files**: `apps/api/services/mcp_config_loader.py`
   - **Done when**: Merge precedence works: Application < API-Key < Request
