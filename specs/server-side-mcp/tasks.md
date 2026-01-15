@@ -224,7 +224,7 @@ After POC validated, write comprehensive tests FIRST (RED), then ensure implemen
   - _Requirements: AC-4.3, FR-9_
   - _Design: Security Validation_
 
-- [ ] 2.12 [GREEN] Implement command injection validator
+- [x] 2.12 [GREEN] Implement command injection validator
   - **Do**: Create `apps/api/services/mcp_config_validator.py` with `ConfigValidator` class. Implement `validate_command_injection(command: str | None)` using `SHELL_METACHAR_PATTERN`. Raise `ValueError` with clear message if metacharacters found. Import from existing validators module.
   - **Files**: `apps/api/services/mcp_config_validator.py`
   - **Done when**: All command injection tests PASS
