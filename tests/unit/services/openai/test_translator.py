@@ -494,3 +494,69 @@ class TestResponseTranslator:
 
         # Then
         assert result["choices"][0]["finish_reason"] == "stop"
+
+    def test_translate_multiple_text_blocks(self) -> None:
+        """Test content extraction concatenates multiple text blocks with space separator.
+
+        Given: SingleQueryResponse with content=[{"type": "text", "text": "Hello"}, {"type": "text", "text": "World"}]
+        When: translator.translate(response)
+        Then: Assert message.content == "Hello World" (concatenated with space)
+        """
+        # Import here to match other tests
+        from apps.api.schemas.responses import ContentBlockSchema, SingleQueryResponse, UsageSchema
+        from apps.api.services.openai.translator import ResponseTranslator
+
+        # Given
+        response = SingleQueryResponse(
+            session_id="test-session-multi",
+            model="sonnet",
+            content=[
+                ContentBlockSchema(type="text", text="Hello"),
+                ContentBlockSchema(type="text", text="World"),
+            ],
+            is_error=False,
+            stop_reason="completed",
+            duration_ms=1000,
+            num_turns=1,
+            usage=UsageSchema(input_tokens=10, output_tokens=5),
+        )
+        translator = ResponseTranslator()
+
+        # When
+        result = translator.translate(response, original_model="gpt-4")
+
+        # Then
+        assert result["choices"][0]["message"]["content"] == "Hello World"
+
+    def test_translate_ignores_non_text_blocks(self) -> None:
+        """Test content extraction ignores non-text blocks (thinking, tool_use, etc.).
+
+        Given: content=[{"type": "thinking", "text": "..."}, {"type": "text", "text": "Hello"}]
+        When: translator.translate(response)
+        Then: Assert message.content == "Hello" (thinking ignored)
+        """
+        # Import here to match other tests
+        from apps.api.schemas.responses import ContentBlockSchema, SingleQueryResponse, UsageSchema
+        from apps.api.services.openai.translator import ResponseTranslator
+
+        # Given
+        response = SingleQueryResponse(
+            session_id="test-session-thinking",
+            model="sonnet",
+            content=[
+                ContentBlockSchema(type="thinking", text="Let me think..."),
+                ContentBlockSchema(type="text", text="Hello"),
+            ],
+            is_error=False,
+            stop_reason="completed",
+            duration_ms=1500,
+            num_turns=1,
+            usage=UsageSchema(input_tokens=15, output_tokens=8),
+        )
+        translator = ResponseTranslator()
+
+        # When
+        result = translator.translate(response, original_model="gpt-4")
+
+        # Then
+        assert result["choices"][0]["message"]["content"] == "Hello"
