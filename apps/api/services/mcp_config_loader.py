@@ -247,46 +247,49 @@ class McpConfigLoader:
         api_key_config: dict[str, object],
         request_config: dict[str, object] | None,
     ) -> dict[str, object]:
-        """Merge three-tier MCP server configuration.
+        """Merge three-tier MCP server configuration with precedence rules.
 
-        Implements configuration merge with precedence:
-        Application < API-Key < Request (lowest to highest priority).
+        Implements three-tier merge with precedence (lowest to highest):
+        Application (file) < API-Key (database) < Request (API call)
 
-        **Merge Behavior:**
-        - Same-name servers from higher tier completely replace lower tier
-          (shallow replacement, not deep merge of server properties)
-        - Empty application or api_key tiers are valid (no servers at that level)
+        **Precedence Rules:**
+        1. Request config (if provided) COMPLETELY REPLACES all server-side configs
+        2. API-key config merges with application config (api-key wins conflicts)
+        3. Empty request dict {} explicitly opts out (disables all servers)
+        4. Null request uses server-side configs (application + api-key merge)
 
-        **Opt-Out Mechanism:**
-        - `request_config == {}` (empty dict): Explicit opt-out, returns empty dict
-        - `request_config == None`: Use server-side configs (application + api_key)
-        - `request_config == {...}`: Merge all three tiers
+        **Replacement Semantics:**
+        Same-name servers from higher tier replace lower tier completely
+        (NOT deep merge - entire server config is replaced).
 
         Args:
-            application_config: Application-level config from .mcp-server-config.json file.
+            application_config: Application-level config from .mcp-server-config.json.
             api_key_config: API-key-level config from Redis database.
-            request_config: Request-level config from API request body (optional).
+            request_config: Request-level config from API request (optional).
+                - None = use server-side configs
+                - {} = explicit opt-out (no servers)
+                - {...} = use only request config (ignore server-side)
 
         Returns:
-            Merged configuration dict mapping server name to config.
+            Merged configuration dict mapping server name to server config.
 
         Example:
             >>> loader = McpConfigLoader()
             >>> app = {"github": {"command": "mcp-github"}}
             >>> key = {"slack": {"url": "http://slack"}}
-            >>> req = {"github": {"command": "mcp-github-v2"}}
+            >>> req = None  # Use server-side
             >>> loader.merge_configs(app, key, req)
-            {"github": {"command": "mcp-github-v2"}, "slack": {"url": "..."}}
+            {"github": {"command": "mcp-github"}, "slack": {"url": "http://slack"}}
+            >>> req = {"custom": {"command": "mcp-custom"}}  # Replaces all
+            >>> loader.merge_configs(app, key, req)
+            {"custom": {"command": "mcp-custom"}}
         """
-        # Handle explicit opt-out (empty dict means "no MCP servers")
-        if request_config is not None and len(request_config) == 0:
-            logger.debug(
-                "mcp_config_opt_out",
-                reason="request_empty_dict",
-            )
+        # Handle explicit opt-out: empty dict means "disable all MCP servers"
+        if self._is_opt_out(request_config):
             return {}
 
-        # If request config is provided (non-empty), it completely replaces server-side configs
+        # Request config present (non-empty): completely replaces server-side configs
+        # This is the HIGHEST precedence tier
         if request_config is not None:
             logger.debug(
                 "mcp_config_request_override",
@@ -294,19 +297,32 @@ class McpConfigLoader:
             )
             return dict(request_config)
 
-        # No request config - merge server-side configs
-        # Start with application config (lowest precedence)
-        merged = dict(application_config)
-
-        # Layer on API-key config (middle precedence, replaces conflicts)
-        merged.update(api_key_config)
+        # No request config: merge server-side tiers
+        # Precedence: application (base) < api_key (override)
+        merged = {**application_config, **api_key_config}
 
         logger.debug(
             "mcp_config_merged",
             application_count=len(application_config),
             api_key_count=len(api_key_config),
-            request_count=len(request_config) if request_config else 0,
             merged_count=len(merged),
         )
 
         return merged
+
+    def _is_opt_out(self, request_config: dict[str, object] | None) -> bool:
+        """Check if request config is an explicit opt-out.
+
+        Args:
+            request_config: Request-level config (optional).
+
+        Returns:
+            True if empty dict (opt-out), False otherwise.
+        """
+        if request_config is not None and len(request_config) == 0:
+            logger.debug(
+                "mcp_config_opt_out",
+                reason="request_empty_dict",
+            )
+            return True
+        return False
