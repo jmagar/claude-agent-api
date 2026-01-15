@@ -31,7 +31,7 @@ Focus: Validate the three-tier configuration merge works end-to-end. Skip compre
   - _Requirements: AC-1.4, FR-2_
   - _Design: Environment Variable Resolution_
 
-- [ ] 1.3 [VERIFY] Quality checkpoint: `uv run ruff check apps/api/services/mcp_config_loader.py && uv run ty check`
+- [x] 1.3 [VERIFY] Quality checkpoint: `uv run ruff check apps/api/services/mcp_config_loader.py && uv run ty check`
   - **Do**: Run lint and type check on new config loader module
   - **Verify**: Both commands exit 0 with no errors
   - **Done when**: No lint errors, no type errors
