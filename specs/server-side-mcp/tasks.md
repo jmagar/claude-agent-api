@@ -215,7 +215,7 @@ After POC validated, write comprehensive tests FIRST (RED), then ensure implemen
 
 ### 2.3 Security Validator Tests (TDD: RED-GREEN-REFACTOR)
 
-- [ ] 2.11 [RED] Write failing tests for command injection detection
+- [x] 2.11 [RED] Write failing tests for command injection detection
   - **Do**: Create `tests/unit/services/test_mcp_config_validator.py`. Write test functions: `test_validate_command_injection_detected()` (reject shell metacharacters), `test_validate_command_injection_safe_command()` (allow safe commands), `test_validate_command_injection_null()` (handle None gracefully). Use existing `SHELL_METACHAR_PATTERN` from `apps/api/schemas/validators.py`. Tests should FAIL.
   - **Files**: `tests/unit/services/test_mcp_config_validator.py`
   - **Done when**: All command injection tests written and FAILING
