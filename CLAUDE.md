@@ -119,11 +119,98 @@ If external libraries return `Any`, wrap them in typed adapter functions.
 - Session storage: Redis (cache) + PostgreSQL (durability)
 - Webhook-based hooks for tool approval
 
+## OpenAI API Compatibility
+
+The API provides **OpenAI-compatible endpoints** at `/v1/*` for drop-in compatibility with OpenAI clients and tools.
+
+### Architecture
+
+The OpenAI compatibility layer is **isolated** in the `/v1` namespace with zero impact on existing `/api/v1` endpoints:
+
+```text
+apps/api/
+├── routes/
+│   ├── openai/              # OpenAI-compatible routes
+│   │   ├── chat.py          # POST /v1/chat/completions
+│   │   ├── models.py        # GET /v1/models, GET /v1/models/{model_id}
+│   │   └── dependencies.py  # DI providers
+│   └── [existing routes]    # Native endpoints unchanged
+├── services/
+│   ├── openai/              # Translation layer
+│   │   ├── translator.py    # RequestTranslator, ResponseTranslator
+│   │   ├── streaming.py     # StreamingAdapter
+│   │   ├── models.py        # ModelMapper
+│   │   └── errors.py        # ErrorTranslator
+│   └── [existing services]
+└── middleware/
+    ├── openai_auth.py       # BearerAuthMiddleware (Bearer → X-API-Key)
+    └── [existing middleware]
+```
+
+### Translation Components
+
+1. **RequestTranslator**: Converts OpenAI `ChatCompletionRequest` to Claude `QueryRequest`
+   - System messages → `system_prompt` field
+   - User/assistant messages → concatenated prompt with role prefixes
+   - Model name mapping via `ModelMapper`
+   - Unsupported parameters logged with structured warnings
+
+2. **ResponseTranslator**: Converts Claude `SingleQueryResponse` to OpenAI `ChatCompletion`
+   - Content blocks (text only) → concatenated message content
+   - Stop reason mapping: `completed` → `stop`, `max_turns_reached` → `length`, etc.
+   - Usage data: `input_tokens` → `prompt_tokens`, `output_tokens` → `completion_tokens`
+
+3. **StreamingAdapter**: Transforms Claude SSE events to OpenAI streaming chunks
+   - Native `partial` events → OpenAI `delta.content` chunks
+   - Native `result` events → OpenAI finish_reason chunk
+   - Maintains consistent completion ID across all chunks
+   - Yields `[DONE]` marker at stream end
+
+4. **ModelMapper**: Bidirectional OpenAI ↔ Claude model name mapping
+   - Hardcoded mapping: `gpt-4` → `sonnet`, `gpt-3.5-turbo` → `haiku`, `gpt-4o` → `opus`
+   - Validates unknown model names with `ValueError`
+   - List models endpoint returns OpenAI-formatted model info
+
+5. **ErrorTranslator**: Maps API errors to OpenAI error format
+   - Status code → error type mapping (401 → `authentication_error`, etc.)
+   - Preserves error message and code from `APIError`
+
+6. **BearerAuthMiddleware**: Extracts Bearer tokens for OpenAI compatibility
+   - Only affects `/v1/*` routes (not `/api/v1/*`)
+   - Extracts `Authorization: Bearer <token>` → `X-API-Key: <token>`
+   - Preserves existing `X-API-Key` headers (no overwriting)
+
+### Design Decisions
+
+- **Message Concatenation**: OpenAI message arrays → single prompt string with role prefixes (`USER: content\n\n`)
+- **Unsupported Parameters**: Accept but ignore `temperature`, `top_p`, `max_tokens`, `stop` (not supported by Claude Agent SDK)
+- **Model Names in Responses**: Return actual Claude model name (e.g., `sonnet`), not OpenAI name (e.g., `gpt-4`)
+- **Type Safety**: All JSON structures use `TypedDict` (zero `Any` types), Pydantic only for request validation
+- **Error Format**: Exception handlers check route prefix (`/v1/*`) to apply OpenAI error format selectively
+- **Middleware Order**: `ApiKeyAuthMiddleware` registered BEFORE `BearerAuthMiddleware` (executes in reverse order)
+
+### Limitations
+
+- **No Sampling Controls**: Claude Agent SDK does not support `temperature`, `top_p`, `max_tokens`, or `stop` sequences
+- **Token vs Turn Limits**: SDK uses `max_turns` (conversation turn limit), not `max_tokens` (output token limit) - incompatible semantics
+- **Tool Calling**: Not yet implemented (planned for Phase 2)
+- **Multiple Completions**: `n` parameter not supported (SDK returns single response only)
+- **Logprobs**: Not supported by Claude Agent SDK
+
+### Testing
+
+- **Unit Tests**: ≥90% coverage for all OpenAI service modules (translator, streaming, models, errors)
+- **Integration Tests**: ≥80% coverage for OpenAI routes (chat, models)
+- **Contract Tests**: Real OpenAI Python client validates end-to-end compatibility
+
 ## Specs
 
 - [Feature Spec](specs/001-claude-agent-api/spec.md)
 - [Implementation Plan](specs/001-claude-agent-api/plan.md)
 - [API Contract](specs/001-claude-agent-api/contracts/openapi.yaml)
+- [OpenAI Feature Spec](specs/openai-api/spec.md)
+- [OpenAI Implementation Plan](specs/openai-api/plan.md)
+- [OpenAI Architectural Decisions](specs/openai-api/decisions.md)
 
 <!-- MANUAL ADDITIONS START -->
 

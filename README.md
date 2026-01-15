@@ -100,6 +100,8 @@ curl http://localhost:54000/api/v1/health
 
 ## API Endpoints
 
+### Native Claude Agent SDK Endpoints
+
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `POST` | `/api/v1/query` | Stream agent response (SSE) |
@@ -110,6 +112,14 @@ curl http://localhost:54000/api/v1/health
 | `DELETE` | `/api/v1/sessions/{id}` | Delete session |
 | `GET` | `/api/v1/skills` | List available skills |
 | `GET` | `/api/v1/health` | Health check |
+
+### OpenAI-Compatible Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/v1/chat/completions` | Create chat completion (streaming/non-streaming) |
+| `GET` | `/v1/models` | List available models |
+| `GET` | `/v1/models/{model_id}` | Get model information |
 
 ## Usage Examples
 
@@ -145,6 +155,149 @@ curl -X POST http://localhost:54000/api/v1/sessions/{session_id}/resume \
   -H "X-API-Key: your-api-key" \
   -d '{"prompt": "Continue with the previous task"}'
 ```
+
+## OpenAI API Compatibility
+
+The API provides **drop-in OpenAI compatibility** at the `/v1/*` endpoints, allowing you to use the OpenAI Python client with minimal changes.
+
+### Supported Endpoints
+
+- **`POST /v1/chat/completions`** - Chat completions (streaming and non-streaming)
+- **`GET /v1/models`** - List available models
+- **`GET /v1/models/{model_id}`** - Get model information
+
+### Usage with OpenAI Python Client
+
+```python
+from openai import OpenAI
+
+# Initialize client with custom base URL
+client = OpenAI(
+    base_url="http://localhost:54000/v1",
+    api_key="your-api-key",  # Your API key
+)
+
+# Non-streaming completion
+response = client.chat.completions.create(
+    model="gpt-4",
+    messages=[
+        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": "user", "content": "What is 2 + 2?"}
+    ]
+)
+print(response.choices[0].message.content)
+
+# Streaming completion
+stream = client.chat.completions.create(
+    model="gpt-4",
+    messages=[{"role": "user", "content": "Count to 5"}],
+    stream=True
+)
+for chunk in stream:
+    if chunk.choices[0].delta.content:
+        print(chunk.choices[0].delta.content, end="")
+
+# List available models
+models = client.models.list()
+for model in models.data:
+    print(f"- {model.id}")
+```
+
+### Model Name Mapping
+
+OpenAI model names are automatically mapped to Claude models:
+
+| OpenAI Model | Claude Model |
+|--------------|--------------|
+| `gpt-4` | `sonnet` |
+| `gpt-3.5-turbo` | `haiku` |
+| `gpt-4o` | `opus` |
+
+The response will contain the **actual Claude model name** used (e.g., `sonnet`), not the OpenAI model name.
+
+### Supported Parameters
+
+| Parameter | Supported | Notes |
+|-----------|-----------|-------|
+| `model` | ✅ | Mapped to Claude model names |
+| `messages` | ✅ | System messages → `system_prompt`, user/assistant → concatenated prompt |
+| `stream` | ✅ | SSE streaming supported |
+| `user` | ✅ | User identifier for tracking |
+| `temperature` | ⚠️ | Accepted but ignored (not supported by Claude Agent SDK) |
+| `top_p` | ⚠️ | Accepted but ignored (not supported by Claude Agent SDK) |
+| `max_tokens` | ⚠️ | Accepted but ignored (SDK uses `max_turns` instead) |
+| `stop` | ⚠️ | Accepted but ignored (not supported by Claude Agent SDK) |
+| `n` | ❌ | Not supported (multiple completions) |
+| `presence_penalty` | ❌ | Not supported |
+| `frequency_penalty` | ❌ | Not supported |
+| `logit_bias` | ❌ | Not supported |
+| `tools` / `tool_choice` | ❌ | Not yet implemented (planned for Phase 2) |
+
+**Note**: Parameters marked with ⚠️ are accepted for compatibility but log structured warnings and are not passed to the Claude Agent SDK.
+
+### Unsupported Parameters Rationale
+
+The Claude Agent SDK does not support sampling controls (`temperature`, `top_p`) or output token limits (`max_tokens`). The SDK uses `max_turns` (conversation turn limit) instead of `max_tokens` (output token limit), which have incompatible semantics and cannot be reliably converted.
+
+### Authentication
+
+The OpenAI endpoints support both authentication methods:
+
+1. **Bearer Token** (OpenAI-style):
+   ```python
+   client = OpenAI(
+       base_url="http://localhost:54000/v1",
+       api_key="your-api-key"  # Sent as Authorization: Bearer
+   )
+   ```
+
+2. **X-API-Key Header** (backward compatible):
+   ```bash
+   curl -X POST http://localhost:54000/v1/chat/completions \
+     -H "X-API-Key: your-api-key" \
+     -H "Content-Type: application/json" \
+     -d '{"model":"gpt-4","messages":[{"role":"user","content":"Hello"}]}'
+   ```
+
+### Error Format
+
+Errors follow the OpenAI error format:
+
+```json
+{
+  "error": {
+    "type": "invalid_request_error",
+    "message": "Unknown OpenAI model: gpt-5",
+    "code": "invalid_model"
+  }
+}
+```
+
+Error type mapping:
+- **`401`** → `authentication_error`
+- **`400`** → `invalid_request_error`
+- **`404`** → `invalid_request_error`
+- **`429`** → `rate_limit_exceeded`
+- **`5xx`** → `api_error`
+
+### Streaming Format
+
+OpenAI streaming uses Server-Sent Events (SSE) with the following format:
+
+```
+data: {"id":"chatcmpl-123","object":"chat.completion.chunk","created":1234567890,"model":"sonnet","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-123","object":"chat.completion.chunk","created":1234567890,"model":"sonnet","choices":[{"index":0,"delta":{"content":"Hello"},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-123","object":"chat.completion.chunk","created":1234567890,"model":"sonnet","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}
+
+data: [DONE]
+```
+
+- First chunk always contains `delta.role="assistant"`
+- Subsequent chunks contain `delta.content` with text
+- Final chunk has `finish_reason` (`"stop"`, `"length"`, or `"error"`)
+- Stream ends with `[DONE]` marker
 
 ## Configuration
 
