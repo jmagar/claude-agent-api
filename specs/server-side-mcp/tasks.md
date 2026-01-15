@@ -100,7 +100,7 @@ Focus: Validate the three-tier configuration merge works end-to-end. Skip compre
   - _Requirements: FR-5_
   - _Design: Integration Point_
 
-- [ ] 1.11 Add DI providers for new services
+- [x] 1.11 Add DI providers for new services
   - **Do**: Create dependency provider functions in `apps/api/dependencies.py` for `get_mcp_config_loader()` and `get_mcp_config_injector()`. Follow existing DI patterns with Protocol-based abstractions.
   - **Files**: `apps/api/dependencies.py`
   - **Done when**: FastAPI can inject loader and injector into routes/services
