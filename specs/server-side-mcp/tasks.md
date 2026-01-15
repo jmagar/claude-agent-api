@@ -117,7 +117,7 @@ Focus: Validate the three-tier configuration merge works end-to-end. Skip compre
   - _Requirements: AC-1.2, AC-1.3_
   - _Design: Configuration File Format_
 
-- [ ] 1.13 [VERIFY] Quality checkpoint: `uv run ruff check . && uv run ty check`
+- [x] 1.13 [VERIFY] Quality checkpoint: `uv run ruff check . && uv run ty check`
   - **Do**: Run quality checks on all modified files
   - **Verify**: All commands exit 0
   - **Done when**: No lint errors, no type errors
