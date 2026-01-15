@@ -57,7 +57,7 @@ Focus: Build translation layer test-first, one component at a time.
 
 ---
 
-### Task 1.2: Create TypedDict schemas (no tests needed for type definitions)
+### Task 1.2: Create TypedDict schemas (no tests needed for type definitions) ✓
 
 **Do**:
 1. Create `apps/api/schemas/openai/responses.py` with TypedDict definitions:
