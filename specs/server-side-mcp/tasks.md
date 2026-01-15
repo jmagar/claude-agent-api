@@ -161,7 +161,7 @@ After POC validated, write comprehensive tests FIRST (RED), then ensure implemen
   - **Commit**: `test(mcp): add failing tests for env var resolution`
   - _Requirements: AC-1.4, FR-2_
 
-- [ ] 2.4 [GREEN] Make env var resolution tests pass
+- [x] 2.4 [GREEN] Make env var resolution tests pass
   - **Do**: Update `McpConfigLoader.resolve_env_vars()` to handle all test cases. Add recursive traversal for nested structures. Add logging for missing vars. Handle edge cases (non-string values, already-resolved, etc).
   - **Files**: `apps/api/services/mcp_config_loader.py`
   - **Done when**: All env var tests PASS
