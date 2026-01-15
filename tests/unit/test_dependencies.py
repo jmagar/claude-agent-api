@@ -235,8 +235,9 @@ class TestServiceDependencies:
         # Clear singleton
         dependencies._agent_service = None
 
-        # Get service
-        service = get_agent_service()
+        # Get service with mock cache
+        mock_cache = Mock(spec=RedisCache)
+        service = await get_agent_service(cache=mock_cache)
 
         assert isinstance(service, AgentService)
 
@@ -250,9 +251,10 @@ class TestServiceDependencies:
         singleton = AgentService()
         set_agent_service_singleton(singleton)
 
-        # Get service
-        service1 = get_agent_service()
-        service2 = get_agent_service()
+        # Get service (singleton is returned, cache arg doesn't matter)
+        mock_cache = Mock(spec=RedisCache)
+        service1 = await get_agent_service(cache=mock_cache)
+        service2 = await get_agent_service(cache=mock_cache)
 
         assert service1 is singleton
         assert service2 is singleton
@@ -558,15 +560,16 @@ class TestDependencyCleanup:
         set_agent_service_singleton(singleton)
 
         # Verify it's returned
-        service = get_agent_service()
+        mock_cache = Mock(spec=RedisCache)
+        service = await get_agent_service(cache=mock_cache)
         assert service is singleton
 
         # Clear singleton
         set_agent_service_singleton(None)
 
         # Verify new instances are created
-        service1 = get_agent_service()
-        service2 = get_agent_service()
+        service1 = await get_agent_service(cache=mock_cache)
+        service2 = await get_agent_service(cache=mock_cache)
         assert service1 is not singleton
         assert service2 is not singleton
         assert service1 is not service2
