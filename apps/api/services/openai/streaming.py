@@ -3,6 +3,7 @@
 import time
 import uuid
 from collections.abc import AsyncGenerator
+from typing import Literal
 
 import structlog
 
@@ -136,7 +137,9 @@ class StreamingAdapter:
                 result_data = event_data
                 if isinstance(result_data, dict):
                     is_error = result_data.get("is_error", False)
-                    finish_reason = "error" if is_error else "stop"
+                    finish_reason: Literal["stop", "length", "error"] | None = (
+                        "error" if is_error else "stop"
+                    )
 
                     # Empty delta with finish_reason
                     finish_delta: OpenAIDelta = {}
