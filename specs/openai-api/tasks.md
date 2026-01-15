@@ -686,7 +686,7 @@ Focus: Build HTTP layer with test-first approach.
 
 ---
 
-### Task 2.4: Integration test - Non-streaming chat completions
+- [x] ### Task 2.4: Integration test - Non-streaming chat completions
 
 **RED - Write Test**:
 1. Create `tests/integration/test_openai_chat.py`
