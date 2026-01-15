@@ -385,7 +385,7 @@ End-to-end validation with real services, backward compatibility verification.
   - **Commit**: `test(mcp): add integration test for tenant isolation`
   - _Requirements: AC-2.3, NFR-8_
 
-- [ ] 3.6 [VERIFY] Quality checkpoint: `uv run ruff check . && uv run ty check && uv run pytest tests/integration/test_server_side_mcp.py`
+- [x] 3.6 [VERIFY] Quality checkpoint: `uv run ruff check . && uv run ty check && uv run pytest tests/integration/test_server_side_mcp.py`
   - **Do**: Run quality checks and all integration tests
   - **Verify**: All commands exit 0
   - **Done when**: All integration tests green
