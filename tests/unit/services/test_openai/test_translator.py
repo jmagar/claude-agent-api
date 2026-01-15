@@ -560,3 +560,154 @@ class TestResponseTranslator:
 
         # Then
         assert result["choices"][0]["message"]["content"] == "Hello"
+
+    def test_translate_only_system_messages(self, model_mapper: ModelMapper) -> None:
+        """Test handling of request with only system messages.
+
+        Given: messages=[{"role": "system", "content": "You are helpful"}]
+        When: translator.translate(request)
+        Then: Assert system_prompt set, QueryRequest creation fails due to empty prompt validation
+        """
+        from apps.api.schemas.openai.requests import ChatCompletionRequest, OpenAIMessage
+        from apps.api.services.openai.translator import RequestTranslator
+        from pydantic import ValidationError
+
+        # Given
+        request = ChatCompletionRequest(
+            model="gpt-4",
+            messages=[
+                OpenAIMessage(role="system", content="You are a helpful assistant."),
+            ],
+            stream=False,
+        )
+        translator = RequestTranslator(model_mapper)
+
+        # When/Then - Should raise ValidationError due to empty prompt
+        with pytest.raises(ValidationError) as exc_info:
+            translator.translate(request)
+
+        # Assert error is about prompt being too short
+        assert "prompt" in str(exc_info.value)
+        assert "at least 1 character" in str(exc_info.value)
+
+    def test_translate_very_long_message(self, model_mapper: ModelMapper) -> None:
+        """Test handling of very long messages.
+
+        Given: messages=[{"role": "user", "content": "x" * 10000}]
+        When: translator.translate(request)
+        Then: Assert prompt contains full long message
+        """
+        from apps.api.schemas.openai.requests import ChatCompletionRequest, OpenAIMessage
+        from apps.api.services.openai.translator import RequestTranslator
+
+        # Given
+        long_content = "x" * 10000
+        request = ChatCompletionRequest(
+            model="gpt-4",
+            messages=[
+                OpenAIMessage(role="user", content=long_content),
+            ],
+            stream=False,
+        )
+        translator = RequestTranslator(model_mapper)
+
+        # When
+        result = translator.translate(request)
+
+        # Then
+        assert long_content in result.prompt
+        assert result.prompt.startswith("USER: ")
+        assert len(result.prompt) > 10000
+
+    def test_translate_response_with_missing_usage(self) -> None:
+        """Test response translation handles missing usage data gracefully.
+
+        Given: response with usage=None
+        When: translator.translate(response)
+        Then: Assert usage defaults to zeros
+        """
+        from apps.api.schemas.responses import ContentBlockSchema, SingleQueryResponse
+        from apps.api.services.openai.translator import ResponseTranslator
+
+        # Given - Response without usage data
+        response = SingleQueryResponse(
+            session_id="test-session-no-usage",
+            model="sonnet",
+            content=[
+                ContentBlockSchema(type="text", text="Hello"),
+            ],
+            is_error=False,
+            stop_reason="completed",
+            duration_ms=1000,
+            num_turns=1,
+            usage=None,  # Missing usage data
+        )
+        translator = ResponseTranslator()
+
+        # When
+        result = translator.translate(response, original_model="gpt-4")
+
+        # Then - Should have default usage values
+        assert result["usage"]["prompt_tokens"] == 0
+        assert result["usage"]["completion_tokens"] == 0
+        assert result["usage"]["total_tokens"] == 0
+
+    def test_translate_response_with_null_stop_reason(self) -> None:
+        """Test response translation handles null stop_reason gracefully.
+
+        Given: response with stop_reason=None
+        When: translator.translate(response)
+        Then: Assert finish_reason defaults to "stop"
+        """
+        from apps.api.schemas.responses import ContentBlockSchema, SingleQueryResponse, UsageSchema
+        from apps.api.services.openai.translator import ResponseTranslator
+
+        # Given - Response with None stop_reason
+        response = SingleQueryResponse(
+            session_id="test-session-null-stop",
+            model="sonnet",
+            content=[
+                ContentBlockSchema(type="text", text="Hello"),
+            ],
+            is_error=False,
+            stop_reason=None,  # Null stop reason
+            duration_ms=1000,
+            num_turns=1,
+            usage=UsageSchema(input_tokens=10, output_tokens=5),
+        )
+        translator = ResponseTranslator()
+
+        # When
+        result = translator.translate(response, original_model="gpt-4")
+
+        # Then - Should default to "stop"
+        assert result["choices"][0]["finish_reason"] == "stop"
+
+    def test_translate_response_with_empty_content(self) -> None:
+        """Test response translation handles empty content array gracefully.
+
+        Given: response with content=[]
+        When: translator.translate(response)
+        Then: Assert message.content is empty string
+        """
+        from apps.api.schemas.responses import SingleQueryResponse, UsageSchema
+        from apps.api.services.openai.translator import ResponseTranslator
+
+        # Given - Response with empty content
+        response = SingleQueryResponse(
+            session_id="test-session-empty-content",
+            model="sonnet",
+            content=[],  # Empty content array
+            is_error=False,
+            stop_reason="completed",
+            duration_ms=1000,
+            num_turns=1,
+            usage=UsageSchema(input_tokens=10, output_tokens=0),
+        )
+        translator = ResponseTranslator()
+
+        # When
+        result = translator.translate(response, original_model="gpt-4")
+
+        # Then - Should have empty content string
+        assert result["choices"][0]["message"]["content"] == ""
