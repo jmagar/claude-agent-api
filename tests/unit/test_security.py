@@ -1,7 +1,9 @@
 """Unit tests for security validation (T128)."""
 
+from typing import cast
+
 import pytest
-from pydantic import ValidationError
+from pydantic import HttpUrl, ValidationError
 
 from apps.api.schemas.requests.config import HookWebhookSchema, McpServerConfigSchema
 from apps.api.schemas.requests.query import QueryRequest
@@ -147,21 +149,21 @@ class TestHookWebhookSecurityValidation:
     def test_url_rejects_localhost(self) -> None:
         """Test webhook URL rejects localhost."""
         with pytest.raises(ValidationError, match="internal resources"):
-            HookWebhookSchema(url="http://localhost:9000/hook")
+            HookWebhookSchema(url=cast("HttpUrl", "http://localhost:9000/hook"))
 
     def test_url_rejects_private_ip(self) -> None:
         """Test webhook URL rejects private IPs."""
         with pytest.raises(ValidationError, match="internal resources"):
-            HookWebhookSchema(url="http://10.0.0.1/webhook")
+            HookWebhookSchema(url=cast("HttpUrl", "http://10.0.0.1/webhook"))
 
     def test_url_rejects_loopback(self) -> None:
         """Test webhook URL rejects loopback."""
         with pytest.raises(ValidationError, match="internal resources"):
-            HookWebhookSchema(url="http://127.0.0.1:8080/hook")
+            HookWebhookSchema(url=cast("HttpUrl", "http://127.0.0.1:8080/hook"))
 
     def test_url_allows_external(self) -> None:
         """Test webhook URL allows external endpoints."""
-        schema = HookWebhookSchema(url="https://hooks.example.com/webhook")
+        schema = HookWebhookSchema(url=cast("HttpUrl", "https://hooks.example.com/webhook"))
         assert str(schema.url) == "https://hooks.example.com/webhook"
 
 

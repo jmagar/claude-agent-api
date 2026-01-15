@@ -7,6 +7,7 @@ Covers authentication, message handling, event streaming, and connection cleanup
 import asyncio
 import contextlib
 import json
+from collections.abc import Callable
 from typing import TYPE_CHECKING, cast
 from unittest.mock import AsyncMock, MagicMock
 
@@ -22,9 +23,11 @@ from tests.mocks.claude_sdk import AssistantMessage
 if TYPE_CHECKING:
     from fastapi import WebSocket
 
+    from apps.api.protocols import Cache
+
 
 async def wait_for_condition(
-    condition_fn: callable,
+    condition_fn: Callable[[], bool],
     timeout: float = 1.0,
     poll_interval: float = 0.01,
 ) -> bool:
@@ -234,7 +237,7 @@ class InMemoryCache:
 @pytest.fixture
 def session_service() -> SessionService:
     """Create SessionService with in-memory cache."""
-    return SessionService(cache=InMemoryCache())
+    return SessionService(cache=cast("Cache", InMemoryCache()))
 
 
 class TestWebSocketAuthentication:

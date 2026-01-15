@@ -1,7 +1,9 @@
 """Tests for config request schemas."""
 
+from typing import cast
+
 import pytest
-from pydantic import ValidationError
+from pydantic import HttpUrl, ValidationError
 
 from apps.api.schemas.requests.config import (
     AgentDefinitionSchema,
@@ -104,18 +106,18 @@ class TestHookWebhookSchema:
 
     def test_valid_external_url(self) -> None:
         """Test valid external webhook URL."""
-        webhook = HookWebhookSchema(url="https://example.com/webhook")
+        webhook = HookWebhookSchema(url=cast("HttpUrl", "https://example.com/webhook"))
         assert str(webhook.url) == "https://example.com/webhook"
 
     def test_internal_url_rejected(self) -> None:
         """Test SSRF protection on webhook URL (T128)."""
         with pytest.raises(ValidationError, match="internal resources"):
-            HookWebhookSchema(url="http://127.0.0.1:8080/webhook")
+            HookWebhookSchema(url=cast("HttpUrl", "http://127.0.0.1:8080/webhook"))
 
     def test_metadata_url_rejected(self) -> None:
         """Test cloud metadata SSRF protection (T128)."""
         with pytest.raises(ValidationError, match="internal resources"):
-            HookWebhookSchema(url="http://metadata.google.internal/")
+            HookWebhookSchema(url=cast("HttpUrl", "http://metadata.google.internal/"))
 
 
 class TestOutputFormatSchema:
@@ -129,14 +131,14 @@ class TestOutputFormatSchema:
     def test_valid_json_schema(self) -> None:
         """Test valid JSON schema."""
         fmt = OutputFormatSchema(
-            type="json_schema", schema_={"type": "object", "properties": {}}
+            type="json_schema", schema={"type": "object", "properties": {}}
         )
         assert fmt.type == "json_schema"
 
     def test_json_schema_must_have_type(self) -> None:
         """Test JSON schema must have type property."""
         with pytest.raises(ValidationError, match="must have 'type' property"):
-            OutputFormatSchema(type="json_schema", schema_={"properties": {}})
+            OutputFormatSchema(type="json_schema", schema={"properties": {}})
 
 
 class TestHooksConfigSchema:
@@ -145,7 +147,7 @@ class TestHooksConfigSchema:
     def test_valid_hooks(self) -> None:
         """Test valid hooks configuration."""
         hooks = HooksConfigSchema(
-            pre_tool_use=HookWebhookSchema(url="https://example.com/hook")
+            PreToolUse=HookWebhookSchema(url=cast("HttpUrl", "https://example.com/hook"))
         )
         assert hooks.pre_tool_use is not None
 
@@ -169,7 +171,7 @@ class TestSdkPluginConfigSchema:
     def test_plugin_name_required(self) -> None:
         """Test plugin name is required."""
         with pytest.raises(ValidationError):
-            SdkPluginConfigSchema()  # type: ignore[call-arg]
+            SdkPluginConfigSchema()
 
     def test_plugin_with_path(self) -> None:
         """Test plugin with path."""

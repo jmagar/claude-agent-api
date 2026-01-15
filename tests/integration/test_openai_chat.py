@@ -1,5 +1,7 @@
 """Integration tests for OpenAI chat completions endpoint."""
 
+from typing import cast
+
 import pytest
 from httpx import AsyncClient
 from httpx_sse import aconnect_sse
@@ -117,28 +119,45 @@ async def test_streaming_completion_basic(async_client: AsyncClient) -> None:
     assert chunks[-1] == "[DONE]", "Stream should end with [DONE] marker"
 
     # Remove [DONE] marker for easier processing
-    data_chunks = [c for c in chunks if c != "[DONE]"]
+    data_chunks: list[dict[str, object]] = [
+        c for c in chunks if isinstance(c, dict)
+    ]
     assert len(data_chunks) > 0, "Should have at least one data chunk"
 
     # Verify first chunk has role delta
     first_chunk = data_chunks[0]
     assert "choices" in first_chunk, "First chunk missing 'choices'"
-    assert len(first_chunk["choices"]) > 0, "First chunk choices should not be empty"
-    first_choice = first_chunk["choices"][0]
+    choices = first_chunk.get("choices")
+    assert isinstance(choices, list)
+    assert len(choices) > 0, "First chunk choices should not be empty"
+    first_choice = choices[0]
+    assert isinstance(first_choice, dict)
+    first_choice = cast("dict[str, object]", first_choice)
     assert "delta" in first_choice, "First choice missing 'delta'"
-    assert "role" in first_choice["delta"], "First delta missing 'role'"
-    assert first_choice["delta"]["role"] == "assistant", (
+    delta = first_choice.get("delta")
+    assert isinstance(delta, dict)
+    delta = cast("dict[str, object]", delta)
+    assert "role" in delta, "First delta missing 'role'"
+    assert delta.get("role") == "assistant", (
         "First delta role should be 'assistant'"
     )
 
     # Verify content chunks present (at least one chunk should have content)
     # NOTE: In real streaming, we'd get content chunks. In mock SDK, we may not
     # get partial events with content, but the streaming infrastructure should work
-    content_chunks = [
-        c
-        for c in data_chunks
-        if c.get("choices", [{}])[0].get("delta", {}).get("content") is not None
-    ]
+    content_chunks: list[dict[str, object]] = []
+    for chunk in data_chunks:
+        choices = chunk.get("choices")
+        if not isinstance(choices, list) or not choices:
+            continue
+        first_choice = choices[0]
+        if not isinstance(first_choice, dict):
+            continue
+        delta = first_choice.get("delta")
+        if not isinstance(delta, dict):
+            continue
+        if delta.get("content") is not None:
+            content_chunks.append(chunk)
     # We assert that content chunks exist OR we're in mock mode (no content but still valid streaming)
     # The key validation is that streaming format is correct, not that mock SDK emits content
     assert len(content_chunks) >= 0, (
@@ -146,18 +165,25 @@ async def test_streaming_completion_basic(async_client: AsyncClient) -> None:
     )
 
     # Verify final chunk has finish_reason
-    finish_chunks = [
-        c
-        for c in data_chunks
-        if c.get("choices", [{}])[0].get("finish_reason") is not None
-    ]
+    finish_chunks: list[dict[str, object]] = []
+    for chunk in data_chunks:
+        choices = chunk.get("choices")
+        if not isinstance(choices, list) or not choices:
+            continue
+        first_choice = choices[0]
+        if not isinstance(first_choice, dict):
+            continue
+        if first_choice.get("finish_reason") is not None:
+            finish_chunks.append(chunk)
     assert len(finish_chunks) > 0, "Should have at least one chunk with finish_reason"
 
     # Verify all chunks have consistent structure
     for chunk in data_chunks:
         assert "id" in chunk, "Chunk missing 'id'"
-        assert chunk["id"].startswith("chatcmpl-"), (
-            f"Chunk ID should start with 'chatcmpl-', got: {chunk['id']}"
+        chunk_id = chunk.get("id")
+        assert isinstance(chunk_id, str)
+        assert chunk_id.startswith("chatcmpl-"), (
+            f"Chunk ID should start with 'chatcmpl-', got: {chunk_id}"
         )
         assert "object" in chunk, "Chunk missing 'object'"
         assert chunk["object"] == "chat.completion.chunk", (

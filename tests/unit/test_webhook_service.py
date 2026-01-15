@@ -4,12 +4,17 @@ These tests verify the webhook service that handles HTTP callbacks
 for hook events (PreToolUse, PostToolUse, Stop, etc.).
 """
 
-from typing import Literal
+from typing import Literal, cast
 from unittest.mock import MagicMock, patch
 
 import pytest
+from pydantic import HttpUrl
 
 from apps.api.schemas.requests.config import HooksConfigSchema, HookWebhookSchema
+
+
+def _http_url(value: str) -> HttpUrl:
+    return cast("HttpUrl", value)
 
 
 # Type definitions for webhook payloads
@@ -59,7 +64,7 @@ class TestWebhookCallbackExecution:
 
         service = WebhookService()
         hook_config = HookWebhookSchema(
-            url="https://example.com/webhook",  # type: ignore[arg-type]
+            url=_http_url("https://example.com/webhook"),
             timeout=30,
         )
 
@@ -85,7 +90,7 @@ class TestWebhookCallbackExecution:
 
         service = WebhookService()
         hook_config = HookWebhookSchema(
-            url="https://example.com/webhook",  # type: ignore[arg-type]
+            url=_http_url("https://example.com/webhook"),
             timeout=30,
         )
 
@@ -110,7 +115,7 @@ class TestWebhookCallbackExecution:
 
         service = WebhookService()
         hook_config = HookWebhookSchema(
-            url="https://example.com/webhook",  # type: ignore[arg-type]
+            url=_http_url("https://example.com/webhook"),
             timeout=30,
         )
 
@@ -132,7 +137,7 @@ class TestWebhookCallbackExecution:
 
         service = WebhookService()
         hook_config = HookWebhookSchema(
-            url="https://example.com/webhook",  # type: ignore[arg-type]
+            url=_http_url("https://example.com/webhook"),
             headers={
                 "Authorization": "Bearer secret-token",
                 "X-Custom-Header": "custom-value",
@@ -165,7 +170,7 @@ class TestWebhookResponseHandling:
 
         service = WebhookService()
         hook_config = HookWebhookSchema(
-            url="https://example.com/webhook",  # type: ignore[arg-type]
+            url=_http_url("https://example.com/webhook"),
         )
 
         with patch.object(service, "_make_request") as mock_request:
@@ -191,7 +196,7 @@ class TestWebhookResponseHandling:
 
         service = WebhookService()
         hook_config = HookWebhookSchema(
-            url="https://example.com/webhook",  # type: ignore[arg-type]
+            url=_http_url("https://example.com/webhook"),
         )
 
         with patch.object(service, "_make_request") as mock_request:
@@ -217,7 +222,7 @@ class TestWebhookResponseHandling:
 
         service = WebhookService()
         hook_config = HookWebhookSchema(
-            url="https://example.com/webhook",  # type: ignore[arg-type]
+            url=_http_url("https://example.com/webhook"),
         )
 
         with patch.object(service, "_make_request") as mock_request:
@@ -242,7 +247,7 @@ class TestWebhookResponseHandling:
 
         service = WebhookService()
         hook_config = HookWebhookSchema(
-            url="https://example.com/webhook",  # type: ignore[arg-type]
+            url=_http_url("https://example.com/webhook"),
         )
 
         with patch.object(service, "_make_request") as mock_request:
@@ -263,7 +268,11 @@ class TestWebhookResponseHandling:
             )
 
             assert result["decision"] == "allow"
-            assert result["modified_input"]["file_path"] == "/sanitized/path.txt"
+            modified_input = result.get("modified_input")
+            assert isinstance(modified_input, dict)
+            modified_input = cast("dict[str, object]", modified_input)
+            file_path = modified_input.get("file_path")
+            assert file_path == "/sanitized/path.txt"
 
 
 class TestWebhookTimeoutHandling:
@@ -276,7 +285,7 @@ class TestWebhookTimeoutHandling:
 
         service = WebhookService()
         hook_config = HookWebhookSchema(
-            url="https://example.com/webhook",  # type: ignore[arg-type]
+            url=_http_url("https://example.com/webhook"),
             timeout=1,  # 1 second timeout
         )
 
@@ -292,7 +301,9 @@ class TestWebhookTimeoutHandling:
 
             # Default behavior on timeout for PreToolUse is fail-closed (deny)
             assert result["decision"] == "deny"
-            assert "timeout" in result.get("reason", "").lower()
+            reason = result.get("reason", "")
+            assert isinstance(reason, str)
+            assert "timeout" in reason.lower()
 
     @pytest.mark.anyio
     async def test_custom_timeout_is_respected(self) -> None:
@@ -301,7 +312,7 @@ class TestWebhookTimeoutHandling:
 
         service = WebhookService()
         hook_config = HookWebhookSchema(
-            url="https://example.com/webhook",  # type: ignore[arg-type]
+            url=_http_url("https://example.com/webhook"),
             timeout=60,  # 60 second timeout
         )
 
@@ -330,7 +341,7 @@ class TestWebhookErrorHandling:
 
         service = WebhookService()
         hook_config = HookWebhookSchema(
-            url="https://example.com/webhook",  # type: ignore[arg-type]
+            url=_http_url("https://example.com/webhook"),
         )
 
         with patch.object(service, "_make_request") as mock_request:
@@ -345,7 +356,9 @@ class TestWebhookErrorHandling:
 
             # Should return deny on connection error (fail-closed for PreToolUse)
             assert result["decision"] == "deny"
-            assert "error" in result.get("reason", "").lower()
+            reason = result.get("reason", "")
+            assert isinstance(reason, str)
+            assert "error" in reason.lower()
 
     @pytest.mark.anyio
     async def test_invalid_json_response_returns_default(self) -> None:
@@ -354,7 +367,7 @@ class TestWebhookErrorHandling:
 
         service = WebhookService()
         hook_config = HookWebhookSchema(
-            url="https://example.com/webhook",  # type: ignore[arg-type]
+            url=_http_url("https://example.com/webhook"),
         )
 
         with patch.object(service, "_make_request") as mock_request:
@@ -376,7 +389,7 @@ class TestWebhookErrorHandling:
 
         service = WebhookService()
         hook_config = HookWebhookSchema(
-            url="https://example.com/webhook",  # type: ignore[arg-type]
+            url=_http_url("https://example.com/webhook"),
         )
 
         with patch.object(service, "_make_request") as mock_request:
@@ -402,7 +415,7 @@ class TestMatcherFiltering:
 
         service = WebhookService()
         hook_config = HookWebhookSchema(
-            url="https://example.com/webhook",  # type: ignore[arg-type]
+            url=_http_url("https://example.com/webhook"),
             matcher="Write|Edit",
         )
 
@@ -426,7 +439,7 @@ class TestMatcherFiltering:
 
         service = WebhookService()
         hook_config = HookWebhookSchema(
-            url="https://example.com/webhook",  # type: ignore[arg-type]
+            url=_http_url("https://example.com/webhook"),
             matcher="Write|Edit",
         )
 
@@ -449,7 +462,7 @@ class TestMatcherFiltering:
 
         service = WebhookService()
         hook_config = HookWebhookSchema(
-            url="https://example.com/webhook",  # type: ignore[arg-type]
+            url=_http_url("https://example.com/webhook"),
             matcher=None,
         )
 
@@ -469,7 +482,7 @@ class TestMatcherFiltering:
 
         # Pattern for MCP tools
         hook_config = HookWebhookSchema(
-            url="https://example.com/webhook",  # type: ignore[arg-type]
+            url=_http_url("https://example.com/webhook"),
             matcher="mcp__.*",
         )
 
@@ -496,7 +509,7 @@ class TestWebhookPayloadFormat:
 
         service = WebhookService()
         hook_config = HookWebhookSchema(
-            url="https://example.com/webhook",  # type: ignore[arg-type]
+            url=_http_url("https://example.com/webhook"),
         )
 
         with patch.object(service, "_make_request") as mock_request:
@@ -526,7 +539,7 @@ class TestWebhookPayloadFormat:
 
         service = WebhookService()
         hook_config = HookWebhookSchema(
-            url="https://example.com/webhook",  # type: ignore[arg-type]
+            url=_http_url("https://example.com/webhook"),
         )
 
         with patch.object(service, "_make_request") as mock_request:
@@ -557,10 +570,10 @@ class TestHooksConfigIntegration:
         service = WebhookService()
         hooks_config = HooksConfigSchema(
             PreToolUse=HookWebhookSchema(
-                url="https://example.com/pre",  # type: ignore[arg-type]
+                url=_http_url("https://example.com/pre"),
             ),
             PostToolUse=HookWebhookSchema(
-                url="https://example.com/post",  # type: ignore[arg-type]
+                url=_http_url("https://example.com/post"),
             ),
         )
 
@@ -584,10 +597,10 @@ class TestHooksConfigIntegration:
         service = WebhookService()
         hooks_config = HooksConfigSchema(
             PreToolUse=HookWebhookSchema(
-                url="https://example.com/pre",  # type: ignore[arg-type]
+                url=_http_url("https://example.com/pre"),
             ),
             Stop=HookWebhookSchema(
-                url="https://example.com/stop",  # type: ignore[arg-type]
+                url=_http_url("https://example.com/stop"),
             ),
         )
 

@@ -4,11 +4,18 @@ These tests verify the HTTP webhook hook system that allows intercepting
 agent execution at key points (PreToolUse, PostToolUse, Stop, etc.).
 """
 
+from typing import cast
+
 import pytest
 from httpx import AsyncClient
+from pydantic import HttpUrl
 
 from apps.api.schemas.requests.config import HooksConfigSchema, HookWebhookSchema
 from apps.api.schemas.requests.query import QueryRequest
+
+
+def _http_url(value: str) -> HttpUrl:
+    return cast("HttpUrl", value)
 
 
 class TestHooksConfigValidation:
@@ -228,7 +235,7 @@ class TestHooksConfigSchemaValidation:
         """Test creating HooksConfigSchema with valid PreToolUse hook."""
         config = HooksConfigSchema(
             PreToolUse=HookWebhookSchema(
-                url="https://example.com/hook",  # type: ignore[arg-type]
+                url=_http_url("https://example.com/hook"),
                 timeout=30,
             )
         )
@@ -239,20 +246,14 @@ class TestHooksConfigSchemaValidation:
     def test_hooks_config_with_all_hook_types(self) -> None:
         """Test creating HooksConfigSchema with all hook types."""
         config = HooksConfigSchema(
-            PreToolUse=HookWebhookSchema(
-                url="https://example.com/pre",  # type: ignore[arg-type]
-            ),
-            PostToolUse=HookWebhookSchema(
-                url="https://example.com/post",  # type: ignore[arg-type]
-            ),
-            Stop=HookWebhookSchema(
-                url="https://example.com/stop",  # type: ignore[arg-type]
-            ),
+            PreToolUse=HookWebhookSchema(url=_http_url("https://example.com/pre")),
+            PostToolUse=HookWebhookSchema(url=_http_url("https://example.com/post")),
+            Stop=HookWebhookSchema(url=_http_url("https://example.com/stop")),
             SubagentStop=HookWebhookSchema(
-                url="https://example.com/subagent",  # type: ignore[arg-type]
+                url=_http_url("https://example.com/subagent")
             ),
             UserPromptSubmit=HookWebhookSchema(
-                url="https://example.com/prompt",  # type: ignore[arg-type]
+                url=_http_url("https://example.com/prompt")
             ),
         )
         assert config.pre_tool_use is not None
@@ -263,21 +264,21 @@ class TestHooksConfigSchemaValidation:
 
     def test_hook_webhook_schema_default_timeout(self) -> None:
         """Test that HookWebhookSchema has default timeout of 30."""
-        hook = HookWebhookSchema(url="https://example.com/hook")  # type: ignore[arg-type]
+        hook = HookWebhookSchema(url=_http_url("https://example.com/hook"))
         assert hook.timeout == 30
 
     def test_hook_webhook_schema_timeout_bounds(self) -> None:
         """Test timeout validation bounds (1-300)."""
         # Valid lower bound
         hook = HookWebhookSchema(
-            url="https://example.com/hook",  # type: ignore[arg-type]
+            url=_http_url("https://example.com/hook"),
             timeout=1,
         )
         assert hook.timeout == 1
 
         # Valid upper bound
         hook = HookWebhookSchema(
-            url="https://example.com/hook",  # type: ignore[arg-type]
+            url=_http_url("https://example.com/hook"),
             timeout=300,
         )
         assert hook.timeout == 300
@@ -285,26 +286,26 @@ class TestHooksConfigSchemaValidation:
         # Below lower bound
         with pytest.raises(ValueError):
             HookWebhookSchema(
-                url="https://example.com/hook",  # type: ignore[arg-type]
+                url=_http_url("https://example.com/hook"),
                 timeout=0,
             )
 
         # Above upper bound
         with pytest.raises(ValueError):
             HookWebhookSchema(
-                url="https://example.com/hook",  # type: ignore[arg-type]
+                url=_http_url("https://example.com/hook"),
                 timeout=301,
             )
 
     def test_hook_webhook_schema_requires_valid_url(self) -> None:
         """Test that HookWebhookSchema requires a valid URL."""
         with pytest.raises(ValueError):
-            HookWebhookSchema(url="not-a-valid-url")  # type: ignore[arg-type]
+            HookWebhookSchema(url=_http_url("not-a-valid-url"))
 
     def test_hook_webhook_schema_with_matcher_regex(self) -> None:
         """Test HookWebhookSchema with matcher regex pattern."""
         hook = HookWebhookSchema(
-            url="https://example.com/hook",  # type: ignore[arg-type]
+            url=_http_url("https://example.com/hook"),
             matcher="Write|Edit|Bash",
         )
         assert hook.matcher == "Write|Edit|Bash"
@@ -315,7 +316,7 @@ class TestHooksConfigSchemaValidation:
             prompt="Test prompt",
             hooks=HooksConfigSchema(
                 PreToolUse=HookWebhookSchema(
-                    url="https://example.com/hook",  # type: ignore[arg-type]
+                    url=_http_url("https://example.com/hook"),
                     timeout=30,
                 )
             ),

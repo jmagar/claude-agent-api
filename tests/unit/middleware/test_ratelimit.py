@@ -202,7 +202,7 @@ class TestRateLimitHandler:
         # Check JSON body
         import json
 
-        body = json.loads(response.body)
+        body = json.loads(bytes(response.body))
         assert body["error"]["code"] == "RATE_LIMIT_EXCEEDED"
 
 

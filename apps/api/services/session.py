@@ -19,14 +19,14 @@ import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Literal, TypedDict, TypeVar
+from typing import TYPE_CHECKING, Literal, TypedDict, TypeVar, cast
 from uuid import uuid4
 
 import structlog
 
 from apps.api.config import get_settings
 from apps.api.exceptions.session import SessionNotFoundError
-from apps.api.types import JsonValue
+from apps.api.types import JsonValue, SessionStatus
 
 T = TypeVar("T")
 
@@ -396,7 +396,7 @@ class SessionService:
                     id=str(s.id),
                     created_at=s.created_at,
                     updated_at=s.updated_at,
-                    status=s.status,
+                    status=cast("SessionStatus", s.status),
                     model=s.model,
                     total_turns=s.total_turns,
                     total_cost_usd=float(s.total_cost_usd)

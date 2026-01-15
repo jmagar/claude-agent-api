@@ -1,10 +1,15 @@
 """Tests for OpenAI request translation to Claude Agent SDK format."""
 
+from typing import TYPE_CHECKING, cast
+
 import pytest
 
 from apps.api.schemas.openai.requests import ChatCompletionRequest, OpenAIMessage
 from apps.api.services.openai.models import ModelMapper
 from apps.api.services.openai.translator import RequestTranslator
+
+if TYPE_CHECKING:
+    from apps.api.schemas.responses import SingleQueryResponse
 
 
 @pytest.fixture
@@ -328,7 +333,7 @@ class TestResponseTranslator:
 
         # Given
         translator = ResponseTranslator()
-        response = mock_single_query_response
+        response = cast("SingleQueryResponse", mock_single_query_response)
 
         # When
         result = translator.translate(response, original_model="gpt-4")

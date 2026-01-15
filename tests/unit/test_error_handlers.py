@@ -240,6 +240,7 @@ class TestTimeoutErrorHandler:
         assert "error" in response_data
         error_data = response_data["error"]
         assert isinstance(error_data, dict)
+        error_data = cast("dict[str, object]", error_data)
         assert error_data.get("code") == "REQUEST_TIMEOUT"
 
     @pytest.mark.anyio
@@ -319,6 +320,7 @@ class TestGeneralExceptionHandler:
         assert "error" in response_data
         error_data = response_data["error"]
         assert isinstance(error_data, dict)
+        error_data = cast("dict[str, object]", error_data)
         assert error_data.get("code") == "INTERNAL_ERROR"
 
     @pytest.mark.anyio
@@ -365,6 +367,7 @@ class TestGeneralExceptionHandler:
             assert "error" in response_data
             error_data = response_data["error"]
             assert isinstance(error_data, dict)
+            error_data = cast("dict[str, object]", error_data)
             assert "details" in error_data
             assert error_data["details"] == {}
         finally:
@@ -414,6 +417,7 @@ class TestGeneralExceptionHandler:
             assert "error" in response_data
             error_data = response_data["error"]
             assert isinstance(error_data, dict)
+            error_data = cast("dict[str, object]", error_data)
             assert "details" in error_data
             details = error_data["details"]
             if details:

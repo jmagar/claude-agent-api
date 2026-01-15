@@ -1,9 +1,11 @@
 """Shared pytest fixtures for all tests."""
 
+from __future__ import annotations
+
 import logging
 import os
-from collections.abc import AsyncGenerator, Generator
 from pathlib import Path
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
 import pytest
@@ -30,6 +32,11 @@ from tests.helpers.e2e_client import (
     get_e2e_timeout_seconds,
     should_use_live_e2e_client,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator, Generator
+
+    from apps.api.types import JsonValue
 
 logger = logging.getLogger(__name__)
 ALLOW_REAL_CLAUDE_ENV = "ALLOW_REAL_CLAUDE_API"
@@ -295,7 +302,7 @@ async def mock_session_with_checkpoints(
 
     # Add checkpoints directly to cache
     checkpoint_id = f"checkpoint-{uuid4().hex[:8]}"
-    checkpoint_data: dict[str, object] = {
+    checkpoint_data: dict[str, JsonValue] = {
         "id": checkpoint_id,
         "session_id": session_id,
         "user_message_uuid": f"msg-{uuid4().hex[:8]}",
@@ -364,7 +371,7 @@ async def mock_checkpoint_from_other_session(
 
     # Add checkpoint to that other session
     checkpoint_id = f"other-checkpoint-{uuid4().hex[:8]}"
-    checkpoint_data: dict[str, object] = {
+    checkpoint_data: dict[str, JsonValue] = {
         "id": checkpoint_id,
         "session_id": other_session_id,
         "user_message_uuid": f"msg-{uuid4().hex[:8]}",

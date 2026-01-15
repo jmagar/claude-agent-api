@@ -1,16 +1,21 @@
 """Unit tests for configuration module."""
 
 import os
+from typing import Any, cast
 from unittest.mock import patch
 
 import pytest
-from pydantic import ValidationError
+from pydantic import SecretStr, ValidationError
 
 from apps.api.config import Settings, get_settings
 
 
 class TestSettings:
     """Tests for Settings class."""
+
+    def _settings_no_env_file(self) -> Settings:
+        settings_factory = cast("Any", Settings)
+        return settings_factory(_env_file=None)
 
     def test_default_values(self) -> None:
         """Test that defaults are applied when env vars not set."""
@@ -24,7 +29,7 @@ class TestSettings:
             clear=True,
         ):
             # Disable .env file loading to test pure defaults
-            settings = Settings(_env_file=None)
+            settings = self._settings_no_env_file()
 
             assert settings.api_host == "0.0.0.0"
             assert settings.api_port == 54000
@@ -47,7 +52,7 @@ class TestSettings:
         with patch.dict(os.environ, {}, clear=True):
             with pytest.raises(ValidationError) as exc_info:
                 # Disable .env file loading to test pure defaults
-                Settings(_env_file=None)
+                self._settings_no_env_file()
 
             errors = exc_info.value.errors()
             error_fields = {e["loc"][0] for e in errors}
@@ -146,7 +151,9 @@ class TestSettings:
 
             # But should be retrievable via get_secret_value()
             assert settings.api_key.get_secret_value() == "my-api-key"
-            assert settings.anthropic_api_key.get_secret_value() == "my-anthropic-key"
+            anthropic_key = settings.anthropic_api_key
+            assert isinstance(anthropic_key, SecretStr)
+            assert anthropic_key.get_secret_value() == "my-anthropic-key"
 
     def test_database_url_default(self) -> None:
         """Test default database URL."""
@@ -160,7 +167,7 @@ class TestSettings:
             clear=True,
         ):
             # Disable .env file loading to test pure defaults
-            settings = Settings(_env_file=None)
+            settings = self._settings_no_env_file()
             assert "postgresql+asyncpg://" in settings.database_url
             assert "53432" in settings.database_url
 
@@ -176,7 +183,7 @@ class TestSettings:
             clear=True,
         ):
             # Disable .env file loading to test pure defaults
-            settings = Settings(_env_file=None)
+            settings = self._settings_no_env_file()
             assert settings.redis_url.startswith("redis://")
             assert "53380" in settings.redis_url
 

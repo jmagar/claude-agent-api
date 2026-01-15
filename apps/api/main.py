@@ -1,6 +1,6 @@
 """FastAPI application entry point."""
 
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Mapping, Sequence
 from contextlib import asynccontextmanager
 
 import structlog
@@ -213,7 +213,9 @@ def create_app() -> FastAPI:
             content=api_error.to_dict(),
         )
 
-    def _serialize_validation_errors(errors: list[dict]) -> list[dict]:
+    def _serialize_validation_errors(
+        errors: Sequence[Mapping[str, object]],
+    ) -> list[dict[str, object]]:
         """Convert Pydantic errors to JSON-serializable format.
 
         Args:
@@ -222,16 +224,18 @@ def create_app() -> FastAPI:
         Returns:
             List of sanitized error dicts safe for JSON serialization.
         """
-        serialized = []
+        serialized: list[dict[str, object]] = []
         for error in errors:
+            loc = error.get("loc")
             serialized_error = {
-                "loc": error.get("loc", []),
-                "msg": error.get("msg", ""),
-                "type": error.get("type", ""),
+                "loc": list(loc) if isinstance(loc, (list, tuple)) else [],
+                "msg": str(error.get("msg", "")),
+                "type": str(error.get("type", "")),
             }
             # Convert ctx to strings if present (ValueError objects are not JSON serializable)
-            if "ctx" in error:
-                serialized_error["ctx"] = {k: str(v) for k, v in error["ctx"].items()}
+            ctx = error.get("ctx")
+            if isinstance(ctx, dict):
+                serialized_error["ctx"] = {k: str(v) for k, v in ctx.items()}
             serialized.append(serialized_error)
         return serialized
 

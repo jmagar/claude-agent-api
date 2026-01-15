@@ -1,6 +1,7 @@
 """Unit tests for StreamOrchestrator."""
 
 import json
+from typing import Literal
 
 import pytest
 
@@ -38,8 +39,17 @@ async def test_stream_orchestrator_builds_init_and_done_events() -> None:
     assert done_data["reason"] == "completed"
 
 
-@pytest.mark.parametrize("reason", ["completed", "interrupted", "error"])
-def test_stream_orchestrator_builds_done_event_reasons(reason: str) -> None:
+REASONS: list[Literal["completed", "interrupted", "error"]] = [
+    "completed",
+    "interrupted",
+    "error",
+]
+
+
+@pytest.mark.parametrize("reason", REASONS)
+def test_stream_orchestrator_builds_done_event_reasons(
+    reason: Literal["completed", "interrupted", "error"],
+) -> None:
     """Test done events include expected reason values."""
     orchestrator = StreamOrchestrator(message_handler=MessageHandler())
     done_event = orchestrator.build_done_event(reason=reason)

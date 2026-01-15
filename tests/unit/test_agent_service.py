@@ -1,7 +1,7 @@
 """Unit tests for agent service."""
 
 import json
-from typing import Literal
+from typing import TYPE_CHECKING, Literal, cast
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -15,6 +15,10 @@ from apps.api.services.agent import (
 )
 from apps.api.services.agent.file_modification_tracker import FileModificationTracker
 from apps.api.services.agent.types import StreamContext
+
+if TYPE_CHECKING:
+    from apps.api.services.agent.query_executor import QueryExecutor
+    from apps.api.services.agent.stream_query_runner import StreamQueryRunner
 
 
 class TestAgentService:
@@ -772,7 +776,7 @@ class TestQueryStreamSessionIds:
                     yield {}
 
         runner = StubStreamRunner()
-        service = AgentService(stream_runner=runner)
+        service = AgentService(stream_runner=cast("StreamQueryRunner", runner))
         request = QueryRequest(prompt="Test prompt", cwd=str(tmp_path))
 
         events = [event async for event in service.query_stream(request)]
@@ -1053,7 +1057,7 @@ async def test_execute_query_delegates_to_executor() -> None:
                 yield {"event": "noop", "data": "{}"}
 
     executor = StubExecutor()
-    service = AgentService(query_executor=executor)
+    service = AgentService(query_executor=cast("QueryExecutor", executor))
     ctx = StreamContext(session_id="sid", model="sonnet", start_time=0.0)
     commands_service = CommandsService(project_path=Path.cwd())
     request = QueryRequest(prompt="test")

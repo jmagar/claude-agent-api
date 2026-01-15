@@ -3,6 +3,7 @@
 from pathlib import Path
 
 import pytest
+from pydantic import SecretStr
 
 
 @pytest.mark.unit
@@ -28,7 +29,7 @@ def test_settings_loads_distributed_session_config():
     settings = Settings(
         redis_url="redis://localhost:53380/0",
         database_url="postgresql+asyncpg://localhost:53432/test",
-        api_key="test-key",
+        api_key=SecretStr("test-key"),
     )
 
     assert settings.redis_session_ttl > 0  # Has default

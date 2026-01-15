@@ -342,7 +342,11 @@ class TestOutputFormatInQueryRequest:
         )
         assert request.output_format is not None
         assert request.output_format.schema_ is not None
-        assert "users" in request.output_format.schema_.get("properties", {})
+        schema = request.output_format.schema_
+        assert isinstance(schema, dict)
+        properties = schema.get("properties")
+        assert isinstance(properties, dict)
+        assert "users" in properties
 
 
 class TestOutputFormatWithSession:

@@ -3,9 +3,11 @@
 Tests webhook hook execution for agent lifecycle events.
 """
 
+from typing import cast
 from unittest.mock import AsyncMock
 
 import pytest
+from pydantic import HttpUrl
 
 from apps.api.schemas.requests.config import HooksConfigSchema, HookWebhookSchema
 from apps.api.services.agent.hooks import HookExecutor
@@ -36,6 +38,10 @@ def hook_executor(mock_webhook_service: AsyncMock) -> HookExecutor:
     return HookExecutor(mock_webhook_service)
 
 
+def _http_url(value: str) -> HttpUrl:
+    return cast("HttpUrl", value)
+
+
 class TestPreToolUse:
     """Tests for PreToolUse hook execution."""
 
@@ -50,7 +56,7 @@ class TestPreToolUse:
         GREEN: This test verifies webhook execution with proper parameters.
         """
         hooks_config = HooksConfigSchema(
-            pre_tool_use=HookWebhookSchema(url="https://example.com/hook")
+            PreToolUse=HookWebhookSchema(url=_http_url("https://example.com/hook"))
         )
         mock_webhook_service.execute_hook.return_value = {"decision": "allow"}
 
@@ -107,7 +113,9 @@ class TestPostToolUse:
         GREEN: This test verifies post-tool webhook is called correctly.
         """
         hooks_config = HooksConfigSchema(
-            post_tool_use=HookWebhookSchema(url="https://example.com/post-hook")
+            PostToolUse=HookWebhookSchema(
+                url=_http_url("https://example.com/post-hook")
+            )
         )
         mock_webhook_service.execute_hook.return_value = {"acknowledged": True}
 
@@ -145,7 +153,7 @@ class TestStop:
         GREEN: This test verifies stop event with complete result data.
         """
         hooks_config = HooksConfigSchema(
-            stop=HookWebhookSchema(url="https://example.com/stop")
+            Stop=HookWebhookSchema(url=_http_url("https://example.com/stop"))
         )
         mock_webhook_service.execute_hook.return_value = {"acknowledged": True}
 
@@ -182,7 +190,9 @@ class TestSubagentStop:
         GREEN: This test verifies subagent name is passed correctly.
         """
         hooks_config = HooksConfigSchema(
-            subagent_stop=HookWebhookSchema(url="https://example.com/subagent-stop")
+            SubagentStop=HookWebhookSchema(
+                url=_http_url("https://example.com/subagent-stop")
+            )
         )
         mock_webhook_service.execute_hook.return_value = {"acknowledged": True}
 
@@ -216,8 +226,8 @@ class TestUserPromptSubmit:
         GREEN: This test verifies prompt submission hook.
         """
         hooks_config = HooksConfigSchema(
-            user_prompt_submit=HookWebhookSchema(
-                url="https://example.com/prompt-submit"
+            UserPromptSubmit=HookWebhookSchema(
+                url=_http_url("https://example.com/prompt-submit")
             )
         )
         mock_webhook_service.execute_hook.return_value = {"decision": "allow"}

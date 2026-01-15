@@ -1,6 +1,7 @@
 """Integration tests for skill invocation via agent."""
 
 from pathlib import Path
+from typing import cast
 
 import pytest
 from httpx import AsyncClient
@@ -75,8 +76,10 @@ Test skill content.
     assert init_event["event"] == "init"
     init_data = init_event["data"]
     assert isinstance(init_data, dict)
-    assert "tools" in init_data
-    assert "Skill" in init_data.get("tools", [])
+    init_data = cast("dict[str, object]", init_data)
+    tools = init_data.get("tools")
+    assert isinstance(tools, list)
+    assert "Skill" in tools
 
 
 @pytest.mark.integration
@@ -114,5 +117,7 @@ async def test_agent_cannot_invoke_skill_when_not_in_allowed_tools(
     assert init_event["event"] == "init"
     init_data = init_event["data"]
     assert isinstance(init_data, dict)
-    assert "tools" in init_data
-    assert "Skill" not in init_data.get("tools", [])
+    init_data = cast("dict[str, object]", init_data)
+    tools = init_data.get("tools")
+    assert isinstance(tools, list)
+    assert "Skill" not in tools

@@ -3,7 +3,8 @@
 Tests all cache operations, locking, scanning, and error conditions.
 """
 
-from collections.abc import AsyncGenerator
+from __future__ import annotations
+
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -13,11 +14,15 @@ from apps.api.adapters.cache import RedisCache
 from apps.api.dependencies import get_cache
 
 if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
+
     from httpx import AsyncClient
+
+    from apps.api.types import JsonValue
 
 
 @pytest.fixture
-async def cache(async_client: "AsyncClient") -> AsyncGenerator[RedisCache, None]:
+async def cache(async_client: AsyncClient) -> AsyncGenerator[RedisCache, None]:
     """Get Redis cache instance from initialized app.
 
     Args:
@@ -95,7 +100,7 @@ class TestCacheBasicOperations:
         GREEN: This test verifies JSON serialization/deserialization.
         """
         key = "test-key-json"
-        value: dict[str, object] = {
+        value: dict[str, JsonValue] = {
             "name": "test",
             "count": 42,
             "items": ["a", "b", "c"],

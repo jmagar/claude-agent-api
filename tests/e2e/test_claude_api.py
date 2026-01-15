@@ -66,7 +66,7 @@ async def test_real_claude_query(
     interrupt_sent = False
     saw_message = False
     saw_done = False
-    transport = async_client._transport  # type: ignore[attr-defined]
+    transport = async_client._transport
     base_url = str(async_client.base_url)
     if isinstance(transport, ASGITransport):
         interrupt_client = AsyncClient(

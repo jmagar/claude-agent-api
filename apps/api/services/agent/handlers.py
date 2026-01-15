@@ -1,7 +1,7 @@
 """Message handlers for Agent SDK responses."""
 
 import json
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 import structlog
 
@@ -240,8 +240,10 @@ class MessageHandler:
         """
         # Handle both dict (from StreamEvent) and object forms
         if isinstance(message, dict):
-            index = message.get("index", 0)
-            content_block = message.get("content_block")
+            message_dict = cast("dict[str, object]", message)
+            index_value = message_dict.get("index", 0)
+            index = index_value if isinstance(index_value, int) else 0
+            content_block = message_dict.get("content_block")
         else:
             index = getattr(message, "index", 0)
             content_block = getattr(message, "content_block", None)
@@ -249,11 +251,31 @@ class MessageHandler:
         block_schema: ContentBlockSchema | None = None
         if content_block:
             if isinstance(content_block, dict):
+                content_block_dict = cast("dict[str, object]", content_block)
+                block_type_value = content_block_dict.get("type")
+                if isinstance(block_type_value, str) and block_type_value in (
+                    "text",
+                    "thinking",
+                    "tool_use",
+                    "tool_result",
+                ):
+                    block_type = cast(
+                        "Literal['text', 'thinking', 'tool_use', 'tool_result']",
+                        block_type_value,
+                    )
+                else:
+                    block_type = "text"
+                text_value = content_block_dict.get("text")
+                text = text_value if isinstance(text_value, str) else None
+                id_value = content_block_dict.get("id")
+                block_id = id_value if isinstance(id_value, str) else None
+                name_value = content_block_dict.get("name")
+                name = name_value if isinstance(name_value, str) else None
                 block_schema = ContentBlockSchema(
-                    type=content_block.get("type", "text"),
-                    text=content_block.get("text"),
-                    id=content_block.get("id"),
-                    name=content_block.get("name"),
+                    type=block_type,
+                    text=text,
+                    id=block_id,
+                    name=name,
                 )
             else:
                 block_schema = ContentBlockSchema(
@@ -288,8 +310,10 @@ class MessageHandler:
         """
         # Handle both dict (from StreamEvent) and object forms
         if isinstance(message, dict):
-            index = message.get("index", 0)
-            delta = message.get("delta")
+            message_dict = cast("dict[str, object]", message)
+            index_value = message_dict.get("index", 0)
+            index = index_value if isinstance(index_value, int) else 0
+            delta = message_dict.get("delta")
         else:
             index = getattr(message, "index", 0)
             delta = getattr(message, "delta", None)
@@ -297,25 +321,47 @@ class MessageHandler:
         delta_schema: ContentDeltaSchema | None = None
         if delta:
             if isinstance(delta, dict):
-                delta_type = delta.get("type", "text_delta")
+                delta_dict = cast("dict[str, object]", delta)
+                delta_type_value = delta_dict.get("type")
+                if isinstance(delta_type_value, str) and delta_type_value in (
+                    "text_delta",
+                    "thinking_delta",
+                    "input_json_delta",
+                ):
+                    delta_type = cast(
+                        "Literal['text_delta', 'thinking_delta', 'input_json_delta']",
+                        delta_type_value,
+                    )
+                else:
+                    delta_type = "text_delta"
+                text_value = delta_dict.get("text")
+                text = text_value if isinstance(text_value, str) else None
+                thinking_value = delta_dict.get("thinking")
+                thinking = thinking_value if isinstance(thinking_value, str) else None
+                partial_json_value = delta_dict.get("partial_json")
+                partial_json = (
+                    partial_json_value if isinstance(partial_json_value, str) else None
+                )
                 delta_schema = ContentDeltaSchema(
-                    type=delta_type,  # type: ignore[arg-type]
-                    text=delta.get("text") if delta_type == "text_delta" else None,
+                    type=delta_type,
+                    text=text if delta_type == "text_delta" else None,
                     thinking=(
-                        delta.get("thinking")
-                        if delta_type == "thinking_delta"
-                        else None
+                        thinking if delta_type == "thinking_delta" else None
                     ),
                     partial_json=(
-                        delta.get("partial_json")
-                        if delta_type == "input_json_delta"
-                        else None
+                        partial_json if delta_type == "input_json_delta" else None
                     ),
                 )
             else:
-                delta_type = getattr(delta, "type", "text_delta")
+                delta_type_value = getattr(delta, "type", "text_delta")
+                delta_type = (
+                    delta_type_value
+                    if delta_type_value
+                    in ("text_delta", "thinking_delta", "input_json_delta")
+                    else "text_delta"
+                )
                 delta_schema = ContentDeltaSchema(
-                    type=delta_type,  # type: ignore[arg-type]
+                    type=delta_type,
                     text=(
                         getattr(delta, "text", None)
                         if delta_type == "text_delta"
@@ -358,7 +404,9 @@ class MessageHandler:
         """
         # Handle both dict (from StreamEvent) and object forms
         if isinstance(message, dict):
-            index = message.get("index", 0)
+            message_dict = cast("dict[str, object]", message)
+            index_value = message_dict.get("index", 0)
+            index = index_value if isinstance(index_value, int) else 0
         else:
             index = getattr(message, "index", 0)
 
