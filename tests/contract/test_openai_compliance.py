@@ -27,6 +27,7 @@ class TestOpenAIClientCompliance:
             base_url="http://localhost:54000/v1",
         )
 
+    @pytest.mark.e2e
     def test_openai_client_basic_completion(self, client: OpenAI) -> None:
         """Test basic chat completion using OpenAI Python client.
 
@@ -76,6 +77,7 @@ class TestOpenAIClientCompliance:
         # Validate timestamp
         assert response.created > 0, "Created timestamp should be positive"
 
+    @pytest.mark.e2e
     def test_openai_client_streaming_completion(self, client: OpenAI) -> None:
         """Test streaming chat completion using OpenAI Python client.
 
@@ -144,6 +146,7 @@ class TestOpenAIClientCompliance:
         completion_ids = {chunk.id for chunk in chunks}
         assert len(completion_ids) == 1, "All chunks should have the same completion ID"
 
+    @pytest.mark.e2e
     def test_openai_client_handles_errors(self, client: OpenAI) -> None:
         """Test OpenAI client error handling.
 

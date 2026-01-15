@@ -9,10 +9,13 @@ from apps.api.adapters.cache import RedisCache
 from apps.api.services.session import SessionService
 
 
-@pytest.mark.unit
+@pytest.mark.e2e
 @pytest.mark.anyio
 async def test_concurrent_session_updates_with_distributed_lock() -> None:
-    """Test that concurrent updates to same session are serialized with lock."""
+    """Test that concurrent updates to same session are serialized with lock.
+
+    Requires real Redis infrastructure, so marked as e2e.
+    """
     from datetime import UTC, datetime
 
     from apps.api.config import get_settings
