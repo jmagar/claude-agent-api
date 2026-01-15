@@ -176,7 +176,7 @@ After POC validated, write comprehensive tests FIRST (RED), then ensure implemen
   - **Verify**: `uv run pytest tests/unit/services/test_mcp_config_loader.py -v` still all PASSED
   - **Commit**: `refactor(mcp): clean up config loader implementation`
 
-- [ ] 2.6 [VERIFY] Quality checkpoint: `uv run ruff check . && uv run ty check && uv run pytest tests/unit/services/test_mcp_config_loader.py`
+- [x] 2.6 [VERIFY] Quality checkpoint: `uv run ruff check . && uv run ty check && uv run pytest tests/unit/services/test_mcp_config_loader.py`
   - **Do**: Run quality checks and verify all config loader tests pass
   - **Verify**: All commands exit 0
   - **Done when**: Lint clean, types clean, tests green
