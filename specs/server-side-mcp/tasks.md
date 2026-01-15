@@ -345,7 +345,7 @@ End-to-end validation with real services, backward compatibility verification.
 
 ### 3.1 Integration Tests
 
-- [ ] 3.1 Write integration test for application config injection
+- [x] 3.1 Write integration test for application config injection
   - **Do**: Create `tests/integration/test_server_side_mcp.py`. Write `test_application_mcp_servers_injected_into_query()` that creates `.mcp-server-config.json`, sends query with null mcp_servers, verifies server-side configs injected into SDK options. Use real file system and Redis.
   - **Files**: `tests/integration/test_server_side_mcp.py`
   - **Done when**: Test verifies application-level injection works end-to-end
