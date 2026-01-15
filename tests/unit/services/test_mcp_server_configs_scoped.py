@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from apps.api.services.mcp_server_configs import McpServerConfigService, McpServerRecord
+from apps.api.services.mcp_server_configs import McpServerConfigService
 
 
 @pytest.fixture
@@ -62,9 +62,8 @@ async def test_list_servers_for_api_key_isolation(
     service: McpServerConfigService, mock_cache: AsyncMock
 ) -> None:
     """Test that listing servers for one API key doesn't return another's servers."""
-    # GIVEN two different API keys with servers
+    # GIVEN an API key with servers
     api_key_1 = "tenant-1"
-    api_key_2 = "tenant-2"
 
     # Mock cache returns for api_key_1
     mock_cache.set_members = AsyncMock(return_value={"server-a"})
