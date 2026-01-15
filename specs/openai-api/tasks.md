@@ -671,7 +671,7 @@ Focus: Build HTTP layer with test-first approach.
 
 ---
 
-- [x] ### Task 2.3: [VERIFY] Quality checkpoint 3
+### Task 2.3: [VERIFY] Quality checkpoint 3 ✓
 
 **Do**: Run quality checks on middleware and streaming
 
@@ -686,7 +686,7 @@ Focus: Build HTTP layer with test-first approach.
 
 ---
 
-- [x] ### Task 2.4: Integration test - Non-streaming chat completions
+### Task 2.4: Integration test - Non-streaming chat completions ✓
 
 **RED - Write Test**:
 1. Create `tests/integration/test_openai_chat.py`
@@ -846,7 +846,7 @@ Focus: Build HTTP layer with test-first approach.
 
 ---
 
-### Task 2.8: [VERIFY] Quality checkpoint 4
+### Task 2.8: [VERIFY] Quality checkpoint 4 ✓
 
 **Do**: Run quality checks on routes and integration tests
 
