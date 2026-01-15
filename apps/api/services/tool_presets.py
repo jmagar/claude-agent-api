@@ -85,7 +85,9 @@ class ToolPresetService:
                     name=str(raw.get("name", "")),
                     description=cast("str | None", raw.get("description")),
                     allowed_tools=list(cast("list[str]", raw.get("allowed_tools", []))),
-                    disallowed_tools=list(cast("list[str]", raw.get("disallowed_tools", []))),
+                    disallowed_tools=list(
+                        cast("list[str]", raw.get("disallowed_tools", []))
+                    ),
                     is_system=bool(raw.get("is_system", False)),
                     created_at=str(raw.get("created_at", "")),
                 )

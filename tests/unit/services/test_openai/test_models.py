@@ -8,11 +8,13 @@ from apps.api.services.openai.models import ModelMapper
 @pytest.fixture
 def mapper() -> ModelMapper:
     """Fixture returning ModelMapper with test configuration."""
-    return ModelMapper({
-        "gpt-4": "sonnet",
-        "gpt-3.5-turbo": "haiku",
-        "gpt-4o": "opus",
-    })
+    return ModelMapper(
+        {
+            "gpt-4": "sonnet",
+            "gpt-3.5-turbo": "haiku",
+            "gpt-4o": "opus",
+        }
+    )
 
 
 class TestModelMapper:

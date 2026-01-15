@@ -38,7 +38,9 @@ class TestRequestTranslator:
         assert result.prompt == "USER: Hello\n\n"
         assert result.model == "sonnet"
 
-    def test_translate_system_message_extraction(self, model_mapper: ModelMapper) -> None:
+    def test_translate_system_message_extraction(
+        self, model_mapper: ModelMapper
+    ) -> None:
         """Test extraction of system message to system_prompt field.
 
         Given: messages=[{"role": "system", "content": "You are helpful"}, {"role": "user", "content": "Hello"}]
@@ -290,7 +292,11 @@ def mock_single_query_response() -> object:
     Returns:
         Mock SingleQueryResponse with basic text content
     """
-    from apps.api.schemas.responses import ContentBlockSchema, SingleQueryResponse, UsageSchema
+    from apps.api.schemas.responses import (
+        ContentBlockSchema,
+        SingleQueryResponse,
+        UsageSchema,
+    )
 
     return SingleQueryResponse(
         session_id="test-session-123",
@@ -307,9 +313,7 @@ def mock_single_query_response() -> object:
 class TestResponseTranslator:
     """Test suite for ResponseTranslator."""
 
-    def test_translate_basic_response(
-        self, mock_single_query_response: object
-    ) -> None:
+    def test_translate_basic_response(self, mock_single_query_response: object) -> None:
         """Test translating basic SingleQueryResponse to OpenAI format.
 
         Given: Mock SingleQueryResponse with content=[{"type": "text", "text": "Hello!"}], model="sonnet"
@@ -331,13 +335,16 @@ class TestResponseTranslator:
 
         # Then
         assert result["choices"][0]["message"]["content"] == "Hello!"
-        assert result["model"] == "sonnet"  # Returns actual Claude model name from response
+        assert (
+            result["model"] == "sonnet"
+        )  # Returns actual Claude model name from response
         assert result["object"] == "chat.completion"
         assert result["id"].startswith("chatcmpl-")
         # Verify ID is valid UUID format (chatcmpl- prefix + UUID)
         assert len(result["id"]) > len("chatcmpl-")
         # Verify created timestamp is reasonable (within last hour)
         import time
+
         now = int(time.time())
         assert abs(result["created"] - now) < 3600
 
@@ -351,7 +358,11 @@ class TestResponseTranslator:
         Then: Assert result["usage"]["total_tokens"] == 30
         """
         # Import here to match other tests
-        from apps.api.schemas.responses import ContentBlockSchema, SingleQueryResponse, UsageSchema
+        from apps.api.schemas.responses import (
+            ContentBlockSchema,
+            SingleQueryResponse,
+            UsageSchema,
+        )
         from apps.api.services.openai.translator import ResponseTranslator
 
         # Given
@@ -383,7 +394,11 @@ class TestResponseTranslator:
         Then: Assert result["choices"][0]["finish_reason"] == "stop"
         """
         # Import here to match other tests
-        from apps.api.schemas.responses import ContentBlockSchema, SingleQueryResponse, UsageSchema
+        from apps.api.schemas.responses import (
+            ContentBlockSchema,
+            SingleQueryResponse,
+            UsageSchema,
+        )
         from apps.api.services.openai.translator import ResponseTranslator
 
         # Given
@@ -413,7 +428,11 @@ class TestResponseTranslator:
         Then: Assert result["choices"][0]["finish_reason"] == "length"
         """
         # Import here to match other tests
-        from apps.api.schemas.responses import ContentBlockSchema, SingleQueryResponse, UsageSchema
+        from apps.api.schemas.responses import (
+            ContentBlockSchema,
+            SingleQueryResponse,
+            UsageSchema,
+        )
         from apps.api.services.openai.translator import ResponseTranslator
 
         # Given
@@ -443,7 +462,11 @@ class TestResponseTranslator:
         Then: Assert result["choices"][0]["finish_reason"] == "error"
         """
         # Import here to match other tests
-        from apps.api.schemas.responses import ContentBlockSchema, SingleQueryResponse, UsageSchema
+        from apps.api.schemas.responses import (
+            ContentBlockSchema,
+            SingleQueryResponse,
+            UsageSchema,
+        )
         from apps.api.services.openai.translator import ResponseTranslator
 
         # Given
@@ -473,7 +496,11 @@ class TestResponseTranslator:
         Then: Assert result["choices"][0]["finish_reason"] == "stop"
         """
         # Import here to match other tests
-        from apps.api.schemas.responses import ContentBlockSchema, SingleQueryResponse, UsageSchema
+        from apps.api.schemas.responses import (
+            ContentBlockSchema,
+            SingleQueryResponse,
+            UsageSchema,
+        )
         from apps.api.services.openai.translator import ResponseTranslator
 
         # Given
@@ -503,7 +530,11 @@ class TestResponseTranslator:
         Then: Assert message.content == "Hello World" (concatenated with space)
         """
         # Import here to match other tests
-        from apps.api.schemas.responses import ContentBlockSchema, SingleQueryResponse, UsageSchema
+        from apps.api.schemas.responses import (
+            ContentBlockSchema,
+            SingleQueryResponse,
+            UsageSchema,
+        )
         from apps.api.services.openai.translator import ResponseTranslator
 
         # Given
@@ -536,7 +567,11 @@ class TestResponseTranslator:
         Then: Assert message.content == "Hello" (thinking ignored)
         """
         # Import here to match other tests
-        from apps.api.schemas.responses import ContentBlockSchema, SingleQueryResponse, UsageSchema
+        from apps.api.schemas.responses import (
+            ContentBlockSchema,
+            SingleQueryResponse,
+            UsageSchema,
+        )
         from apps.api.services.openai.translator import ResponseTranslator
 
         # Given
@@ -568,9 +603,13 @@ class TestResponseTranslator:
         When: translator.translate(request)
         Then: Assert system_prompt set, QueryRequest creation fails due to empty prompt validation
         """
-        from apps.api.schemas.openai.requests import ChatCompletionRequest, OpenAIMessage
-        from apps.api.services.openai.translator import RequestTranslator
         from pydantic import ValidationError
+
+        from apps.api.schemas.openai.requests import (
+            ChatCompletionRequest,
+            OpenAIMessage,
+        )
+        from apps.api.services.openai.translator import RequestTranslator
 
         # Given
         request = ChatCompletionRequest(
@@ -597,7 +636,10 @@ class TestResponseTranslator:
         When: translator.translate(request)
         Then: Assert prompt contains full long message
         """
-        from apps.api.schemas.openai.requests import ChatCompletionRequest, OpenAIMessage
+        from apps.api.schemas.openai.requests import (
+            ChatCompletionRequest,
+            OpenAIMessage,
+        )
         from apps.api.services.openai.translator import RequestTranslator
 
         # Given
@@ -659,7 +701,11 @@ class TestResponseTranslator:
         When: translator.translate(response)
         Then: Assert finish_reason defaults to "stop"
         """
-        from apps.api.schemas.responses import ContentBlockSchema, SingleQueryResponse, UsageSchema
+        from apps.api.schemas.responses import (
+            ContentBlockSchema,
+            SingleQueryResponse,
+            UsageSchema,
+        )
         from apps.api.services.openai.translator import ResponseTranslator
 
         # Given - Response with None stop_reason

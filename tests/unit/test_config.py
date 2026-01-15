@@ -181,7 +181,6 @@ class TestSettings:
             assert "53380" in settings.redis_url
 
 
-
 class TestGetSettings:
     """Tests for get_settings function."""
 

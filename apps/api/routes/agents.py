@@ -19,7 +19,9 @@ async def list_agents(
     """<summary>List all agents.</summary>"""
     service = AgentService(cache)
     agents = await service.list_agents()
-    return AgentListResponse(agents=[AgentDefinitionResponse(**a.__dict__) for a in agents])
+    return AgentListResponse(
+        agents=[AgentDefinitionResponse(**a.__dict__) for a in agents]
+    )
 
 
 @router.post("", response_model=AgentDefinitionResponse, status_code=201)

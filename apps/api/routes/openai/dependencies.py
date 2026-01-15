@@ -16,16 +16,12 @@ def get_model_mapper() -> ModelMapper:
     """
     # Default mapping if not configured
     # TODO: Make this configurable via settings in the future
-    mapping = {
-        "gpt-4": "sonnet",
-        "gpt-3.5-turbo": "haiku",
-        "gpt-4o": "opus"
-    }
+    mapping = {"gpt-4": "sonnet", "gpt-3.5-turbo": "haiku", "gpt-4o": "opus"}
     return ModelMapper(mapping)
 
 
 def get_request_translator(
-    model_mapper: Annotated[ModelMapper, Depends(get_model_mapper)]
+    model_mapper: Annotated[ModelMapper, Depends(get_model_mapper)],
 ) -> RequestTranslator:
     """Get RequestTranslator instance.
 

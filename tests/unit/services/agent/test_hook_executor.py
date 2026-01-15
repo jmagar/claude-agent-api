@@ -149,7 +149,7 @@ class TestStop:
         )
         mock_webhook_service.execute_hook.return_value = {"acknowledged": True}
 
-        result = await hook_executor.execute_stop(
+        await hook_executor.execute_stop(
             hooks_config,
             session_id="test-session-789",
             is_error=False,
@@ -186,7 +186,7 @@ class TestSubagentStop:
         )
         mock_webhook_service.execute_hook.return_value = {"acknowledged": True}
 
-        result = await hook_executor.execute_subagent_stop(
+        await hook_executor.execute_subagent_stop(
             hooks_config,
             session_id="test-session-sub",
             subagent_name="code-reviewer",

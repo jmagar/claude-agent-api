@@ -145,10 +145,7 @@ class McpDiscoveryService:
             config = json.loads(content)
 
             # Handle wrapped format
-            if "mcpServers" in config:
-                raw_servers = config["mcpServers"]
-            else:
-                raw_servers = config
+            raw_servers = config.get("mcpServers", config)
 
             return self._parse_servers(raw_servers, str(path))
 
@@ -201,9 +198,7 @@ class McpDiscoveryService:
 
                 args_raw = config.get("args", [])
                 args: list[str] = (
-                    [str(a) for a in args_raw]
-                    if isinstance(args_raw, list)
-                    else []
+                    [str(a) for a in args_raw] if isinstance(args_raw, list) else []
                 )
 
                 url_raw = config.get("url")
@@ -262,7 +257,5 @@ class McpDiscoveryService:
         disabled = set(disabled_servers or [])
 
         return {
-            name: server
-            for name, server in all_servers.items()
-            if name not in disabled
+            name: server for name, server in all_servers.items() if name not in disabled
         }

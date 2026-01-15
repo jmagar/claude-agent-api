@@ -127,9 +127,12 @@ class QueryExecutor:
                         session_id=ctx.session_id,
                         image_count=len(request.images),
                     )
+
                     # Pass multimodal content to SDK
                     # SDK requires AsyncIterable, so convert list to async generator
-                    async def content_generator() -> AsyncGenerator[dict[str, str | dict[str, str]], None]:
+                    async def content_generator() -> AsyncGenerator[
+                        dict[str, str | dict[str, str]], None
+                    ]:
                         for item in content:
                             yield item
 

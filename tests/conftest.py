@@ -147,7 +147,9 @@ async def _async_client(async_client: AsyncClient) -> AsyncClient:
 
 
 @pytest.fixture(autouse=True)
-def enforce_claude_sdk_policy(request: pytest.FixtureRequest) -> Generator[None, None, None]:
+def enforce_claude_sdk_policy(
+    request: pytest.FixtureRequest,
+) -> Generator[None, None, None]:
     """Mock Claude SDK for non-e2e tests and guard against real calls."""
     is_e2e = request.node.get_closest_marker("e2e") is not None
     allow_real = _is_truthy(os.environ.get(ALLOW_REAL_CLAUDE_ENV))
@@ -170,6 +172,7 @@ def enforce_claude_sdk_policy(request: pytest.FixtureRequest) -> Generator[None,
             "Real Claude SDK client detected outside e2e. "
             f"Mark the test with @pytest.mark.e2e and set {ALLOW_REAL_CLAUDE_ENV}=true."
         )
+
 
 @pytest.fixture
 def sample_query_request() -> dict[str, str | list[str]]:
@@ -215,7 +218,9 @@ async def mock_session_id(_async_client: AsyncClient, test_api_key: str) -> str:
 
 
 @pytest.fixture
-async def mock_active_session_id(_async_client: AsyncClient) -> AsyncGenerator[str, None]:
+async def mock_active_session_id(
+    _async_client: AsyncClient,
+) -> AsyncGenerator[str, None]:
     """Create a mock active session that can be interrupted.
 
     Creates a session and registers it with the agent service as active.

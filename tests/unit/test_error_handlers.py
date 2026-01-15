@@ -5,14 +5,16 @@ and generic exceptions with proper error response formatting.
 """
 
 import json
-from collections.abc import Awaitable, Callable
-from typing import cast
+from typing import TYPE_CHECKING, cast
 from unittest.mock import Mock
 
 import pytest
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from httpx import AsyncClient
+
+if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
 
 
 def decode_response_body(response: JSONResponse) -> dict[str, object]:
@@ -222,7 +224,7 @@ class TestTimeoutErrorHandler:
         # Cast to async handler type
         async_handler = cast(
             "Callable[[Request, TimeoutError], Awaitable[JSONResponse]]",
-            timeout_handler
+            timeout_handler,
         )
 
         # Create mock request and timeout exception
@@ -261,7 +263,7 @@ class TestTimeoutErrorHandler:
         # Cast to async handler type
         async_handler = cast(
             "Callable[[Request, TimeoutError], Awaitable[JSONResponse]]",
-            timeout_handler
+            timeout_handler,
         )
 
         # Create mock request and timeout exception
@@ -301,8 +303,7 @@ class TestGeneralExceptionHandler:
 
         # Cast to async handler type
         async_handler = cast(
-            "Callable[[Request, Exception], Awaitable[JSONResponse]]",
-            general_handler
+            "Callable[[Request, Exception], Awaitable[JSONResponse]]", general_handler
         )
 
         # Create mock request and generic exception
@@ -349,7 +350,7 @@ class TestGeneralExceptionHandler:
             # Cast to async handler type
             async_handler = cast(
                 "Callable[[Request, Exception], Awaitable[JSONResponse]]",
-                general_handler
+                general_handler,
             )
 
             # Create mock request and generic exception
@@ -398,7 +399,7 @@ class TestGeneralExceptionHandler:
             # Cast to async handler type
             async_handler = cast(
                 "Callable[[Request, Exception], Awaitable[JSONResponse]]",
-                general_handler
+                general_handler,
             )
 
             # Create mock request and generic exception

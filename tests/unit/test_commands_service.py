@@ -31,8 +31,7 @@ Arguments: $ARGUMENTS
         assert commands[0]["path"] == str(command_file)
 
     def test_discover_commands_returns_empty_when_no_directory(
-        self,
-        tmp_path: Path
+        self, tmp_path: Path
     ) -> None:
         """Test discovering commands when .claude/commands/ doesn't exist."""
         service = CommandsService(project_path=tmp_path)

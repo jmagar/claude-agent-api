@@ -77,7 +77,9 @@ class McpServerConfigService:
             name=name,
             transport_type=transport_type,
             command=cast("str | None", config.get("command")),
-            args=list(cast("list[str]", config.get("args", []))) if config.get("args") is not None else None,
+            args=list(cast("list[str]", config.get("args", [])))
+            if config.get("args") is not None
+            else None,
             url=cast("str | None", config.get("url")),
             headers=cast("dict[str, str] | None", config.get("headers")),
             env=cast("dict[str, str] | None", config.get("env")),
@@ -122,16 +124,21 @@ class McpServerConfigService:
             command=cast("str | None", next_config.get("command", existing.command)),
             args=cast("list[str] | None", next_config.get("args", existing.args)),
             url=cast("str | None", next_config.get("url", existing.url)),
-            headers=cast("dict[str, str] | None", next_config.get("headers", existing.headers)),
+            headers=cast(
+                "dict[str, str] | None", next_config.get("headers", existing.headers)
+            ),
             env=cast("dict[str, str] | None", next_config.get("env", existing.env)),
             enabled=bool(next_config.get("enabled", existing.enabled)),
             status=str(next_config.get("status", existing.status)),
             error=cast("str | None", next_config.get("error", existing.error)),
             created_at=existing.created_at,
             updated_at=datetime.now(UTC).isoformat(),
-            metadata=cast("dict[str, Any] | None", next_config.get("metadata", existing.metadata)),
+            metadata=cast(
+                "dict[str, Any] | None", next_config.get("metadata", existing.metadata)
+            ),
             resources=cast(
-                "list[dict[str, Any]] | None", next_config.get("resources", existing.resources)
+                "list[dict[str, Any]] | None",
+                next_config.get("resources", existing.resources),
             ),
         )
 

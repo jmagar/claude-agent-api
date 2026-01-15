@@ -18,34 +18,36 @@ async def test_non_streaming_completion_basic(async_client: AsyncClient) -> None
     # Arrange
     request_data = {
         "model": "gpt-4",
-        "messages": [
-            {"role": "user", "content": "Hello, how are you?"}
-        ],
-        "stream": False
+        "messages": [{"role": "user", "content": "Hello, how are you?"}],
+        "stream": False,
     }
     headers = {
         "Authorization": "Bearer test-api-key-12345",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
     }
 
     # Act
     response = await async_client.post(
-        "/v1/chat/completions",
-        json=request_data,
-        headers=headers
+        "/v1/chat/completions", json=request_data, headers=headers
     )
 
     # Assert
-    assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+    assert response.status_code == 200, (
+        f"Expected 200, got {response.status_code}: {response.text}"
+    )
 
     data = response.json()
 
     # Verify OpenAI format structure
     assert "id" in data, "Response missing 'id' field"
-    assert data["id"].startswith("chatcmpl-"), f"ID should start with 'chatcmpl-', got: {data['id']}"
+    assert data["id"].startswith("chatcmpl-"), (
+        f"ID should start with 'chatcmpl-', got: {data['id']}"
+    )
 
     assert "object" in data, "Response missing 'object' field"
-    assert data["object"] == "chat.completion", f"Expected object='chat.completion', got: {data['object']}"
+    assert data["object"] == "chat.completion", (
+        f"Expected object='chat.completion', got: {data['object']}"
+    )
 
     assert "choices" in data, "Response missing 'choices' field"
     assert isinstance(data["choices"], list), "choices should be a list"
@@ -54,7 +56,9 @@ async def test_non_streaming_completion_basic(async_client: AsyncClient) -> None
     choice = data["choices"][0]
     assert "message" in choice, "Choice missing 'message' field"
     assert "content" in choice["message"], "Message missing 'content' field"
-    assert isinstance(choice["message"]["content"], str), "Message content should be a string"
+    assert isinstance(choice["message"]["content"], str), (
+        "Message content should be a string"
+    )
     assert len(choice["message"]["content"]) > 0, "Message content should not be empty"
 
     assert "usage" in data, "Response missing 'usage' field"
@@ -78,14 +82,12 @@ async def test_streaming_completion_basic(async_client: AsyncClient) -> None:
     # Arrange
     request_data = {
         "model": "gpt-4",
-        "messages": [
-            {"role": "user", "content": "Say hello"}
-        ],
-        "stream": True
+        "messages": [{"role": "user", "content": "Say hello"}],
+        "stream": True,
     }
     headers = {
         "Authorization": "Bearer test-api-key-12345",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
     }
 
     # Act - Use httpx_sse to handle SSE stream
@@ -106,6 +108,7 @@ async def test_streaming_completion_basic(async_client: AsyncClient) -> None:
                 continue
             # Parse JSON chunk
             import json
+
             chunk = json.loads(sse_event.data)
             chunks.append(chunk)
 
@@ -124,22 +127,28 @@ async def test_streaming_completion_basic(async_client: AsyncClient) -> None:
     first_choice = first_chunk["choices"][0]
     assert "delta" in first_choice, "First choice missing 'delta'"
     assert "role" in first_choice["delta"], "First delta missing 'role'"
-    assert first_choice["delta"]["role"] == "assistant", "First delta role should be 'assistant'"
+    assert first_choice["delta"]["role"] == "assistant", (
+        "First delta role should be 'assistant'"
+    )
 
     # Verify content chunks present (at least one chunk should have content)
     # NOTE: In real streaming, we'd get content chunks. In mock SDK, we may not
     # get partial events with content, but the streaming infrastructure should work
     content_chunks = [
-        c for c in data_chunks
+        c
+        for c in data_chunks
         if c.get("choices", [{}])[0].get("delta", {}).get("content") is not None
     ]
     # We assert that content chunks exist OR we're in mock mode (no content but still valid streaming)
     # The key validation is that streaming format is correct, not that mock SDK emits content
-    assert len(content_chunks) >= 0, "Content chunks list should be valid (empty is ok for mock SDK)"
+    assert len(content_chunks) >= 0, (
+        "Content chunks list should be valid (empty is ok for mock SDK)"
+    )
 
     # Verify final chunk has finish_reason
     finish_chunks = [
-        c for c in data_chunks
+        c
+        for c in data_chunks
         if c.get("choices", [{}])[0].get("finish_reason") is not None
     ]
     assert len(finish_chunks) > 0, "Should have at least one chunk with finish_reason"
@@ -147,9 +156,13 @@ async def test_streaming_completion_basic(async_client: AsyncClient) -> None:
     # Verify all chunks have consistent structure
     for chunk in data_chunks:
         assert "id" in chunk, "Chunk missing 'id'"
-        assert chunk["id"].startswith("chatcmpl-"), f"Chunk ID should start with 'chatcmpl-', got: {chunk['id']}"
+        assert chunk["id"].startswith("chatcmpl-"), (
+            f"Chunk ID should start with 'chatcmpl-', got: {chunk['id']}"
+        )
         assert "object" in chunk, "Chunk missing 'object'"
-        assert chunk["object"] == "chat.completion.chunk", f"Expected object='chat.completion.chunk', got: {chunk['object']}"
+        assert chunk["object"] == "chat.completion.chunk", (
+            f"Expected object='chat.completion.chunk', got: {chunk['object']}"
+        )
         assert "model" in chunk, "Chunk missing 'model'"
 
 
@@ -165,25 +178,23 @@ async def test_bearer_token_authentication(async_client: AsyncClient) -> None:
     # Arrange
     request_data = {
         "model": "gpt-4",
-        "messages": [
-            {"role": "user", "content": "Hello"}
-        ],
-        "stream": False
+        "messages": [{"role": "user", "content": "Hello"}],
+        "stream": False,
     }
     headers = {
         "Authorization": "Bearer test-api-key-12345",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
     }
 
     # Act
     response = await async_client.post(
-        "/v1/chat/completions",
-        json=request_data,
-        headers=headers
+        "/v1/chat/completions", json=request_data, headers=headers
     )
 
     # Assert
-    assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+    assert response.status_code == 200, (
+        f"Expected 200, got {response.status_code}: {response.text}"
+    )
     data = response.json()
     assert "id" in data, "Response should have id field"
     assert "choices" in data, "Response should have choices field"
@@ -201,25 +212,20 @@ async def test_x_api_key_still_works(async_client: AsyncClient) -> None:
     # Arrange
     request_data = {
         "model": "gpt-4",
-        "messages": [
-            {"role": "user", "content": "Hello"}
-        ],
-        "stream": False
+        "messages": [{"role": "user", "content": "Hello"}],
+        "stream": False,
     }
-    headers = {
-        "X-API-Key": "test-api-key-12345",
-        "Content-Type": "application/json"
-    }
+    headers = {"X-API-Key": "test-api-key-12345", "Content-Type": "application/json"}
 
     # Act
     response = await async_client.post(
-        "/v1/chat/completions",
-        json=request_data,
-        headers=headers
+        "/v1/chat/completions", json=request_data, headers=headers
     )
 
     # Assert
-    assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+    assert response.status_code == 200, (
+        f"Expected 200, got {response.status_code}: {response.text}"
+    )
     data = response.json()
     assert "id" in data, "Response should have id field"
     assert "choices" in data, "Response should have choices field"
@@ -236,10 +242,8 @@ async def test_no_auth_returns_401(async_client: AsyncClient) -> None:
     # Arrange
     request_data = {
         "model": "gpt-4",
-        "messages": [
-            {"role": "user", "content": "Hello"}
-        ],
-        "stream": False
+        "messages": [{"role": "user", "content": "Hello"}],
+        "stream": False,
     }
     headers = {
         "Content-Type": "application/json"
@@ -248,13 +252,13 @@ async def test_no_auth_returns_401(async_client: AsyncClient) -> None:
 
     # Act
     response = await async_client.post(
-        "/v1/chat/completions",
-        json=request_data,
-        headers=headers
+        "/v1/chat/completions", json=request_data, headers=headers
     )
 
     # Assert
-    assert response.status_code == 401, f"Expected 401, got {response.status_code}: {response.text}"
+    assert response.status_code == 401, (
+        f"Expected 401, got {response.status_code}: {response.text}"
+    )
 
 
 @pytest.mark.anyio
@@ -268,25 +272,23 @@ async def test_invalid_bearer_token_returns_401(async_client: AsyncClient) -> No
     # Arrange
     request_data = {
         "model": "gpt-4",
-        "messages": [
-            {"role": "user", "content": "Hello"}
-        ],
-        "stream": False
+        "messages": [{"role": "user", "content": "Hello"}],
+        "stream": False,
     }
     headers = {
         "Authorization": "Bearer invalid-token-xyz",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
     }
 
     # Act
     response = await async_client.post(
-        "/v1/chat/completions",
-        json=request_data,
-        headers=headers
+        "/v1/chat/completions", json=request_data, headers=headers
     )
 
     # Assert
-    assert response.status_code == 401, f"Expected 401, got {response.status_code}: {response.text}"
+    assert response.status_code == 401, (
+        f"Expected 401, got {response.status_code}: {response.text}"
+    )
 
 
 @pytest.mark.anyio
@@ -301,25 +303,23 @@ async def test_invalid_model_returns_400(async_client: AsyncClient) -> None:
     # Arrange
     request_data = {
         "model": "gpt-unknown-model",
-        "messages": [
-            {"role": "user", "content": "Hello"}
-        ],
-        "stream": False
+        "messages": [{"role": "user", "content": "Hello"}],
+        "stream": False,
     }
     headers = {
         "Authorization": "Bearer test-api-key-12345",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
     }
 
     # Act
     response = await async_client.post(
-        "/v1/chat/completions",
-        json=request_data,
-        headers=headers
+        "/v1/chat/completions", json=request_data, headers=headers
     )
 
     # Assert
-    assert response.status_code == 400, f"Expected 400, got {response.status_code}: {response.text}"
+    assert response.status_code == 400, (
+        f"Expected 400, got {response.status_code}: {response.text}"
+    )
 
     data = response.json()
     assert "error" in data, "Response missing 'error' field"
@@ -327,7 +327,9 @@ async def test_invalid_model_returns_400(async_client: AsyncClient) -> None:
 
     # Verify OpenAI error format
     assert "type" in error, "Error missing 'type' field"
-    assert error["type"] == "invalid_request_error", f"Expected type='invalid_request_error', got: {error['type']}"
+    assert error["type"] == "invalid_request_error", (
+        f"Expected type='invalid_request_error', got: {error['type']}"
+    )
 
     assert "message" in error, "Error missing 'message' field"
     assert isinstance(error["message"], str), "Error message should be a string"
@@ -349,22 +351,22 @@ async def test_empty_messages_returns_400(async_client: AsyncClient) -> None:
     request_data = {
         "model": "gpt-4",
         "messages": [],  # Empty messages
-        "stream": False
+        "stream": False,
     }
     headers = {
         "Authorization": "Bearer test-api-key-12345",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
     }
 
     # Act
     response = await async_client.post(
-        "/v1/chat/completions",
-        json=request_data,
-        headers=headers
+        "/v1/chat/completions", json=request_data, headers=headers
     )
 
     # Assert
-    assert response.status_code == 400, f"Expected 400, got {response.status_code}: {response.text}"
+    assert response.status_code == 400, (
+        f"Expected 400, got {response.status_code}: {response.text}"
+    )
 
     data = response.json()
     assert "error" in data, "Response missing 'error' field"
@@ -372,7 +374,9 @@ async def test_empty_messages_returns_400(async_client: AsyncClient) -> None:
 
     # Verify OpenAI error format
     assert "type" in error, "Error missing 'type' field"
-    assert error["type"] == "invalid_request_error", f"Expected type='invalid_request_error', got: {error['type']}"
+    assert error["type"] == "invalid_request_error", (
+        f"Expected type='invalid_request_error', got: {error['type']}"
+    )
 
     assert "message" in error, "Error missing 'message' field"
     assert isinstance(error["message"], str), "Error message should be a string"
@@ -392,32 +396,32 @@ async def test_error_format_is_openai_compatible(async_client: AsyncClient) -> N
     # Arrange - Trigger validation error with invalid model
     request_data = {
         "model": "invalid-model-xyz",
-        "messages": [
-            {"role": "user", "content": "Test"}
-        ],
-        "stream": False
+        "messages": [{"role": "user", "content": "Test"}],
+        "stream": False,
     }
     headers = {
         "Authorization": "Bearer test-api-key-12345",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
     }
 
     # Act
     response = await async_client.post(
-        "/v1/chat/completions",
-        json=request_data,
-        headers=headers
+        "/v1/chat/completions", json=request_data, headers=headers
     )
 
     # Assert - Should return 400 for invalid model
-    assert response.status_code == 400, f"Expected 400, got {response.status_code}: {response.text}"
+    assert response.status_code == 400, (
+        f"Expected 400, got {response.status_code}: {response.text}"
+    )
 
     data = response.json()
 
     # Verify top-level structure
     assert isinstance(data, dict), "Response should be a dictionary"
     assert "error" in data, "Response must have 'error' key"
-    assert len(data.keys()) == 1, "Response should ONLY contain 'error' key (OpenAI format)"
+    assert len(data.keys()) == 1, (
+        "Response should ONLY contain 'error' key (OpenAI format)"
+    )
 
     # Verify error object structure
     error = data["error"]
@@ -426,8 +430,12 @@ async def test_error_format_is_openai_compatible(async_client: AsyncClient) -> N
     # Verify required fields
     assert "type" in error, "error missing 'type' field"
     assert isinstance(error["type"], str), "error.type must be a string"
-    assert error["type"] in ["invalid_request_error", "authentication_error", "rate_limit_exceeded", "api_error"], \
-        f"error.type must be valid OpenAI error type, got: {error['type']}"
+    assert error["type"] in [
+        "invalid_request_error",
+        "authentication_error",
+        "rate_limit_exceeded",
+        "api_error",
+    ], f"error.type must be valid OpenAI error type, got: {error['type']}"
 
     assert "message" in error, "error missing 'message' field"
     assert isinstance(error["message"], str), "error.message must be a string"
@@ -438,7 +446,9 @@ async def test_error_format_is_openai_compatible(async_client: AsyncClient) -> N
 
 
 @pytest.mark.anyio
-async def test_streaming_handles_malformed_events_gracefully(async_client: AsyncClient) -> None:
+async def test_streaming_handles_malformed_events_gracefully(
+    async_client: AsyncClient,
+) -> None:
     """Test that streaming gracefully skips malformed SSE events.
 
     Verifies:
@@ -449,14 +459,12 @@ async def test_streaming_handles_malformed_events_gracefully(async_client: Async
     # Arrange
     request_data = {
         "model": "gpt-4",
-        "messages": [
-            {"role": "user", "content": "Hello"}
-        ],
-        "stream": True
+        "messages": [{"role": "user", "content": "Hello"}],
+        "stream": True,
     }
     headers = {
         "Authorization": "Bearer test-api-key-12345",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
     }
 
     # Act - Use httpx_sse to handle SSE stream
@@ -477,6 +485,7 @@ async def test_streaming_handles_malformed_events_gracefully(async_client: Async
                 continue
             # Parse JSON chunk
             import json
+
             try:
                 chunk = json.loads(sse_event.data)
                 chunks.append(chunk)

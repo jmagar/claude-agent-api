@@ -92,7 +92,7 @@ class TestBearerAuthMiddleware:
         """
         # Given: Request to /api/v1/* with Bearer token
         mock_request_api_v1_route.headers = {"Authorization": "Bearer sk-test-12345"}
-        original_headers = dict(mock_request_api_v1_route.headers)
+        dict(mock_request_api_v1_route.headers)
 
         # When: Middleware processes request
         middleware = BearerAuthMiddleware(app=MagicMock())

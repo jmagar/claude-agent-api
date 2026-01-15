@@ -103,9 +103,7 @@ class MockCache:
         """Check connectivity."""
         return True
 
-    async def get_many_json(
-        self, keys: list[str]
-    ) -> list[dict[str, JsonValue] | None]:
+    async def get_many_json(self, keys: list[str]) -> list[dict[str, JsonValue] | None]:
         """Get multiple JSON values (tracks call count)."""
         self.get_many_calls += 1
         return [self._store.get(key) for key in keys]
@@ -279,7 +277,9 @@ class TestSessionServiceListDbRepo:
             async def get_many_json(
                 self, keys: list[str]
             ) -> list[dict[str, JsonValue] | None]:
-                pytest.fail("get_many_json should not be used when db_repo is available")
+                pytest.fail(
+                    "get_many_json should not be used when db_repo is available"
+                )
 
         now = datetime.now(UTC)
         fake_session = FakeSessionModel(

@@ -1,10 +1,14 @@
 """Unit tests for OpenAI ErrorTranslator service."""
 
+from typing import TYPE_CHECKING
+
 import pytest
 
 from apps.api.exceptions.base import APIError
-from apps.api.schemas.openai.responses import OpenAIError
 from apps.api.services.openai.errors import ErrorTranslator
+
+if TYPE_CHECKING:
+    from apps.api.schemas.openai.responses import OpenAIError
 
 
 class TestErrorTranslator:

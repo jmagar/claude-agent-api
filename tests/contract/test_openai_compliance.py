@@ -103,12 +103,12 @@ class TestOpenAIClientCompliance:
 
         # Validate chunk structure
         for chunk in chunks:
-            assert chunk.id.startswith(
-                "chatcmpl-"
-            ), f"Invalid chunk ID format: {chunk.id}"
-            assert (
-                chunk.object == "chat.completion.chunk"
-            ), f"Invalid chunk object type: {chunk.object}"
+            assert chunk.id.startswith("chatcmpl-"), (
+                f"Invalid chunk ID format: {chunk.id}"
+            )
+            assert chunk.object == "chat.completion.chunk", (
+                f"Invalid chunk object type: {chunk.object}"
+            )
             assert chunk.model == "gpt-4", f"Model should be 'gpt-4', got {chunk.model}"
             assert chunk.created > 0, "Created timestamp should be positive"
             assert len(chunk.choices) == 1, "Should have exactly one choice"
@@ -119,9 +119,9 @@ class TestOpenAIClientCompliance:
         assert first_chunk.choices[0].delta.role == "assistant", (
             "First chunk should have role='assistant' in delta"
         )
-        assert (
-            first_chunk.choices[0].finish_reason is None
-        ), "First chunk should not have finish_reason"
+        assert first_chunk.choices[0].finish_reason is None, (
+            "First chunk should not have finish_reason"
+        )
 
         # Accumulate content from deltas
         accumulated_content = ""
@@ -142,9 +142,7 @@ class TestOpenAIClientCompliance:
 
         # All chunks should have same completion ID
         completion_ids = {chunk.id for chunk in chunks}
-        assert (
-            len(completion_ids) == 1
-        ), "All chunks should have the same completion ID"
+        assert len(completion_ids) == 1, "All chunks should have the same completion ID"
 
     def test_openai_client_handles_errors(self, client: OpenAI) -> None:
         """Test OpenAI client error handling.
@@ -166,9 +164,9 @@ class TestOpenAIClientCompliance:
                 messages=[{"role": "user", "content": "Hello"}],
             )
         error = exc_info.value
-        assert "invalid-model-xyz" in str(error).lower() or "model" in str(error).lower(), (
-            "Error message should mention the invalid model"
-        )
+        assert (
+            "invalid-model-xyz" in str(error).lower() or "model" in str(error).lower()
+        ), "Error message should mention the invalid model"
 
         # Test authentication failure
         bad_auth_client = OpenAI(

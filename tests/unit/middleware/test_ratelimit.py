@@ -48,9 +48,7 @@ def mock_settings_trusted_proxy(monkeypatch: pytest.MonkeyPatch) -> None:
             rate_limit_general_per_minute=100,
         )
 
-    monkeypatch.setattr(
-        "apps.api.middleware.ratelimit.get_settings", mock_get_settings
-    )
+    monkeypatch.setattr("apps.api.middleware.ratelimit.get_settings", mock_get_settings)
 
 
 @pytest.fixture
@@ -70,9 +68,7 @@ def mock_settings_no_proxy(monkeypatch: pytest.MonkeyPatch) -> None:
             rate_limit_general_per_minute=100,
         )
 
-    monkeypatch.setattr(
-        "apps.api.middleware.ratelimit.get_settings", mock_get_settings
-    )
+    monkeypatch.setattr("apps.api.middleware.ratelimit.get_settings", mock_get_settings)
 
 
 class TestClientIPExtraction:

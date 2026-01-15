@@ -132,7 +132,9 @@ class TestSDKErrorHandling:
             # Create error with line attribute
             try:
                 # Try with both arguments
-                error = CLIJSONDecodeError("Failed to parse JSON", Exception("original error"))
+                error = CLIJSONDecodeError(
+                    "Failed to parse JSON", Exception("original error")
+                )
             except TypeError:
                 # Fall back to single argument
                 error = CLIJSONDecodeError("Failed to parse JSON")  # type: ignore[call-arg]

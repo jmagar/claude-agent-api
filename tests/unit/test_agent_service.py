@@ -122,10 +122,12 @@ class TestAgentService:
         request = QueryRequest(
             prompt="Test",
             hooks=HooksConfigSchema(
-                PreToolUse=HookWebhookSchema.model_validate({
-                    "url": "https://example.com/hook",
-                    "timeout": 30,
-                })
+                PreToolUse=HookWebhookSchema.model_validate(
+                    {
+                        "url": "https://example.com/hook",
+                        "timeout": 30,
+                    }
+                )
             ),
         )
         assert request.hooks is not None
@@ -496,7 +498,9 @@ class TestPermissionModeHandling:
 
     def test_all_permission_modes_are_valid_literals(self) -> None:
         """Test that all permission modes match the Literal type definition."""
-        valid_modes: list[Literal["default", "acceptEdits", "plan", "bypassPermissions"]] = [
+        valid_modes: list[
+            Literal["default", "acceptEdits", "plan", "bypassPermissions"]
+        ] = [
             "default",
             "acceptEdits",
             "plan",
@@ -512,10 +516,12 @@ class TestPermissionModeHandling:
     def test_invalid_permission_mode_raises_validation_error(self) -> None:
         """Test that invalid permission mode raises validation error."""
         with pytest.raises(ValueError):
-            QueryRequest.model_validate({
-                "prompt": "Test",
-                "permission_mode": "invalid_mode",
-            })
+            QueryRequest.model_validate(
+                {
+                    "prompt": "Test",
+                    "permission_mode": "invalid_mode",
+                }
+            )
 
     def test_build_options_with_all_permission_params(self) -> None:
         """Test building options with all permission-related parameters."""
@@ -862,7 +868,11 @@ class TestQueryStreamSessionIds:
                 type="tool_use",
                 id="tool-456",
                 name="Edit",
-                input={"file_path": "/path/to/edited.py", "old_string": "x", "new_string": "y"},
+                input={
+                    "file_path": "/path/to/edited.py",
+                    "old_string": "x",
+                    "new_string": "y",
+                },
             )
         ]
 
@@ -911,12 +921,14 @@ class TestQueryStreamSessionIds:
 
         # Create mock checkpoint service
         mock_checkpoint_service = AsyncMock(spec=CheckpointService)
-        mock_checkpoint_service.create_checkpoint = AsyncMock(return_value=MagicMock(
-            id="checkpoint-123",
-            session_id="test-session",
-            user_message_uuid="user-msg-uuid-456",
-            files_modified=["/path/to/file.py"],
-        ))
+        mock_checkpoint_service.create_checkpoint = AsyncMock(
+            return_value=MagicMock(
+                id="checkpoint-123",
+                session_id="test-session",
+                user_message_uuid="user-msg-uuid-456",
+                files_modified=["/path/to/file.py"],
+            )
+        )
 
         service = AgentService(checkpoint_service=mock_checkpoint_service)
 

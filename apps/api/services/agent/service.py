@@ -185,11 +185,13 @@ class AgentService:
         mcp_server_status: list[dict[str, object]] = []
         if request.mcp_servers:
             for name, config in request.mcp_servers.items():
-                mcp_server_status.append({
-                    "name": name,
-                    "type": config.type,
-                    "status": "connected",  # Status is set to connected for display
-                })
+                mcp_server_status.append(
+                    {
+                        "name": name,
+                        "type": config.type,
+                        "status": "connected",  # Status is set to connected for display
+                    }
+                )
 
         # Emit init event
         init_event = self._stream_orchestrator.build_init_event(

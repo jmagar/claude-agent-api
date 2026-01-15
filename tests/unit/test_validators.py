@@ -148,8 +148,14 @@ class TestValidateModelName:
 
     def test_full_model_ids(self) -> None:
         """Test full model IDs are valid."""
-        assert validate_model_name("claude-sonnet-4-20250514") == "claude-sonnet-4-20250514"
-        assert validate_model_name("claude-3-5-sonnet-20241022") == "claude-3-5-sonnet-20241022"
+        assert (
+            validate_model_name("claude-sonnet-4-20250514")
+            == "claude-sonnet-4-20250514"
+        )
+        assert (
+            validate_model_name("claude-3-5-sonnet-20241022")
+            == "claude-3-5-sonnet-20241022"
+        )
 
     def test_invalid_empty_string(self) -> None:
         """Test empty string raises ValueError."""

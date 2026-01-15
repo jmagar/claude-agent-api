@@ -74,7 +74,7 @@ async def test_session_fallback_to_database_when_cache_miss(async_client: AsyncC
 
         # Create session directly in database (bypassing service layer)
         session_id = uuid4()
-        db_record = await repo.create(
+        await repo.create(
             session_id=session_id,
             model="sonnet",
             working_directory=None,
@@ -126,6 +126,7 @@ async def test_session_create_writes_to_both_db_and_cache(async_client: AsyncCli
 
         # Verify it's in PostgreSQL
         from uuid import UUID
+
         db_session_result = await repo.get(UUID(session_id))
         assert db_session_result is not None
         assert db_session_result.model == "opus"
@@ -135,7 +136,9 @@ async def test_session_create_writes_to_both_db_and_cache(async_client: AsyncCli
 
 @pytest.mark.integration
 @pytest.mark.anyio
-async def test_agent_service_uses_distributed_session_tracking(async_client: AsyncClient):
+async def test_agent_service_uses_distributed_session_tracking(
+    async_client: AsyncClient,
+):
     """Test that AgentService registers sessions in Redis during query execution."""
     from apps.api.dependencies import get_db
 
@@ -143,7 +146,7 @@ async def test_agent_service_uses_distributed_session_tracking(async_client: Asy
 
     async for db_session in get_db():
         repo = SessionRepository(db_session)
-        session_service = SessionService(cache=cache, db_repo=repo)
+        SessionService(cache=cache, db_repo=repo)
         agent_service = AgentService(cache=cache)
 
         session_id = str(uuid4())

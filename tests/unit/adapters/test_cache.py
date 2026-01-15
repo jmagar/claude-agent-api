@@ -197,7 +197,9 @@ class TestCacheBulkOperations:
 
         cache = RedisCache(mock_client)
 
-        result = await cache.get_many_json(["session:s1", "session:missing", "session:s2"])
+        result = await cache.get_many_json(
+            ["session:s1", "session:missing", "session:s2"]
+        )
 
         mock_client.mget.assert_called_once_with(
             "session:s1",
@@ -634,8 +636,12 @@ class TestCacheCreation:
             with patch("apps.api.adapters.cache.get_settings") as mock_settings:
                 # Use DIFFERENT values than hardcoded to verify they're actually used
                 mock_settings.return_value.redis_url = "redis://localhost:53380/0"
-                mock_settings.return_value.redis_max_connections = 100  # Different from 50
-                mock_settings.return_value.redis_socket_connect_timeout = 10  # Different from 5
+                mock_settings.return_value.redis_max_connections = (
+                    100  # Different from 50
+                )
+                mock_settings.return_value.redis_socket_connect_timeout = (
+                    10  # Different from 5
+                )
                 mock_settings.return_value.redis_socket_timeout = 15  # Different from 5
 
                 cache = await RedisCache.create()

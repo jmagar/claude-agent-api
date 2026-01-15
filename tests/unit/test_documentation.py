@@ -32,4 +32,6 @@ def test_readme_has_distributed_session_section():
 
     content = readme_path.read_text()
 
-    assert "Distributed Session" in content, "README should document distributed sessions"
+    assert "Distributed Session" in content, (
+        "README should document distributed sessions"
+    )

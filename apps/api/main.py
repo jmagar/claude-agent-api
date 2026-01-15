@@ -14,7 +14,7 @@ from pydantic import ValidationError as PydanticValidationError
 from apps.api import __version__
 from apps.api.config import get_settings
 from apps.api.dependencies import close_cache, close_db, init_cache, init_db
-from apps.api.exceptions import APIError, RequestTimeoutError, ValidationError
+from apps.api.exceptions import APIError, RequestTimeoutError
 from apps.api.middleware.auth import ApiKeyAuthMiddleware
 from apps.api.middleware.correlation import CorrelationIdMiddleware
 from apps.api.middleware.logging import RequestLoggingMiddleware, configure_logging

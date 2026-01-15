@@ -19,9 +19,7 @@ PUBLIC_PATHS = {
     "/openapi.json",
 }
 
-PUBLIC_PATH_PREFIXES = (
-    "/api/v1/mcp-servers/share/",
-)
+PUBLIC_PATH_PREFIXES = ("/api/v1/mcp-servers/share/",)
 
 
 class ApiKeyAuthMiddleware(BaseHTTPMiddleware):

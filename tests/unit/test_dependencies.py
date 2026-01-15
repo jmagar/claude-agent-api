@@ -4,6 +4,7 @@ Tests all FastAPI dependencies including authentication, service creation,
 and error handling for uninitialized resources.
 """
 
+import contextlib
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -409,9 +410,7 @@ class TestShutdownDependencies:
 
         GREEN: This test verifies normal operation.
         """
-        with patch(
-            "apps.api.dependencies.get_shutdown_manager"
-        ) as mock_get_manager:
+        with patch("apps.api.dependencies.get_shutdown_manager") as mock_get_manager:
             mock_manager = Mock(spec=ShutdownManager)
             mock_manager.is_shutting_down = False
             mock_get_manager.return_value = mock_manager
@@ -426,9 +425,7 @@ class TestShutdownDependencies:
 
         GREEN: This test verifies shutdown behavior.
         """
-        with patch(
-            "apps.api.dependencies.get_shutdown_manager"
-        ) as mock_get_manager:
+        with patch("apps.api.dependencies.get_shutdown_manager") as mock_get_manager:
             mock_manager = Mock(spec=ShutdownManager)
             mock_manager.is_shutting_down = True
             mock_get_manager.return_value = mock_manager
@@ -471,10 +468,8 @@ class TestDependencyIntegration:
         assert repo._db is session
 
         # Cleanup
-        try:
+        with contextlib.suppress(StopAsyncIteration):
             await session_gen.aclose()
-        except StopAsyncIteration:
-            pass
         await close_db()
 
     @pytest.mark.anyio

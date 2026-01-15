@@ -1,19 +1,23 @@
 """Unit tests for OpenAI StreamingAdapter (TDD RED phase)."""
 
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
+from typing import TYPE_CHECKING
 
 import pytest
 
-from apps.api.schemas.openai.responses import OpenAIStreamChunk
 from apps.api.services.openai.streaming import StreamingAdapter
 from apps.api.types import (
-    ContentBlockDict,
     MessageEventDataDict,
     ResultEventDataDict,
 )
 
+if TYPE_CHECKING:
+    from apps.api.schemas.openai.responses import OpenAIStreamChunk
 
-async def mock_partial_events() -> AsyncGenerator[tuple[str, MessageEventDataDict], None]:
+
+async def mock_partial_events() -> AsyncGenerator[
+    tuple[str, MessageEventDataDict], None
+]:
     """Generate mock partial events for streaming."""
     # First partial with content
     yield (
@@ -104,7 +108,11 @@ async def test_yields_content_deltas_for_partials() -> None:
     assert len(chunks) >= 2
 
     # Check content deltas
-    content_chunks = [c for c in chunks if isinstance(c, dict) and "content" in c["choices"][0]["delta"]]
+    content_chunks = [
+        c
+        for c in chunks
+        if isinstance(c, dict) and "content" in c["choices"][0]["delta"]
+    ]
     assert len(content_chunks) >= 2
     assert content_chunks[0]["choices"][0]["delta"]["content"] == "Hello"
     assert content_chunks[1]["choices"][0]["delta"]["content"] == " World"
@@ -180,7 +188,9 @@ async def test_custom_completion_id() -> None:
 async def test_handles_partial_without_content() -> None:
     """Test handling of partial events without content field."""
 
-    async def mock_empty_partial() -> AsyncGenerator[tuple[str, MessageEventDataDict], None]:
+    async def mock_empty_partial() -> AsyncGenerator[
+        tuple[str, MessageEventDataDict], None
+    ]:
         """Generate partial event without content field."""
         yield (
             "partial",
@@ -206,7 +216,9 @@ async def test_handles_partial_without_content() -> None:
 async def test_handles_result_with_error() -> None:
     """Test handling of result event with is_error=True."""
 
-    async def mock_error_result() -> AsyncGenerator[tuple[str, ResultEventDataDict], None]:
+    async def mock_error_result() -> AsyncGenerator[
+        tuple[str, ResultEventDataDict], None
+    ]:
         """Generate result event with error."""
         yield (
             "result",
@@ -237,7 +249,9 @@ async def test_handles_result_with_error() -> None:
 async def test_handles_non_text_content_blocks() -> None:
     """Test handling of partial events with non-text content blocks."""
 
-    async def mock_mixed_content() -> AsyncGenerator[tuple[str, MessageEventDataDict], None]:
+    async def mock_mixed_content() -> AsyncGenerator[
+        tuple[str, MessageEventDataDict], None
+    ]:
         """Generate partial event with mixed content types."""
         yield (
             "partial",
@@ -258,7 +272,11 @@ async def test_handles_non_text_content_blocks() -> None:
         chunks.append(chunk)
 
     # Should only yield text content, not thinking or tool_use
-    content_chunks = [c for c in chunks if isinstance(c, dict) and "content" in c["choices"][0]["delta"]]
+    content_chunks = [
+        c
+        for c in chunks
+        if isinstance(c, dict) and "content" in c["choices"][0]["delta"]
+    ]
     assert len(content_chunks) == 1
     assert content_chunks[0]["choices"][0]["delta"]["content"] == "Hello"
 
@@ -267,7 +285,9 @@ async def test_handles_non_text_content_blocks() -> None:
 async def test_handles_empty_stream() -> None:
     """Test handling of empty stream (no events)."""
 
-    async def mock_empty_stream() -> AsyncGenerator[tuple[str, MessageEventDataDict | ResultEventDataDict], None]:
+    async def mock_empty_stream() -> AsyncGenerator[
+        tuple[str, MessageEventDataDict | ResultEventDataDict], None
+    ]:
         """Generate empty stream."""
         # Yield nothing
         return

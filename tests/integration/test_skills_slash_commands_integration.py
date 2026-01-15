@@ -121,10 +121,7 @@ Content""")
     monkeypatch.chdir(tmp_path)
 
     # Get skills via API
-    skills_response = await async_client.get(
-        "/api/v1/skills",
-        headers=auth_headers
-    )
+    skills_response = await async_client.get("/api/v1/skills", headers=auth_headers)
     skills_data = skills_response.json()
 
     # Start agent query
@@ -252,10 +249,7 @@ Content""")
     monkeypatch.chdir(tmp_path)
 
     # Get skills via API
-    skills_response = await async_client.get(
-        "/api/v1/skills",
-        headers=auth_headers
-    )
+    skills_response = await async_client.get("/api/v1/skills", headers=auth_headers)
     skills_data = skills_response.json()
 
     # Only valid skill should be returned

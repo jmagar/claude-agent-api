@@ -27,7 +27,9 @@ router = APIRouter(prefix="/chat", tags=["openai"])
 async def create_chat_completion(
     request: ChatCompletionRequest,
     request_translator: Annotated[RequestTranslator, Depends(get_request_translator)],
-    response_translator: Annotated[ResponseTranslator, Depends(get_response_translator)],
+    response_translator: Annotated[
+        ResponseTranslator, Depends(get_response_translator)
+    ],
     agent_service: Annotated[AgentService, Depends(get_agent_service)],
 ) -> OpenAIChatCompletion | EventSourceResponse:
     """Create a chat completion in OpenAI format.
@@ -105,6 +107,8 @@ async def create_chat_completion(
         response = SingleQueryResponse.model_validate(response_dict)
 
         # Translate Claude response to OpenAI format
-        openai_response = response_translator.translate(response, original_model=request.model)
+        openai_response = response_translator.translate(
+            response, original_model=request.model
+        )
 
         return openai_response

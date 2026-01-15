@@ -15,8 +15,14 @@ from httpx import AsyncClient
 
 def load_openapi_spec() -> dict[str, object]:
     """Load and parse the OpenAPI specification."""
-    spec_path = Path(__file__).parent.parent.parent / "specs" / "001-claude-agent-api" / "contracts" / "openapi.yaml"
-    with open(spec_path) as f:
+    spec_path = (
+        Path(__file__).parent.parent.parent
+        / "specs"
+        / "001-claude-agent-api"
+        / "contracts"
+        / "openapi.yaml"
+    )
+    with spec_path.open() as f:
         return yaml.safe_load(f)
 
 

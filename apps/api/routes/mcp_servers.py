@@ -129,7 +129,15 @@ async def list_mcp_servers(
             headers = server.get("headers", {})
             sanitized_env = _sanitize_mapping(
                 env,
-                ["api_key", "apikey", "secret", "password", "token", "auth", "credential"],
+                [
+                    "api_key",
+                    "apikey",
+                    "secret",
+                    "password",
+                    "token",
+                    "auth",
+                    "credential",
+                ],
             )
             sanitized_headers = _sanitize_mapping(
                 headers,
@@ -212,7 +220,15 @@ async def get_mcp_server(
             headers = server.get("headers", {})
             sanitized_env = _sanitize_mapping(
                 env,
-                ["api_key", "apikey", "secret", "password", "token", "auth", "credential"],
+                [
+                    "api_key",
+                    "apikey",
+                    "secret",
+                    "password",
+                    "token",
+                    "auth",
+                    "credential",
+                ],
             )
             sanitized_headers = _sanitize_mapping(
                 headers,
@@ -383,7 +399,9 @@ async def create_mcp_share(
     """Create and persist a share token for an MCP server."""
     service = McpShareService(cache)
     sanitized_config = sanitize_mcp_config(payload.config)
-    token, share_payload = await service.create_share(name=name, config=sanitized_config)
+    token, share_payload = await service.create_share(
+        name=name, config=sanitized_config
+    )
 
     return McpShareCreateResponse(
         share_token=token,

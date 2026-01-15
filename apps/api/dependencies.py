@@ -18,6 +18,7 @@ from apps.api.config import Settings, get_settings
 from apps.api.exceptions import AuthenticationError, ServiceUnavailableError
 from apps.api.services.agent import AgentService
 from apps.api.services.checkpoint import CheckpointService
+from apps.api.services.query_enrichment import QueryEnrichmentService
 from apps.api.services.session import SessionService
 from apps.api.services.shutdown import ShutdownManager, get_shutdown_manager
 from apps.api.services.skills import SkillsService
@@ -252,8 +253,6 @@ def get_query_enrichment_service() -> "QueryEnrichmentService":
     """
     from pathlib import Path
 
-    from apps.api.services.query_enrichment import QueryEnrichmentService
-
     # Use current working directory as project root
     project_path = Path.cwd()
     return QueryEnrichmentService(project_path=project_path)
@@ -269,8 +268,6 @@ SessionSvc = Annotated[SessionService, Depends(get_session_service)]
 CheckpointSvc = Annotated[CheckpointService, Depends(get_checkpoint_service)]
 SkillsSvc = Annotated[SkillsService, Depends(get_skills_service)]
 ShutdownState = Annotated[ShutdownManager, Depends(check_shutdown_state)]
-
-# Import for type alias
-from apps.api.services.query_enrichment import QueryEnrichmentService
-
-QueryEnrichment = Annotated[QueryEnrichmentService, Depends(get_query_enrichment_service)]
+QueryEnrichment = Annotated[
+    QueryEnrichmentService, Depends(get_query_enrichment_service)
+]

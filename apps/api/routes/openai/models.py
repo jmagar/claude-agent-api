@@ -13,7 +13,7 @@ router = APIRouter()
 
 @router.get("/models", response_model=None)
 async def list_models(
-    model_mapper: Annotated[ModelMapper, Depends(get_model_mapper)]
+    model_mapper: Annotated[ModelMapper, Depends(get_model_mapper)],
 ) -> OpenAIModelList:
     """List all available OpenAI-compatible models.
 
@@ -29,8 +29,7 @@ async def list_models(
 
 @router.get("/models/{model_id}", response_model=None)
 async def get_model(
-    model_id: str,
-    model_mapper: Annotated[ModelMapper, Depends(get_model_mapper)]
+    model_id: str, model_mapper: Annotated[ModelMapper, Depends(get_model_mapper)]
 ) -> OpenAIModelInfo:
     """Get information about a specific model.
 
