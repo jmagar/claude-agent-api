@@ -401,7 +401,7 @@ End-to-end validation with real services, backward compatibility verification.
   - **Commit**: `test(mcp): add contract test for backward compatibility`
   - _Requirements: AC-3.3, NFR-7_
 
-- [ ] 3.8 Write contract test for OpenAI compatibility
+- [x] 3.8 Write contract test for OpenAI compatibility
   - **Do**: Add `test_openai_endpoint_includes_server_side_mcp()` that sets up application config, sends request to `/v1/chat/completions`, verifies server-side MCP servers accessible (check logs or response metadata).
   - **Files**: `tests/contract/test_server_side_mcp_contract.py`
   - **Done when**: Test verifies OpenAI endpoint gets server-side configs
