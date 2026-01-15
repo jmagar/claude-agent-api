@@ -77,6 +77,40 @@ class RequestTranslator:
 
         return system_prompt, conversation_messages
 
+    def _concatenate_messages(self, messages: list[OpenAIMessage]) -> str:
+        """Concatenate user/assistant messages with role prefixes.
+
+        Converts list of OpenAI messages (user/assistant roles) into a single prompt
+        string with role prefixes. Each message is formatted as "ROLE: content\n\n".
+
+        Strategy:
+        - User messages → "USER: content\n\n"
+        - Assistant messages → "ASSISTANT: content\n\n"
+        - System messages should be filtered out before calling (use _separate_system_messages)
+
+        Edge cases handled:
+        - Empty message list returns empty string
+        - Empty content in message is preserved as "ROLE: \n\n"
+        - Role is uppercased for consistency
+
+        Args:
+            messages: List of OpenAI messages (typically user/assistant only)
+
+        Returns:
+            Concatenated prompt string with role prefixes
+        """
+        # Handle edge case: empty message list
+        if not messages:
+            return ""
+
+        # Concatenate messages with role prefixes
+        prompt_parts = []
+        for msg in messages:
+            role_upper = msg.role.upper()
+            prompt_parts.append(f"{role_upper}: {msg.content}\n\n")
+
+        return "".join(prompt_parts)
+
     def translate(self, request: ChatCompletionRequest) -> QueryRequest:
         """Translate OpenAI ChatCompletionRequest to Claude QueryRequest.
 
@@ -111,12 +145,7 @@ class RequestTranslator:
         )
 
         # Concatenate user/assistant messages with role prefixes
-        prompt_parts = []
-        for msg in conversation_messages:
-            role_upper = msg.role.upper()
-            prompt_parts.append(f"{role_upper}: {msg.content}\n\n")
-
-        prompt = "".join(prompt_parts)
+        prompt = self._concatenate_messages(conversation_messages)
 
         # Create QueryRequest with system_prompt if present
         # NOTE: We do NOT set max_turns when max_tokens is present because they have
