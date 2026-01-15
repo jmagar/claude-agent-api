@@ -361,7 +361,7 @@ End-to-end validation with real services, backward compatibility verification.
   - **Commit**: `test(mcp): add integration test for api-key override`
   - _Requirements: AC-2.4_
 
-- [ ] 3.3 Write integration test for request override
+- [x] 3.3 Write integration test for request override
   - **Do**: Add `test_request_mcp_servers_override_all()` that sets up application and API-key configs, sends request with mcp_servers dict, verifies request config used exclusively.
   - **Files**: `tests/integration/test_server_side_mcp.py`
   - **Done when**: Test verifies request tier has highest priority
