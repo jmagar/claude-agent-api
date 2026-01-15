@@ -145,3 +145,40 @@ class TestOpenAIClientCompliance:
         assert (
             len(completion_ids) == 1
         ), "All chunks should have the same completion ID"
+
+    def test_openai_client_handles_errors(self, client: OpenAI) -> None:
+        """Test OpenAI client error handling.
+
+        Validates:
+        - Invalid model raises proper OpenAI error
+        - Authentication failure raises AuthenticationError
+        - Error types are from openai module
+
+        Args:
+            client: OpenAI client from fixture
+        """
+        from openai import AuthenticationError, BadRequestError
+
+        # Test invalid model
+        with pytest.raises(BadRequestError) as exc_info:
+            client.chat.completions.create(
+                model="invalid-model-xyz",
+                messages=[{"role": "user", "content": "Hello"}],
+            )
+        error = exc_info.value
+        assert "invalid-model-xyz" in str(error).lower() or "model" in str(error).lower(), (
+            "Error message should mention the invalid model"
+        )
+
+        # Test authentication failure
+        bad_auth_client = OpenAI(
+            api_key="invalid-api-key-xyz",
+            base_url="http://localhost:54000/v1",
+        )
+        with pytest.raises(AuthenticationError) as exc_info:
+            bad_auth_client.chat.completions.create(
+                model="gpt-4",
+                messages=[{"role": "user", "content": "Hello"}],
+            )
+        error = exc_info.value
+        assert error.status_code == 401, "Authentication error should have 401 status"
