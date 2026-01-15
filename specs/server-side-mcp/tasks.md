@@ -108,7 +108,7 @@ Focus: Validate the three-tier configuration merge works end-to-end. Skip compre
   - **Commit**: `feat(mcp): add di providers for mcp config services`
   - _Design: Dependency Injection Pattern_
 
-- [ ] 1.12 Create example config file
+- [x] 1.12 Create example config file
   - **Do**: Create `.mcp-server-config.json.example` in project root with three example servers (stdio github, stdio postgres, sse slack). Include comments via JSON-compatible structure. Document `${VAR}` placeholder syntax. Set slack to `enabled: false` to show disabled example.
   - **Files**: `.mcp-server-config.json.example`
   - **Done when**: Example file demonstrates all transport types and env var usage
