@@ -368,7 +368,10 @@ class SessionService:
         page_size: int = 20,
         current_api_key: str | None = None,
     ) -> SessionListResult:
-        """List sessions with pagination using bulk cache reads.
+        """List sessions with pagination using bulk cache reads or DB repository.
+
+        When current_api_key is provided and db_repo is available, uses efficient
+        indexed DB query. Otherwise, falls back to cache scan.
 
         Args:
             page: Page number (1-indexed).
@@ -379,9 +382,62 @@ class SessionService:
         Returns:
             Paginated session list.
         """
+        # Use db_repo for owner-filtered queries (efficient indexed lookup)
+        if current_api_key is not None and self._db_repo is not None:
+            offset = (page - 1) * page_size
+            db_sessions, total = await self._db_repo.list_sessions(
+                owner_api_key=current_api_key,
+                limit=page_size,
+                offset=offset,
+            )
+            # Convert DB models to service Session objects
+            sessions = [
+                Session(
+                    id=str(s.id),
+                    created_at=s.created_at,
+                    updated_at=s.updated_at,
+                    status=s.status,
+                    model=s.model,
+                    total_turns=s.total_turns,
+                    total_cost_usd=float(s.total_cost_usd)
+                    if s.total_cost_usd
+                    else None,
+                    parent_session_id=str(s.parent_session_id)
+                    if s.parent_session_id
+                    else None,
+                    owner_api_key=s.owner_api_key,
+                )
+                for s in db_sessions
+            ]
+            return SessionListResult(
+                sessions=sessions,
+                total=total,
+                page=page,
+                page_size=page_size,
+            )
+
+        # Use owner index for cache-based owner filtering (efficient)
         sessions: list[Session] = []
 
-        if self._cache:
+        if self._cache and current_api_key is not None:
+            # Use owner index set to get session IDs for this owner
+            owner_index_key = f"session:owner:{current_api_key}"
+            session_ids = await self._cache.set_members(owner_index_key)
+
+            # Bulk fetch session data
+            keys = [self._cache_key(session_id) for session_id in session_ids]
+            cached_rows = await self._cache.get_many_json(keys)
+
+            # Parse sessions
+            for parsed in cached_rows:
+                if not parsed:
+                    continue
+                session = self._parse_cached_session(parsed)
+                if session:
+                    sessions.append(session)
+
+        elif self._cache:
+            # Fall back to full cache scan (only when no owner filter)
             pattern = "session:*"
             all_keys = await self._cache.scan_keys(pattern)
 
@@ -395,10 +451,6 @@ class SessionService:
                 session = self._parse_cached_session(parsed)
                 if session:
                     sessions.append(session)
-
-        # Filter by ownership if current_api_key is provided
-        if current_api_key is not None:
-            sessions = [s for s in sessions if s.owner_api_key == current_api_key]
 
         # Sort by created_at descending
         sessions.sort(key=lambda s: s.created_at, reverse=True)
@@ -527,7 +579,7 @@ class SessionService:
         return False
 
     async def _cache_session(self, session: Session) -> None:
-        """Cache a session in Redis.
+        """Cache a session in Redis and update owner index.
 
         Args:
             session: Session to cache.
@@ -549,6 +601,11 @@ class SessionService:
         }
 
         await self._cache.set_json(key, data, self._ttl)
+
+        # Maintain owner index for efficient owner-filtered queries
+        if session.owner_api_key:
+            owner_index_key = f"session:owner:{session.owner_api_key}"
+            await self._cache.add_to_set(owner_index_key, session.id)
 
     async def _get_cached_session(self, session_id: str) -> Session | None:
         """Get a session from cache.

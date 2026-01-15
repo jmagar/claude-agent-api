@@ -213,6 +213,28 @@ def create_app() -> FastAPI:
             content=api_error.to_dict(),
         )
 
+    def _serialize_validation_errors(errors: list[dict]) -> list[dict]:
+        """Convert Pydantic errors to JSON-serializable format.
+
+        Args:
+            errors: List of error dicts from Pydantic validation.
+
+        Returns:
+            List of sanitized error dicts safe for JSON serialization.
+        """
+        serialized = []
+        for error in errors:
+            serialized_error = {
+                "loc": error.get("loc", []),
+                "msg": error.get("msg", ""),
+                "type": error.get("type", ""),
+            }
+            # Convert ctx to strings if present (ValueError objects are not JSON serializable)
+            if "ctx" in error:
+                serialized_error["ctx"] = {k: str(v) for k, v in error["ctx"].items()}
+            serialized.append(serialized_error)
+        return serialized
+
     @app.exception_handler(RequestValidationError)
     async def request_validation_error_handler(
         request: Request,
@@ -249,7 +271,7 @@ def create_app() -> FastAPI:
         # For native endpoints, use FastAPI default format (422)
         return JSONResponse(
             status_code=422,
-            content={"detail": exc.errors()},
+            content={"detail": _serialize_validation_errors(exc.errors())},
         )
 
     @app.exception_handler(PydanticValidationError)
@@ -288,7 +310,7 @@ def create_app() -> FastAPI:
         # For native endpoints, use FastAPI default format (422)
         return JSONResponse(
             status_code=422,
-            content={"detail": exc.errors()},
+            content={"detail": _serialize_validation_errors(exc.errors())},
         )
 
     @app.exception_handler(TimeoutError)
