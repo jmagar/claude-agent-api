@@ -57,12 +57,17 @@ class McpConfigInjector:
         - If request.mcp_servers is None, merges application + API-key configs.
         - If request.mcp_servers has values, merges all three tiers.
 
+        Graceful degradation:
+        - If any error occurs during injection, logs error and returns original request.
+        - This ensures MCP config issues don't block query execution.
+
         Args:
             request: Query request to enrich with server-side MCP configs.
             api_key: API key for scoped configuration lookup.
 
         Returns:
-            Enriched query request with merged MCP server configurations.
+            Enriched query request with merged MCP server configurations,
+            or original request if injection fails.
         """
         # Handle explicit opt-out (empty dict means "no MCP servers")
         if request.mcp_servers is not None and len(request.mcp_servers) == 0:
@@ -73,58 +78,71 @@ class McpConfigInjector:
             )
             return request
 
-        # Load application-level config from file
-        app_config_raw = self.config_loader.load_application_config()
-        app_config_resolved = self.config_loader.resolve_env_vars(app_config_raw)
+        try:
+            # Load application-level config from file
+            app_config_raw = self.config_loader.load_application_config()
+            app_config_resolved = self.config_loader.resolve_env_vars(app_config_raw)
 
-        # Load API-key-level config from database
-        api_key_records = await self.config_service.list_servers_for_api_key(api_key)
-        api_key_config = cast(
-            "dict[str, object]", self._records_to_config_dict(api_key_records)
-        )
+            # Load API-key-level config from database
+            api_key_records = await self.config_service.list_servers_for_api_key(api_key)
+            api_key_config = cast(
+                "dict[str, object]", self._records_to_config_dict(api_key_records)
+            )
 
-        # Convert request mcp_servers to dict format for merging
-        request_config_raw = (
-            self._schemas_to_config_dict(request.mcp_servers)
-            if request.mcp_servers
-            else None
-        )
-        request_config = (
-            cast("dict[str, object]", request_config_raw)
-            if request_config_raw is not None
-            else None
-        )
+            # Convert request mcp_servers to dict format for merging
+            request_config_raw = (
+                self._schemas_to_config_dict(request.mcp_servers)
+                if request.mcp_servers
+                else None
+            )
+            request_config = (
+                cast("dict[str, object]", request_config_raw)
+                if request_config_raw is not None
+                else None
+            )
 
-        # Merge configs with correct precedence
-        merged_config = self.config_loader.merge_configs(
-            application_config=app_config_resolved,
-            api_key_config=api_key_config,
-            request_config=request_config,
-        )
+            # Merge configs with correct precedence
+            merged_config = self.config_loader.merge_configs(
+                application_config=app_config_resolved,
+                api_key_config=api_key_config,
+                request_config=request_config,
+            )
 
-        # Convert merged config back to Pydantic models
-        merged_schemas = self._config_dict_to_schemas(merged_config)
+            # Convert merged config back to Pydantic models
+            merged_schemas = self._config_dict_to_schemas(merged_config)
 
-        # Sanitize merged config for safe logging (if validator available)
-        sanitized_config = (
-            self.validator.sanitize_credentials(merged_config)
-            if self.validator
-            else merged_config
-        )
+            # Sanitize merged config for safe logging (if validator available)
+            sanitized_config = (
+                self.validator.sanitize_credentials(merged_config)
+                if self.validator
+                else merged_config
+            )
 
-        logger.info(
-            "mcp_config_injected",
-            api_key_prefix=api_key[:8] if len(api_key) >= 8 else api_key,
-            application_count=len(app_config_resolved),
-            api_key_count=len(api_key_config),
-            request_count=len(request_config) if request_config else 0,
-            merged_count=len(merged_schemas),
-            server_names=list(merged_schemas.keys()),
-            merged_config=sanitized_config,
-        )
+            logger.info(
+                "mcp_config_injected",
+                api_key_prefix=api_key[:8] if len(api_key) >= 8 else api_key,
+                application_count=len(app_config_resolved),
+                api_key_count=len(api_key_config),
+                request_count=len(request_config) if request_config else 0,
+                merged_count=len(merged_schemas),
+                server_names=list(merged_schemas.keys()),
+                merged_config=sanitized_config,
+            )
 
-        # Create enriched request with merged MCP servers
-        return request.model_copy(update={"mcp_servers": merged_schemas})
+            # Create enriched request with merged MCP servers
+            return request.model_copy(update={"mcp_servers": merged_schemas})
+
+        except Exception as e:
+            # Graceful degradation: log error and return original request
+            # This ensures MCP config issues don't block query execution
+            logger.error(
+                "mcp_config_injection_failed",
+                error=str(e),
+                error_type=type(e).__name__,
+                api_key_prefix=api_key[:8] if len(api_key) >= 8 else api_key,
+                exc_info=True,
+            )
+            return request
 
     def _records_to_config_dict(
         self, records: Sequence[McpServerRecord]
