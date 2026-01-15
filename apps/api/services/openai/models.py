@@ -65,5 +65,5 @@ class ModelMapper:
                 created=1700000000,
                 owned_by="claude-agent-api",
             )
-            for openai_model in self._openai_to_claude.keys()
+            for openai_model in self._openai_to_claude
         ]

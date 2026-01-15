@@ -10,23 +10,23 @@ from .responses import (
     OpenAIModelInfo,
     OpenAIModelList,
     OpenAIResponseMessage,
-    OpenAIStreamChunk,
     OpenAIStreamChoice,
+    OpenAIStreamChunk,
     OpenAIUsage,
 )
 
 __all__ = [
     "ChatCompletionRequest",
-    "OpenAIMessage",
     "OpenAIChatCompletion",
     "OpenAIChoice",
     "OpenAIDelta",
     "OpenAIError",
     "OpenAIErrorDetails",
+    "OpenAIMessage",
     "OpenAIModelInfo",
     "OpenAIModelList",
     "OpenAIResponseMessage",
-    "OpenAIStreamChunk",
     "OpenAIStreamChoice",
+    "OpenAIStreamChunk",
     "OpenAIUsage",
 ]
