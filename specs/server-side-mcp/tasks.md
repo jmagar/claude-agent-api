@@ -393,7 +393,7 @@ End-to-end validation with real services, backward compatibility verification.
 
 ### 3.2 Contract Tests
 
-- [ ] 3.7 Write contract test for backward compatibility
+- [x] 3.7 Write contract test for backward compatibility
   - **Do**: Create `tests/contract/test_server_side_mcp_contract.py`. Write `test_existing_query_tests_pass_unchanged()` that runs subset of existing query tests (from `tests/integration/test_agent_service.py`) to verify no breaking changes. Import and re-run existing test functions.
   - **Files**: `tests/contract/test_server_side_mcp_contract.py`
   - **Done when**: Test verifies existing functionality unchanged
