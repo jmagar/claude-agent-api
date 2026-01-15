@@ -1140,7 +1140,7 @@ Focus: Coverage verification, documentation, CI preparation.
 
 ---
 
-### Task 4.3: Update documentation
+### Task 4.3: Update documentation ✓
 
 **Do**:
 1. Update `README.md`:
