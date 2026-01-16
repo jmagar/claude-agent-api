@@ -484,7 +484,7 @@ Final polish, comprehensive verification, documentation.
 
 ### 4.2 Documentation
 
-- [ ] 4.5 Add Google-style docstrings to all public functions
+- [x] 4.5 Add Google-style docstrings to all public functions
   - **Do**: Review all new services (`mcp_config_loader.py`, `mcp_config_injector.py`, `mcp_config_validator.py`) and ensure every public function/class has Google-style docstring with Args, Returns, Raises sections. Include examples where helpful.
   - **Files**: `apps/api/services/mcp_config_*.py`
   - **Done when**: All public APIs documented with comprehensive docstrings
@@ -492,7 +492,7 @@ Final polish, comprehensive verification, documentation.
   - **Commit**: `docs(mcp): add comprehensive docstrings`
   - _Requirements: NFR-10_
 
-- [ ] 4.6 Update CLAUDE.md with server-side MCP usage
+- [x] 4.6 Update CLAUDE.md with server-side MCP usage
   - **Do**: Add "Server-Side MCP Configuration" section to `CLAUDE.md`. Document three-tier system, config file format, API-key scoping, opt-out mechanism. Include example `.mcp-server-config.json` snippet. Reference related specs.
   - **Files**: `CLAUDE.md`
   - **Done when**: Documentation explains how to use server-side MCP configs
