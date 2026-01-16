@@ -453,7 +453,7 @@ Final polish, comprehensive verification, documentation.
 
 ### 4.1 Coverage & Type Safety
 
-- [ ] 4.1 Verify test coverage meets 90% target
+- [x] 4.1 Verify test coverage meets 90% target
   - **Do**: Run `uv run pytest --cov=apps/api/services/mcp_config_loader --cov=apps/api/services/mcp_config_injector --cov=apps/api/services/mcp_config_validator --cov-report=term-missing`. Review uncovered lines, add tests to reach 90%+.
   - **Files**: `tests/unit/services/test_mcp_config_*.py`
   - **Done when**: Coverage report shows ≥90% for all new services
@@ -461,7 +461,7 @@ Final polish, comprehensive verification, documentation.
   - **Commit**: `test(mcp): increase coverage to 90%` (if new tests added)
   - _Requirements: NFR-3_
 
-- [ ] 4.2 Run full type check with strict mode
+- [x] 4.2 Run full type check with strict mode
   - **Do**: Run `uv run ty check` on entire codebase. Fix any type errors in new code. Ensure zero `Any` types used (except unavoidable external library types).
   - **Files**: Various MCP-related files
   - **Done when**: `ty check` exits 0 with no warnings on new code
@@ -469,14 +469,14 @@ Final polish, comprehensive verification, documentation.
   - **Commit**: `fix(mcp): resolve type check warnings`
   - _Requirements: NFR-4_
 
-- [ ] 4.3 Run full lint with auto-fix
+- [x] 4.3 Run full lint with auto-fix
   - **Do**: Run `uv run ruff check . --fix` to auto-fix issues. Run `uv run ruff format .` to format code. Manually review any unfixable issues.
   - **Files**: Various MCP-related files
   - **Done when**: `ruff check .` exits 0 with no warnings
   - **Verify**: `uv run ruff check .` shows 0 issues
   - **Commit**: `style(mcp): apply ruff formatting and fixes`
 
-- [ ] 4.4 [VERIFY] Full local CI: `uv run ruff check . && uv run ty check --exit-zero && uv run pytest --cov=apps/api --cov-report=term-missing`
+- [x] 4.4 [VERIFY] Full local CI: `uv run ruff check . && uv run ty check --exit-zero && uv run pytest --cov=apps/api --cov-report=term-missing`
   - **Do**: Run complete local CI suite that matches GitHub Actions
   - **Verify**: All commands pass
   - **Done when**: Build succeeds, all tests pass, coverage ≥90%
