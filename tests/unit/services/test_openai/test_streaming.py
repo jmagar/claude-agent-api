@@ -82,7 +82,7 @@ async def mock_full_stream() -> AsyncGenerator[
 @pytest.mark.anyio
 async def test_yields_role_delta_first() -> None:
     """First chunk should have delta.role='assistant'."""
-    adapter = StreamingAdapter(original_model="gpt-4")
+    adapter = StreamingAdapter(original_model="gpt-4", mapped_model="sonnet")
     chunks: list[OpenAIStreamChunk | str] = []
 
     async for chunk in adapter.adapt_stream(mock_partial_events()):
@@ -93,12 +93,13 @@ async def test_yields_role_delta_first() -> None:
     assert isinstance(chunks[0], dict)
     first_chunk = chunks[0]
     assert first_chunk["choices"][0]["delta"].get("role") == "assistant"
+    assert first_chunk["model"] == "sonnet"
 
 
 @pytest.mark.anyio
 async def test_yields_content_deltas_for_partials() -> None:
     """Partial events should be transformed to delta.content chunks."""
-    adapter = StreamingAdapter(original_model="gpt-4")
+    adapter = StreamingAdapter(original_model="gpt-4", mapped_model="sonnet")
     chunks: list[OpenAIStreamChunk | str] = []
 
     async for chunk in adapter.adapt_stream(mock_partial_events()):
@@ -121,7 +122,7 @@ async def test_yields_content_deltas_for_partials() -> None:
 @pytest.mark.anyio
 async def test_yields_finish_chunk_on_result() -> None:
     """Result event should produce chunk with finish_reason='stop'."""
-    adapter = StreamingAdapter(original_model="gpt-4")
+    adapter = StreamingAdapter(original_model="gpt-4", mapped_model="sonnet")
     chunks: list[OpenAIStreamChunk | str] = []
 
     async for chunk in adapter.adapt_stream(mock_full_stream()):
@@ -140,7 +141,7 @@ async def test_yields_finish_chunk_on_result() -> None:
 @pytest.mark.anyio
 async def test_yields_done_marker_at_end() -> None:
     """Stream should end with [DONE] marker."""
-    adapter = StreamingAdapter(original_model="gpt-4")
+    adapter = StreamingAdapter(original_model="gpt-4", mapped_model="sonnet")
     chunks: list[OpenAIStreamChunk | str] = []
 
     async for chunk in adapter.adapt_stream(mock_full_stream()):
@@ -154,7 +155,7 @@ async def test_yields_done_marker_at_end() -> None:
 @pytest.mark.anyio
 async def test_consistent_completion_id() -> None:
     """All chunks should have the same completion ID."""
-    adapter = StreamingAdapter(original_model="gpt-4")
+    adapter = StreamingAdapter(original_model="gpt-4", mapped_model="sonnet")
     chunk_ids: list[str] = []
 
     async for chunk in adapter.adapt_stream(mock_full_stream()):
@@ -172,7 +173,11 @@ async def test_consistent_completion_id() -> None:
 async def test_custom_completion_id() -> None:
     """Adapter should accept custom completion ID."""
     custom_id = "chatcmpl-test-123"
-    adapter = StreamingAdapter(original_model="gpt-4", completion_id=custom_id)
+    adapter = StreamingAdapter(
+        original_model="gpt-4",
+        mapped_model="sonnet",
+        completion_id=custom_id,
+    )
     chunk_ids: list[str] = []
 
     async for chunk in adapter.adapt_stream(mock_partial_events()):
@@ -200,7 +205,7 @@ async def test_handles_partial_without_content() -> None:
             },
         )
 
-    adapter = StreamingAdapter(original_model="gpt-4")
+    adapter = StreamingAdapter(original_model="gpt-4", mapped_model="sonnet")
     chunks: list[OpenAIStreamChunk | str] = []
 
     async for chunk in adapter.adapt_stream(mock_empty_partial()):
@@ -229,7 +234,7 @@ async def test_handles_result_with_error() -> None:
             },
         )
 
-    adapter = StreamingAdapter(original_model="gpt-4")
+    adapter = StreamingAdapter(original_model="gpt-4", mapped_model="sonnet")
     chunks: list[OpenAIStreamChunk | str] = []
 
     async for chunk in adapter.adapt_stream(mock_error_result()):
@@ -265,7 +270,7 @@ async def test_handles_non_text_content_blocks() -> None:
             },
         )
 
-    adapter = StreamingAdapter(original_model="gpt-4")
+    adapter = StreamingAdapter(original_model="gpt-4", mapped_model="sonnet")
     chunks: list[OpenAIStreamChunk | str] = []
 
     async for chunk in adapter.adapt_stream(mock_mixed_content()):
@@ -293,7 +298,7 @@ async def test_handles_empty_stream() -> None:
         return
         yield  # Make it a generator
 
-    adapter = StreamingAdapter(original_model="gpt-4")
+    adapter = StreamingAdapter(original_model="gpt-4", mapped_model="sonnet")
     chunks: list[OpenAIStreamChunk | str] = []
 
     async for chunk in adapter.adapt_stream(mock_empty_stream()):
@@ -302,3 +307,20 @@ async def test_handles_empty_stream() -> None:
     # Should only have [DONE] marker
     assert len(chunks) == 1
     assert chunks[0] == "[DONE]"
+
+
+@pytest.mark.anyio
+async def test_skips_role_chunk_when_first_event_is_result() -> None:
+    """Result-only streams should not emit a role chunk."""
+    adapter = StreamingAdapter(original_model="gpt-4", mapped_model="sonnet")
+    chunks: list[OpenAIStreamChunk | str] = []
+
+    async for chunk in adapter.adapt_stream(mock_result_event()):
+        chunks.append(chunk)
+
+    role_chunks = [
+        c
+        for c in chunks
+        if isinstance(c, dict) and c["choices"][0]["delta"].get("role") == "assistant"
+    ]
+    assert len(role_chunks) == 0

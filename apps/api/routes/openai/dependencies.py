@@ -4,8 +4,12 @@ from typing import Annotated
 
 from fastapi import Depends
 
-from apps.api.services.openai.models import ModelMapper
-from apps.api.services.openai.translator import RequestTranslator, ResponseTranslator
+from apps.api.protocols import ModelMapper, RequestTranslator, ResponseTranslator
+from apps.api.services.openai.models import ModelMapper as ModelMapperImpl
+from apps.api.services.openai.translator import (
+    RequestTranslator as RequestTranslatorImpl,
+    ResponseTranslator as ResponseTranslatorImpl,
+)
 
 
 def get_model_mapper() -> ModelMapper:
@@ -17,7 +21,7 @@ def get_model_mapper() -> ModelMapper:
     # Default mapping if not configured
     # TODO: Make this configurable via settings in the future
     mapping = {"gpt-4": "sonnet", "gpt-3.5-turbo": "haiku", "gpt-4o": "opus"}
-    return ModelMapper(mapping)
+    return ModelMapperImpl(mapping)
 
 
 def get_request_translator(
@@ -31,7 +35,7 @@ def get_request_translator(
     Returns:
         RequestTranslator for OpenAI → Claude request translation
     """
-    return RequestTranslator(model_mapper)
+    return RequestTranslatorImpl(model_mapper)
 
 
 def get_response_translator() -> ResponseTranslator:
@@ -40,4 +44,4 @@ def get_response_translator() -> ResponseTranslator:
     Returns:
         ResponseTranslator for Claude → OpenAI response translation
     """
-    return ResponseTranslator()
+    return ResponseTranslatorImpl()

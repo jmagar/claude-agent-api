@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from apps.api.routes.openai.dependencies import get_model_mapper
 from apps.api.schemas.openai.responses import OpenAIModelInfo, OpenAIModelList
-from apps.api.services.openai.models import ModelMapper
+from apps.api.protocols import ModelMapper
 
 router = APIRouter()
 
@@ -43,9 +43,8 @@ async def get_model(
     Raises:
         HTTPException: 404 if model ID is not recognized
     """
-    # Validate model exists by attempting to translate
     try:
-        model_mapper.to_claude(model_id)
+        return model_mapper.get_model_info(model_id)
     except ValueError as exc:
         # Raise HTTPException with 404 - will be caught by exception handler
         # and converted to OpenAI error format
@@ -53,15 +52,3 @@ async def get_model(
             status_code=404,
             detail=str(exc),
         ) from exc
-
-    # If valid, return model info
-    models = model_mapper.list_models()
-    for model in models:
-        if model["id"] == model_id:
-            return model
-
-    # Should never reach here if model_mapper is consistent
-    raise HTTPException(
-        status_code=404,
-        detail=f"Model {model_id} not found",
-    )

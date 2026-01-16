@@ -5,8 +5,17 @@ import { createClaudeAgent, ClaudeAgentChatSettings } from "@/lib/claude-provide
 export const maxDuration = 300; // Increase timeout for agent operations
 
 export async function POST(req: Request) {
-  const { messages, model, sessionId, permissionMode }: { messages: UIMessage[]; model: string; sessionId?: string; permissionMode?: any } =
-    await req.json();
+  const {
+    messages,
+    model,
+    sessionId,
+    permissionMode,
+  }: {
+    messages: UIMessage[];
+    model: string;
+    sessionId?: string;
+    permissionMode?: "default" | "acceptEdits" | "plan" | "bypassPermissions";
+  } = await req.json();
 
   const useDirectProvider = process.env.NEXT_PUBLIC_USE_DIRECT_PROVIDER === 'true';
 
@@ -38,4 +47,3 @@ export async function POST(req: Request) {
 
   return result.toUIMessageStreamResponse();
 }
-

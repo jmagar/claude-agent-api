@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, cast
 
 import pytest
 
+from apps.api.exceptions.base import APIError
 from apps.api.schemas.openai.requests import ChatCompletionRequest, OpenAIMessage
 from apps.api.services.openai.models import ModelMapper
 from apps.api.services.openai.translator import RequestTranslator
@@ -20,6 +21,38 @@ def model_mapper() -> ModelMapper:
 
 class TestRequestTranslator:
     """Test suite for RequestTranslator."""
+
+    def test_translate_unknown_model_raises_api_error(
+        self, model_mapper: ModelMapper
+    ) -> None:
+        """Unknown model should raise APIError with 400 status."""
+        # Given
+        request = ChatCompletionRequest(
+            model="invalid-model",
+            messages=[OpenAIMessage(role="user", content="Hello")],
+        )
+        translator = RequestTranslator(model_mapper)
+
+        # When / Then
+        with pytest.raises(APIError) as exc_info:
+            translator.translate(request)
+
+        assert exc_info.value.status_code == 400
+
+    def test_translate_system_only_messages_raises_api_error(
+        self, model_mapper: ModelMapper
+    ) -> None:
+        """System-only messages should raise APIError with 400 status."""
+        request = ChatCompletionRequest(
+            model="gpt-4",
+            messages=[OpenAIMessage(role="system", content="You are helpful")],
+        )
+        translator = RequestTranslator(model_mapper)
+
+        with pytest.raises(APIError) as exc_info:
+            translator.translate(request)
+
+        assert exc_info.value.status_code == 400
 
     def test_translate_single_user_message(self, model_mapper: ModelMapper) -> None:
         """Test translating a single user message to Claude format.
@@ -608,13 +641,12 @@ class TestResponseTranslator:
         When: translator.translate(request)
         Then: Assert system_prompt set, QueryRequest creation fails due to empty prompt validation
         """
-        from pydantic import ValidationError
-
         from apps.api.schemas.openai.requests import (
             ChatCompletionRequest,
             OpenAIMessage,
         )
         from apps.api.services.openai.translator import RequestTranslator
+        from apps.api.exceptions.base import APIError
 
         # Given
         request = ChatCompletionRequest(
@@ -626,13 +658,12 @@ class TestResponseTranslator:
         )
         translator = RequestTranslator(model_mapper)
 
-        # When/Then - Should raise ValidationError due to empty prompt
-        with pytest.raises(ValidationError) as exc_info:
+        # When/Then - Should raise APIError due to empty prompt
+        with pytest.raises(APIError) as exc_info:
             translator.translate(request)
 
-        # Assert error is about prompt being too short
-        assert "prompt" in str(exc_info.value)
-        assert "at least 1 character" in str(exc_info.value)
+        # Assert error is about missing user/assistant messages
+        assert "user or assistant" in str(exc_info.value)
 
     def test_translate_very_long_message(self, model_mapper: ModelMapper) -> None:
         """Test handling of very long messages.

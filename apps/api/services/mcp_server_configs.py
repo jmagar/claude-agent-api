@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any, cast
+from typing import cast
 from uuid import uuid4
 
 from apps.api.protocols import Cache
@@ -112,8 +112,10 @@ class McpServerConfigService:
             error=cast("str | None", config.get("error")),
             created_at=now,
             updated_at=None,
-            metadata=cast("dict[str, Any] | None", config.get("metadata")),
-            resources=list(cast("list[dict[str, Any]]", config.get("resources", [])))
+            metadata=cast("dict[str, object] | None", config.get("metadata")),
+            resources=list(
+                cast("list[dict[str, object]]", config.get("resources", []))
+            )
             if config.get("resources")
             else [],
         )
@@ -127,7 +129,7 @@ class McpServerConfigService:
         raw = await self._cache.get_json(f"mcp_server:{name}")
         if raw is None:
             return None
-        return self._map_record(name, cast("dict[str, Any]", raw))
+        return self._map_record(name, cast("dict[str, object]", raw))
 
     async def update_server(
         self,
@@ -158,10 +160,11 @@ class McpServerConfigService:
             created_at=existing.created_at,
             updated_at=datetime.now(UTC).isoformat(),
             metadata=cast(
-                "dict[str, Any] | None", next_config.get("metadata", existing.metadata)
+                "dict[str, object] | None",
+                next_config.get("metadata", existing.metadata),
             ),
             resources=cast(
-                "list[dict[str, Any]] | None",
+                "list[dict[str, object]] | None",
                 next_config.get("resources", existing.resources),
             ),
         )
@@ -269,7 +272,7 @@ class McpServerConfigService:
         await self._cache.remove_from_set(self._index_key(api_key), name)
         return await self._cache.delete(self._server_key(api_key, name))
 
-    def _map_record(self, name: str, raw: dict[str, Any]) -> McpServerRecord:
+    def _map_record(self, name: str, raw: dict[str, object]) -> McpServerRecord:
         """<summary>Map cached data to MCP server record.</summary>"""
         return McpServerRecord(
             id=str(raw.get("id", "")),
@@ -287,8 +290,10 @@ class McpServerConfigService:
             error=cast("str | None", raw.get("error")),
             created_at=str(raw.get("created_at", "")),
             updated_at=cast("str | None", raw.get("updated_at")),
-            metadata=cast("dict[str, Any] | None", raw.get("metadata")),
-            resources=list(cast("list[dict[str, Any]]", raw.get("resources", [])))
+            metadata=cast("dict[str, object] | None", raw.get("metadata")),
+            resources=list(
+                cast("list[dict[str, object]]", raw.get("resources", []))
+            )
             if raw.get("resources")
             else [],
         )

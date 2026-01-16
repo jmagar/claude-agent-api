@@ -18,6 +18,7 @@ class ErrorTranslator:
         Maps HTTP status codes to OpenAI error types:
         - 401 → authentication_error
         - 400 → invalid_request_error
+        - 403 → permission_error
         - 429 → rate_limit_exceeded
         - 500+ → api_error
 
@@ -30,7 +31,7 @@ class ErrorTranslator:
         # Map status code to OpenAI error type
         error_type = ErrorTranslator._map_status_to_type(error.status_code)
 
-        logger.info(
+        logger.debug(
             "Translating error to OpenAI format",
             status_code=error.status_code,
             error_type=error_type,
@@ -59,6 +60,7 @@ class ErrorTranslator:
         status_map = {
             401: "authentication_error",
             400: "invalid_request_error",
+            403: "permission_error",
             404: "invalid_request_error",
             429: "rate_limit_exceeded",
         }

@@ -183,36 +183,6 @@ def create_app() -> FastAPI:
             content=exc.to_dict(),
         )
 
-    @app.exception_handler(ValueError)
-    async def value_error_handler(request: Request, exc: ValueError) -> JSONResponse:
-        """Handle ValueError exceptions (e.g., unknown model names).
-
-        For OpenAI endpoints (/v1/*), converts to OpenAI error format with 400 status.
-        For native endpoints, uses standard validation error format.
-        """
-        # Convert ValueError to APIError with 400 status (bad request)
-        # Using code VALIDATION_ERROR for consistency
-        api_error = APIError(
-            message=str(exc),
-            code="VALIDATION_ERROR",
-            status_code=400,
-        )
-
-        # Check if this is an OpenAI endpoint
-        if request.url.path.startswith("/v1/"):
-            # Translate to OpenAI error format
-            openai_error = ErrorTranslator.translate(api_error)
-            return JSONResponse(
-                status_code=400,
-                content=openai_error,
-            )
-
-        # Use standard error format for native endpoints
-        return JSONResponse(
-            status_code=api_error.status_code,
-            content=api_error.to_dict(),
-        )
-
     def _serialize_validation_errors(
         errors: Sequence[Mapping[str, object]],
     ) -> list[dict[str, object]]:
@@ -368,12 +338,27 @@ def create_app() -> FastAPI:
         For OpenAI endpoints (/v1/*), converts to OpenAI error format.
         For native endpoints, uses FastAPI's default format.
         """
+        def _map_http_exception_code(status_code: int) -> str:
+            """Map HTTPException status codes to API error codes."""
+            status_map = {
+                400: "VALIDATION_ERROR",
+                401: "AUTHENTICATION_ERROR",
+                403: "FORBIDDEN",
+                404: "NOT_FOUND",
+                409: "CONFLICT",
+                422: "VALIDATION_ERROR",
+                429: "RATE_LIMIT_EXCEEDED",
+                500: "INTERNAL_ERROR",
+                503: "SERVICE_UNAVAILABLE",
+            }
+            return status_map.get(status_code, "HTTP_ERROR")
+
         # Check if this is an OpenAI endpoint
         if request.url.path.startswith("/v1/"):
             # Convert HTTPException to APIError for translation
             api_error = APIError(
                 message=str(exc.detail),
-                code="NOT_FOUND" if exc.status_code == 404 else "VALIDATION_ERROR",
+                code=_map_http_exception_code(exc.status_code),
                 status_code=exc.status_code,
             )
 

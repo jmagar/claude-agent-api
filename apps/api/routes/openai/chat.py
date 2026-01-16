@@ -4,7 +4,8 @@ import json
 from collections.abc import AsyncGenerator
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+import structlog
+from fastapi import APIRouter, Depends, Request
 from sse_starlette import EventSourceResponse
 
 from apps.api.dependencies import get_agent_service, verify_api_key
@@ -15,17 +16,18 @@ from apps.api.routes.openai.dependencies import (
 from apps.api.schemas.openai.requests import ChatCompletionRequest
 from apps.api.schemas.openai.responses import OpenAIChatCompletion
 from apps.api.schemas.responses import SingleQueryResponse
-from apps.api.services.agent.service import AgentService
+from apps.api.protocols import AgentService, RequestTranslator, ResponseTranslator
 from apps.api.services.openai.streaming import StreamingAdapter
-from apps.api.services.openai.translator import RequestTranslator, ResponseTranslator
 from apps.api.types import MessageEventDataDict, ResultEventDataDict
 
 router = APIRouter(prefix="/chat", tags=["openai"])
+logger = structlog.get_logger(__name__)
 
 
 @router.post("/completions", response_model=None)
 async def create_chat_completion(
-    request: ChatCompletionRequest,
+    request: Request,
+    payload: ChatCompletionRequest,
     api_key: Annotated[str, Depends(verify_api_key)],
     request_translator: Annotated[RequestTranslator, Depends(get_request_translator)],
     response_translator: Annotated[
@@ -39,7 +41,8 @@ async def create_chat_completion(
     returns SSE event stream. When stream=false, returns JSON response.
 
     Args:
-        request: OpenAI chat completion request
+        request: FastAPI request object for headers/correlation.
+        payload: OpenAI chat completion request
         request_translator: Service for translating OpenAI → Claude format
         response_translator: Service for translating Claude → OpenAI format
         agent_service: Agent service for executing queries
@@ -49,13 +52,13 @@ async def create_chat_completion(
         EventSourceResponse: SSE event stream (stream=true)
 
     Raises:
-        ValueError: If model name is not recognized
+        APIError: If model name is not recognized
     """
     # Translate OpenAI request to Claude QueryRequest
-    query_request = request_translator.translate(request)
+    query_request = request_translator.translate(payload)
 
     # Handle streaming vs non-streaming
-    if request.stream:
+    if payload.stream:
         # Streaming: Return SSE event stream
         async def event_generator() -> AsyncGenerator[str, None]:
             """Generate SSE events from Claude SDK stream."""
@@ -63,7 +66,10 @@ async def create_chat_completion(
             native_events = agent_service.query_stream(query_request, api_key)
 
             # Adapt to OpenAI streaming format
-            adapter = StreamingAdapter(original_model=request.model)
+            adapter = StreamingAdapter(
+                original_model=payload.model,
+                mapped_model=query_request.model,
+            )
 
             # Create async generator that yields (event_type, event_data) tuples
             async def native_event_tuples() -> AsyncGenerator[
@@ -81,6 +87,14 @@ async def create_chat_completion(
                             try:
                                 event_data = json.loads(event_data_raw)
                             except json.JSONDecodeError:
+                                logger.warning(
+                                    "skipping_malformed_sse_event",
+                                    correlation_id=request.headers.get(
+                                        "X-Correlation-ID"
+                                    ),
+                                    event_type=event_type,
+                                    raw_data=event_data_raw[:100],
+                                )
                                 continue  # Skip malformed events
                         else:
                             event_data = event_data_raw
@@ -109,7 +123,7 @@ async def create_chat_completion(
 
         # Translate Claude response to OpenAI format
         openai_response = response_translator.translate(
-            response, original_model=request.model
+            response, original_model=payload.model
         )
 
         return openai_response

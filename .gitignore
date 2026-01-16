@@ -46,6 +46,7 @@ coverage.json
 cov_summary.json
 
 # Logs
+*.log
 *.logs
 logs/
 

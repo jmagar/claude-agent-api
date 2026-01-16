@@ -459,6 +459,7 @@ async def test_error_format_is_openai_compatible(async_client: AsyncClient) -> N
     assert error["type"] in [
         "invalid_request_error",
         "authentication_error",
+        "permission_error",
         "rate_limit_exceeded",
         "api_error",
     ], f"error.type must be valid OpenAI error type, got: {error['type']}"

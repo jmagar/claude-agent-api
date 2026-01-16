@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, cast
 from unittest.mock import Mock
 
 import pytest
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from httpx import AsyncClient
 
@@ -487,3 +487,40 @@ class TestErrorResponseFormat:
             # Message should be clear about what's wrong
             assert len(message) > 0
             assert message.lower() in ["missing api key", "invalid api key"]
+
+
+class TestHTTPExceptionHandler:
+    """Tests for HTTPException handler mapping."""
+
+    @pytest.mark.anyio
+    async def test_http_exception_maps_rate_limit_for_openai(
+        self,
+        test_app: FastAPI,
+    ) -> None:
+        """Ensure HTTP 429 maps to RATE_LIMIT_EXCEEDED for OpenAI endpoints."""
+        handler = None
+        for handler_info in test_app.exception_handlers.items():
+            if handler_info[0] == HTTPException:
+                handler = handler_info[1]
+                break
+
+        assert handler is not None
+
+        async_handler = cast(
+            "Callable[[Request, HTTPException], Awaitable[JSONResponse]]",
+            handler,
+        )
+
+        mock_request = Mock(spec=Request)
+        mock_request.url = Mock()
+        mock_request.url.path = "/v1/models"
+        exc = HTTPException(status_code=429, detail="Rate limit exceeded")
+
+        response = await async_handler(mock_request, exc)
+
+        assert response.status_code == 429
+        response_data = decode_response_body(response)
+        error = response_data.get("error")
+        assert isinstance(error, dict)
+        error = cast("dict[str, object]", error)
+        assert error.get("code") == "RATE_LIMIT_EXCEEDED"

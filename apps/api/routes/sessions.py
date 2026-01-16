@@ -74,7 +74,9 @@ async def list_sessions(
                 created_at=s.created_at,
                 updated_at=s.updated_at,
                 total_turns=s.total_turns,
-                total_cost_usd=float(s.total_cost_usd) if s.total_cost_usd else None,
+                total_cost_usd=float(s.total_cost_usd)
+                if s.total_cost_usd is not None
+                else None,
                 parent_session_id=str(s.parent_session_id)
                 if s.parent_session_id
                 else None,
@@ -166,7 +168,7 @@ async def promote_session(
         updated_at=updated.updated_at,
         total_turns=updated.total_turns,
         total_cost_usd=float(updated.total_cost_usd)
-        if updated.total_cost_usd
+        if updated.total_cost_usd is not None
         else None,
         parent_session_id=str(updated.parent_session_id)
         if updated.parent_session_id
@@ -217,7 +219,7 @@ async def update_session_tags(
         updated_at=updated.updated_at,
         total_turns=updated.total_turns,
         total_cost_usd=float(updated.total_cost_usd)
-        if updated.total_cost_usd
+        if updated.total_cost_usd is not None
         else None,
         parent_session_id=str(updated.parent_session_id)
         if updated.parent_session_id

@@ -13,6 +13,9 @@ class ModelMapper:
             mapping: Dictionary mapping OpenAI model names to Claude model names.
                     Example: {"gpt-4": "sonnet", "gpt-3.5-turbo": "haiku"}
         """
+        if len(set(mapping.values())) != len(mapping):
+            raise ValueError("Mapping must be 1:1; duplicate Claude models found")
+
         self._openai_to_claude = mapping
         self._claude_to_openai = {v: k for k, v in mapping.items()}
 
@@ -67,3 +70,24 @@ class ModelMapper:
             )
             for openai_model in self._openai_to_claude
         ]
+
+    def get_model_info(self, openai_model: str) -> OpenAIModelInfo:
+        """Get OpenAI model information for a specific model ID.
+
+        Args:
+            openai_model: OpenAI model name (e.g., "gpt-4")
+
+        Returns:
+            OpenAI-formatted model information.
+
+        Raises:
+            ValueError: If the OpenAI model is not recognized
+        """
+        if openai_model not in self._openai_to_claude:
+            raise ValueError(f"Unknown OpenAI model: {openai_model}")
+        return OpenAIModelInfo(
+            id=openai_model,
+            object="model",
+            created=1700000000,
+            owned_by="claude-agent-api",
+        )

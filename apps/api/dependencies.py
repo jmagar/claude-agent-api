@@ -206,23 +206,9 @@ def set_agent_service_singleton(service: AgentService | None) -> None:
     _agent_service = service
 
 
-async def get_session_repository(
-    db_session: Annotated[AsyncSession, Depends(get_db)],
-) -> SessionRepository:
-    """Get session repository instance with database session.
-
-    Args:
-        db_session: Database session from dependency injection.
-
-    Returns:
-        SessionRepository instance.
-    """
-    return SessionRepository(db_session)
-
-
 async def get_session_service(
     cache: Annotated[RedisCache, Depends(get_cache)],
-    db_repo: Annotated[SessionRepository, Depends(get_session_repository)],
+    db_repo: Annotated[SessionRepository, Depends(get_session_repo)],
 ) -> SessionService:
     """Get session service instance with injected cache and DB repository.
 

@@ -6,6 +6,7 @@ from typing import Literal
 
 import structlog
 
+from apps.api.exceptions.base import APIError
 from apps.api.schemas.openai.requests import ChatCompletionRequest, OpenAIMessage
 from apps.api.schemas.openai.responses import (
     OpenAIChatCompletion,
@@ -121,7 +122,7 @@ class RequestTranslator:
             QueryRequest suitable for Claude Agent SDK
 
         Raises:
-            ValueError: If the model name is not recognized
+            APIError: If the model name is not recognized
         """
         logger.debug(
             "Starting request translation",
@@ -131,7 +132,14 @@ class RequestTranslator:
         )
 
         # Map model name
-        claude_model = self._model_mapper.to_claude(request.model)
+        try:
+            claude_model = self._model_mapper.to_claude(request.model)
+        except ValueError as exc:
+            raise APIError(
+                message=str(exc),
+                code="MODEL_NOT_FOUND",
+                status_code=400,
+            ) from exc
 
         # Log warnings for unsupported parameters (SDK doesn't support sampling controls)
         if request.max_tokens is not None:
@@ -153,6 +161,13 @@ class RequestTranslator:
 
         # Concatenate user/assistant messages with role prefixes
         prompt = self._concatenate_messages(conversation_messages)
+
+        if not prompt:
+            raise APIError(
+                message="At least one user or assistant message is required",
+                code="VALIDATION_ERROR",
+                status_code=400,
+            )
 
         # Create QueryRequest with system_prompt if present
         # NOTE: We do NOT set max_turns when max_tokens is present because they have

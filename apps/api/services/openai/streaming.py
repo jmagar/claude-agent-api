@@ -28,6 +28,7 @@ class StreamingAdapter:
 
     Args:
         original_model: Original OpenAI model name from request (e.g., "gpt-4").
+        mapped_model: Mapped Claude model name to emit in responses.
         completion_id: Optional custom completion ID. If not provided, generates
             a new ID with format "chatcmpl-{uuid}".
 
@@ -37,14 +38,21 @@ class StreamingAdapter:
             yield chunk  # OpenAIStreamChunk or "[DONE]"
     """
 
-    def __init__(self, original_model: str, completion_id: str | None = None) -> None:
+    def __init__(
+        self,
+        original_model: str,
+        mapped_model: str | None = None,
+        completion_id: str | None = None,
+    ) -> None:
         """Initialize streaming adapter.
 
         Args:
             original_model: Original OpenAI model name (e.g., "gpt-4").
+            mapped_model: Claude model name to emit in chunks.
             completion_id: Optional custom completion ID. If None, generates new ID.
         """
         self.original_model = original_model
+        self.mapped_model = mapped_model
         self.completion_id = completion_id or f"chatcmpl-{uuid.uuid4()}"
         self.first_chunk = True
 
@@ -74,30 +82,33 @@ class StreamingAdapter:
             "Starting stream adaptation",
             completion_id=self.completion_id,
             original_model=self.original_model,
+            mapped_model=self.mapped_model,
         )
 
         created_timestamp = int(time.time())
         chunk_count = 0
+        model_name = self.mapped_model or self.original_model
 
         async for event_type, event_data in native_events:
-            # First chunk: yield role delta
+            # First chunk: emit role delta only for partial content streams
             if self.first_chunk:
                 self.first_chunk = False
-                role_delta: OpenAIDelta = {"role": "assistant"}
-                role_chunk: OpenAIStreamChunk = {
-                    "id": self.completion_id,
-                    "object": "chat.completion.chunk",
-                    "created": created_timestamp,
-                    "model": self.original_model,
-                    "choices": [
-                        {
-                            "index": 0,
-                            "delta": role_delta,
-                            "finish_reason": None,
-                        }
-                    ],
-                }
-                yield role_chunk
+                if event_type == "partial":
+                    role_delta: OpenAIDelta = {"role": "assistant"}
+                    role_chunk: OpenAIStreamChunk = {
+                        "id": self.completion_id,
+                        "object": "chat.completion.chunk",
+                        "created": created_timestamp,
+                        "model": model_name,
+                        "choices": [
+                            {
+                                "index": 0,
+                                "delta": role_delta,
+                                "finish_reason": None,
+                            }
+                        ],
+                    }
+                    yield role_chunk
 
             # Handle partial events (content deltas)
             if event_type == "partial":
@@ -115,7 +126,7 @@ class StreamingAdapter:
                                         "id": self.completion_id,
                                         "object": "chat.completion.chunk",
                                         "created": created_timestamp,
-                                        "model": self.original_model,
+                                        "model": model_name,
                                         "choices": [
                                             {
                                                 "index": 0,
@@ -147,7 +158,7 @@ class StreamingAdapter:
                         "id": self.completion_id,
                         "object": "chat.completion.chunk",
                         "created": created_timestamp,
-                        "model": self.original_model,
+                        "model": model_name,
                         "choices": [
                             {
                                 "index": 0,

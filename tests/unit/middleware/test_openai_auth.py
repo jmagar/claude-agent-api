@@ -12,6 +12,15 @@ from starlette.responses import Response
 from apps.api.middleware.openai_auth import BearerAuthMiddleware
 
 
+def get_scope_header(request: MagicMock, header_name: str) -> str | None:
+    """Extract a header value from the request scope."""
+    header_bytes = {
+        key.decode(): value.decode()
+        for key, value in request.scope.get("headers", [])
+    }
+    return header_bytes.get(header_name)
+
+
 @pytest.fixture
 def mock_call_next() -> AsyncMock:
     """Create mock call_next function.
@@ -74,8 +83,8 @@ class TestBearerAuthMiddleware:
         await middleware.dispatch(mock_request_v1_route, mock_call_next)
 
         # Then: Request should have X-API-Key header set
-        # We need to check that the header was added to the request
-        # In a real scenario, we'd verify the modified headers in scope
+        header = get_scope_header(mock_request_v1_route, "x-api-key")
+        assert header == "sk-test-12345"
         assert mock_call_next.called
         # The middleware should modify the request before calling next
 
@@ -145,3 +154,33 @@ class TestBearerAuthMiddleware:
         # Then: Request should pass through without error
         assert response.status_code == 200
         assert mock_call_next.called
+
+    @pytest.mark.anyio
+    async def test_accepts_lowercase_bearer_scheme(
+        self,
+        mock_request_v1_route: MagicMock,
+        mock_call_next: AsyncMock,
+    ) -> None:
+        """Test lowercase bearer scheme is accepted."""
+        mock_request_v1_route.headers = {"Authorization": "bearer sk-test-abc"}
+
+        middleware = BearerAuthMiddleware(app=MagicMock())
+        await middleware.dispatch(mock_request_v1_route, mock_call_next)
+
+        header = get_scope_header(mock_request_v1_route, "x-api-key")
+        assert header == "sk-test-abc"
+
+    @pytest.mark.anyio
+    async def test_ignores_empty_bearer_token(
+        self,
+        mock_request_v1_route: MagicMock,
+        mock_call_next: AsyncMock,
+    ) -> None:
+        """Test empty Bearer token does not set X-API-Key."""
+        mock_request_v1_route.headers = {"Authorization": "Bearer "}
+
+        middleware = BearerAuthMiddleware(app=MagicMock())
+        await middleware.dispatch(mock_request_v1_route, mock_call_next)
+
+        header = get_scope_header(mock_request_v1_route, "x-api-key")
+        assert header is None

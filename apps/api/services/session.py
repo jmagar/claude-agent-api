@@ -391,24 +391,7 @@ class SessionService:
                 offset=offset,
             )
             # Convert DB models to service Session objects
-            sessions = [
-                Session(
-                    id=str(s.id),
-                    created_at=s.created_at,
-                    updated_at=s.updated_at,
-                    status=cast("SessionStatus", s.status),
-                    model=s.model,
-                    total_turns=s.total_turns,
-                    total_cost_usd=float(s.total_cost_usd)
-                    if s.total_cost_usd
-                    else None,
-                    parent_session_id=str(s.parent_session_id)
-                    if s.parent_session_id
-                    else None,
-                    owner_api_key=s.owner_api_key,
-                )
-                for s in db_sessions
-            ]
+            sessions = [self._map_db_to_service(s) for s in db_sessions]
             return SessionListResult(
                 sessions=sessions,
                 total=total,
@@ -556,7 +539,23 @@ class SessionService:
             True if deleted, False if not found.
         """
         if self._cache:
+            owner_api_key: str | None = None
+            cached_session = await self._get_cached_session(session_id)
+            if cached_session:
+                owner_api_key = cached_session.owner_api_key
+            elif self._db_repo:
+                try:
+                    db_session = await self._db_repo.get(UUID(session_id))
+                except (TypeError, ValueError):
+                    db_session = None
+                if db_session:
+                    owner_api_key = db_session.owner_api_key
+
             key = self._cache_key(session_id)
+            if owner_api_key:
+                owner_index_key = f"session:owner:{owner_api_key}"
+                await self._cache.remove_from_set(owner_index_key, session_id)
+
             result = await self._cache.delete(key)
             if result:
                 logger.info("Session deleted", session_id=session_id)

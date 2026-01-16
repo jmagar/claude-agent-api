@@ -13,6 +13,14 @@ if TYPE_CHECKING:
         MessageData,
         SessionData,
     )
+    from apps.api.schemas.openai.requests import ChatCompletionRequest
+    from apps.api.schemas.openai.responses import (
+        OpenAIChatCompletion,
+        OpenAIModelInfo,
+    )
+    from apps.api.schemas.requests.query import QueryRequest
+    from apps.api.schemas.responses import SingleQueryResponse
+    from apps.api.services.agent import QueryResponseDict
 
 
 @runtime_checkable
@@ -333,6 +341,64 @@ class Cache(Protocol):
         Returns:
             True if successful.
         """
+        ...
+
+
+@runtime_checkable
+class ModelMapper(Protocol):
+    """Protocol for OpenAI/Claude model mapping."""
+
+    def to_claude(self, openai_model: str) -> str:
+        """Map OpenAI model name to Claude model name."""
+        ...
+
+    def to_openai(self, claude_model: str) -> str:
+        """Map Claude model name to OpenAI model name."""
+        ...
+
+    def list_models(self) -> list["OpenAIModelInfo"]:
+        """List OpenAI model info objects."""
+        ...
+
+    def get_model_info(self, openai_model: str) -> "OpenAIModelInfo":
+        """Get OpenAI model info for a specific model ID."""
+        ...
+
+
+@runtime_checkable
+class RequestTranslator(Protocol):
+    """Protocol for OpenAI request translation."""
+
+    def translate(self, request: "ChatCompletionRequest") -> "QueryRequest":
+        """Translate OpenAI request to Claude query request."""
+        ...
+
+
+@runtime_checkable
+class ResponseTranslator(Protocol):
+    """Protocol for OpenAI response translation."""
+
+    def translate(
+        self, response: "SingleQueryResponse", original_model: str
+    ) -> "OpenAIChatCompletion":
+        """Translate Claude response to OpenAI response."""
+        ...
+
+
+@runtime_checkable
+class AgentService(Protocol):
+    """Protocol for agent service used by routes."""
+
+    async def query_stream(
+        self, request: "QueryRequest", api_key: str = ""
+    ) -> "AsyncIterator[dict[str, str]]":
+        """Stream a query to the agent."""
+        ...
+
+    async def query_single(
+        self, request: "QueryRequest", api_key: str = ""
+    ) -> "QueryResponseDict":
+        """Execute a query and return the full response."""
         ...
 
 

@@ -70,6 +70,20 @@ class TestErrorTranslator:
         assert result["error"]["message"] == "Internal server error"
         assert result["error"]["code"] == "INTERNAL_ERROR"
 
+    def test_translate_403_to_permission_error(self) -> None:
+        """Status 403 should translate to permission_error type."""
+        error = APIError(
+            message="Access denied",
+            code="ACCESS_DENIED",
+            status_code=403,
+        )
+
+        result: OpenAIError = ErrorTranslator.translate(error)
+
+        assert result["error"]["type"] == "permission_error"
+        assert result["error"]["message"] == "Access denied"
+        assert result["error"]["code"] == "ACCESS_DENIED"
+
     def test_translate_preserves_message(self) -> None:
         """Error message should be preserved in the result."""
         custom_message = "This is a custom error message with details"

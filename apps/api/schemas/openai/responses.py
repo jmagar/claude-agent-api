@@ -83,7 +83,7 @@ class OpenAIErrorDetails(TypedDict):
 
     message: Required[str]
     type: Required[str]
-    code: Required[str]
+    code: Required[str | None]
 
 
 class OpenAIError(TypedDict):

@@ -1,7 +1,7 @@
 """Message handlers for Agent SDK responses."""
 
 import json
-from typing import TYPE_CHECKING, Any, Literal, cast
+from typing import TYPE_CHECKING, Literal, cast
 
 import structlog
 
@@ -64,7 +64,7 @@ class MessageHandler:
 
         # T118: Handle partial/streaming messages when include_partial_messages is enabled
         if msg_type == "StreamEvent" and ctx.include_partial_messages:
-            # StreamEvent.event is a dict[str, Any] containing raw Anthropic API stream event
+            # StreamEvent.event is a dict[str, object] containing raw Anthropic API stream event
             event_data = getattr(message, "event", None)
             if event_data and isinstance(event_data, dict):
                 event_type = event_data.get("type")
@@ -472,7 +472,7 @@ class MessageHandler:
         for block in content:
             if isinstance(block, dict):
                 mapped = map_sdk_content_block(block)
-                blocks.append(ContentBlockSchema(**cast("dict[str, Any]", mapped)))
+                blocks.append(ContentBlockSchema(**cast("dict[str, object]", mapped)))
             else:
                 # Dataclass block
                 block_dict = {
@@ -494,7 +494,9 @@ class MessageHandler:
                     block_dict["content"] = block.content
                 if hasattr(block, "is_error"):
                     block_dict["is_error"] = block.is_error
-                blocks.append(ContentBlockSchema(**cast("dict[str, Any]", block_dict)))
+                blocks.append(
+                    ContentBlockSchema(**cast("dict[str, object]", block_dict))
+                )
 
         return blocks
 

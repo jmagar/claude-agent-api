@@ -244,20 +244,6 @@ The Claude Agent SDK does not support sampling controls (`temperature`, `top_p`)
 The OpenAI endpoints support both authentication methods:
 
 1. **Bearer Token** (OpenAI-style):
-   ```python
-   client = OpenAI(
-       base_url="http://localhost:54000/v1",
-       api_key="your-api-key"  # Sent as Authorization: Bearer
-   )
-   ```
-
-2. **X-API-Key Header** (backward compatible):
-   ```bash
-   curl -X POST http://localhost:54000/v1/chat/completions \
-     -H "X-API-Key: your-api-key" \
-     -H "Content-Type: application/json" \
-     -d '{"model":"gpt-4","messages":[{"role":"user","content":"Hello"}]}'
-   ```
 
 ### Error Format
 

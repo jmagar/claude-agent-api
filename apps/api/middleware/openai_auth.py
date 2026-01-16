@@ -45,8 +45,11 @@ class BearerAuthMiddleware(BaseHTTPMiddleware):
 
         # Extract Bearer token from Authorization header
         auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
-            bearer_token = auth_header[7:]  # Remove "Bearer " prefix
+        auth_header_stripped = auth_header.strip()
+        if auth_header_stripped.lower().startswith("bearer "):
+            bearer_token = auth_header_stripped[7:].strip()  # Remove "Bearer " prefix
+            if not bearer_token:
+                return await call_next(request)
 
             # Add X-API-Key header to request scope
             # request.scope["headers"] is a list of (name, value) byte tuples
