@@ -506,7 +506,7 @@ Final polish, comprehensive verification, documentation.
   - **Verify**: Manual review of updated spec
   - **Commit**: `docs(openai): document server-side mcp integration`
 
-- [ ] 4.8 [VERIFY] Quality checkpoint: `uv run ruff check . && uv run ty check`
+- [x] 4.8 [VERIFY] Quality checkpoint: `uv run ruff check . && uv run ty check`
   - **Do**: Final quality check on documentation changes
   - **Verify**: All commands exit 0
   - **Done when**: No issues with doc files
