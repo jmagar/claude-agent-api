@@ -263,6 +263,104 @@ OPENAI_MODEL_MAPPING='{"gpt-4":"sonnet","custom-model":"haiku"}'
 2. ❌ Database table - overkill for simple mapping
 3. ✅ Settings class - standard pattern, env var support
 
+## Server-Side MCP Integration
+
+**Finding**: The API now supports automatic server-side MCP server configuration injection (see `specs/server-side-mcp/spec.md`).
+
+**Evidence**:
+- Three-tier configuration system: Application (file) < API-Key (database) < Request
+- `McpConfigInjector` service runs before SDK execution in `AgentService`
+- All query methods (including OpenAI endpoints) automatically get MCP servers injected
+
+**OpenAI Compatibility Impact**:
+
+### Automatic Tool Availability
+
+OpenAI endpoints (`/v1/chat/completions`) **automatically have access** to server-side MCP servers without client configuration:
+
+```bash
+# MCP tools from .mcp-server-config.json are automatically available
+curl -X POST http://localhost:54000/v1/chat/completions \
+  -H "Authorization: Bearer api-key-123" \
+  -d '{
+    "model": "gpt-4",
+    "messages": [{"role": "user", "content": "Use GitHub MCP tool to create issue"}]
+  }'
+```
+
+**How It Works**:
+1. OpenAI request arrives at `/v1/chat/completions`
+2. `BearerAuthMiddleware` extracts API key from Bearer token
+3. Request translated to `QueryRequest` via `RequestTranslator`
+4. `AgentService.query_stream()` calls `McpConfigInjector.inject()` BEFORE SDK execution
+5. Injector merges:
+   - Application-level MCP servers (`.mcp-server-config.json`)
+   - API-key-level MCP servers (Redis database)
+   - Request-level MCP servers (if provided in translated request)
+6. Enriched `QueryRequest` passed to SDK with merged MCP servers
+7. SDK has access to all configured tools for the request
+
+**Decision**: **No changes needed to OpenAI translation layer**
+
+**Rationale**:
+- MCP injection happens BEFORE translation layer (in `AgentService`)
+- `QueryRequest` already has `mcp_servers` field that injector populates
+- OpenAI endpoints inherit MCP support automatically through shared `AgentService`
+- Zero code changes required in OpenAI routes/services
+
+**Configuration Precedence**:
+
+OpenAI clients can override server-side MCP configs by providing explicit server configuration:
+
+```python
+# Via native API with explicit MCP servers
+request = QueryRequest(
+    prompt="...",
+    mcp_servers={
+        "custom-tool": {
+            "type": "stdio",
+            "command": "custom-mcp-server"
+        }
+    }
+)
+```
+
+Note: OpenAI `/v1/chat/completions` endpoint does NOT support MCP server configuration in request body (OpenAI API spec limitation). To use custom MCP servers:
+1. Configure in `.mcp-server-config.json` (application-level)
+2. Add via `/api/v1/mcp-servers` endpoint (API-key-level)
+3. Use native `/api/v1/query` endpoint (request-level override supported)
+
+**Phase 2 Tool Calling**:
+
+When Phase 2 implements OpenAI tool calling format, server-side MCP integration provides the foundation:
+
+1. **Tool Discovery**: List available tools from merged MCP servers
+2. **Tool Execution**: Execute MCP tool when OpenAI client requests tool_call
+3. **Result Translation**: Map MCP tool results back to OpenAI tool_call response format
+
+**Implementation Notes**:
+- MCP servers configured at application/API-key level appear as "available tools" in OpenAI tool calling
+- Tool execution delegated to SDK (which already supports MCP)
+- Translation layer only needs to map tool metadata (name, parameters, description)
+
+**Security**:
+- All server-side MCP configurations validated for:
+  - Command injection (shell metacharacters blocked)
+  - SSRF prevention (internal URLs blocked)
+  - Credential sanitization (secrets redacted in logs)
+- Multi-tenant isolation via API-key scoping (no cross-tenant access)
+
+**Testing**:
+- Contract test verifies OpenAI endpoint receives server-side MCP configs: `test_openai_endpoint_includes_server_side_mcp`
+- Integration tests verify three-tier merge works end-to-end
+- Security tests verify validation rules enforced
+
+For detailed server-side MCP documentation, see:
+- [Server-Side MCP Spec](../server-side-mcp/spec.md)
+- [Server-Side MCP Requirements](../server-side-mcp/requirements.md)
+- [Server-Side MCP Design](../server-side-mcp/design.md)
+- [CLAUDE.md - Server-Side MCP Configuration](../../CLAUDE.md#server-side-mcp-configuration)
+
 ## SSE Streaming Decisions
 
 ### Native SSE Event Format
@@ -475,7 +573,8 @@ class ErrorTranslatorProtocol(Protocol):
 5. **SSE Streaming**: Parse native Pydantic events, map to OpenAI chunks with stateful completion_id
 6. **Error Handling**: Route-specific exception handlers, HTTP status → OpenAI error type mapping
 7. **Model Config**: Dict in Settings with env var support for customization
-8. **Quality**: Fix specs before coding, ≥90% service coverage, ≥80% route coverage
+8. **Server-Side MCP**: OpenAI endpoints automatically get MCP tools from application/API-key configs - zero translation layer changes needed
+9. **Quality**: Fix specs before coding, ≥90% service coverage, ≥80% route coverage
 
 ### Tradeoffs Accepted
 

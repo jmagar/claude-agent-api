@@ -499,7 +499,7 @@ Final polish, comprehensive verification, documentation.
   - **Verify**: Manual review of documentation section
   - **Commit**: `docs(mcp): document server-side config in claude.md`
 
-- [ ] 4.7 Update openai-api spec with server-side MCP integration
+- [x] 4.7 Update openai-api spec with server-side MCP integration
   - **Do**: Add note to `specs/openai-api/decisions.md` explaining that OpenAI endpoints now have access to server-side MCP servers automatically. Document that Phase 2 tool calling will leverage these configs. Update any relevant diagrams.
   - **Files**: `specs/openai-api/decisions.md`
   - **Done when**: OpenAI spec documents server-side MCP availability
