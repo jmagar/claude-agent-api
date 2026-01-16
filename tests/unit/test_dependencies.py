@@ -4,6 +4,7 @@ Tests all FastAPI dependencies including authentication, service creation,
 and error handling for uninitialized resources.
 """
 
+import contextlib
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -234,8 +235,9 @@ class TestServiceDependencies:
         # Clear singleton
         dependencies._agent_service = None
 
-        # Get service
-        service = get_agent_service()
+        # Get service with mock cache
+        mock_cache = Mock(spec=RedisCache)
+        service = await get_agent_service(cache=mock_cache)
 
         assert isinstance(service, AgentService)
 
@@ -249,9 +251,10 @@ class TestServiceDependencies:
         singleton = AgentService()
         set_agent_service_singleton(singleton)
 
-        # Get service
-        service1 = get_agent_service()
-        service2 = get_agent_service()
+        # Get service (singleton is returned, cache arg doesn't matter)
+        mock_cache = Mock(spec=RedisCache)
+        service1 = await get_agent_service(cache=mock_cache)
+        service2 = await get_agent_service(cache=mock_cache)
 
         assert service1 is singleton
         assert service2 is singleton
@@ -317,8 +320,9 @@ class TestAuthenticationDependencies:
         settings = get_settings()
         valid_key = settings.api_key.get_secret_value()
 
-        # Mock request
+        # Mock request without state.api_key so header is used
         mock_request = Mock(spec=Request)
+        mock_request.state = Mock(spec=[])  # Empty state, no api_key attribute
 
         # Verify key
         result = verify_api_key(mock_request, x_api_key=valid_key)
@@ -331,8 +335,9 @@ class TestAuthenticationDependencies:
 
         GREEN: This test verifies invalid key rejection.
         """
-        # Mock request
+        # Mock request without state.api_key so header is used
         mock_request = Mock(spec=Request)
+        mock_request.state = Mock(spec=[])  # Empty state, no api_key attribute
 
         with pytest.raises(AuthenticationError, match="Invalid API key"):
             verify_api_key(mock_request, x_api_key="invalid-key")
@@ -343,8 +348,9 @@ class TestAuthenticationDependencies:
 
         GREEN: This test verifies missing key rejection.
         """
-        # Mock request
+        # Mock request without state.api_key so header check happens
         mock_request = Mock(spec=Request)
+        mock_request.state = Mock(spec=[])  # Empty state, no api_key attribute
 
         with pytest.raises(AuthenticationError, match="Missing API key"):
             verify_api_key(mock_request, x_api_key=None)
@@ -371,8 +377,9 @@ class TestAuthenticationDependencies:
         settings = get_settings()
         valid_key = settings.api_key.get_secret_value()
 
-        # Mock request
+        # Mock request without state.api_key so header is used
         mock_request = Mock(spec=Request)
+        mock_request.state = Mock(spec=[])  # Empty state, no api_key attribute
 
         # Pass key as header parameter
         result = verify_api_key(mock_request, x_api_key=valid_key)
@@ -387,8 +394,9 @@ class TestAuthenticationDependencies:
         """
         from apps.api.config import get_settings
 
-        # Mock request
+        # Mock request without state.api_key so header is used
         mock_request = Mock(spec=Request)
+        mock_request.state = Mock(spec=[])  # Empty state, no api_key attribute
 
         # Test that we use secrets.compare_digest (timing-safe)
         # by verifying that similar keys are rejected
@@ -409,9 +417,7 @@ class TestShutdownDependencies:
 
         GREEN: This test verifies normal operation.
         """
-        with patch(
-            "apps.api.dependencies.get_shutdown_manager"
-        ) as mock_get_manager:
+        with patch("apps.api.dependencies.get_shutdown_manager") as mock_get_manager:
             mock_manager = Mock(spec=ShutdownManager)
             mock_manager.is_shutting_down = False
             mock_get_manager.return_value = mock_manager
@@ -426,9 +432,7 @@ class TestShutdownDependencies:
 
         GREEN: This test verifies shutdown behavior.
         """
-        with patch(
-            "apps.api.dependencies.get_shutdown_manager"
-        ) as mock_get_manager:
+        with patch("apps.api.dependencies.get_shutdown_manager") as mock_get_manager:
             mock_manager = Mock(spec=ShutdownManager)
             mock_manager.is_shutting_down = True
             mock_get_manager.return_value = mock_manager
@@ -471,10 +475,8 @@ class TestDependencyIntegration:
         assert repo._db is session
 
         # Cleanup
-        try:
+        with contextlib.suppress(StopAsyncIteration):
             await session_gen.aclose()
-        except StopAsyncIteration:
-            pass
         await close_db()
 
     @pytest.mark.anyio
@@ -558,15 +560,16 @@ class TestDependencyCleanup:
         set_agent_service_singleton(singleton)
 
         # Verify it's returned
-        service = get_agent_service()
+        mock_cache = Mock(spec=RedisCache)
+        service = await get_agent_service(cache=mock_cache)
         assert service is singleton
 
         # Clear singleton
         set_agent_service_singleton(None)
 
         # Verify new instances are created
-        service1 = get_agent_service()
-        service2 = get_agent_service()
+        service1 = await get_agent_service(cache=mock_cache)
+        service2 = await get_agent_service(cache=mock_cache)
         assert service1 is not singleton
         assert service2 is not singleton
         assert service1 is not service2

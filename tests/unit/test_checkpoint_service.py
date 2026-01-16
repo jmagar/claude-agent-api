@@ -96,9 +96,7 @@ class MockCache:
         """Check connectivity."""
         return True
 
-    async def get_many_json(
-        self, keys: list[str]
-    ) -> list[dict[str, JsonValue] | None]:
+    async def get_many_json(self, keys: list[str]) -> list[dict[str, JsonValue] | None]:
         """Get multiple JSON values from cache."""
         return [await self.get_json(key) for key in keys]
 

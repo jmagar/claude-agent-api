@@ -3,7 +3,8 @@
 Tests all cache operations, locking, scanning, and error conditions.
 """
 
-from collections.abc import AsyncGenerator
+from __future__ import annotations
+
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -13,11 +14,15 @@ from apps.api.adapters.cache import RedisCache
 from apps.api.dependencies import get_cache
 
 if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
+
     from httpx import AsyncClient
+
+    from apps.api.types import JsonValue
 
 
 @pytest.fixture
-async def cache(async_client: "AsyncClient") -> AsyncGenerator[RedisCache, None]:
+async def cache(async_client: AsyncClient) -> AsyncGenerator[RedisCache, None]:
     """Get Redis cache instance from initialized app.
 
     Args:
@@ -95,7 +100,7 @@ class TestCacheBasicOperations:
         GREEN: This test verifies JSON serialization/deserialization.
         """
         key = "test-key-json"
-        value: dict[str, object] = {
+        value: dict[str, JsonValue] = {
             "name": "test",
             "count": 42,
             "items": ["a", "b", "c"],
@@ -197,7 +202,9 @@ class TestCacheBulkOperations:
 
         cache = RedisCache(mock_client)
 
-        result = await cache.get_many_json(["session:s1", "session:missing", "session:s2"])
+        result = await cache.get_many_json(
+            ["session:s1", "session:missing", "session:s2"]
+        )
 
         mock_client.mget.assert_called_once_with(
             "session:s1",
@@ -634,8 +641,12 @@ class TestCacheCreation:
             with patch("apps.api.adapters.cache.get_settings") as mock_settings:
                 # Use DIFFERENT values than hardcoded to verify they're actually used
                 mock_settings.return_value.redis_url = "redis://localhost:53380/0"
-                mock_settings.return_value.redis_max_connections = 100  # Different from 50
-                mock_settings.return_value.redis_socket_connect_timeout = 10  # Different from 5
+                mock_settings.return_value.redis_max_connections = (
+                    100  # Different from 50
+                )
+                mock_settings.return_value.redis_socket_connect_timeout = (
+                    10  # Different from 5
+                )
                 mock_settings.return_value.redis_socket_timeout = 15  # Different from 5
 
                 cache = await RedisCache.create()

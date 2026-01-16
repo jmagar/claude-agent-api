@@ -1,8 +1,11 @@
 """Tests for QueryRequest schema."""
 
-import pytest
-from pydantic import ValidationError
+from typing import cast
 
+import pytest
+from pydantic import HttpUrl, ValidationError
+
+from apps.api.schemas.requests.config import HooksConfigSchema, HookWebhookSchema
 from apps.api.schemas.requests.query import QueryRequest
 
 
@@ -52,7 +55,12 @@ class TestQueryRequest:
     def test_query_with_hooks(self) -> None:
         """Test query with hooks configuration."""
         query = QueryRequest(
-            prompt="Hello", hooks={"PreToolUse": {"url": "https://example.com/hook"}}
+            prompt="Hello",
+            hooks=HooksConfigSchema(
+                PreToolUse=HookWebhookSchema(
+                    url=cast("HttpUrl", "https://example.com/hook")
+                )
+            ),
         )
         assert query.hooks is not None
         assert query.hooks.pre_tool_use is not None

@@ -18,6 +18,11 @@ from apps.api.config import Settings, get_settings
 from apps.api.exceptions import AuthenticationError, ServiceUnavailableError
 from apps.api.services.agent import AgentService
 from apps.api.services.checkpoint import CheckpointService
+from apps.api.services.mcp_config_injector import McpConfigInjector
+from apps.api.services.mcp_config_loader import McpConfigLoader
+from apps.api.services.mcp_config_validator import ConfigValidator
+from apps.api.services.mcp_server_configs import McpServerConfigService
+from apps.api.services.query_enrichment import QueryEnrichmentService
 from apps.api.services.session import SessionService
 from apps.api.services.shutdown import ShutdownManager, get_shutdown_manager
 from apps.api.services.skills import SkillsService
@@ -133,7 +138,7 @@ def verify_api_key(
     _request: Request,
     x_api_key: Annotated[str | None, Header()] = None,
 ) -> str:
-    """Verify API key from header.
+    """Verify API key from header or request state.
 
     Args:
         request: FastAPI request.
@@ -147,6 +152,11 @@ def verify_api_key(
     """
     settings = get_settings()
 
+    # Check request.state first (set by middleware)
+    if hasattr(_request, "state") and hasattr(_request.state, "api_key"):
+        return _request.state.api_key
+
+    # Then check header
     if not x_api_key:
         raise AuthenticationError("Missing API key")
 
@@ -156,7 +166,9 @@ def verify_api_key(
     return x_api_key
 
 
-def get_agent_service() -> AgentService:
+async def get_agent_service(
+    cache: Annotated[RedisCache, Depends(get_cache)],
+) -> AgentService:
     """Get agent service instance.
 
     Creates a new instance per request to avoid sharing mutable
@@ -165,14 +177,23 @@ def get_agent_service() -> AgentService:
     In tests, if a global singleton is set via set_agent_service_singleton(),
     that instance is returned instead to allow test fixtures to share state.
 
+    Args:
+        cache: Redis cache from dependency injection.
+
     Returns:
-        AgentService instance with cache configured.
+        AgentService instance with cache and config injector configured.
     """
     # Use singleton if set (for tests)
     if _agent_service is not None:
         return _agent_service
-    # Otherwise create new instance per request with cache
-    return AgentService(cache=_redis_cache)
+
+    # Create MCP config injector
+    loader = get_mcp_config_loader()
+    config_service = McpServerConfigService(cache=cache)
+    config_injector = McpConfigInjector(config_loader=loader, config_service=config_service)
+
+    # Otherwise create new instance per request with cache and injector
+    return AgentService(cache=cache, mcp_config_injector=config_injector)
 
 
 def set_agent_service_singleton(service: AgentService | None) -> None:
@@ -187,16 +208,18 @@ def set_agent_service_singleton(service: AgentService | None) -> None:
 
 async def get_session_service(
     cache: Annotated[RedisCache, Depends(get_cache)],
+    db_repo: Annotated[SessionRepository, Depends(get_session_repo)],
 ) -> SessionService:
-    """Get session service instance with injected cache.
+    """Get session service instance with injected cache and DB repository.
 
     Args:
         cache: Redis cache from dependency injection.
+        db_repo: Database repository for persistent storage.
 
     Returns:
         SessionService instance.
     """
-    return SessionService(cache=cache)
+    return SessionService(cache=cache, db_repo=db_repo)
 
 
 async def get_checkpoint_service(
@@ -252,11 +275,44 @@ def get_query_enrichment_service() -> "QueryEnrichmentService":
     """
     from pathlib import Path
 
-    from apps.api.services.query_enrichment import QueryEnrichmentService
-
     # Use current working directory as project root
     project_path = Path.cwd()
     return QueryEnrichmentService(project_path=project_path)
+
+
+def get_mcp_config_loader() -> McpConfigLoader:
+    """Get MCP config loader instance.
+
+    Returns:
+        McpConfigLoader instance configured with project path.
+    """
+    from pathlib import Path
+
+    # Use current working directory as project root
+    project_path = Path.cwd()
+    return McpConfigLoader(project_path=project_path)
+
+
+async def get_mcp_config_injector(
+    loader: Annotated[McpConfigLoader, Depends(get_mcp_config_loader)],
+    cache: Annotated[RedisCache, Depends(get_cache)],
+) -> McpConfigInjector:
+    """Get MCP config injector instance.
+
+    Args:
+        loader: MCP config loader from dependency injection.
+        cache: Redis cache from dependency injection.
+
+    Returns:
+        McpConfigInjector instance with loader, config service, and validator.
+    """
+    config_service = McpServerConfigService(cache=cache)
+    validator = ConfigValidator()
+    return McpConfigInjector(
+        config_loader=loader,
+        config_service=config_service,
+        validator=validator,
+    )
 
 
 # Type aliases for dependency injection
@@ -269,8 +325,8 @@ SessionSvc = Annotated[SessionService, Depends(get_session_service)]
 CheckpointSvc = Annotated[CheckpointService, Depends(get_checkpoint_service)]
 SkillsSvc = Annotated[SkillsService, Depends(get_skills_service)]
 ShutdownState = Annotated[ShutdownManager, Depends(check_shutdown_state)]
-
-# Import for type alias
-from apps.api.services.query_enrichment import QueryEnrichmentService
-
-QueryEnrichment = Annotated[QueryEnrichmentService, Depends(get_query_enrichment_service)]
+QueryEnrichment = Annotated[
+    QueryEnrichmentService, Depends(get_query_enrichment_service)
+]
+McpConfigLdr = Annotated[McpConfigLoader, Depends(get_mcp_config_loader)]
+McpConfigInj = Annotated[McpConfigInjector, Depends(get_mcp_config_injector)]

@@ -22,7 +22,9 @@ async def list_projects(
     """<summary>List all projects.</summary>"""
     service = ProjectService(cache)
     projects = await service.list_projects()
-    return ProjectListResponse(projects=[ProjectResponse(**p.__dict__) for p in projects], total=len(projects))
+    return ProjectListResponse(
+        projects=[ProjectResponse(**p.__dict__) for p in projects], total=len(projects)
+    )
 
 
 @router.post("", response_model=ProjectResponse, status_code=201)

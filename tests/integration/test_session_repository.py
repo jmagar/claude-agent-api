@@ -115,7 +115,10 @@ class TestSessionCreate:
         GREEN: This test verifies metadata storage.
         """
         session_id = uuid4()
-        metadata: dict[str, object] = {"user": "test@example.com", "tags": ["production", "demo"]}
+        metadata: dict[str, object] = {
+            "user": "test@example.com",
+            "tags": ["production", "demo"],
+        }
 
         session = await repository.create(
             session_id,
@@ -260,7 +263,9 @@ class TestSessionList:
         GREEN: This test verifies status filtering.
         """
         # Get initial completed count
-        _, initial_completed = await repository.list_sessions(status="completed", limit=1, offset=0)
+        _, initial_completed = await repository.list_sessions(
+            status="completed", limit=1, offset=0
+        )
 
         # Create sessions with different statuses
         id1 = uuid4()

@@ -81,7 +81,10 @@ class TestAPIError:
 
         result = repr(error)
 
-        assert result == "APIError(message='Test error', code='TEST_CODE', status_code=400)"
+        assert (
+            result
+            == "APIError(message='Test error', code='TEST_CODE', status_code=400)"
+        )
 
 
 class TestSessionNotFoundError:
@@ -231,7 +234,9 @@ class TestInvalidCheckpointError:
 
     def test_with_custom_reason(self) -> None:
         """Test error with custom reason."""
-        error = InvalidCheckpointError("cp-123", "sess-456", reason="Checkpoint already restored")
+        error = InvalidCheckpointError(
+            "cp-123", "sess-456", reason="Checkpoint already restored"
+        )
 
         assert error.message == "Checkpoint already restored"
 
@@ -354,7 +359,9 @@ class TestStructuredOutputValidationError:
 
         assert error.status_code == 422
         assert error.code == "STRUCTURED_OUTPUT_VALIDATION_ERROR"
-        assert error.details["validation_errors"] == ["Type mismatch at $.data.items[0]"]
+        assert error.details["validation_errors"] == [
+            "Type mismatch at $.data.items[0]"
+        ]
         assert error.details["schema_type"] == "json_schema"
 
     def test_to_dict(self) -> None:

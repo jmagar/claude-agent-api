@@ -51,6 +51,13 @@ select = [
 ignore = [
     "E501",   # line too long (handled by formatter)
     "B008",   # do not perform function calls in argument defaults
+    "E721",   # Type comparisons (allow == for exception classes in handlers)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = [
+    "ARG001",  # Unused function arguments (pytest fixtures)
+    "ARG002",  # Unused method arguments (pytest fixtures)
 ]
 
 [tool.ruff.lint.isort]
@@ -138,6 +145,7 @@ dev = [
     "filelock>=3.20.3",
     "httpx-sse>=0.4.3",
     "mypy>=1.19.1",
+    "openai>=2.15.0",
     "pytest>=9.0.2",
     "pytest-asyncio>=1.3.0",
     "pytest-cov>=7.0.0",

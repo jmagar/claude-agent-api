@@ -1,13 +1,15 @@
 """FastAPI application entry point."""
 
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Mapping, Sequence
 from contextlib import asynccontextmanager
 
 import structlog
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from packaging.version import parse as parse_version
+from pydantic import ValidationError as PydanticValidationError
 
 from apps.api import __version__
 from apps.api.config import get_settings
@@ -16,6 +18,7 @@ from apps.api.exceptions import APIError, RequestTimeoutError
 from apps.api.middleware.auth import ApiKeyAuthMiddleware
 from apps.api.middleware.correlation import CorrelationIdMiddleware
 from apps.api.middleware.logging import RequestLoggingMiddleware, configure_logging
+from apps.api.middleware.openai_auth import BearerAuthMiddleware
 from apps.api.middleware.ratelimit import configure_rate_limiting
 from apps.api.routes import (
     agents,
@@ -32,6 +35,9 @@ from apps.api.routes import (
     tool_presets,
     websocket,
 )
+from apps.api.routes.openai import chat as openai_chat
+from apps.api.routes.openai import models as openai_models
+from apps.api.services.openai.errors import ErrorTranslator
 from apps.api.services.shutdown import get_shutdown_manager, reset_shutdown_manager
 
 logger = structlog.get_logger(__name__)
@@ -140,6 +146,7 @@ def create_app() -> FastAPI:
     # Add middleware (order matters - first added is last executed)
     # Reverse order so auth runs first, then correlation, then logging, then CORS
     app.add_middleware(ApiKeyAuthMiddleware)  # type: ignore
+    app.add_middleware(BearerAuthMiddleware)  # type: ignore
     app.add_middleware(CorrelationIdMiddleware)  # type: ignore
     app.add_middleware(RequestLoggingMiddleware, skip_paths=["/health", "/"])  # type: ignore
     app.add_middleware(
@@ -155,11 +162,129 @@ def create_app() -> FastAPI:
 
     # Register exception handlers
     @app.exception_handler(APIError)
-    async def api_error_handler(_request: Request, exc: APIError) -> JSONResponse:
-        """Handle API errors."""
+    async def api_error_handler(request: Request, exc: APIError) -> JSONResponse:
+        """Handle API errors.
+
+        For OpenAI-compatible endpoints (/v1/*), translates errors to OpenAI format.
+        For native endpoints (/api/v1/*), uses standard API error format.
+        """
+        # Check if this is an OpenAI endpoint
+        if request.url.path.startswith("/v1/"):
+            # Translate to OpenAI error format
+            openai_error = ErrorTranslator.translate(exc)
+            return JSONResponse(
+                status_code=exc.status_code,
+                content=openai_error,
+            )
+
+        # Use standard API error format for native endpoints
         return JSONResponse(
             status_code=exc.status_code,
             content=exc.to_dict(),
+        )
+
+    def _serialize_validation_errors(
+        errors: Sequence[Mapping[str, object]],
+    ) -> list[dict[str, object]]:
+        """Convert Pydantic errors to JSON-serializable format.
+
+        Args:
+            errors: List of error dicts from Pydantic validation.
+
+        Returns:
+            List of sanitized error dicts safe for JSON serialization.
+        """
+        serialized: list[dict[str, object]] = []
+        for error in errors:
+            loc = error.get("loc")
+            serialized_error = {
+                "loc": list(loc) if isinstance(loc, (list, tuple)) else [],
+                "msg": str(error.get("msg", "")),
+                "type": str(error.get("type", "")),
+            }
+            # Convert ctx to strings if present (ValueError objects are not JSON serializable)
+            ctx = error.get("ctx")
+            if isinstance(ctx, dict):
+                serialized_error["ctx"] = {k: str(v) for k, v in ctx.items()}
+            serialized.append(serialized_error)
+        return serialized
+
+    @app.exception_handler(RequestValidationError)
+    async def request_validation_error_handler(
+        request: Request,
+        exc: RequestValidationError,
+    ) -> JSONResponse:
+        """Handle FastAPI request validation errors (Pydantic validation before route handler).
+
+        For OpenAI endpoints (/v1/*), converts to OpenAI error format with 400 status.
+        For native endpoints, uses FastAPI's default 422 format.
+        """
+        # Check if this is an OpenAI endpoint
+        if request.url.path.startswith("/v1/"):
+            # Extract first error message for simplicity
+            errors = exc.errors()
+            first_error = errors[0] if errors else {}
+            error_msg = first_error.get("msg", "Validation failed")
+            field = ".".join(str(loc) for loc in first_error.get("loc", []))
+
+            # Create APIError with 400 status for OpenAI translation
+            api_error = APIError(
+                message=error_msg,
+                code="VALIDATION_ERROR",
+                status_code=400,
+                details={"field": field} if field else {},
+            )
+
+            # Translate to OpenAI error format
+            openai_error = ErrorTranslator.translate(api_error)
+            return JSONResponse(
+                status_code=400,
+                content=openai_error,
+            )
+
+        # For native endpoints, use FastAPI default format (422)
+        return JSONResponse(
+            status_code=422,
+            content={"detail": _serialize_validation_errors(exc.errors())},
+        )
+
+    @app.exception_handler(PydanticValidationError)
+    async def pydantic_validation_error_handler(
+        request: Request,
+        exc: PydanticValidationError,
+    ) -> JSONResponse:
+        """Handle Pydantic validation errors (raised in route handlers).
+
+        For OpenAI endpoints (/v1/*), converts to OpenAI error format with 400 status.
+        For native endpoints, uses FastAPI's default 422 format.
+        """
+        # Check if this is an OpenAI endpoint
+        if request.url.path.startswith("/v1/"):
+            # Extract first error message for simplicity
+            errors = exc.errors()
+            first_error = errors[0] if errors else {}
+            error_msg = first_error.get("msg", "Validation failed")
+            field = ".".join(str(loc) for loc in first_error.get("loc", []))
+
+            # Create APIError with 400 status for OpenAI translation
+            api_error = APIError(
+                message=error_msg,
+                code="VALIDATION_ERROR",
+                status_code=400,
+                details={"field": field} if field else {},
+            )
+
+            # Translate to OpenAI error format
+            openai_error = ErrorTranslator.translate(api_error)
+            return JSONResponse(
+                status_code=400,
+                content=openai_error,
+            )
+
+        # For native endpoints, use FastAPI default format (422)
+        return JSONResponse(
+            status_code=422,
+            content={"detail": _serialize_validation_errors(exc.errors())},
         )
 
     @app.exception_handler(TimeoutError)
@@ -203,6 +328,53 @@ def create_app() -> FastAPI:
             },
         )
 
+    @app.exception_handler(HTTPException)
+    async def http_exception_handler(
+        request: Request,
+        exc: HTTPException,
+    ) -> JSONResponse:
+        """Handle HTTPException (used by models endpoint).
+
+        For OpenAI endpoints (/v1/*), converts to OpenAI error format.
+        For native endpoints, uses FastAPI's default format.
+        """
+        def _map_http_exception_code(status_code: int) -> str:
+            """Map HTTPException status codes to API error codes."""
+            status_map = {
+                400: "VALIDATION_ERROR",
+                401: "AUTHENTICATION_ERROR",
+                403: "FORBIDDEN",
+                404: "NOT_FOUND",
+                409: "CONFLICT",
+                422: "VALIDATION_ERROR",
+                429: "RATE_LIMIT_EXCEEDED",
+                500: "INTERNAL_ERROR",
+                503: "SERVICE_UNAVAILABLE",
+            }
+            return status_map.get(status_code, "HTTP_ERROR")
+
+        # Check if this is an OpenAI endpoint
+        if request.url.path.startswith("/v1/"):
+            # Convert HTTPException to APIError for translation
+            api_error = APIError(
+                message=str(exc.detail),
+                code=_map_http_exception_code(exc.status_code),
+                status_code=exc.status_code,
+            )
+
+            # Translate to OpenAI error format
+            openai_error = ErrorTranslator.translate(api_error)
+            return JSONResponse(
+                status_code=exc.status_code,
+                content=openai_error,
+            )
+
+        # Use FastAPI default format for native endpoints
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"detail": exc.detail},
+        )
+
     # Include routers
     app.include_router(health.router, prefix="/api/v1")
     app.include_router(projects.router, prefix="/api/v1")
@@ -217,6 +389,10 @@ def create_app() -> FastAPI:
     app.include_router(websocket.router, prefix="/api/v1")
     app.include_router(mcp_servers.router, prefix="/api/v1")
     app.include_router(tool_presets.router, prefix="/api/v1")
+
+    # OpenAI-compatible endpoints
+    app.include_router(openai_chat.router, prefix="/v1")
+    app.include_router(openai_models.router, prefix="/v1")
 
     # Also mount health at root for convenience
     app.include_router(health.router)

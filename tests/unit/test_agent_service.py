@@ -1,7 +1,7 @@
 """Unit tests for agent service."""
 
 import json
-from typing import Literal
+from typing import TYPE_CHECKING, Literal, cast
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -15,6 +15,10 @@ from apps.api.services.agent import (
 )
 from apps.api.services.agent.file_modification_tracker import FileModificationTracker
 from apps.api.services.agent.types import StreamContext
+
+if TYPE_CHECKING:
+    from apps.api.services.agent.query_executor import QueryExecutor
+    from apps.api.services.agent.stream_query_runner import StreamQueryRunner
 
 
 class TestAgentService:
@@ -122,10 +126,12 @@ class TestAgentService:
         request = QueryRequest(
             prompt="Test",
             hooks=HooksConfigSchema(
-                PreToolUse=HookWebhookSchema.model_validate({
-                    "url": "https://example.com/hook",
-                    "timeout": 30,
-                })
+                PreToolUse=HookWebhookSchema.model_validate(
+                    {
+                        "url": "https://example.com/hook",
+                        "timeout": 30,
+                    }
+                )
             ),
         )
         assert request.hooks is not None
@@ -496,7 +502,9 @@ class TestPermissionModeHandling:
 
     def test_all_permission_modes_are_valid_literals(self) -> None:
         """Test that all permission modes match the Literal type definition."""
-        valid_modes: list[Literal["default", "acceptEdits", "plan", "bypassPermissions"]] = [
+        valid_modes: list[
+            Literal["default", "acceptEdits", "plan", "bypassPermissions"]
+        ] = [
             "default",
             "acceptEdits",
             "plan",
@@ -512,10 +520,12 @@ class TestPermissionModeHandling:
     def test_invalid_permission_mode_raises_validation_error(self) -> None:
         """Test that invalid permission mode raises validation error."""
         with pytest.raises(ValueError):
-            QueryRequest.model_validate({
-                "prompt": "Test",
-                "permission_mode": "invalid_mode",
-            })
+            QueryRequest.model_validate(
+                {
+                    "prompt": "Test",
+                    "permission_mode": "invalid_mode",
+                }
+            )
 
     def test_build_options_with_all_permission_params(self) -> None:
         """Test building options with all permission-related parameters."""
@@ -766,7 +776,7 @@ class TestQueryStreamSessionIds:
                     yield {}
 
         runner = StubStreamRunner()
-        service = AgentService(stream_runner=runner)
+        service = AgentService(stream_runner=cast("StreamQueryRunner", runner))
         request = QueryRequest(prompt="Test prompt", cwd=str(tmp_path))
 
         events = [event async for event in service.query_stream(request)]
@@ -862,7 +872,11 @@ class TestQueryStreamSessionIds:
                 type="tool_use",
                 id="tool-456",
                 name="Edit",
-                input={"file_path": "/path/to/edited.py", "old_string": "x", "new_string": "y"},
+                input={
+                    "file_path": "/path/to/edited.py",
+                    "old_string": "x",
+                    "new_string": "y",
+                },
             )
         ]
 
@@ -911,12 +925,14 @@ class TestQueryStreamSessionIds:
 
         # Create mock checkpoint service
         mock_checkpoint_service = AsyncMock(spec=CheckpointService)
-        mock_checkpoint_service.create_checkpoint = AsyncMock(return_value=MagicMock(
-            id="checkpoint-123",
-            session_id="test-session",
-            user_message_uuid="user-msg-uuid-456",
-            files_modified=["/path/to/file.py"],
-        ))
+        mock_checkpoint_service.create_checkpoint = AsyncMock(
+            return_value=MagicMock(
+                id="checkpoint-123",
+                session_id="test-session",
+                user_message_uuid="user-msg-uuid-456",
+                files_modified=["/path/to/file.py"],
+            )
+        )
 
         service = AgentService(checkpoint_service=mock_checkpoint_service)
 
@@ -1041,7 +1057,7 @@ async def test_execute_query_delegates_to_executor() -> None:
                 yield {"event": "noop", "data": "{}"}
 
     executor = StubExecutor()
-    service = AgentService(query_executor=executor)
+    service = AgentService(query_executor=cast("QueryExecutor", executor))
     ctx = StreamContext(session_id="sid", model="sonnet", start_time=0.0)
     commands_service = CommandsService(project_path=Path.cwd())
     request = QueryRequest(prompt="test")

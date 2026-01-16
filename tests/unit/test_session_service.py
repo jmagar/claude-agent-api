@@ -103,9 +103,7 @@ class MockCache:
         """Check connectivity."""
         return True
 
-    async def get_many_json(
-        self, keys: list[str]
-    ) -> list[dict[str, JsonValue] | None]:
+    async def get_many_json(self, keys: list[str]) -> list[dict[str, JsonValue] | None]:
         """Get multiple JSON values (tracks call count)."""
         self.get_many_calls += 1
         return [self._store.get(key) for key in keys]
@@ -279,7 +277,9 @@ class TestSessionServiceListDbRepo:
             async def get_many_json(
                 self, keys: list[str]
             ) -> list[dict[str, JsonValue] | None]:
-                pytest.fail("get_many_json should not be used when db_repo is available")
+                pytest.fail(
+                    "get_many_json should not be used when db_repo is available"
+                )
 
         now = datetime.now(UTC)
         fake_session = FakeSessionModel(
@@ -303,6 +303,33 @@ class TestSessionServiceListDbRepo:
         assert result.total == 1
         assert result.sessions[0].id == str(fake_session.id)
         repo.list_sessions.assert_called_once()
+
+    @pytest.mark.anyio
+    async def test_list_sessions_maps_invalid_status_and_zero_cost(self) -> None:
+        """Test DB list uses service mapping for status and zero cost."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        now = datetime.now(UTC)
+        fake_session = FakeSessionModel(
+            id=uuid4(),
+            model="sonnet",
+            status="invalid-status",
+            total_turns=1,
+            total_cost_usd=0.0,
+            parent_session_id=None,
+            owner_api_key="owner-key",
+            created_at=now,
+            updated_at=now,
+        )
+
+        repo = MagicMock()
+        repo.list_sessions = AsyncMock(return_value=([fake_session], 1))
+
+        service = SessionService(cache=MockCache(), db_repo=repo)
+        result = await service.list_sessions(current_api_key="owner-key")
+
+        assert result.sessions[0].status == "active"
+        assert result.sessions[0].total_cost_usd == 0.0
 
 
 class TestSessionServiceUpdate:
@@ -368,6 +395,25 @@ class TestSessionServiceDelete:
         """Test that delete returns False for unknown session."""
         result = await session_service.delete_session("nonexistent")
         assert result is False
+
+    @pytest.mark.anyio
+    async def test_delete_session_removes_owner_index_entry(
+        self,
+        session_service: SessionService,
+        mock_cache: MockCache,
+    ) -> None:
+        """Test delete_session removes session ID from owner index set."""
+        session = await session_service.create_session(
+            model="sonnet",
+            owner_api_key="owner-key",
+        )
+        owner_index_key = "session:owner:owner-key"
+
+        assert session.id in await mock_cache.set_members(owner_index_key)
+
+        result = await session_service.delete_session(session.id)
+        assert result is True
+        assert session.id not in await mock_cache.set_members(owner_index_key)
 
 
 @pytest.mark.unit

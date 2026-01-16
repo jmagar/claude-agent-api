@@ -155,8 +155,14 @@ const suggestions = [
 
 export default function ChatPage() {
   const [input, setInput] = useState("");
-  const [model, setModel] = useState<string>(models[1]?.value ?? "gpt-4o-mini");
+  const [model, setModel] = useState<string>(
+    models[1]?.value ?? models[0].value
+  );
   const [webSearch, setWebSearch] = useState(false);
+  const [permissionMode] = useState<
+    "default" | "acceptEdits" | "plan" | "bypassPermissions"
+  >("bypassPermissions");
+
   const { messages, sendMessage, status, regenerate } = useChat();
 
   const handleSubmit = (message: PromptInputMessage) => {
@@ -176,6 +182,7 @@ export default function ChatPage() {
         body: {
           model: model,
           webSearch: webSearch,
+          permissionMode: permissionMode,
         },
       }
     );
@@ -189,6 +196,7 @@ export default function ChatPage() {
         body: {
           model: model,
           webSearch: webSearch,
+          permissionMode: permissionMode,
         },
       }
     );

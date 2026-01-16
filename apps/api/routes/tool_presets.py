@@ -37,9 +37,7 @@ async def create_tool_preset(
     """Create a new tool preset."""
     service = ToolPresetService(cache)
     allowed_tools = (
-        request.allowed_tools
-        if request.allowed_tools is not None
-        else request.tools
+        request.allowed_tools if request.allowed_tools is not None else request.tools
     )
     disallowed_tools = request.disallowed_tools or []
     preset = await service.create_preset(
@@ -77,9 +75,7 @@ async def update_tool_preset(
     """Update a tool preset by ID."""
     service = ToolPresetService(cache)
     allowed_tools = (
-        request.allowed_tools
-        if request.allowed_tools is not None
-        else request.tools
+        request.allowed_tools if request.allowed_tools is not None else request.tools
     )
     if allowed_tools is None:
         allowed_tools = []

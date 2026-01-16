@@ -3,6 +3,8 @@
 Tests for T062: Subagent invocation integration tests.
 """
 
+from typing import Literal
+
 import pytest
 from httpx import AsyncClient
 
@@ -111,7 +113,7 @@ class TestAgentDefinitionSchema:
             AgentDefinitionSchema(
                 prompt="System prompt only",
                 # missing description
-            )  # type: ignore
+            )
 
     @pytest.mark.integration
     @pytest.mark.anyio
@@ -124,7 +126,7 @@ class TestAgentDefinitionSchema:
             AgentDefinitionSchema(
                 description="Description only",
                 # missing prompt
-            )  # type: ignore
+            )
 
     @pytest.mark.integration
     @pytest.mark.anyio
@@ -167,7 +169,13 @@ class TestAgentDefinitionSchema:
     ) -> None:
         """Test that model field validates against allowed values."""
         # Valid model values
-        for model in ["sonnet", "opus", "haiku", "inherit"]:
+        models: list[Literal["sonnet", "opus", "haiku", "inherit"]] = [
+            "sonnet",
+            "opus",
+            "haiku",
+            "inherit",
+        ]
+        for model in models:
             agent = AgentDefinitionSchema(
                 description="Test",
                 prompt="Test",

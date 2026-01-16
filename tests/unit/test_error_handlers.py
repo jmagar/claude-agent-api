@@ -5,14 +5,16 @@ and generic exceptions with proper error response formatting.
 """
 
 import json
-from collections.abc import Awaitable, Callable
-from typing import cast
+from typing import TYPE_CHECKING, cast
 from unittest.mock import Mock
 
 import pytest
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from httpx import AsyncClient
+
+if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
 
 
 def decode_response_body(response: JSONResponse) -> dict[str, object]:
@@ -222,7 +224,7 @@ class TestTimeoutErrorHandler:
         # Cast to async handler type
         async_handler = cast(
             "Callable[[Request, TimeoutError], Awaitable[JSONResponse]]",
-            timeout_handler
+            timeout_handler,
         )
 
         # Create mock request and timeout exception
@@ -238,6 +240,7 @@ class TestTimeoutErrorHandler:
         assert "error" in response_data
         error_data = response_data["error"]
         assert isinstance(error_data, dict)
+        error_data = cast("dict[str, object]", error_data)
         assert error_data.get("code") == "REQUEST_TIMEOUT"
 
     @pytest.mark.anyio
@@ -261,7 +264,7 @@ class TestTimeoutErrorHandler:
         # Cast to async handler type
         async_handler = cast(
             "Callable[[Request, TimeoutError], Awaitable[JSONResponse]]",
-            timeout_handler
+            timeout_handler,
         )
 
         # Create mock request and timeout exception
@@ -301,8 +304,7 @@ class TestGeneralExceptionHandler:
 
         # Cast to async handler type
         async_handler = cast(
-            "Callable[[Request, Exception], Awaitable[JSONResponse]]",
-            general_handler
+            "Callable[[Request, Exception], Awaitable[JSONResponse]]", general_handler
         )
 
         # Create mock request and generic exception
@@ -318,6 +320,7 @@ class TestGeneralExceptionHandler:
         assert "error" in response_data
         error_data = response_data["error"]
         assert isinstance(error_data, dict)
+        error_data = cast("dict[str, object]", error_data)
         assert error_data.get("code") == "INTERNAL_ERROR"
 
     @pytest.mark.anyio
@@ -349,7 +352,7 @@ class TestGeneralExceptionHandler:
             # Cast to async handler type
             async_handler = cast(
                 "Callable[[Request, Exception], Awaitable[JSONResponse]]",
-                general_handler
+                general_handler,
             )
 
             # Create mock request and generic exception
@@ -364,6 +367,7 @@ class TestGeneralExceptionHandler:
             assert "error" in response_data
             error_data = response_data["error"]
             assert isinstance(error_data, dict)
+            error_data = cast("dict[str, object]", error_data)
             assert "details" in error_data
             assert error_data["details"] == {}
         finally:
@@ -398,7 +402,7 @@ class TestGeneralExceptionHandler:
             # Cast to async handler type
             async_handler = cast(
                 "Callable[[Request, Exception], Awaitable[JSONResponse]]",
-                general_handler
+                general_handler,
             )
 
             # Create mock request and generic exception
@@ -413,6 +417,7 @@ class TestGeneralExceptionHandler:
             assert "error" in response_data
             error_data = response_data["error"]
             assert isinstance(error_data, dict)
+            error_data = cast("dict[str, object]", error_data)
             assert "details" in error_data
             details = error_data["details"]
             if details:
@@ -482,3 +487,40 @@ class TestErrorResponseFormat:
             # Message should be clear about what's wrong
             assert len(message) > 0
             assert message.lower() in ["missing api key", "invalid api key"]
+
+
+class TestHTTPExceptionHandler:
+    """Tests for HTTPException handler mapping."""
+
+    @pytest.mark.anyio
+    async def test_http_exception_maps_rate_limit_for_openai(
+        self,
+        test_app: FastAPI,
+    ) -> None:
+        """Ensure HTTP 429 maps to RATE_LIMIT_EXCEEDED for OpenAI endpoints."""
+        handler = None
+        for handler_info in test_app.exception_handlers.items():
+            if handler_info[0] == HTTPException:
+                handler = handler_info[1]
+                break
+
+        assert handler is not None
+
+        async_handler = cast(
+            "Callable[[Request, HTTPException], Awaitable[JSONResponse]]",
+            handler,
+        )
+
+        mock_request = Mock(spec=Request)
+        mock_request.url = Mock()
+        mock_request.url.path = "/v1/models"
+        exc = HTTPException(status_code=429, detail="Rate limit exceeded")
+
+        response = await async_handler(mock_request, exc)
+
+        assert response.status_code == 429
+        response_data = decode_response_body(response)
+        error = response_data.get("error")
+        assert isinstance(error, dict)
+        error = cast("dict[str, object]", error)
+        assert error.get("code") == "RATE_LIMIT_EXCEEDED"

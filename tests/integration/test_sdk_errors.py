@@ -1,5 +1,6 @@
 """Integration tests for SDK error handling."""
 
+from typing import Any, cast
 from unittest.mock import patch
 
 import pytest
@@ -132,10 +133,12 @@ class TestSDKErrorHandling:
             # Create error with line attribute
             try:
                 # Try with both arguments
-                error = CLIJSONDecodeError("Failed to parse JSON", Exception("original error"))
+                error = CLIJSONDecodeError(
+                    "Failed to parse JSON", Exception("original error")
+                )
             except TypeError:
                 # Fall back to single argument
-                error = CLIJSONDecodeError("Failed to parse JSON")  # type: ignore[call-arg]
+                error = cast("Any", CLIJSONDecodeError)("Failed to parse JSON")
             error.line = '{"incomplete": '
 
             mock_sdk_client.side_effect = error

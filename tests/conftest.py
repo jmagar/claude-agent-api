@@ -1,9 +1,11 @@
 """Shared pytest fixtures for all tests."""
 
+from __future__ import annotations
+
 import logging
 import os
-from collections.abc import AsyncGenerator, Generator
 from pathlib import Path
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
 import pytest
@@ -26,11 +28,15 @@ from apps.api.config import get_settings
 from apps.api.dependencies import close_cache, close_db, init_cache, init_db
 from apps.api.main import create_app
 from tests.helpers.e2e_client import (
-    get_e2e_api_key,
     get_e2e_base_url,
     get_e2e_timeout_seconds,
     should_use_live_e2e_client,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator, Generator
+
+    from apps.api.types import JsonValue
 
 logger = logging.getLogger(__name__)
 ALLOW_REAL_CLAUDE_ENV = "ALLOW_REAL_CLAUDE_API"
@@ -66,8 +72,12 @@ def anyio_backend() -> str:
 
 @pytest.fixture
 def test_api_key() -> str:
-    """API key for testing."""
-    return get_e2e_api_key(os.environ) or "test-api-key-12345"
+    """API key for testing.
+
+    Uses API_KEY from environment (set by CI or conftest defaults).
+    Falls back to hardcoded value if not set.
+    """
+    return os.environ.get("API_KEY", "test-api-key-12345")
 
 
 @pytest.fixture
@@ -147,7 +157,9 @@ async def _async_client(async_client: AsyncClient) -> AsyncClient:
 
 
 @pytest.fixture(autouse=True)
-def enforce_claude_sdk_policy(request: pytest.FixtureRequest) -> Generator[None, None, None]:
+def enforce_claude_sdk_policy(
+    request: pytest.FixtureRequest,
+) -> Generator[None, None, None]:
     """Mock Claude SDK for non-e2e tests and guard against real calls."""
     is_e2e = request.node.get_closest_marker("e2e") is not None
     allow_real = _is_truthy(os.environ.get(ALLOW_REAL_CLAUDE_ENV))
@@ -170,6 +182,7 @@ def enforce_claude_sdk_policy(request: pytest.FixtureRequest) -> Generator[None,
             "Real Claude SDK client detected outside e2e. "
             f"Mark the test with @pytest.mark.e2e and set {ALLOW_REAL_CLAUDE_ENV}=true."
         )
+
 
 @pytest.fixture
 def sample_query_request() -> dict[str, str | list[str]]:
@@ -215,7 +228,9 @@ async def mock_session_id(_async_client: AsyncClient, test_api_key: str) -> str:
 
 
 @pytest.fixture
-async def mock_active_session_id(_async_client: AsyncClient) -> AsyncGenerator[str, None]:
+async def mock_active_session_id(
+    _async_client: AsyncClient,
+) -> AsyncGenerator[str, None]:
     """Create a mock active session that can be interrupted.
 
     Creates a session and registers it with the agent service as active.
@@ -287,7 +302,7 @@ async def mock_session_with_checkpoints(
 
     # Add checkpoints directly to cache
     checkpoint_id = f"checkpoint-{uuid4().hex[:8]}"
-    checkpoint_data: dict[str, object] = {
+    checkpoint_data: dict[str, JsonValue] = {
         "id": checkpoint_id,
         "session_id": session_id,
         "user_message_uuid": f"msg-{uuid4().hex[:8]}",
@@ -356,7 +371,7 @@ async def mock_checkpoint_from_other_session(
 
     # Add checkpoint to that other session
     checkpoint_id = f"other-checkpoint-{uuid4().hex[:8]}"
-    checkpoint_data: dict[str, object] = {
+    checkpoint_data: dict[str, JsonValue] = {
         "id": checkpoint_id,
         "session_id": other_session_id,
         "user_message_uuid": f"msg-{uuid4().hex[:8]}",

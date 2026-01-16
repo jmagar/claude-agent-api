@@ -1,7 +1,9 @@
 """Tests for config request schemas."""
 
+from typing import cast
+
 import pytest
-from pydantic import ValidationError
+from pydantic import HttpUrl, ValidationError
 
 from apps.api.schemas.requests.config import (
     AgentDefinitionSchema,
@@ -21,18 +23,14 @@ class TestImageContentSchema:
     def test_valid_base64_image(self) -> None:
         """Test valid base64 image."""
         image = ImageContentSchema(
-            type="base64",
-            media_type="image/png",
-            data="iVBORw0KGgoAAAANS..."
+            type="base64", media_type="image/png", data="iVBORw0KGgoAAAANS..."
         )
         assert image.type == "base64"
 
     def test_valid_url_image(self) -> None:
         """Test valid URL image."""
         image = ImageContentSchema(
-            type="url",
-            media_type="image/jpeg",
-            data="https://example.com/image.jpg"
+            type="url", media_type="image/jpeg", data="https://example.com/image.jpg"
         )
         assert image.type == "url"
 
@@ -43,8 +41,7 @@ class TestAgentDefinitionSchema:
     def test_valid_agent(self) -> None:
         """Test valid agent definition."""
         agent = AgentDefinitionSchema(
-            description="Test agent",
-            prompt="You are a test agent"
+            description="Test agent", prompt="You are a test agent"
         )
         assert agent.description == "Test agent"
 
@@ -54,7 +51,7 @@ class TestAgentDefinitionSchema:
             AgentDefinitionSchema(
                 description="Test agent",
                 prompt="You are a test agent",
-                tools=["Read", "Task"]
+                tools=["Read", "Task"],
             )
 
 
@@ -64,9 +61,7 @@ class TestMcpServerConfigSchema:
     def test_valid_stdio_transport(self) -> None:
         """Test valid stdio transport."""
         config = McpServerConfigSchema(
-            type="stdio",
-            command="python",
-            args=["-m", "mcp_server"]
+            type="stdio", command="python", args=["-m", "mcp_server"]
         )
         assert config.type == "stdio"
 
@@ -77,10 +72,7 @@ class TestMcpServerConfigSchema:
 
     def test_valid_sse_transport(self) -> None:
         """Test valid SSE transport."""
-        config = McpServerConfigSchema(
-            type="sse",
-            url="https://example.com/sse"
-        )
+        config = McpServerConfigSchema(type="sse", url="https://example.com/sse")
         assert config.type == "sse"
 
     def test_sse_requires_url(self) -> None:
@@ -91,35 +83,22 @@ class TestMcpServerConfigSchema:
     def test_command_with_shell_metachar_rejected(self) -> None:
         """Test shell metacharacters in command are rejected (T128)."""
         with pytest.raises(ValidationError, match="Shell metacharacters"):
-            McpServerConfigSchema(
-                type="stdio",
-                command="python; rm -rf /"
-            )
+            McpServerConfigSchema(type="stdio", command="python; rm -rf /")
 
     def test_command_with_null_byte_rejected(self) -> None:
         """Test null bytes in command are rejected (T128)."""
         with pytest.raises(ValidationError, match="Null bytes"):
-            McpServerConfigSchema(
-                type="stdio",
-                command="python\x00--version"
-            )
+            McpServerConfigSchema(type="stdio", command="python\x00--version")
 
     def test_args_with_null_byte_rejected(self) -> None:
         """Test null bytes in args are rejected (T128)."""
         with pytest.raises(ValidationError, match="Null bytes"):
-            McpServerConfigSchema(
-                type="stdio",
-                command="python",
-                args=["-m\x00inject"]
-            )
+            McpServerConfigSchema(type="stdio", command="python", args=["-m\x00inject"])
 
     def test_url_to_internal_rejected(self) -> None:
         """Test SSRF protection on URL (T128)."""
         with pytest.raises(ValidationError, match="internal resources"):
-            McpServerConfigSchema(
-                type="sse",
-                url="http://localhost:8080/sse"
-            )
+            McpServerConfigSchema(type="sse", url="http://localhost:8080/sse")
 
 
 class TestHookWebhookSchema:
@@ -127,18 +106,18 @@ class TestHookWebhookSchema:
 
     def test_valid_external_url(self) -> None:
         """Test valid external webhook URL."""
-        webhook = HookWebhookSchema(url="https://example.com/webhook")
+        webhook = HookWebhookSchema(url=cast("HttpUrl", "https://example.com/webhook"))
         assert str(webhook.url) == "https://example.com/webhook"
 
     def test_internal_url_rejected(self) -> None:
         """Test SSRF protection on webhook URL (T128)."""
         with pytest.raises(ValidationError, match="internal resources"):
-            HookWebhookSchema(url="http://127.0.0.1:8080/webhook")
+            HookWebhookSchema(url=cast("HttpUrl", "http://127.0.0.1:8080/webhook"))
 
     def test_metadata_url_rejected(self) -> None:
         """Test cloud metadata SSRF protection (T128)."""
         with pytest.raises(ValidationError, match="internal resources"):
-            HookWebhookSchema(url="http://metadata.google.internal/")
+            HookWebhookSchema(url=cast("HttpUrl", "http://metadata.google.internal/"))
 
 
 class TestOutputFormatSchema:
@@ -152,18 +131,14 @@ class TestOutputFormatSchema:
     def test_valid_json_schema(self) -> None:
         """Test valid JSON schema."""
         fmt = OutputFormatSchema(
-            type="json_schema",
-            schema_={"type": "object", "properties": {}}
+            type="json_schema", schema={"type": "object", "properties": {}}
         )
         assert fmt.type == "json_schema"
 
     def test_json_schema_must_have_type(self) -> None:
         """Test JSON schema must have type property."""
         with pytest.raises(ValidationError, match="must have 'type' property"):
-            OutputFormatSchema(
-                type="json_schema",
-                schema_={"properties": {}}
-            )
+            OutputFormatSchema(type="json_schema", schema={"properties": {}})
 
 
 class TestHooksConfigSchema:
@@ -172,15 +147,15 @@ class TestHooksConfigSchema:
     def test_valid_hooks(self) -> None:
         """Test valid hooks configuration."""
         hooks = HooksConfigSchema(
-            pre_tool_use=HookWebhookSchema(url="https://example.com/hook")
+            PreToolUse=HookWebhookSchema(url=cast("HttpUrl", "https://example.com/hook"))
         )
         assert hooks.pre_tool_use is not None
 
     def test_hooks_with_alias(self) -> None:
         """Test hooks with alias names."""
-        hooks = HooksConfigSchema.model_validate({
-            "PreToolUse": {"url": "https://example.com/hook"}
-        })
+        hooks = HooksConfigSchema.model_validate(
+            {"PreToolUse": {"url": "https://example.com/hook"}}
+        )
         assert hooks.pre_tool_use is not None
 
 
@@ -196,14 +171,12 @@ class TestSdkPluginConfigSchema:
     def test_plugin_name_required(self) -> None:
         """Test plugin name is required."""
         with pytest.raises(ValidationError):
-            SdkPluginConfigSchema()  # type: ignore[call-arg]
+            SdkPluginConfigSchema()
 
     def test_plugin_with_path(self) -> None:
         """Test plugin with path."""
         plugin = SdkPluginConfigSchema(
-            name="custom-plugin",
-            path="/path/to/plugin",
-            enabled=False
+            name="custom-plugin", path="/path/to/plugin", enabled=False
         )
         assert plugin.path == "/path/to/plugin"
         assert plugin.enabled is False
@@ -222,9 +195,7 @@ class TestSandboxSettingsSchema:
     def test_custom_sandbox(self) -> None:
         """Test custom sandbox settings."""
         sandbox = SandboxSettingsSchema(
-            enabled=True,
-            allowed_paths=["/tmp", "/data"],
-            network_access=True
+            enabled=True, allowed_paths=["/tmp", "/data"], network_access=True
         )
         assert sandbox.allowed_paths == ["/tmp", "/data"]
         assert sandbox.network_access is True

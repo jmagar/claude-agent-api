@@ -1,9 +1,10 @@
 """Unit tests for Pydantic schema validation (US3, US4, US7, US8)."""
 
 import re
+from typing import Literal, cast
 
 import pytest
-from pydantic import ValidationError
+from pydantic import HttpUrl, ValidationError
 
 from apps.api.schemas.requests.config import (
     AgentDefinitionSchema,
@@ -16,12 +17,16 @@ from apps.api.schemas.requests.query import QueryRequest
 from apps.api.schemas.requests.sessions import ForkRequest, ResumeRequest
 
 
+def _http_url(value: str) -> HttpUrl:
+    return cast("HttpUrl", value)
+
+
 class TestHookWebhookSchemaValidation:
     """Unit tests for HookWebhookSchema validation (T082)."""
 
     def test_valid_webhook_with_url_only(self) -> None:
         """Test creating a webhook with just a URL."""
-        hook = HookWebhookSchema(url="https://example.com/webhook")  # type: ignore[arg-type]
+        hook = HookWebhookSchema(url=_http_url("https://example.com/webhook"))
         assert str(hook.url) == "https://example.com/webhook"
         assert hook.timeout == 30  # default
         assert hook.headers == {}  # default
@@ -30,7 +35,7 @@ class TestHookWebhookSchemaValidation:
     def test_valid_webhook_with_all_fields(self) -> None:
         """Test creating a webhook with all fields specified."""
         hook = HookWebhookSchema(
-            url="https://example.com/webhook",  # type: ignore[arg-type]
+            url=_http_url("https://example.com/webhook"),
             headers={"Authorization": "Bearer token123", "X-Custom": "value"},
             timeout=60,
             matcher="Write|Edit",
@@ -43,28 +48,28 @@ class TestHookWebhookSchemaValidation:
     def test_url_must_be_valid_http_url(self) -> None:
         """Test that URL must be a valid HTTP/HTTPS URL."""
         # Valid URLs (external only due to SSRF protection)
-        hook = HookWebhookSchema(url="https://example.com/hook")  # type: ignore[arg-type]
+        hook = HookWebhookSchema(url=_http_url("https://example.com/hook"))
         assert hook.url is not None
 
-        hook = HookWebhookSchema(url="http://webhook.example.com/hook")  # type: ignore[arg-type]
+        hook = HookWebhookSchema(url=_http_url("http://webhook.example.com/hook"))
         assert hook.url is not None
 
         # Invalid URLs
         with pytest.raises(ValidationError):
-            HookWebhookSchema(url="not-a-url")  # type: ignore[arg-type]
+            HookWebhookSchema(url=_http_url("not-a-url"))
 
         with pytest.raises(ValidationError):
-            HookWebhookSchema(url="ftp://example.com/hook")  # type: ignore[arg-type]
+            HookWebhookSchema(url=_http_url("ftp://example.com/hook"))
 
         with pytest.raises(ValidationError):
-            HookWebhookSchema(url="")  # type: ignore[arg-type]
+            HookWebhookSchema(url=_http_url(""))
 
     def test_timeout_must_be_within_bounds(self) -> None:
         """Test timeout validation (1-300 seconds)."""
         # Valid timeouts
         for timeout in [1, 30, 100, 300]:
             hook = HookWebhookSchema(
-                url="https://example.com/hook",  # type: ignore[arg-type]
+                url=_http_url("https://example.com/hook"),
                 timeout=timeout,
             )
             assert hook.timeout == timeout
@@ -72,38 +77,38 @@ class TestHookWebhookSchemaValidation:
         # Invalid timeouts - below minimum
         with pytest.raises(ValidationError):
             HookWebhookSchema(
-                url="https://example.com/hook",  # type: ignore[arg-type]
+                url=_http_url("https://example.com/hook"),
                 timeout=0,
             )
 
         with pytest.raises(ValidationError):
             HookWebhookSchema(
-                url="https://example.com/hook",  # type: ignore[arg-type]
+                url=_http_url("https://example.com/hook"),
                 timeout=-1,
             )
 
         # Invalid timeouts - above maximum
         with pytest.raises(ValidationError):
             HookWebhookSchema(
-                url="https://example.com/hook",  # type: ignore[arg-type]
+                url=_http_url("https://example.com/hook"),
                 timeout=301,
             )
 
         with pytest.raises(ValidationError):
             HookWebhookSchema(
-                url="https://example.com/hook",  # type: ignore[arg-type]
+                url=_http_url("https://example.com/hook"),
                 timeout=1000,
             )
 
     def test_headers_can_be_empty_dict(self) -> None:
         """Test that headers can be empty dict (default)."""
-        hook = HookWebhookSchema(url="https://example.com/hook")  # type: ignore[arg-type]
+        hook = HookWebhookSchema(url=_http_url("https://example.com/hook"))
         assert hook.headers == {}
 
     def test_headers_with_multiple_values(self) -> None:
         """Test headers with multiple key-value pairs."""
         hook = HookWebhookSchema(
-            url="https://example.com/hook",  # type: ignore[arg-type]
+            url=_http_url("https://example.com/hook"),
             headers={
                 "Authorization": "Bearer abc123",
                 "Content-Type": "application/json",
@@ -116,31 +121,33 @@ class TestHookWebhookSchemaValidation:
         """Test that matcher accepts valid regex patterns."""
         # Simple patterns
         hook = HookWebhookSchema(
-            url="https://example.com/hook",  # type: ignore[arg-type]
+            url=_http_url("https://example.com/hook"),
             matcher="Write",
         )
         assert hook.matcher == "Write"
 
         # OR pattern
         hook = HookWebhookSchema(
-            url="https://example.com/hook",  # type: ignore[arg-type]
+            url=_http_url("https://example.com/hook"),
             matcher="Write|Edit|Bash",
         )
+        assert isinstance(hook.matcher, str)
         assert re.match(hook.matcher, "Write") is not None
         assert re.match(hook.matcher, "Edit") is not None
         assert re.match(hook.matcher, "Read") is None
 
         # Wildcard pattern
         hook = HookWebhookSchema(
-            url="https://example.com/hook",  # type: ignore[arg-type]
+            url=_http_url("https://example.com/hook"),
             matcher="mcp__.*",
         )
+        assert isinstance(hook.matcher, str)
         assert re.match(hook.matcher, "mcp__server__tool") is not None
         assert re.match(hook.matcher, "Read") is None
 
     def test_matcher_can_be_none(self) -> None:
         """Test that matcher defaults to None (match all)."""
-        hook = HookWebhookSchema(url="https://example.com/hook")  # type: ignore[arg-type]
+        hook = HookWebhookSchema(url=_http_url("https://example.com/hook"))
         assert hook.matcher is None
 
 
@@ -161,9 +168,7 @@ class TestHooksConfigSchemaValidation:
     def test_pre_tool_use_hook(self) -> None:
         """Test PreToolUse hook configuration."""
         config = HooksConfigSchema(
-            PreToolUse=HookWebhookSchema(
-                url="https://example.com/pre-tool",  # type: ignore[arg-type]
-            )
+            PreToolUse=HookWebhookSchema(url=_http_url("https://example.com/pre-tool"))
         )
         assert config.pre_tool_use is not None
         assert "pre-tool" in str(config.pre_tool_use.url)
@@ -171,18 +176,14 @@ class TestHooksConfigSchemaValidation:
     def test_post_tool_use_hook(self) -> None:
         """Test PostToolUse hook configuration."""
         config = HooksConfigSchema(
-            PostToolUse=HookWebhookSchema(
-                url="https://example.com/post-tool",  # type: ignore[arg-type]
-            )
+            PostToolUse=HookWebhookSchema(url=_http_url("https://example.com/post-tool"))
         )
         assert config.post_tool_use is not None
 
     def test_stop_hook(self) -> None:
         """Test Stop hook configuration."""
         config = HooksConfigSchema(
-            Stop=HookWebhookSchema(
-                url="https://example.com/stop",  # type: ignore[arg-type]
-            )
+            Stop=HookWebhookSchema(url=_http_url("https://example.com/stop"))
         )
         assert config.stop is not None
 
@@ -190,7 +191,7 @@ class TestHooksConfigSchemaValidation:
         """Test SubagentStop hook configuration."""
         config = HooksConfigSchema(
             SubagentStop=HookWebhookSchema(
-                url="https://example.com/subagent-stop",  # type: ignore[arg-type]
+                url=_http_url("https://example.com/subagent-stop")
             )
         )
         assert config.subagent_stop is not None
@@ -198,18 +199,14 @@ class TestHooksConfigSchemaValidation:
     def test_user_prompt_submit_hook(self) -> None:
         """Test UserPromptSubmit hook configuration."""
         config = HooksConfigSchema(
-            UserPromptSubmit=HookWebhookSchema(
-                url="https://example.com/prompt",  # type: ignore[arg-type]
-            )
+            UserPromptSubmit=HookWebhookSchema(url=_http_url("https://example.com/prompt"))
         )
         assert config.user_prompt_submit is not None
 
     def test_pre_compact_hook(self) -> None:
         """Test PreCompact hook configuration."""
         config = HooksConfigSchema(
-            PreCompact=HookWebhookSchema(
-                url="https://example.com/pre-compact",  # type: ignore[arg-type]
-            )
+            PreCompact=HookWebhookSchema(url=_http_url("https://example.com/pre-compact"))
         )
         assert config.pre_compact is not None
 
@@ -217,7 +214,7 @@ class TestHooksConfigSchemaValidation:
         """Test Notification hook configuration."""
         config = HooksConfigSchema(
             Notification=HookWebhookSchema(
-                url="https://example.com/notification",  # type: ignore[arg-type]
+                url=_http_url("https://example.com/notification")
             )
         )
         assert config.notification is not None
@@ -226,16 +223,16 @@ class TestHooksConfigSchemaValidation:
         """Test configuring multiple hook types together."""
         config = HooksConfigSchema(
             PreToolUse=HookWebhookSchema(
-                url="https://example.com/pre",  # type: ignore[arg-type]
+                url=_http_url("https://example.com/pre"),
                 timeout=30,
                 matcher="Write|Edit",
             ),
             PostToolUse=HookWebhookSchema(
-                url="https://example.com/post",  # type: ignore[arg-type]
+                url=_http_url("https://example.com/post"),
                 timeout=30,
             ),
             Stop=HookWebhookSchema(
-                url="https://example.com/stop",  # type: ignore[arg-type]
+                url=_http_url("https://example.com/stop"),
                 timeout=60,
             ),
         )
@@ -258,10 +255,8 @@ class TestHooksConfigSchemaValidation:
 
     def test_snake_case_names_work(self) -> None:
         """Test that snake_case field names also work (populate_by_name)."""
-        config = HooksConfigSchema(
-            pre_tool_use=HookWebhookSchema(
-                url="https://example.com/hook",  # type: ignore[arg-type]
-            )
+        config = HooksConfigSchema.model_validate(
+            {"pre_tool_use": {"url": "https://example.com/hook"}}
         )
         assert config.pre_tool_use is not None
 
@@ -274,9 +269,7 @@ class TestHooksInQueryRequest:
         request = QueryRequest(
             prompt="Test prompt",
             hooks=HooksConfigSchema(
-                PreToolUse=HookWebhookSchema(
-                    url="https://example.com/hook",  # type: ignore[arg-type]
-                )
+                PreToolUse=HookWebhookSchema(url=_http_url("https://example.com/hook"))
             ),
         )
         assert request.hooks is not None
@@ -295,13 +288,11 @@ class TestHooksInQueryRequest:
             permission_mode="acceptEdits",
             hooks=HooksConfigSchema(
                 PreToolUse=HookWebhookSchema(
-                    url="https://example.com/pre",  # type: ignore[arg-type]
+                    url=_http_url("https://example.com/pre"),
                     timeout=60,
                     matcher="Write",
                 ),
-                Stop=HookWebhookSchema(
-                    url="https://example.com/stop",  # type: ignore[arg-type]
-                ),
+                Stop=HookWebhookSchema(url=_http_url("https://example.com/stop")),
             ),
         )
         assert request.allowed_tools == ["Read", "Write"]
@@ -319,9 +310,7 @@ class TestHooksInResumeRequest:
         request = ResumeRequest(
             prompt="Continue",
             hooks=HooksConfigSchema(
-                PreToolUse=HookWebhookSchema(
-                    url="https://example.com/hook",  # type: ignore[arg-type]
-                )
+                PreToolUse=HookWebhookSchema(url=_http_url("https://example.com/hook"))
             ),
         )
         assert request.hooks is not None
@@ -340,11 +329,9 @@ class TestHooksInForkRequest:
         request = ForkRequest(
             prompt="Fork and continue",
             hooks=HooksConfigSchema(
-                PreToolUse=HookWebhookSchema(
-                    url="https://example.com/hook",  # type: ignore[arg-type]
-                ),
+                PreToolUse=HookWebhookSchema(url=_http_url("https://example.com/hook")),
                 SubagentStop=HookWebhookSchema(
-                    url="https://example.com/subagent",  # type: ignore[arg-type]
+                    url=_http_url("https://example.com/subagent")
                 ),
             ),
         )
@@ -438,11 +425,17 @@ class TestAgentDefinitionSchemaValidation:
 
     def test_agent_definition_model_options(self) -> None:
         """Test valid model options for agents."""
-        for model in ["sonnet", "opus", "haiku", "inherit"]:
+        models: list[Literal["sonnet", "opus", "haiku", "inherit"]] = [
+            "sonnet",
+            "opus",
+            "haiku",
+            "inherit",
+        ]
+        for model in models:
             agent = AgentDefinitionSchema(
                 description="Test",
                 prompt="Test",
-                model=model,  # type: ignore[arg-type]
+                model=model,
             )
             assert agent.model == model
 

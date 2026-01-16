@@ -101,7 +101,7 @@ class TestShutdownManager:
             await asyncio.sleep(0.1)
             shutdown_manager.unregister_session("session-1")
 
-        asyncio.create_task(complete_session())
+        _task = asyncio.create_task(complete_session())  # noqa: RUF006
 
         result = await shutdown_manager.wait_for_sessions(timeout=5)
 

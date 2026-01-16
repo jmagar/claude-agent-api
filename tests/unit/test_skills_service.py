@@ -22,8 +22,8 @@ description: A test skill for unit testing
 This is a test skill.
 """)
 
-        # Discover skills
-        service = SkillsService(project_path=tmp_path)
+        # Discover skills (isolate from global skills)
+        service = SkillsService(project_path=tmp_path, home_path=tmp_path)
         skills = service.discover_skills()
 
         # Assertions
@@ -36,7 +36,7 @@ This is a test skill.
         self, tmp_path: Path
     ) -> None:
         """Test discovering skills when .claude/skills/ doesn't exist."""
-        service = SkillsService(project_path=tmp_path)
+        service = SkillsService(project_path=tmp_path, home_path=tmp_path)
         skills = service.discover_skills()
         assert skills == []
 
@@ -55,7 +55,7 @@ description: Valid skill
 ---
 Content""")
 
-        service = SkillsService(project_path=tmp_path)
+        service = SkillsService(project_path=tmp_path, home_path=tmp_path)
         skills = service.discover_skills()
 
         assert len(skills) == 1

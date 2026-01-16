@@ -5,12 +5,13 @@ Covers authentication, message handling, event streaming, and connection cleanup
 """
 
 import asyncio
+import contextlib
 import json
-from typing import cast
+from collections.abc import Callable
+from typing import TYPE_CHECKING, cast
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from fastapi import WebSocket
 from httpx import AsyncClient
 from starlette.datastructures import Headers
 from starlette.websockets import WebSocketState
@@ -19,9 +20,14 @@ from apps.api.services.session import SessionService
 from apps.api.types import JsonValue
 from tests.mocks.claude_sdk import AssistantMessage
 
+if TYPE_CHECKING:
+    from fastapi import WebSocket
+
+    from apps.api.protocols import Cache
+
 
 async def wait_for_condition(
-    condition_fn: callable,
+    condition_fn: Callable[[], bool],
     timeout: float = 1.0,
     poll_interval: float = 0.01,
 ) -> bool:
@@ -175,9 +181,7 @@ class InMemoryCache:
         self._store[key] = value
         return True
 
-    async def get_many_json(
-        self, keys: list[str]
-    ) -> list[dict[str, JsonValue] | None]:
+    async def get_many_json(self, keys: list[str]) -> list[dict[str, JsonValue] | None]:
         """Get multiple JSON values from cache."""
         return [self._store.get(key) for key in keys]
 
@@ -233,7 +237,7 @@ class InMemoryCache:
 @pytest.fixture
 def session_service() -> SessionService:
     """Create SessionService with in-memory cache."""
-    return SessionService(cache=InMemoryCache())
+    return SessionService(cache=cast("Cache", InMemoryCache()))
 
 
 class TestWebSocketAuthentication:
@@ -242,7 +246,7 @@ class TestWebSocketAuthentication:
     @pytest.mark.anyio
     async def test_websocket_rejects_missing_api_key(
         self,
-        async_client: AsyncClient,  # noqa: ARG002
+        async_client: AsyncClient,
         session_service: SessionService,
     ) -> None:
         """Test WebSocket rejects connection without API key.
@@ -255,7 +259,7 @@ class TestWebSocketAuthentication:
         websocket = MockWebSocket(headers={})
         agent_service = AgentService()
 
-        await websocket_query(cast("WebSocket", websocket), agent_service, session_service)
+        await websocket_query(cast("WebSocket", websocket), agent_service)
 
         # Should reject connection
         assert not websocket.was_accepted
@@ -265,7 +269,7 @@ class TestWebSocketAuthentication:
     @pytest.mark.anyio
     async def test_websocket_rejects_invalid_api_key(
         self,
-        async_client: AsyncClient,  # noqa: ARG002
+        async_client: AsyncClient,
         session_service: SessionService,
     ) -> None:
         """Test WebSocket rejects connection with invalid API key.
@@ -278,7 +282,7 @@ class TestWebSocketAuthentication:
         websocket = MockWebSocket(headers={"x-api-key": "invalid-key"})
         agent_service = AgentService()
 
-        await websocket_query(cast("WebSocket", websocket), agent_service, session_service)
+        await websocket_query(cast("WebSocket", websocket), agent_service)
 
         # Should reject connection
         assert not websocket.was_accepted
@@ -288,7 +292,7 @@ class TestWebSocketAuthentication:
     @pytest.mark.anyio
     async def test_websocket_accepts_valid_api_key(
         self,
-        async_client: AsyncClient,  # noqa: ARG002
+        async_client: AsyncClient,
         test_api_key: str,
         session_service: SessionService,
     ) -> None:
@@ -305,7 +309,7 @@ class TestWebSocketAuthentication:
         # Add a message to trigger disconnect after accept
         websocket.add_received_message({"type": "unknown"})
 
-        await websocket_query(cast("WebSocket", websocket), agent_service, session_service)
+        await websocket_query(cast("WebSocket", websocket), agent_service)
 
         # Should accept connection
         assert websocket.was_accepted
@@ -317,7 +321,7 @@ class TestWebSocketMessageHandling:
     @pytest.mark.anyio
     async def test_websocket_handles_prompt_message(
         self,
-        async_client: AsyncClient,  # noqa: ARG002
+        async_client: AsyncClient,
         test_api_key: str,
         mock_claude_sdk: MagicMock,
         session_service: SessionService,
@@ -331,10 +335,14 @@ class TestWebSocketMessageHandling:
 
         # Configure mock to return a simple response
         mock_instance = mock_claude_sdk.return_value
-        mock_instance.set_messages([AssistantMessage(
-            content=[{"type": "text", "text": "Hello from agent"}],
-            model="sonnet",
-        )])
+        mock_instance.set_messages(
+            [
+                AssistantMessage(
+                    content=[{"type": "text", "text": "Hello from agent"}],
+                    model="sonnet",
+                )
+            ]
+        )
 
         websocket = MockWebSocket(headers={"x-api-key": test_api_key})
         agent_service = AgentService()
@@ -349,7 +357,9 @@ class TestWebSocketMessageHandling:
         )
 
         # Run in background task
-        task = asyncio.create_task(websocket_query(cast("WebSocket", websocket), agent_service, session_service))
+        task = asyncio.create_task(
+            websocket_query(cast("WebSocket", websocket), agent_service)
+        )
 
         # Wait for ack message with timeout
         await wait_for_condition(
@@ -359,10 +369,8 @@ class TestWebSocketMessageHandling:
 
         # Cancel task to stop
         task.cancel()
-        try:
+        with contextlib.suppress(asyncio.CancelledError):
             await task
-        except asyncio.CancelledError:
-            pass
 
         # Should have accepted and sent ack
         assert websocket.was_accepted
@@ -372,7 +380,7 @@ class TestWebSocketMessageHandling:
     @pytest.mark.anyio
     async def test_websocket_handles_interrupt_message(
         self,
-        async_client: AsyncClient,  # noqa: ARG002
+        async_client: AsyncClient,
         test_api_key: str,
         session_service: SessionService,
     ) -> None:
@@ -395,7 +403,9 @@ class TestWebSocketMessageHandling:
         )
 
         # Run in background task
-        task = asyncio.create_task(websocket_query(cast("WebSocket", websocket), agent_service, session_service))
+        task = asyncio.create_task(
+            websocket_query(cast("WebSocket", websocket), agent_service)
+        )
 
         # Wait for error message with timeout
         await wait_for_condition(
@@ -405,10 +415,8 @@ class TestWebSocketMessageHandling:
 
         # Cancel task to stop
         task.cancel()
-        try:
+        with contextlib.suppress(asyncio.CancelledError):
             await task
-        except asyncio.CancelledError:
-            pass
 
         # Should have sent error (session not found)
         assert websocket.was_accepted
@@ -418,7 +426,7 @@ class TestWebSocketMessageHandling:
     @pytest.mark.anyio
     async def test_websocket_rejects_interrupt_for_unowned_session(
         self,
-        async_client: AsyncClient,  # noqa: ARG002
+        async_client: AsyncClient,
         test_api_key: str,
         session_service: SessionService,
     ) -> None:
@@ -454,10 +462,8 @@ class TestWebSocketMessageHandling:
         )
 
         task.cancel()
-        try:
+        with contextlib.suppress(asyncio.CancelledError):
             await task
-        except asyncio.CancelledError:
-            pass
 
         assert websocket.was_accepted
         assert any(
@@ -470,7 +476,7 @@ class TestWebSocketMessageHandling:
     @pytest.mark.anyio
     async def test_websocket_handles_answer_message(
         self,
-        async_client: AsyncClient,  # noqa: ARG002
+        async_client: AsyncClient,
         test_api_key: str,
         session_service: SessionService,
     ) -> None:
@@ -494,7 +500,9 @@ class TestWebSocketMessageHandling:
         )
 
         # Run in background task
-        task = asyncio.create_task(websocket_query(cast("WebSocket", websocket), agent_service, session_service))
+        task = asyncio.create_task(
+            websocket_query(cast("WebSocket", websocket), agent_service)
+        )
 
         # Wait for error message with timeout
         await wait_for_condition(
@@ -504,10 +512,8 @@ class TestWebSocketMessageHandling:
 
         # Cancel task to stop
         task.cancel()
-        try:
+        with contextlib.suppress(asyncio.CancelledError):
             await task
-        except asyncio.CancelledError:
-            pass
 
         # Should have sent error (session not found or no pending question)
         assert websocket.was_accepted
@@ -517,7 +523,7 @@ class TestWebSocketMessageHandling:
     @pytest.mark.anyio
     async def test_websocket_handles_control_message(
         self,
-        async_client: AsyncClient,  # noqa: ARG002
+        async_client: AsyncClient,
         test_api_key: str,
         session_service: SessionService,
     ) -> None:
@@ -541,7 +547,9 @@ class TestWebSocketMessageHandling:
         )
 
         # Run in background task
-        task = asyncio.create_task(websocket_query(cast("WebSocket", websocket), agent_service, session_service))
+        task = asyncio.create_task(
+            websocket_query(cast("WebSocket", websocket), agent_service)
+        )
 
         # Wait for error message with timeout
         await wait_for_condition(
@@ -551,10 +559,8 @@ class TestWebSocketMessageHandling:
 
         # Cancel task to stop
         task.cancel()
-        try:
+        with contextlib.suppress(asyncio.CancelledError):
             await task
-        except asyncio.CancelledError:
-            pass
 
         # Should have sent error (session not found)
         assert websocket.was_accepted
@@ -564,7 +570,7 @@ class TestWebSocketMessageHandling:
     @pytest.mark.anyio
     async def test_websocket_handles_invalid_json(
         self,
-        async_client: AsyncClient,  # noqa: ARG002
+        async_client: AsyncClient,
         test_api_key: str,
         session_service: SessionService,
     ) -> None:
@@ -582,7 +588,9 @@ class TestWebSocketMessageHandling:
         websocket.add_raw_message("not valid json {")
 
         # Run in background task
-        task = asyncio.create_task(websocket_query(cast("WebSocket", websocket), agent_service, session_service))
+        task = asyncio.create_task(
+            websocket_query(cast("WebSocket", websocket), agent_service)
+        )
 
         # Wait for error message with timeout
         await wait_for_condition(
@@ -595,10 +603,8 @@ class TestWebSocketMessageHandling:
 
         # Cancel task to stop
         task.cancel()
-        try:
+        with contextlib.suppress(asyncio.CancelledError):
             await task
-        except asyncio.CancelledError:
-            pass
 
         # Should have sent error
         assert websocket.was_accepted
@@ -611,7 +617,7 @@ class TestWebSocketMessageHandling:
     @pytest.mark.anyio
     async def test_websocket_handles_unknown_message_type(
         self,
-        async_client: AsyncClient,  # noqa: ARG002
+        async_client: AsyncClient,
         test_api_key: str,
         session_service: SessionService,
     ) -> None:
@@ -629,12 +635,15 @@ class TestWebSocketMessageHandling:
         websocket.add_received_message({"type": "unknown_type"})
 
         # Run in background task
-        task = asyncio.create_task(websocket_query(cast("WebSocket", websocket), agent_service, session_service))
+        task = asyncio.create_task(
+            websocket_query(cast("WebSocket", websocket), agent_service)
+        )
 
         # Wait for error message with timeout
         await wait_for_condition(
             lambda: any(
-                msg.get("type") == "error" and "Unknown message type" in str(msg.get("message"))
+                msg.get("type") == "error"
+                and "Unknown message type" in str(msg.get("message"))
                 for msg in websocket.sent_messages
             ),
             timeout=2.0,
@@ -642,16 +651,15 @@ class TestWebSocketMessageHandling:
 
         # Cancel task to stop
         task.cancel()
-        try:
+        with contextlib.suppress(asyncio.CancelledError):
             await task
-        except asyncio.CancelledError:
-            pass
 
         # Should have sent error
         assert websocket.was_accepted
         messages = websocket.sent_messages
         assert any(
-            msg.get("type") == "error" and "Unknown message type" in str(msg.get("message"))
+            msg.get("type") == "error"
+            and "Unknown message type" in str(msg.get("message"))
             for msg in messages
         )
 
@@ -662,7 +670,7 @@ class TestWebSocketStreaming:
     @pytest.mark.anyio
     async def test_websocket_streams_query_events(
         self,
-        async_client: AsyncClient,  # noqa: ARG002
+        async_client: AsyncClient,
         test_api_key: str,
         mock_claude_sdk: MagicMock,
         session_service: SessionService,
@@ -676,10 +684,14 @@ class TestWebSocketStreaming:
 
         # Configure mock to return a response
         mock_instance = mock_claude_sdk.return_value
-        mock_instance.set_messages([AssistantMessage(
-            content=[{"type": "text", "text": "Response from agent"}],
-            model="sonnet",
-        )])
+        mock_instance.set_messages(
+            [
+                AssistantMessage(
+                    content=[{"type": "text", "text": "Response from agent"}],
+                    model="sonnet",
+                )
+            ]
+        )
 
         websocket = MockWebSocket(headers={"x-api-key": test_api_key})
         agent_service = AgentService()
@@ -694,7 +706,9 @@ class TestWebSocketStreaming:
         )
 
         # Run in background task
-        task = asyncio.create_task(websocket_query(cast("WebSocket", websocket), agent_service, session_service))
+        task = asyncio.create_task(
+            websocket_query(cast("WebSocket", websocket), agent_service)
+        )
 
         # Wait for ack or SSE events with timeout
         await wait_for_condition(
@@ -704,10 +718,8 @@ class TestWebSocketStreaming:
 
         # Cancel task to stop
         task.cancel()
-        try:
+        with contextlib.suppress(asyncio.CancelledError):
             await task
-        except asyncio.CancelledError:
-            pass
 
         # Should have received SSE events (at least ack message)
         messages = websocket.sent_messages
@@ -716,14 +728,14 @@ class TestWebSocketStreaming:
             print(f"Messages sent: {messages}")
         # Should have at least an ack and potentially SSE events
         assert len(messages) > 0, "No messages were sent"
-        assert any(
-            msg.get("type") in ("ack", "sse_event") for msg in messages
-        ), f"Expected ack or sse_event, got: {messages}"
+        assert any(msg.get("type") in ("ack", "sse_event") for msg in messages), (
+            f"Expected ack or sse_event, got: {messages}"
+        )
 
     @pytest.mark.anyio
     async def test_websocket_handles_disconnect_gracefully(
         self,
-        async_client: AsyncClient,  # noqa: ARG002
+        async_client: AsyncClient,
         test_api_key: str,
         session_service: SessionService,
     ) -> None:
@@ -739,7 +751,7 @@ class TestWebSocketStreaming:
 
         # Don't add any messages - will trigger disconnect immediately
 
-        await websocket_query(cast("WebSocket", websocket), agent_service, session_service)
+        await websocket_query(cast("WebSocket", websocket), agent_service)
 
         # Should have accepted and then disconnected cleanly
         assert websocket.was_accepted
@@ -747,7 +759,7 @@ class TestWebSocketStreaming:
     @pytest.mark.anyio
     async def test_websocket_cancels_task_on_disconnect(
         self,
-        async_client: AsyncClient,  # noqa: ARG002
+        async_client: AsyncClient,
         test_api_key: str,
         mock_claude_sdk: MagicMock,
         session_service: SessionService,
@@ -783,7 +795,9 @@ class TestWebSocketStreaming:
         )
 
         # Run in background and cancel quickly
-        task = asyncio.create_task(websocket_query(cast("WebSocket", websocket), agent_service, session_service))
+        task = asyncio.create_task(
+            websocket_query(cast("WebSocket", websocket), agent_service)
+        )
 
         # Wait for connection to be accepted before canceling
         await wait_for_condition(
@@ -793,10 +807,8 @@ class TestWebSocketStreaming:
 
         # Cancel to simulate disconnect
         task.cancel()
-        try:
+        with contextlib.suppress(asyncio.CancelledError):
             await task
-        except asyncio.CancelledError:
-            pass
 
         # Should have cleaned up
         assert websocket.was_accepted

@@ -42,9 +42,7 @@ async def test_mcp_server_crud_flow(
     created = create_response.json()
     assert created["name"] == server_name
 
-    list_response = await async_client.get(
-        "/api/v1/mcp-servers", headers=auth_headers
-    )
+    list_response = await async_client.get("/api/v1/mcp-servers", headers=auth_headers)
     assert list_response.status_code == 200
     list_data = list_response.json()
     assert any(server["name"] == server_name for server in list_data["servers"])

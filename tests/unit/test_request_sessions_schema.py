@@ -21,9 +21,7 @@ class TestResumeRequest:
     def test_resume_with_overrides(self) -> None:
         """Test resume with configuration overrides."""
         req = ResumeRequest(
-            prompt="Continue",
-            permission_mode="bypassPermissions",
-            max_turns=10
+            prompt="Continue", permission_mode="bypassPermissions", max_turns=10
         )
         assert req.permission_mode == "bypassPermissions"
         assert req.max_turns == 10

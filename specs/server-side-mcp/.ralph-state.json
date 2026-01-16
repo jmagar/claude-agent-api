@@ -1,0 +1,13 @@
+{
+  "source": "spec",
+  "name": "server-side-mcp",
+  "basePath": "./specs/server-side-mcp",
+  "phase": "tasks",
+  "taskIndex": 0,
+  "totalTasks": 46,
+  "taskIteration": 1,
+  "maxTaskIterations": 5,
+  "globalIteration": 1,
+  "maxGlobalIterations": 100,
+  "awaitingApproval": false
+}

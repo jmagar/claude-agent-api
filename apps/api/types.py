@@ -7,19 +7,7 @@ from uuid import UUID
 
 # JSON value type (recursive union for proper type safety)
 JsonValue: TypeAlias = (
-    None
-    | bool
-    | int
-    | float
-    | str
-    | list["JsonValue"]
-    | dict[str, "JsonValue"]
-    | bool
-    | int
-    | float
-    | str
-    | list["JsonValue"]
-    | dict[str, "JsonValue"]
+    None | bool | int | float | str | list["JsonValue"] | dict[str, "JsonValue"]
 )
 
 # Session status values

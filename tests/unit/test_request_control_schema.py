@@ -26,8 +26,7 @@ class TestControlRequest:
     def test_valid_permission_mode_change(self) -> None:
         """Test valid permission mode change."""
         req = ControlRequest(
-            type="permission_mode_change",
-            permission_mode="bypassPermissions"
+            type="permission_mode_change", permission_mode="bypassPermissions"
         )
         assert req.type == "permission_mode_change"
         assert req.permission_mode == "bypassPermissions"

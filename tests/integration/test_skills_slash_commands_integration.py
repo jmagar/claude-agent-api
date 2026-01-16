@@ -1,6 +1,7 @@
 """End-to-end integration tests for skills and slash commands."""
 
 from pathlib import Path
+from typing import cast
 
 import pytest
 from httpx import AsyncClient
@@ -82,16 +83,20 @@ Analysis skill""")
     assert len(init_events) == 1
     init_data = init_events[0]["data"]
     assert isinstance(init_data, dict)
+    init_data = cast("dict[str, object]", init_data)
 
     # Verify Skill tool is in allowed tools
-    tools = init_data.get("tools", [])
+    tools = init_data.get("tools")
+    assert isinstance(tools, list)
     assert "Skill" in tools
 
     # Verify commands are present
-    commands = init_data.get("commands", [])
+    commands = init_data.get("commands")
+    assert isinstance(commands, list)
     assert len(commands) == 1
     assert isinstance(commands[0], dict)
-    assert commands[0]["name"] == "review"
+    first_command = cast("dict[str, object]", commands[0])
+    assert first_command.get("name") == "review"
 
 
 @pytest.mark.integration
@@ -119,12 +124,11 @@ Content""")
 
     # Change working directory for test isolation
     monkeypatch.chdir(tmp_path)
+    # Mock Path.home() to prevent discovering real global skills
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
 
     # Get skills via API
-    skills_response = await async_client.get(
-        "/api/v1/skills",
-        headers=auth_headers
-    )
+    skills_response = await async_client.get("/api/v1/skills", headers=auth_headers)
     skills_data = skills_response.json()
 
     # Start agent query
@@ -155,6 +159,7 @@ Content""")
     assert len(init_events) == 1
     init_data = init_events[0]["data"]
     assert isinstance(init_data, dict)
+    init_data = cast("dict[str, object]", init_data)
 
     # Both endpoints should see same skills
     assert len(skills_data["skills"]) == 2
@@ -164,7 +169,9 @@ Content""")
     assert skill_names == {"skill-one", "skill-two"}
 
     # SDK loads skills internally, we just verify Skill tool is present
-    assert "Skill" in init_data.get("tools", [])
+    tools = init_data.get("tools")
+    assert isinstance(tools, list)
+    assert "Skill" in tools
 
 
 @pytest.mark.integration
@@ -211,12 +218,21 @@ async def test_multiple_commands_discovered(
     assert len(init_events) == 1
     init_data = init_events[0]["data"]
     assert isinstance(init_data, dict)
+    init_data = cast("dict[str, object]", init_data)
 
-    commands = init_data.get("commands", [])
+    commands = init_data.get("commands")
+    assert isinstance(commands, list)
     assert len(commands) == 3
 
     # Verify command names
-    command_names = {c["name"] for c in commands if isinstance(c, dict)}
+    command_names = set()
+    for command in commands:
+        if not isinstance(command, dict):
+            continue
+        command = cast("dict[str, object]", command)
+        name = command.get("name")
+        if isinstance(name, str):
+            command_names.add(name)
     assert command_names == {"cmd1", "cmd2", "cmd3"}
 
 
@@ -250,12 +266,11 @@ Content""")
 
     # Change working directory
     monkeypatch.chdir(tmp_path)
+    # Mock Path.home() to prevent discovering real global skills
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
 
     # Get skills via API
-    skills_response = await async_client.get(
-        "/api/v1/skills",
-        headers=auth_headers
-    )
+    skills_response = await async_client.get("/api/v1/skills", headers=auth_headers)
     skills_data = skills_response.json()
 
     # Only valid skill should be returned

@@ -26,6 +26,8 @@ Content here""")
 
     # Change working directory to tmp_path so the service discovers the skills
     monkeypatch.chdir(tmp_path)
+    # Mock Path.home() to prevent discovering real global skills
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
 
     # Make request
     response = await async_client.get("/api/v1/skills", headers=auth_headers)
@@ -43,9 +45,16 @@ Content here""")
 @pytest.mark.anyio
 async def test_skills_endpoint_returns_empty_when_no_skills(
     async_client: AsyncClient,
+    tmp_path: Path,
     auth_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Test GET /skills returns empty list when no skills exist."""
+    # Change working directory to isolated tmp_path with no skills
+    monkeypatch.chdir(tmp_path)
+    # Mock Path.home() to prevent discovering real global skills
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+
     response = await async_client.get("/api/v1/skills", headers=auth_headers)
 
     assert response.status_code == 200

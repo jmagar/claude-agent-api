@@ -18,7 +18,7 @@ async def test_single_query_runner_aggregates_assistant_content() -> None:
     ) -> AsyncGenerator[dict[str, str], None]:
         yield {
             "event": "message",
-            "data": "{\"type\": \"assistant\", \"content\": [{\"type\": \"text\", \"text\": \"hi\"}]}",
+            "data": '{"type": "assistant", "content": [{"type": "text", "text": "hi"}]}',
         }
 
     query_executor.execute.side_effect = _execute

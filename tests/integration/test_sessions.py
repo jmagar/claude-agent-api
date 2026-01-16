@@ -128,6 +128,11 @@ class TestSessionResumeIntegration:
         assert len(init_events) == 1
         session_id = json.loads(init_events[0]["data"])["session_id"]
 
+        # Small delay to ensure database transaction commits
+        import asyncio
+
+        await asyncio.sleep(0.1)
+
         # List sessions
         list_response = await async_client.get(
             "/api/v1/sessions",

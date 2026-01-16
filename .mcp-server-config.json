@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "test-app-server": {
+      "command": "node",
+      "args": ["/path/to/test-server.js"],
+      "env": {
+        "TEST_VAR": "from_application_config"
+      }
+    },
+    "disabled-app-server": {
+      "command": "node",
+      "args": ["/path/to/disabled.js"],
+      "enabled": false
+    }
+  }
+}
