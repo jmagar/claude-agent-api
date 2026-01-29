@@ -3,11 +3,53 @@
 from typing import Literal, NotRequired, Required, TypedDict
 
 
-class OpenAIDelta(TypedDict):
+# =============================================================================
+# Tool Call Response Types
+# =============================================================================
+
+
+class OpenAIFunctionCallResponse(TypedDict):
+    """Function call details in a tool_call response."""
+
+    name: Required[str]
+    arguments: Required[str]  # JSON string
+
+
+class OpenAIToolCallResponse(TypedDict):
+    """Tool call in assistant response."""
+
+    id: Required[str]
+    type: Required[Literal["function"]]
+    function: Required[OpenAIFunctionCallResponse]
+
+
+# =============================================================================
+# Streaming Delta Types
+# =============================================================================
+
+
+class OpenAIFunctionCallDelta(TypedDict, total=False):
+    """Delta for function call in streaming."""
+
+    name: str
+    arguments: str
+
+
+class OpenAIToolCallDelta(TypedDict, total=False):
+    """Tool call delta in streaming response."""
+
+    index: Required[int]
+    id: str
+    type: Literal["function"]
+    function: OpenAIFunctionCallDelta
+
+
+class OpenAIDelta(TypedDict, total=False):
     """Delta object for streaming responses."""
 
-    role: NotRequired[Literal["assistant"]]
-    content: NotRequired[str]
+    role: Literal["assistant"]
+    content: str
+    tool_calls: list[OpenAIToolCallDelta]
 
 
 class OpenAIStreamChoice(TypedDict):
@@ -15,7 +57,7 @@ class OpenAIStreamChoice(TypedDict):
 
     index: Required[int]
     delta: Required[OpenAIDelta]
-    finish_reason: Required[Literal["stop", "length", "error"] | None]
+    finish_reason: Required[Literal["stop", "length", "tool_calls", "error"] | None]
 
 
 class OpenAIStreamChunk(TypedDict):
@@ -28,11 +70,17 @@ class OpenAIStreamChunk(TypedDict):
     choices: Required[list[OpenAIStreamChoice]]
 
 
-class OpenAIResponseMessage(TypedDict):
+# =============================================================================
+# Non-Streaming Response Types
+# =============================================================================
+
+
+class OpenAIResponseMessage(TypedDict, total=False):
     """Message object for non-streaming responses."""
 
     role: Required[Literal["assistant"]]
-    content: Required[str]
+    content: str | None
+    tool_calls: list[OpenAIToolCallResponse]
 
 
 class OpenAIChoice(TypedDict):
@@ -40,7 +88,7 @@ class OpenAIChoice(TypedDict):
 
     index: Required[int]
     message: Required[OpenAIResponseMessage]
-    finish_reason: Required[Literal["stop", "length", "error"] | None]
+    finish_reason: Required[Literal["stop", "length", "tool_calls", "error"] | None]
 
 
 class OpenAIUsage(TypedDict):

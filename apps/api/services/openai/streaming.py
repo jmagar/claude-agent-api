@@ -1,5 +1,6 @@
 """OpenAI streaming adapter for Claude Agent SDK events."""
 
+import json
 import time
 import uuid
 from collections.abc import AsyncGenerator
@@ -9,7 +10,9 @@ import structlog
 
 from apps.api.schemas.openai.responses import (
     OpenAIDelta,
+    OpenAIFunctionCallDelta,
     OpenAIStreamChunk,
+    OpenAIToolCallDelta,
 )
 from apps.api.types import (
     MessageEventDataDict,
@@ -90,6 +93,7 @@ class StreamingAdapter:
         # Use mapped_model (Claude name) in responses as per design spec
         # Design decision: "Return actual Claude model name (e.g., sonnet), not OpenAI name"
         model_name: str = self.mapped_model or self.original_model or "unknown"
+        has_tool_calls = False
 
         async for event_type, event_data in native_events:
             # First chunk: emit role delta once, regardless of event type.
@@ -117,9 +121,15 @@ class StreamingAdapter:
                 if isinstance(partial_data, dict) and "content" in partial_data:
                     content_blocks = partial_data.get("content", [])
                     if isinstance(content_blocks, list):
-                        # Extract text from text blocks
+                        tool_call_index = 0
                         for block in content_blocks:
-                            if isinstance(block, dict) and block.get("type") == "text":
+                            if not isinstance(block, dict):
+                                continue
+
+                            block_type = block.get("type")
+
+                            # Handle text blocks
+                            if block_type == "text":
                                 text = block.get("text", "")
                                 if text:
                                     content_delta: OpenAIDelta = {"content": text}
@@ -144,14 +154,75 @@ class StreamingAdapter:
                                         text_length=len(text),
                                     )
 
+                            # Handle tool_use blocks
+                            elif block_type == "tool_use":
+                                tool_id = str(
+                                    block.get("id", f"call_{uuid.uuid4().hex[:24]}")
+                                )
+                                tool_name = str(block.get("name", ""))
+                                tool_input = block.get("input", {})
+
+                                # Convert input to JSON string
+                                if isinstance(tool_input, dict):
+                                    arguments_str = json.dumps(tool_input)
+                                else:
+                                    arguments_str = str(tool_input)
+
+                                # Build tool call delta
+                                function_delta: OpenAIFunctionCallDelta = {
+                                    "name": tool_name,
+                                    "arguments": arguments_str,
+                                }
+                                tool_call_delta: OpenAIToolCallDelta = {
+                                    "index": tool_call_index,
+                                    "id": tool_id,
+                                    "type": "function",
+                                    "function": function_delta,
+                                }
+
+                                tool_delta: OpenAIDelta = {
+                                    "tool_calls": [tool_call_delta]
+                                }
+                                tool_chunk: OpenAIStreamChunk = {
+                                    "id": self.completion_id,
+                                    "object": "chat.completion.chunk",
+                                    "created": created_timestamp,
+                                    "model": model_name,
+                                    "choices": [
+                                        {
+                                            "index": 0,
+                                            "delta": tool_delta,
+                                            "finish_reason": None,
+                                        }
+                                    ],
+                                }
+                                yield tool_chunk
+                                chunk_count += 1
+                                has_tool_calls = True
+                                tool_call_index += 1
+                                logger.debug(
+                                    "Yielded tool call chunk",
+                                    completion_id=self.completion_id,
+                                    tool_name=tool_name,
+                                    tool_id=tool_id,
+                                )
+
             # Handle result events (finish reason)
             elif event_type == "result":
                 result_data = event_data
                 if isinstance(result_data, dict):
                     is_error = result_data.get("is_error", False)
-                    finish_reason: Literal["stop", "length", "error"] | None = (
-                        "error" if is_error else "stop"
-                    )
+
+                    # Determine finish_reason based on content and error state
+                    finish_reason: Literal[
+                        "stop", "length", "tool_calls", "error"
+                    ] | None
+                    if is_error:
+                        finish_reason = "error"
+                    elif has_tool_calls:
+                        finish_reason = "tool_calls"
+                    else:
+                        finish_reason = "stop"
 
                     # Empty delta with finish_reason
                     finish_delta: OpenAIDelta = {}

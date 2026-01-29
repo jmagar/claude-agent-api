@@ -17,8 +17,12 @@ from apps.api.schemas.openai.responses import (
 )
 from apps.api.schemas.requests.query import QueryRequest
 from apps.api.schemas.responses import SingleQueryResponse
+from apps.api.services.openai.tools import ToolTranslator
 
 logger = structlog.get_logger(__name__)
+
+# Singleton tool translator instance
+_tool_translator = ToolTranslator()
 
 
 class RequestTranslator:
@@ -52,7 +56,7 @@ class RequestTranslator:
         """Separate system messages from conversation messages.
 
         Extracts all system role messages and combines them into a single system_prompt.
-        Returns remaining user/assistant messages for conversation prompt.
+        Returns remaining user/assistant/tool messages for conversation prompt.
 
         Args:
             messages: List of OpenAI messages
@@ -60,14 +64,15 @@ class RequestTranslator:
         Returns:
             Tuple of (system_prompt, conversation_messages)
             - system_prompt: Combined system messages joined with "\n\n", or None if no system messages
-            - conversation_messages: List of non-system messages (user/assistant)
+            - conversation_messages: List of non-system messages (user/assistant/tool)
         """
-        system_messages = []
-        conversation_messages = []
+        system_messages: list[str] = []
+        conversation_messages: list[OpenAIMessage] = []
 
         for msg in messages:
             if msg.role == "system":
-                system_messages.append(msg.content)
+                if msg.content:
+                    system_messages.append(msg.content)
             else:
                 conversation_messages.append(msg)
 
@@ -79,23 +84,26 @@ class RequestTranslator:
         return system_prompt, conversation_messages
 
     def _concatenate_messages(self, messages: list[OpenAIMessage]) -> str:
-        """Concatenate user/assistant messages with role prefixes.
+        """Concatenate user/assistant/tool messages with role prefixes.
 
-        Converts list of OpenAI messages (user/assistant roles) into a single prompt
-        string with role prefixes. Each message is formatted as "ROLE: content\n\n".
+        Converts list of OpenAI messages into a single prompt string with role prefixes.
+        Each message is formatted as "ROLE: content\n\n".
 
         Strategy:
         - User messages → "USER: content\n\n"
         - Assistant messages → "ASSISTANT: content\n\n"
-        - System messages should be filtered out before calling (use _separate_system_messages)
+        - Tool messages → "TOOL_RESULT: content\n\n"
+        - Assistant messages with tool_calls → formatted tool call representation
+        - System messages should be filtered out before calling
 
         Edge cases handled:
         - Empty message list returns empty string
         - Empty content in message is preserved as "ROLE: \n\n"
         - Role is uppercased for consistency
+        - Tool calls are formatted as function invocations
 
         Args:
-            messages: List of OpenAI messages (typically user/assistant only)
+            messages: List of OpenAI messages (user/assistant/tool only)
 
         Returns:
             Concatenated prompt string with role prefixes
@@ -105,10 +113,31 @@ class RequestTranslator:
             return ""
 
         # Concatenate messages with role prefixes
-        prompt_parts = []
+        prompt_parts: list[str] = []
         for msg in messages:
-            role_upper = msg.role.upper()
-            prompt_parts.append(f"{role_upper}: {msg.content}\n\n")
+            if msg.role == "tool":
+                # Tool result message
+                tool_id = msg.tool_call_id or "unknown"
+                func_name = msg.name or "unknown"
+                prompt_parts.append(
+                    f"TOOL_RESULT ({func_name}, id={tool_id}): {msg.content or ''}\n\n"
+                )
+            elif msg.role == "assistant" and msg.tool_calls:
+                # Assistant message with tool calls
+                tool_call_strs: list[str] = []
+                for tc in msg.tool_calls:
+                    tool_call_strs.append(
+                        f"  - {tc.function.name}(id={tc.id}): {tc.function.arguments}"
+                    )
+                tool_calls_text = "\n".join(tool_call_strs)
+                content = msg.content or ""
+                prompt_parts.append(
+                    f"ASSISTANT: {content}\n[Tool Calls]\n{tool_calls_text}\n\n"
+                )
+            else:
+                # Regular user or assistant message
+                role_upper = msg.role.upper()
+                prompt_parts.append(f"{role_upper}: {msg.content or ''}\n\n")
 
         return "".join(prompt_parts)
 
@@ -194,23 +223,28 @@ class ResponseTranslator:
     """Translates Claude Agent SDK responses to OpenAI chat completion format."""
 
     def _map_stop_reason(
-        self, stop_reason: str | None
-    ) -> Literal["stop", "length", "error"]:
+        self, stop_reason: str | None, has_tool_calls: bool = False
+    ) -> Literal["stop", "length", "tool_calls", "error"]:
         """Map Claude Agent SDK stop_reason to OpenAI finish_reason.
 
         Args:
             stop_reason: Claude Agent SDK stop_reason value
+            has_tool_calls: Whether the response contains tool_use blocks
 
         Returns:
-            OpenAI finish_reason: "stop", "length", or "error"
+            OpenAI finish_reason: "stop", "length", "tool_calls", or "error"
 
         Mapping:
-            - completed → stop
+            - completed → stop (or tool_calls if has_tool_calls)
             - max_turns_reached → length
             - interrupted → stop
             - error → error
             - None → stop (default)
         """
+        # If response has tool calls, finish_reason should be "tool_calls"
+        if has_tool_calls:
+            return "tool_calls"
+
         if stop_reason == "completed":
             return "stop"
         if stop_reason == "max_turns_reached":
@@ -244,23 +278,52 @@ class ResponseTranslator:
         # Generate unique completion ID
         completion_id = f"chatcmpl-{uuid.uuid4()}"
 
+        # Convert content blocks to dicts for tool translator
+        content_dicts: list[dict[str, object]] = []
+        for block in response.content:
+            block_dict: dict[str, object] = {"type": block.type}
+            if block.text:
+                block_dict["text"] = block.text
+            if block.id:
+                block_dict["id"] = block.id
+            if block.name:
+                block_dict["name"] = block.name
+            if block.input:
+                block_dict["input"] = block.input
+            content_dicts.append(block_dict)
+
+        # Check for tool calls and translate them
+        has_tool_calls = _tool_translator.has_tool_calls(content_dicts)
+        tool_calls = None
+        if has_tool_calls:
+            tool_calls = _tool_translator.translate_claude_tool_use_to_openai(
+                content_dicts
+            )
+
         # Extract text content from content blocks (only type="text")
-        text_parts = []
+        text_parts: list[str] = []
         for block in response.content:
             if block.type == "text" and block.text:
                 text_parts.append(block.text)
 
         # Concatenate text blocks with space separator
-        content = " ".join(text_parts)
+        content = " ".join(text_parts) if text_parts else None
 
         # Map stop_reason to finish_reason
-        finish_reason = self._map_stop_reason(response.stop_reason)
+        finish_reason = self._map_stop_reason(response.stop_reason, has_tool_calls)
 
         # Build response message
         message: OpenAIResponseMessage = {
             "role": "assistant",
-            "content": content,
         }
+        # Only include content if present (may be None with tool_calls)
+        if content is not None:
+            message["content"] = content
+        else:
+            message["content"] = None
+        # Include tool_calls if present
+        if tool_calls:
+            message["tool_calls"] = tool_calls
 
         # Build choice object
         choice: OpenAIChoice = {
@@ -297,8 +360,9 @@ class ResponseTranslator:
         logger.info(
             "Response translation complete",
             completion_id=completion_id,
-            content_length=len(content),
+            content_length=len(content) if content else 0,
             finish_reason=finish_reason,
+            tool_call_count=len(tool_calls) if tool_calls else 0,
             prompt_tokens=usage["prompt_tokens"],
             completion_tokens=usage["completion_tokens"],
         )

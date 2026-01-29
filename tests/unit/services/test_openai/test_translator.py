@@ -770,7 +770,7 @@ class TestResponseTranslator:
 
         Given: response with content=[]
         When: translator.translate(response)
-        Then: Assert message.content is empty string
+        Then: Assert message.content is None (OpenAI returns null for empty content)
         """
         from apps.api.schemas.responses import SingleQueryResponse, UsageSchema
         from apps.api.services.openai.translator import ResponseTranslator
@@ -791,5 +791,5 @@ class TestResponseTranslator:
         # When
         result = translator.translate(response, original_model="gpt-4")
 
-        # Then - Should have empty content string
-        assert result["choices"][0]["message"]["content"] == ""
+        # Then - Should have None content (OpenAI returns null when no text content)
+        assert result["choices"][0]["message"]["content"] is None
