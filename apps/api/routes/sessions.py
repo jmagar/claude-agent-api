@@ -32,11 +32,17 @@ async def list_sessions(
 ) -> SessionWithMetaListResponse:
     """<summary>List sessions with metadata filtering.</summary>"""
     repo = SessionRepository(db_session)
-    sessions, _ = await repo.list_sessions(limit=10000, offset=0)
 
-    def matches(session: Session) -> bool:
-        if session.owner_api_key and session.owner_api_key != _api_key:
-            return False
+    # Security: filter by owner at DB level (public OR owned by this key)
+    sessions, _ = await repo.list_sessions(
+        owner_api_key=_api_key,
+        filter_by_owner_or_public=True,
+        limit=10000,
+        offset=0,
+    )
+
+    # Metadata filtering (JSONB queries are complex, filter in memory)
+    def matches_metadata(session: Session) -> bool:
         metadata = session.metadata_ or {}
         session_mode = metadata.get("mode", "code")
         if mode and session_mode != mode:
@@ -55,7 +61,7 @@ async def list_sessions(
                 return False
         return True
 
-    filtered = [session for session in sessions if matches(session)]
+    filtered = [session for session in sessions if matches_metadata(session)]
     start = (page - 1) * page_size
     page_sessions = filtered[start : start + page_size]
 

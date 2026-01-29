@@ -5,6 +5,12 @@ from typing import Annotated
 from fastapi import Depends
 
 from apps.api.protocols import ModelMapper, RequestTranslator, ResponseTranslator
+from apps.api.services.assistants import (
+    AssistantService,
+    MessageService,
+    RunService,
+    ThreadService,
+)
 from apps.api.services.openai.models import ModelMapper as ModelMapperImpl
 from apps.api.services.openai.translator import (
     RequestTranslator as RequestTranslatorImpl,
@@ -44,3 +50,39 @@ def get_response_translator() -> ResponseTranslator:
         ResponseTranslator for Claude → OpenAI response translation
     """
     return ResponseTranslatorImpl()
+
+
+def get_assistant_service() -> AssistantService:
+    """Get AssistantService instance.
+
+    Returns:
+        AssistantService for assistant CRUD operations.
+    """
+    return AssistantService()
+
+
+def get_thread_service() -> ThreadService:
+    """Get ThreadService instance.
+
+    Returns:
+        ThreadService for thread CRUD operations.
+    """
+    return ThreadService()
+
+
+def get_message_service() -> MessageService:
+    """Get MessageService instance.
+
+    Returns:
+        MessageService for message CRUD operations.
+    """
+    return MessageService()
+
+
+def get_run_service() -> RunService:
+    """Get RunService instance.
+
+    Returns:
+        RunService for run CRUD operations.
+    """
+    return RunService()

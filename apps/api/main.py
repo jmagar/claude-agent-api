@@ -35,8 +35,10 @@ from apps.api.routes import (
     tool_presets,
     websocket,
 )
+from apps.api.routes.openai import assistants as openai_assistants
 from apps.api.routes.openai import chat as openai_chat
 from apps.api.routes.openai import models as openai_models
+from apps.api.routes.openai import threads as openai_threads
 from apps.api.services.openai.errors import ErrorTranslator
 from apps.api.services.shutdown import get_shutdown_manager, reset_shutdown_manager
 
@@ -405,6 +407,8 @@ def create_app() -> FastAPI:
     # OpenAI-compatible endpoints
     app.include_router(openai_chat.router, prefix="/v1")
     app.include_router(openai_models.router, prefix="/v1")
+    app.include_router(openai_assistants.router, prefix="/v1")
+    app.include_router(openai_threads.router, prefix="/v1")
 
     # Also mount health at root for convenience
     app.include_router(health.router)

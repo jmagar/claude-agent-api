@@ -147,18 +147,25 @@ class SessionRepository:
         owner_api_key: str | None = None,
         limit: int = 50,
         offset: int = 0,
+        *,
+        filter_by_owner_or_public: bool = False,
     ) -> tuple[Sequence[Session], int]:
         """List sessions with optional filtering.
 
         Args:
             status: Filter by status.
-            owner_api_key: Filter by owner API key.
+            owner_api_key: Filter by owner API key (exact match).
             limit: Maximum results.
             offset: Pagination offset.
+            filter_by_owner_or_public: If True, returns sessions where
+                owner_api_key is NULL (public) OR matches the provided key.
+                This is the secure multi-tenant filter.
 
         Returns:
             Tuple of session list and total count.
         """
+        from sqlalchemy import or_
+
         # Build query
         stmt = select(Session).order_by(Session.created_at.desc())
         count_stmt = select(func.count()).select_from(Session)
@@ -167,7 +174,16 @@ class SessionRepository:
             stmt = stmt.where(Session.status == status)
             count_stmt = count_stmt.where(Session.status == status)
 
-        if owner_api_key:
+        if owner_api_key and filter_by_owner_or_public:
+            # Secure multi-tenant filter: public sessions OR owned by this key
+            owner_filter = or_(
+                Session.owner_api_key.is_(None),
+                Session.owner_api_key == owner_api_key,
+            )
+            stmt = stmt.where(owner_filter)
+            count_stmt = count_stmt.where(owner_filter)
+        elif owner_api_key:
+            # Exact match only
             stmt = stmt.where(Session.owner_api_key == owner_api_key)
             count_stmt = count_stmt.where(Session.owner_api_key == owner_api_key)
 

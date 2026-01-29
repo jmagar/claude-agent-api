@@ -321,6 +321,55 @@ class TestSessionList:
         assert id2 in found_ids
         assert id3 not in found_ids
 
+    @pytest.mark.anyio
+    async def test_list_sessions_filter_by_owner_or_public(
+        self,
+        repository: SessionRepository,
+    ) -> None:
+        """Test secure multi-tenant filtering (owner OR public sessions).
+
+        This is a security regression test. Sessions should be visible if:
+        - owner_api_key is NULL (public session), OR
+        - owner_api_key matches the requesting user's key
+
+        Sessions owned by OTHER users should NOT be visible.
+        """
+        owner_a = "owner-a-secure-test"
+        owner_b = "owner-b-secure-test"
+
+        # Create sessions with different ownership
+        public_id = uuid4()  # No owner - visible to all
+        owner_a_id = uuid4()  # Owned by A - visible only to A
+        owner_b_id = uuid4()  # Owned by B - visible only to B
+
+        await repository.create(public_id, "sonnet", owner_api_key=None)
+        await repository.create(owner_a_id, "sonnet", owner_api_key=owner_a)
+        await repository.create(owner_b_id, "sonnet", owner_api_key=owner_b)
+
+        # User A should see: public + their own, but NOT B's sessions
+        sessions_a, _ = await repository.list_sessions(
+            owner_api_key=owner_a,
+            filter_by_owner_or_public=True,
+            limit=1000,
+        )
+        found_ids_a = {s.id for s in sessions_a}
+
+        assert public_id in found_ids_a, "Public session should be visible to A"
+        assert owner_a_id in found_ids_a, "A's own session should be visible to A"
+        assert owner_b_id not in found_ids_a, "B's session should NOT be visible to A"
+
+        # User B should see: public + their own, but NOT A's sessions
+        sessions_b, _ = await repository.list_sessions(
+            owner_api_key=owner_b,
+            filter_by_owner_or_public=True,
+            limit=1000,
+        )
+        found_ids_b = {s.id for s in sessions_b}
+
+        assert public_id in found_ids_b, "Public session should be visible to B"
+        assert owner_b_id in found_ids_b, "B's own session should be visible to B"
+        assert owner_a_id not in found_ids_b, "A's session should NOT be visible to B"
+
 
 class TestSessionMessages:
     """Tests for session message operations."""
