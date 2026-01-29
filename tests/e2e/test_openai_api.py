@@ -37,7 +37,9 @@ async def test_openai_chat_completion_non_streaming(
         },
     )
 
-    assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+    assert response.status_code == 200, (
+        f"Expected 200, got {response.status_code}: {response.text}"
+    )
 
     data = response.json()
 
@@ -115,18 +117,18 @@ async def test_openai_chat_completion_streaming(
 
     # Verify first chunk has role
     first_chunk = data_chunks[0]
-    chunk_id = cast(str, first_chunk["id"])
+    chunk_id = cast("str", first_chunk["id"])
     assert chunk_id.startswith("chatcmpl-")
     assert first_chunk["object"] == "chat.completion.chunk"
-    choices = cast(list[dict[str, Any]], first_chunk["choices"])
-    first_delta = cast(dict[str, Any], choices[0]["delta"])
+    choices = cast("list[dict[str, Any]]", first_chunk["choices"])
+    first_delta = cast("dict[str, Any]", choices[0]["delta"])
     assert first_delta.get("role") == "assistant"
 
     # Accumulate content from deltas (may be empty if SDK doesn't emit partial content)
     accumulated_content = ""
     for chunk in data_chunks:
-        choices = cast(list[dict[str, Any]], chunk["choices"])
-        delta = cast(dict[str, Any], choices[0].get("delta", {}))
+        choices = cast("list[dict[str, Any]]", chunk["choices"])
+        delta = cast("dict[str, Any]", choices[0].get("delta", {}))
         content = delta.get("content")
         if content:
             accumulated_content += str(content)
@@ -137,15 +139,15 @@ async def test_openai_chat_completion_streaming(
     # Verify final chunk has finish_reason
     finish_chunks: list[dict[str, Any]] = []
     for c in data_chunks:
-        choices = cast(list[dict[str, Any]], c["choices"])
+        choices = cast("list[dict[str, Any]]", c["choices"])
         if choices[0].get("finish_reason") is not None:
             finish_chunks.append(c)
     assert len(finish_chunks) > 0, "Should have finish_reason chunk"
-    last_choices = cast(list[dict[str, Any]], finish_chunks[-1]["choices"])
+    last_choices = cast("list[dict[str, Any]]", finish_chunks[-1]["choices"])
     assert last_choices[0]["finish_reason"] in ["stop", "length"]
 
     # All chunks should have same ID
-    chunk_ids = {cast(str, c["id"]) for c in data_chunks}
+    chunk_ids = {cast("str", c["id"]) for c in data_chunks}
     assert len(chunk_ids) == 1, "All chunks should have same completion ID"
 
 
@@ -166,7 +168,10 @@ async def test_openai_chat_with_system_message(
         json={
             "model": "sonnet",
             "messages": [
-                {"role": "system", "content": "You are a pirate. Always respond like a pirate."},
+                {
+                    "role": "system",
+                    "content": "You are a pirate. Always respond like a pirate.",
+                },
                 {"role": "user", "content": "Say hello"},
             ],
             "stream": False,
@@ -205,7 +210,10 @@ async def test_openai_chat_multi_turn_conversation(
             "model": "sonnet",
             "messages": [
                 {"role": "user", "content": "My name is TestUser123"},
-                {"role": "assistant", "content": "Hello TestUser123, nice to meet you!"},
+                {
+                    "role": "assistant",
+                    "content": "Hello TestUser123, nice to meet you!",
+                },
                 {"role": "user", "content": "What is my name?"},
             ],
             "stream": False,
@@ -357,3 +365,444 @@ async def test_openai_auth_error(
     assert "error" in data
     assert "message" in data["error"]
     assert "code" in data["error"]
+
+
+# =============================================================================
+# Tool Calling Tests
+# =============================================================================
+
+
+@pytest.mark.e2e
+@pytest.mark.anyio
+async def test_openai_chat_with_tools_non_streaming(
+    async_client: AsyncClient,
+    auth_headers: dict[str, str],
+) -> None:
+    """Test chat completion with tools defined (non-streaming).
+
+    Verifies:
+    - Tools parameter is accepted
+    - Response format is correct when tools are defined
+    - Response may contain tool_calls if model decides to use tools
+    """
+    response = await async_client.post(
+        "/v1/chat/completions",
+        json={
+            "model": "sonnet",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": "What is 25 multiplied by 4? Use the calculator tool.",
+                }
+            ],
+            "tools": [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "calculator",
+                        "description": "Performs basic arithmetic calculations",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "operation": {
+                                    "type": "string",
+                                    "enum": ["add", "subtract", "multiply", "divide"],
+                                    "description": "The arithmetic operation to perform",
+                                },
+                                "a": {
+                                    "type": "number",
+                                    "description": "First operand",
+                                },
+                                "b": {
+                                    "type": "number",
+                                    "description": "Second operand",
+                                },
+                            },
+                            "required": ["operation", "a", "b"],
+                        },
+                    },
+                }
+            ],
+            "tool_choice": "auto",
+            "stream": False,
+        },
+        headers={
+            "Authorization": f"Bearer {auth_headers['X-API-Key']}",
+            "Content-Type": "application/json",
+        },
+    )
+
+    assert response.status_code == 200, (
+        f"Expected 200, got {response.status_code}: {response.text}"
+    )
+
+    data = response.json()
+
+    # Verify basic structure
+    assert data["id"].startswith("chatcmpl-")
+    assert data["object"] == "chat.completion"
+    assert len(data["choices"]) == 1
+
+    choice = data["choices"][0]
+    message = choice["message"]
+    assert message["role"] == "assistant"
+
+    # Response should either have content OR tool_calls (or both)
+    has_content = (
+        message.get("content") is not None and len(message.get("content", "")) > 0
+    )
+    has_tool_calls = (
+        message.get("tool_calls") is not None and len(message.get("tool_calls", [])) > 0
+    )
+
+    assert has_content or has_tool_calls, "Response should have content or tool_calls"
+
+    # If tool_calls present, verify structure
+    if has_tool_calls:
+        assert choice["finish_reason"] == "tool_calls"
+        for tool_call in message["tool_calls"]:
+            assert "id" in tool_call
+            assert tool_call["type"] == "function"
+            assert "function" in tool_call
+            assert "name" in tool_call["function"]
+            assert "arguments" in tool_call["function"]
+            # Arguments should be valid JSON string
+            args = json.loads(tool_call["function"]["arguments"])
+            assert isinstance(args, dict)
+
+
+@pytest.mark.e2e
+@pytest.mark.anyio
+async def test_openai_chat_with_tools_streaming(
+    async_client: AsyncClient,
+    auth_headers: dict[str, str],
+) -> None:
+    """Test streaming chat completion with tools defined.
+
+    Verifies:
+    - Tools work with streaming enabled
+    - Tool call deltas are properly formatted
+    - Arguments accumulate correctly across chunks
+    """
+    chunks: list[dict[str, object] | str] = []
+
+    async with aconnect_sse(
+        async_client,
+        "POST",
+        "/v1/chat/completions",
+        json={
+            "model": "sonnet",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": "Calculate 15 + 27 using the calculator tool.",
+                }
+            ],
+            "tools": [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "calculator",
+                        "description": "Performs basic arithmetic calculations",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "operation": {
+                                    "type": "string",
+                                    "enum": ["add", "subtract", "multiply", "divide"],
+                                },
+                                "a": {"type": "number"},
+                                "b": {"type": "number"},
+                            },
+                            "required": ["operation", "a", "b"],
+                        },
+                    },
+                }
+            ],
+            "tool_choice": "auto",
+            "stream": True,
+        },
+        headers={
+            "Authorization": f"Bearer {auth_headers['X-API-Key']}",
+            "Content-Type": "application/json",
+        },
+    ) as event_source:
+        async for sse_event in event_source.aiter_sse():
+            if sse_event.data == "[DONE]":
+                chunks.append("[DONE]")
+                break
+            if not sse_event.data or sse_event.data.strip() == "":
+                continue
+            chunk = json.loads(sse_event.data)
+            chunks.append(chunk)
+
+    # Verify stream structure
+    assert len(chunks) > 1, "Should have multiple chunks"
+    assert chunks[-1] == "[DONE]", "Stream should end with [DONE]"
+
+    data_chunks: list[dict[str, Any]] = [c for c in chunks if isinstance(c, dict)]
+    assert len(data_chunks) > 0, "Should have at least one data chunk"
+
+    # Check for tool_calls in deltas
+    tool_calls_by_index: dict[int, dict[str, Any]] = {}
+    has_tool_calls = False
+    finish_reason = None
+
+    for chunk in data_chunks:
+        choices = cast("list[dict[str, Any]]", chunk["choices"])
+        if not choices:
+            continue
+        delta = cast("dict[str, Any]", choices[0].get("delta", {}))
+
+        # Track finish_reason
+        if choices[0].get("finish_reason"):
+            finish_reason = choices[0]["finish_reason"]
+
+        # Accumulate tool calls from deltas
+        if delta.get("tool_calls"):
+            has_tool_calls = True
+            for tc in delta["tool_calls"]:
+                idx = tc.get("index", 0)
+                if idx not in tool_calls_by_index:
+                    tool_calls_by_index[idx] = {
+                        "id": tc.get("id", ""),
+                        "type": tc.get("type", "function"),
+                        "function": {
+                            "name": tc.get("function", {}).get("name", ""),
+                            "arguments": "",
+                        },
+                    }
+                # Accumulate arguments
+                if tc.get("function", {}).get("arguments"):
+                    tool_calls_by_index[idx]["function"]["arguments"] += tc["function"][
+                        "arguments"
+                    ]
+                # Accumulate name if present
+                if tc.get("function", {}).get("name"):
+                    tool_calls_by_index[idx]["function"]["name"] += tc["function"][
+                        "name"
+                    ]
+
+    # Verify tool call structure if present
+    if has_tool_calls:
+        assert finish_reason == "tool_calls", (
+            f"Expected finish_reason 'tool_calls', got {finish_reason}"
+        )
+        assert len(tool_calls_by_index) > 0, (
+            "Should have accumulated at least one tool call"
+        )
+
+        for idx, tc in tool_calls_by_index.items():
+            assert tc["function"]["name"], (
+                f"Tool call {idx} should have a function name"
+            )
+            # Verify arguments is valid JSON
+            if tc["function"]["arguments"]:
+                args = json.loads(tc["function"]["arguments"])
+                assert isinstance(args, dict), (
+                    f"Arguments should be a dict, got {type(args)}"
+                )
+
+
+@pytest.mark.e2e
+@pytest.mark.anyio
+async def test_openai_chat_tool_result_conversation(
+    async_client: AsyncClient,
+    auth_headers: dict[str, str],
+) -> None:
+    """Test multi-turn conversation with tool results.
+
+    Verifies:
+    - Tool result messages (role="tool") are accepted
+    - Model can continue conversation after receiving tool results
+    """
+    response = await async_client.post(
+        "/v1/chat/completions",
+        json={
+            "model": "sonnet",
+            "messages": [
+                {"role": "user", "content": "What is 10 + 5?"},
+                {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [
+                        {
+                            "id": "call_test123",
+                            "type": "function",
+                            "function": {
+                                "name": "calculator",
+                                "arguments": '{"operation": "add", "a": 10, "b": 5}',
+                            },
+                        }
+                    ],
+                },
+                {
+                    "role": "tool",
+                    "tool_call_id": "call_test123",
+                    "name": "calculator",
+                    "content": '{"result": 15}',
+                },
+            ],
+            "stream": False,
+        },
+        headers={
+            "Authorization": f"Bearer {auth_headers['X-API-Key']}",
+            "Content-Type": "application/json",
+        },
+    )
+
+    assert response.status_code == 200, (
+        f"Expected 200, got {response.status_code}: {response.text}"
+    )
+
+    data = response.json()
+
+    # Verify response structure
+    assert data["id"].startswith("chatcmpl-")
+    assert data["object"] == "chat.completion"
+    assert len(data["choices"]) == 1
+
+    choice = data["choices"][0]
+    message = choice["message"]
+    assert message["role"] == "assistant"
+
+    # Response should mention the result (15)
+    content = message.get("content", "")
+    assert content is not None, "Response should have content"
+    assert "15" in content, f"Response should reference result 15, got: {content}"
+
+
+@pytest.mark.e2e
+@pytest.mark.anyio
+async def test_openai_chat_tool_choice_required(
+    async_client: AsyncClient,
+    auth_headers: dict[str, str],
+) -> None:
+    """Test tool_choice='required' forces tool use.
+
+    Verifies:
+    - tool_choice='required' is accepted
+    - Model must use at least one tool
+    """
+    response = await async_client.post(
+        "/v1/chat/completions",
+        json={
+            "model": "sonnet",
+            "messages": [{"role": "user", "content": "Hello, how are you?"}],
+            "tools": [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "get_greeting",
+                        "description": "Returns a greeting message",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "name": {
+                                    "type": "string",
+                                    "description": "Name to greet",
+                                }
+                            },
+                            "required": ["name"],
+                        },
+                    },
+                }
+            ],
+            "tool_choice": "required",
+            "stream": False,
+        },
+        headers={
+            "Authorization": f"Bearer {auth_headers['X-API-Key']}",
+            "Content-Type": "application/json",
+        },
+    )
+
+    assert response.status_code == 200, (
+        f"Expected 200, got {response.status_code}: {response.text}"
+    )
+
+    data = response.json()
+    choice = data["choices"][0]
+    message = choice["message"]
+
+    # With tool_choice='required', should have tool_calls
+    assert message.get("tool_calls") is not None, (
+        "tool_choice='required' should force tool calls"
+    )
+    assert len(message["tool_calls"]) > 0, "Should have at least one tool call"
+    assert choice["finish_reason"] == "tool_calls"
+
+
+@pytest.mark.e2e
+@pytest.mark.anyio
+async def test_openai_chat_parallel_tool_calls(
+    async_client: AsyncClient,
+    auth_headers: dict[str, str],
+) -> None:
+    """Test parallel tool calls support.
+
+    Verifies:
+    - parallel_tool_calls parameter is accepted
+    - Multiple tool calls can be returned in a single response
+    """
+    response = await async_client.post(
+        "/v1/chat/completions",
+        json={
+            "model": "sonnet",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": "Get the weather in both New York and Los Angeles using the weather tool for each city.",
+                }
+            ],
+            "tools": [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "get_weather",
+                        "description": "Get weather for a city",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "city": {
+                                    "type": "string",
+                                    "description": "City name",
+                                }
+                            },
+                            "required": ["city"],
+                        },
+                    },
+                }
+            ],
+            "tool_choice": "required",
+            "parallel_tool_calls": True,
+            "stream": False,
+        },
+        headers={
+            "Authorization": f"Bearer {auth_headers['X-API-Key']}",
+            "Content-Type": "application/json",
+        },
+    )
+
+    assert response.status_code == 200, (
+        f"Expected 200, got {response.status_code}: {response.text}"
+    )
+
+    data = response.json()
+    choice = data["choices"][0]
+    message = choice["message"]
+
+    # Should have tool_calls
+    assert message.get("tool_calls") is not None, "Should have tool_calls"
+
+    # With parallel_tool_calls=True and request for two cities, may have multiple calls
+    tool_calls = message["tool_calls"]
+    assert len(tool_calls) >= 1, "Should have at least one tool call"
+
+    # Verify all tool calls have correct structure
+    for tc in tool_calls:
+        assert "id" in tc
+        assert tc["type"] == "function"
+        assert tc["function"]["name"] == "get_weather"
+        args = json.loads(tc["function"]["arguments"])
+        assert "city" in args
