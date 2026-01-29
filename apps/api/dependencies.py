@@ -154,7 +154,8 @@ def verify_api_key(
 
     # Check request.state first (set by middleware)
     if hasattr(_request, "state") and hasattr(_request.state, "api_key"):
-        return _request.state.api_key
+        api_key_from_state: str = _request.state.api_key
+        return api_key_from_state
 
     # Then check header
     if not x_api_key:

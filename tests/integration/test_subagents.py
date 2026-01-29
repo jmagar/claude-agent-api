@@ -110,10 +110,8 @@ class TestAgentDefinitionSchema:
     ) -> None:
         """Test that AgentDefinitionSchema requires description."""
         with pytest.raises(ValueError):
-            AgentDefinitionSchema(
-                prompt="System prompt only",
-                # missing description
-            )
+            # Intentionally missing required 'description' to test validation
+            AgentDefinitionSchema.model_validate({"prompt": "System prompt only"})
 
     @pytest.mark.integration
     @pytest.mark.anyio
@@ -123,10 +121,8 @@ class TestAgentDefinitionSchema:
     ) -> None:
         """Test that AgentDefinitionSchema requires prompt."""
         with pytest.raises(ValueError):
-            AgentDefinitionSchema(
-                description="Description only",
-                # missing prompt
-            )
+            # Intentionally missing required 'prompt' to test validation
+            AgentDefinitionSchema.model_validate({"description": "Description only"})
 
     @pytest.mark.integration
     @pytest.mark.anyio

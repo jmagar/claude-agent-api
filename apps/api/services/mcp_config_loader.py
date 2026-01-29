@@ -90,14 +90,18 @@ class McpConfigLoader:
             if not self._validate_config_structure(mcp_servers, config_path):
                 return {}
 
+            # After validation, mcp_servers is known to be a dict
+            # Cast to proper type since json.loads returns Any
+            validated_servers = cast("dict[str, object]", mcp_servers)
+
             logger.info(
                 "application_mcp_config_loaded",
                 path=str(config_path),
-                server_count=len(mcp_servers),
-                servers=list(mcp_servers.keys()),
+                server_count=len(validated_servers),
+                servers=list(validated_servers.keys()),
             )
 
-            return mcp_servers
+            return validated_servers
 
         except OSError as e:
             # File read errors (permissions, I/O issues)

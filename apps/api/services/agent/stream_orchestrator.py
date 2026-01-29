@@ -88,21 +88,56 @@ class StreamOrchestrator:
         Returns:
             SSE-formatted dict with event type and JSON data.
         """
+        # Convert per-model usage and aggregate total usage
         model_usage_converted: dict[str, UsageSchema] | None = None
+        aggregated_usage: UsageSchema | None = None
+
+        # First, check if ctx.usage has aggregated usage from SDK ResultMessage
+        if ctx.usage:
+            aggregated_usage = UsageSchema(
+                input_tokens=ctx.usage.get("input_tokens", 0),
+                output_tokens=ctx.usage.get("output_tokens", 0),
+                cache_read_input_tokens=ctx.usage.get("cache_read_input_tokens", 0),
+                cache_creation_input_tokens=ctx.usage.get(
+                    "cache_creation_input_tokens", 0
+                ),
+            )
+
+        # Also process model_usage for per-model breakdown
         if ctx.model_usage:
             model_usage_converted = {}
+            total_input = 0
+            total_output = 0
+            total_cache_read = 0
+            total_cache_creation = 0
+
             for model_name, usage_dict in ctx.model_usage.items():
                 if isinstance(usage_dict, dict):
+                    input_tokens = usage_dict.get("input_tokens", 0)
+                    output_tokens = usage_dict.get("output_tokens", 0)
+                    cache_read = usage_dict.get("cache_read_input_tokens", 0)
+                    cache_creation = usage_dict.get("cache_creation_input_tokens", 0)
+
                     model_usage_converted[model_name] = UsageSchema(
-                        input_tokens=usage_dict.get("input_tokens", 0),
-                        output_tokens=usage_dict.get("output_tokens", 0),
-                        cache_read_input_tokens=usage_dict.get(
-                            "cache_read_input_tokens", 0
-                        ),
-                        cache_creation_input_tokens=usage_dict.get(
-                            "cache_creation_input_tokens", 0
-                        ),
+                        input_tokens=input_tokens,
+                        output_tokens=output_tokens,
+                        cache_read_input_tokens=cache_read,
+                        cache_creation_input_tokens=cache_creation,
                     )
+
+                    total_input += input_tokens
+                    total_output += output_tokens
+                    total_cache_read += cache_read
+                    total_cache_creation += cache_creation
+
+            # Fallback: aggregate from model_usage if ctx.usage wasn't set
+            if aggregated_usage is None:
+                aggregated_usage = UsageSchema(
+                    input_tokens=total_input,
+                    output_tokens=total_output,
+                    cache_read_input_tokens=total_cache_read,
+                    cache_creation_input_tokens=total_cache_creation,
+                )
 
         result_event = ResultEvent(
             data=ResultEventData(
@@ -111,6 +146,7 @@ class StreamOrchestrator:
                 duration_ms=duration_ms,
                 num_turns=ctx.num_turns,
                 total_cost_usd=ctx.total_cost_usd,
+                usage=aggregated_usage,
                 model_usage=model_usage_converted,
                 result=ctx.result_text,
                 structured_output=ctx.structured_output,

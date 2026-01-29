@@ -6,7 +6,14 @@ Tests security validation for:
 - Credential sanitization
 """
 
+from typing import TypeAlias, cast
+
 import pytest
+
+# Type alias for nested config structures returned by sanitize_credentials
+NestedDict: TypeAlias = dict[str, str]
+ServerDict: TypeAlias = dict[str, NestedDict]
+ServersDict: TypeAlias = dict[str, ServerDict]
 
 
 class TestCommandInjectionValidation:
@@ -181,7 +188,7 @@ class TestCredentialSanitization:
 
         validator = ConfigValidator()
 
-        config = {
+        config: dict[str, object] = {
             "name": "github",
             "type": "stdio",
             "env": {
@@ -196,15 +203,18 @@ class TestCredentialSanitization:
 
         sanitized = validator.sanitize_credentials(config)
 
+        # Cast nested env dict for type-safe access
+        env = cast("NestedDict", sanitized["env"])
+
         # Sensitive keys should be redacted
-        assert sanitized["env"]["GITHUB_TOKEN"] == "***REDACTED***"
-        assert sanitized["env"]["API_KEY"] == "***REDACTED***"
-        assert sanitized["env"]["SECRET_KEY"] == "***REDACTED***"
-        assert sanitized["env"]["PASSWORD"] == "***REDACTED***"
-        assert sanitized["env"]["AUTH_TOKEN"] == "***REDACTED***"
+        assert env["GITHUB_TOKEN"] == "***REDACTED***"
+        assert env["API_KEY"] == "***REDACTED***"
+        assert env["SECRET_KEY"] == "***REDACTED***"
+        assert env["PASSWORD"] == "***REDACTED***"
+        assert env["AUTH_TOKEN"] == "***REDACTED***"
 
         # Safe keys should be preserved
-        assert sanitized["env"]["SAFE_VALUE"] == "not_redacted"
+        assert env["SAFE_VALUE"] == "not_redacted"
 
     def test_sanitize_credentials_headers(self) -> None:
         """Redact sensitive header keys."""
@@ -212,7 +222,7 @@ class TestCredentialSanitization:
 
         validator = ConfigValidator()
 
-        config = {
+        config: dict[str, object] = {
             "name": "api-server",
             "type": "sse",
             "url": "http://example.com",
@@ -226,13 +236,16 @@ class TestCredentialSanitization:
 
         sanitized = validator.sanitize_credentials(config)
 
+        # Cast nested headers dict for type-safe access
+        headers = cast("NestedDict", sanitized["headers"])
+
         # Sensitive headers should be redacted
-        assert sanitized["headers"]["Authorization"] == "***REDACTED***"
-        assert sanitized["headers"]["X-API-Key"] == "***REDACTED***"
-        assert sanitized["headers"]["X-Auth-Token"] == "***REDACTED***"
+        assert headers["Authorization"] == "***REDACTED***"
+        assert headers["X-API-Key"] == "***REDACTED***"
+        assert headers["X-Auth-Token"] == "***REDACTED***"
 
         # Safe headers should be preserved
-        assert sanitized["headers"]["Content-Type"] == "application/json"
+        assert headers["Content-Type"] == "application/json"
 
     def test_sanitize_credentials_preserves_safe_fields(self) -> None:
         """Don't redact safe fields like command, type, name."""
@@ -263,7 +276,7 @@ class TestCredentialSanitization:
 
         validator = ConfigValidator()
 
-        config = {
+        config: dict[str, object] = {
             "servers": {
                 "github": {
                     "env": {
@@ -281,7 +294,10 @@ class TestCredentialSanitization:
 
         sanitized = validator.sanitize_credentials(config)
 
+        # Cast nested structures for type-safe access
+        servers = cast("ServersDict", sanitized["servers"])
+
         # Nested sensitive keys should be redacted
-        assert sanitized["servers"]["github"]["env"]["TOKEN"] == "***REDACTED***"
-        assert sanitized["servers"]["github"]["env"]["API_KEY"] == "***REDACTED***"
-        assert sanitized["servers"]["slack"]["headers"]["Authorization"] == "***REDACTED***"
+        assert servers["github"]["env"]["TOKEN"] == "***REDACTED***"
+        assert servers["github"]["env"]["API_KEY"] == "***REDACTED***"
+        assert servers["slack"]["headers"]["Authorization"] == "***REDACTED***"

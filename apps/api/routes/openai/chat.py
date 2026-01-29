@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, Request
 from sse_starlette import EventSourceResponse
 
 from apps.api.dependencies import get_agent_service, verify_api_key
+from apps.api.protocols import AgentService, RequestTranslator, ResponseTranslator
 from apps.api.routes.openai.dependencies import (
     get_request_translator,
     get_response_translator,
@@ -16,7 +17,6 @@ from apps.api.routes.openai.dependencies import (
 from apps.api.schemas.openai.requests import ChatCompletionRequest
 from apps.api.schemas.openai.responses import OpenAIChatCompletion
 from apps.api.schemas.responses import SingleQueryResponse
-from apps.api.protocols import AgentService, RequestTranslator, ResponseTranslator
 from apps.api.services.openai.streaming import StreamingAdapter
 from apps.api.types import MessageEventDataDict, ResultEventDataDict
 
@@ -76,7 +76,7 @@ async def create_chat_completion(
                 tuple[str, MessageEventDataDict | ResultEventDataDict], None
             ]:
                 """Parse native SSE events into (event_type, data) tuples."""
-                async for event in native_events:
+                async for event in await native_events:
                     # Native events are dicts with 'event' and 'data' keys
                     # where 'data' is a JSON string that needs to be parsed
                     if isinstance(event, dict):

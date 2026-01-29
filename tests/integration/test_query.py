@@ -9,7 +9,7 @@ They require:
 
 import json
 import os
-from typing import Any
+from typing import cast
 
 import pytest
 from httpx import AsyncClient
@@ -23,12 +23,12 @@ def sdk_available() -> bool:
     return not os.environ.get("ANTHROPIC_API_KEY")
 
 
-def parse_sse_data(data: str | None) -> dict[str, Any]:
+def parse_sse_data(data: str | None) -> dict[str, object]:
     """Parse SSE data, handling empty strings."""
     if not data or not data.strip():
         return {}
     try:
-        return json.loads(data)
+        return cast("dict[str, object]", json.loads(data))
     except json.JSONDecodeError:
         return {"raw": data}
 

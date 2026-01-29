@@ -84,6 +84,13 @@ exclude = ["alembic/**", ".cache/**"]
 output-format = "full"
 error-on-warning = false
 
+# SQLAlchemy models have UUID overload issues ty cannot resolve
+[[tool.ty.overrides]]
+include = ["apps/api/models/**/*.py"]
+
+[tool.ty.overrides.rules]
+no-matching-overload = "warn"
+
 # Relaxed rules for tests during migration
 [[tool.ty.overrides]]
 include = ["tests/**/*.py"]
@@ -93,8 +100,10 @@ invalid-argument-type = "warn"
 unresolved-attribute = "warn"
 not-subscriptable = "warn"
 unknown-argument = "warn"
+no-matching-overload = "warn"
 
-# Keep mypy for now during migration
+# Legacy mypy config retained for reference. ty is the primary type checker.
+# To fully remove mypy, delete this section and run: uv remove mypy mypy-extensions
 [tool.mypy]
 python_version = "3.11"
 strict = true

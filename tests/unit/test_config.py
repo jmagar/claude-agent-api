@@ -1,21 +1,32 @@
 """Unit tests for configuration module."""
 
 import os
-from typing import Any, cast
 from unittest.mock import patch
 
 import pytest
 from pydantic import SecretStr, ValidationError
+from pydantic_settings import SettingsConfigDict
 
 from apps.api.config import Settings, get_settings
+
+
+class _SettingsNoEnvFile(Settings):
+    """Settings subclass that doesn't load .env file for testing."""
+
+    model_config = SettingsConfigDict(
+        env_file=None,
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+    )
 
 
 class TestSettings:
     """Tests for Settings class."""
 
     def _settings_no_env_file(self) -> Settings:
-        settings_factory = cast("Any", Settings)
-        return settings_factory(_env_file=None)
+        """Create Settings instance without loading .env file."""
+        return _SettingsNoEnvFile()
 
     def test_default_values(self) -> None:
         """Test that defaults are applied when env vars not set."""

@@ -1,5 +1,6 @@
 """Skills API routes (CRUD with filesystem discovery)."""
 
+from datetime import datetime
 from pathlib import Path
 
 from fastapi import APIRouter, Query
@@ -9,7 +10,18 @@ from apps.api.exceptions import APIError
 from apps.api.schemas.requests.skills_crud import SkillCreateRequest, SkillUpdateRequest
 from apps.api.schemas.responses import SkillDefinitionResponse, SkillListResponse
 from apps.api.services.skills import SkillsService
-from apps.api.services.skills_crud import SkillCrudService
+from apps.api.services.skills_crud import SkillCrudService, SkillRecord
+
+
+def _parse_datetime(value: str | None) -> datetime | None:
+    """Parse ISO timestamp string to datetime, or return None."""
+    if value:
+        try:
+            return datetime.fromisoformat(value)
+        except ValueError:
+            pass
+    return None
+
 
 router = APIRouter(prefix="/skills", tags=["Skills"])
 
@@ -65,18 +77,18 @@ async def list_skills(
     if source != "filesystem":
         db_service = SkillCrudService(cache)
         db_skills = await db_service.list_skills()
-        for s in db_skills:
+        for db_skill in db_skills:
             skills.append(
                 SkillDefinitionResponse(
-                    id=s.id,
-                    name=s.name,
-                    description=s.description,
-                    content=s.content,
-                    enabled=s.enabled,
-                    created_at=s.created_at,  # type: ignore[arg-type]
-                    updated_at=s.updated_at,  # type: ignore[arg-type]
-                    is_shared=s.is_shared,
-                    share_url=s.share_url,
+                    id=db_skill.id,
+                    name=db_skill.name,
+                    description=db_skill.description,
+                    content=db_skill.content,
+                    enabled=db_skill.enabled,
+                    created_at=_parse_datetime(db_skill.created_at),
+                    updated_at=_parse_datetime(db_skill.updated_at),
+                    is_shared=db_skill.is_shared,
+                    share_url=db_skill.share_url,
                     source="database",
                 )
             )
@@ -96,22 +108,22 @@ async def create_skill(
     with YAML frontmatter containing 'name' and 'description' fields.
     """
     service = SkillCrudService(cache)
-    skill = await service.create_skill(
+    created_skill = await service.create_skill(
         name=request.name,
         description=request.description,
         content=request.content,
         enabled=request.enabled,
     )
     return SkillDefinitionResponse(
-        id=skill.id,
-        name=skill.name,
-        description=skill.description,
-        content=skill.content,
-        enabled=skill.enabled,
-        created_at=skill.created_at,  # type: ignore[arg-type]
-        updated_at=skill.updated_at,  # type: ignore[arg-type]
-        is_shared=skill.is_shared,
-        share_url=skill.share_url,
+        id=created_skill.id,
+        name=created_skill.name,
+        description=created_skill.description,
+        content=created_skill.content,
+        enabled=created_skill.enabled,
+        created_at=_parse_datetime(created_skill.created_at),
+        updated_at=_parse_datetime(created_skill.updated_at),
+        is_shared=created_skill.is_shared,
+        share_url=created_skill.share_url,
         source="database",
     )
 
@@ -158,23 +170,23 @@ async def get_skill(
 
     # Otherwise, look up in database
     service = SkillCrudService(cache)
-    skill = await service.get_skill(skill_id)
-    if skill is None:
+    db_skill: SkillRecord | None = await service.get_skill(skill_id)
+    if db_skill is None:
         raise APIError(
             message="Skill not found",
             code="SKILL_NOT_FOUND",
             status_code=404,
         )
     return SkillDefinitionResponse(
-        id=skill.id,
-        name=skill.name,
-        description=skill.description,
-        content=skill.content,
-        enabled=skill.enabled,
-        created_at=skill.created_at,  # type: ignore[arg-type]
-        updated_at=skill.updated_at,  # type: ignore[arg-type]
-        is_shared=skill.is_shared,
-        share_url=skill.share_url,
+        id=db_skill.id,
+        name=db_skill.name,
+        description=db_skill.description,
+        content=db_skill.content,
+        enabled=db_skill.enabled,
+        created_at=_parse_datetime(db_skill.created_at),
+        updated_at=_parse_datetime(db_skill.updated_at),
+        is_shared=db_skill.is_shared,
+        share_url=db_skill.share_url,
         source="database",
     )
 
@@ -200,29 +212,29 @@ async def update_skill(
         )
 
     service = SkillCrudService(cache)
-    skill = await service.update_skill(
+    updated_skill = await service.update_skill(
         skill_id=skill_id,
         name=request.name,
         description=request.description,
         content=request.content,
         enabled=request.enabled,
     )
-    if skill is None:
+    if updated_skill is None:
         raise APIError(
             message="Skill not found",
             code="SKILL_NOT_FOUND",
             status_code=404,
         )
     return SkillDefinitionResponse(
-        id=skill.id,
-        name=skill.name,
-        description=skill.description,
-        content=skill.content,
-        enabled=skill.enabled,
-        created_at=skill.created_at,  # type: ignore[arg-type]
-        updated_at=skill.updated_at,  # type: ignore[arg-type]
-        is_shared=skill.is_shared,
-        share_url=skill.share_url,
+        id=updated_skill.id,
+        name=updated_skill.name,
+        description=updated_skill.description,
+        content=updated_skill.content,
+        enabled=updated_skill.enabled,
+        created_at=_parse_datetime(updated_skill.created_at),
+        updated_at=_parse_datetime(updated_skill.updated_at),
+        is_shared=updated_skill.is_shared,
+        share_url=updated_skill.share_url,
         source="database",
     )
 

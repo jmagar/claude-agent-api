@@ -4,9 +4,9 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
 
+from apps.api.protocols import ModelMapper
 from apps.api.routes.openai.dependencies import get_model_mapper
 from apps.api.schemas.openai.responses import OpenAIModelInfo, OpenAIModelList
-from apps.api.protocols import ModelMapper
 
 router = APIRouter()
 

@@ -1,8 +1,22 @@
 """SDK message type mappings and utilities."""
 
-from typing import Any, Literal, cast
+from typing import Any, Literal, TypedDict, cast
 
 from pydantic import BaseModel
+
+
+class ContentBlockDict(TypedDict, total=False):
+    """TypedDict for content block data matching ContentBlockSchema fields."""
+
+    type: Literal["text", "thinking", "tool_use", "tool_result"]
+    text: str | None
+    thinking: str | None
+    id: str | None
+    name: str | None
+    input: dict[str, object] | None
+    tool_use_id: str | None
+    content: str | list[object] | None
+    is_error: bool | None
 
 
 class SDKTextBlock(BaseModel):
@@ -50,44 +64,64 @@ class SDKUsageData(BaseModel):
     cache_creation_input_tokens: int = 0
 
 
-def map_sdk_content_block(block: dict[str, object]) -> dict[str, object]:
+def map_sdk_content_block(block: dict[str, object]) -> ContentBlockDict:
     """Map SDK content block to API schema.
 
     Args:
         block: SDK content block dict.
 
     Returns:
-        API content block dict.
+        API content block dict with proper types.
     """
     block_type = block.get("type", "text")
 
     if block_type == "text":
-        return {
-            "type": "text",
-            "text": block.get("text", ""),
-        }
+        text_val = block.get("text", "")
+        return ContentBlockDict(
+            type="text",
+            text=text_val if isinstance(text_val, str) else "",
+        )
     elif block_type == "thinking":
-        return {
-            "type": "thinking",
-            "thinking": block.get("thinking", ""),
-        }
+        thinking_val = block.get("thinking", "")
+        return ContentBlockDict(
+            type="thinking",
+            thinking=thinking_val if isinstance(thinking_val, str) else "",
+        )
     elif block_type == "tool_use":
-        return {
-            "type": "tool_use",
-            "id": block.get("id"),
-            "name": block.get("name"),
-            "input": block.get("input", {}),
-        }
+        id_val = block.get("id")
+        name_val = block.get("name")
+        input_val = block.get("input", {})
+        # Cast dict to proper type for ty
+        typed_input: dict[str, object] | None = (
+            cast("dict[str, object]", input_val) if isinstance(input_val, dict) else {}
+        )
+        return ContentBlockDict(
+            type="tool_use",
+            id=id_val if isinstance(id_val, str) else None,
+            name=name_val if isinstance(name_val, str) else None,
+            input=typed_input,
+        )
     elif block_type == "tool_result":
-        return {
-            "type": "tool_result",
-            "tool_use_id": block.get("tool_use_id"),
-            "content": block.get("content"),
-            "is_error": block.get("is_error", False),
-        }
+        tool_use_id_val = block.get("tool_use_id")
+        content_val = block.get("content")
+        is_error_val = block.get("is_error", False)
+        # Handle content which can be str or list[object] - cast list for ty
+        typed_content: str | list[object] | None
+        if isinstance(content_val, str):
+            typed_content = content_val
+        elif isinstance(content_val, list):
+            typed_content = cast("list[object]", content_val)
+        else:
+            typed_content = None
+        return ContentBlockDict(
+            type="tool_result",
+            tool_use_id=tool_use_id_val if isinstance(tool_use_id_val, str) else None,
+            content=typed_content,
+            is_error=is_error_val if isinstance(is_error_val, bool) else False,
+        )
     else:
-        # Unknown block type, return as-is
-        return block
+        # Unknown block type, default to text
+        return ContentBlockDict(type="text")
 
 
 def _to_int(value: object) -> int:

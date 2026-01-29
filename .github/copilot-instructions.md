@@ -47,8 +47,7 @@ SessionRepo = Annotated[SessionRepository, Depends(get_session_repo)]
 
 ### Type Safety (Zero Tolerance)
 **Rule**: No `Any`. No implicit `Any`. No `# type: ignore`.
-- Use `ty` (primary/fast) via `uv run ty check`.
-- Use `mypy` (strict) via `uv run mypy apps/api` or `make typecheck`.
+- Use `ty` (Astral's fast type checker) via `uv run ty check` or `make typecheck`.
 - Replace `Any` with `TypedDict`, `Protocol`, or `object`.
 
 ## Frontend Architecture (`apps/web`)
@@ -66,8 +65,7 @@ SessionRepo = Annotated[SessionRepository, Depends(get_session_repo)]
 | **Run API Tests** | `make test` | All tests (Unit + Contract + Integration) |
 | **Fast Tests** | `make test-fast` | Skips slow SDK integration tests |
 | **Lint API** | `make lint` | Runs `ruff` |
-| **Type Check API** | `make check`| Runs `ruff` + `mypy` |
-| **Check Types (Fast)**| `uv run ty check` | Use Astral's `ty` for speed |
+| **Type Check API** | `make check`| Runs `ruff` + `ty` |
 | **DB Reset** | `make db-reset` | Recreates DB and runs migrations |
 
 ## Testing Strategy

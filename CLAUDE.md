@@ -36,10 +36,6 @@ tests/
 alembic/                     # Database migrations
 ```
 
-## Development Environment Note
-
-We are developing inside a code-server container. When we deploy docker services, they are run on the container host. To be able to successfully reach those hosts you can use the host's Tailscale IP, `100.120.242.29`. The code-server container's docker compose also contains extra hosts: `host.docker.internal:host-gateway`, so you should also be able to use `http://host.docker.internal:<port>`.
-
 ## Anthropic API Key Unnecessary
 
 Do not set environment variable `ANTHROPIC_API_KEY`, we are logged in with our Claude Max subscription which we can use the Claude Agent SDK with. If you set that variable, then using our Claude Max subscription will NOT work.
@@ -110,7 +106,7 @@ uv run ruff check . --select=ANN401
 
 If external libraries return `Any`, wrap them in typed adapter functions.
 
-**Note:** mypy configuration is retained during migration but ty is the primary type checker.
+**Note:** ty is the primary type checker. mypy configuration is retained in pyproject.toml for reference only.
 
 ## Key Patterns
 

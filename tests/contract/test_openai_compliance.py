@@ -22,8 +22,10 @@ class TestOpenAIClientCompliance:
         Returns:
             Configured OpenAI client
         """
+        from apps.api.config import get_settings
+
         return OpenAI(
-            api_key="your-api-key-for-clients",
+            api_key=get_settings().api_key.get_secret_value(),
             base_url="http://localhost:54000/v1",
         )
 
@@ -176,10 +178,12 @@ class TestOpenAIClientCompliance:
             api_key="invalid-api-key-xyz",
             base_url="http://localhost:54000/v1",
         )
-        with pytest.raises(AuthenticationError) as exc_info:
+        with pytest.raises(AuthenticationError) as auth_exc_info:
             bad_auth_client.chat.completions.create(
                 model="gpt-4",
                 messages=[{"role": "user", "content": "Hello"}],
             )
-        error = exc_info.value
-        assert error.status_code == 401, "Authentication error should have 401 status"
+        auth_error = auth_exc_info.value
+        assert auth_error.status_code == 401, (
+            "Authentication error should have 401 status"
+        )

@@ -322,7 +322,7 @@ uv run ruff check .
 uv run ruff format .
 
 # Type check
-uv run mypy apps/api
+uv run ty check
 ```
 
 ## CI/CD
@@ -330,7 +330,7 @@ uv run mypy apps/api
 GitHub Actions runs automated checks on every push and pull request:
 
 - **Linting**: Ruff checks code style and common errors
-- **Type Checking**: mypy verifies type safety with strict mode
+- **Type Checking**: ty verifies type safety (Astral's extremely fast type checker)
 - **Testing**: Fast test suite (unit + contract tests) with PostgreSQL and Redis
 
 The CI pipeline ensures code quality and catches issues before merge. All checks must pass before merging to `main`.

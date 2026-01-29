@@ -5,13 +5,17 @@ from typing import TYPE_CHECKING, cast
 from apps.api.models.session import Session
 
 if TYPE_CHECKING:
-    from sqlalchemy import Table
+    from sqlalchemy import Index, Table
 
 
 def test_session_has_composite_status_created_index() -> None:
     """Test session model defines composite index on status and created_at."""
     table = cast("Table", Session.__table__)
-    indexes = {index.name: index for index in table.indexes}
+    # Cast to dict with str keys since quoted_name is a str subclass
+    indexes = cast(
+        "dict[str | None, Index]",
+        {index.name: index for index in table.indexes},
+    )
 
     composite_index = indexes.get("idx_sessions_status_created")
     assert composite_index is not None

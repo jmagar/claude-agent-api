@@ -145,12 +145,17 @@ def create_app() -> FastAPI:
 
     # Add middleware (order matters - first added is last executed)
     # Reverse order so auth runs first, then correlation, then logging, then CORS
-    app.add_middleware(ApiKeyAuthMiddleware)  # type: ignore
-    app.add_middleware(BearerAuthMiddleware)  # type: ignore
-    app.add_middleware(CorrelationIdMiddleware)  # type: ignore
-    app.add_middleware(RequestLoggingMiddleware, skip_paths=["/health", "/"])  # type: ignore
+    # Note: type: ignore comments are needed due to Starlette's middleware typing
+    # using ParamSpec which ty cannot fully resolve for BaseHTTPMiddleware subclasses
+    app.add_middleware(ApiKeyAuthMiddleware)  # type: ignore[invalid-argument-type]
+    app.add_middleware(BearerAuthMiddleware)  # type: ignore[invalid-argument-type]
+    app.add_middleware(CorrelationIdMiddleware)  # type: ignore[invalid-argument-type]
     app.add_middleware(
-        CORSMiddleware,  # type: ignore
+        RequestLoggingMiddleware,  # type: ignore[invalid-argument-type]
+        skip_paths=["/health", "/"],
+    )
+    app.add_middleware(
+        CORSMiddleware,  # type: ignore[invalid-argument-type]
         allow_origins=settings.cors_origins,
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
@@ -197,7 +202,8 @@ def create_app() -> FastAPI:
         serialized: list[dict[str, object]] = []
         for error in errors:
             loc = error.get("loc")
-            serialized_error = {
+            # Build serialized_error with explicit type annotation
+            serialized_error: dict[str, object] = {
                 "loc": list(loc) if isinstance(loc, (list, tuple)) else [],
                 "msg": str(error.get("msg", "")),
                 "type": str(error.get("type", "")),
@@ -205,7 +211,8 @@ def create_app() -> FastAPI:
             # Convert ctx to strings if present (ValueError objects are not JSON serializable)
             ctx = error.get("ctx")
             if isinstance(ctx, dict):
-                serialized_error["ctx"] = {k: str(v) for k, v in ctx.items()}
+                ctx_dict: dict[str, str] = {str(k): str(v) for k, v in ctx.items()}
+                serialized_error["ctx"] = ctx_dict
             serialized.append(serialized_error)
         return serialized
 
@@ -262,9 +269,13 @@ def create_app() -> FastAPI:
         if request.url.path.startswith("/v1/"):
             # Extract first error message for simplicity
             errors = exc.errors()
-            first_error = errors[0] if errors else {}
-            error_msg = first_error.get("msg", "Validation failed")
-            field = ".".join(str(loc) for loc in first_error.get("loc", []))
+            if errors:
+                first_error = errors[0]
+                error_msg = str(first_error.get("msg", "Validation failed"))
+                field = ".".join(str(loc) for loc in first_error.get("loc", []))
+            else:
+                error_msg = "Validation failed"
+                field = ""
 
             # Create APIError with 400 status for OpenAI translation
             api_error = APIError(
@@ -338,6 +349,7 @@ def create_app() -> FastAPI:
         For OpenAI endpoints (/v1/*), converts to OpenAI error format.
         For native endpoints, uses FastAPI's default format.
         """
+
         def _map_http_exception_code(status_code: int) -> str:
             """Map HTTPException status codes to API error codes."""
             status_map = {

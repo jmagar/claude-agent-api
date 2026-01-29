@@ -147,7 +147,9 @@ class TestHooksConfigSchema:
     def test_valid_hooks(self) -> None:
         """Test valid hooks configuration."""
         hooks = HooksConfigSchema(
-            PreToolUse=HookWebhookSchema(url=cast("HttpUrl", "https://example.com/hook"))
+            PreToolUse=HookWebhookSchema(
+                url=cast("HttpUrl", "https://example.com/hook")
+            )
         )
         assert hooks.pre_tool_use is not None
 
@@ -171,7 +173,7 @@ class TestSdkPluginConfigSchema:
     def test_plugin_name_required(self) -> None:
         """Test plugin name is required."""
         with pytest.raises(ValidationError):
-            SdkPluginConfigSchema()
+            SdkPluginConfigSchema(name="")
 
     def test_plugin_with_path(self) -> None:
         """Test plugin with path."""

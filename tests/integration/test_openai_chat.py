@@ -93,7 +93,7 @@ async def test_streaming_completion_basic(async_client: AsyncClient) -> None:
     }
 
     # Act - Use httpx_sse to handle SSE stream
-    chunks: list[dict | str] = []
+    chunks: list[dict[str, object] | str] = []
     async with aconnect_sse(
         async_client,
         "POST",
@@ -119,9 +119,7 @@ async def test_streaming_completion_basic(async_client: AsyncClient) -> None:
     assert chunks[-1] == "[DONE]", "Stream should end with [DONE] marker"
 
     # Remove [DONE] marker for easier processing
-    data_chunks: list[dict[str, object]] = [
-        c for c in chunks if isinstance(c, dict)
-    ]
+    data_chunks: list[dict[str, object]] = [c for c in chunks if isinstance(c, dict)]
     assert len(data_chunks) > 0, "Should have at least one data chunk"
 
     # Verify first chunk has role delta
@@ -138,9 +136,7 @@ async def test_streaming_completion_basic(async_client: AsyncClient) -> None:
     assert isinstance(delta, dict)
     delta = cast("dict[str, object]", delta)
     assert "role" in delta, "First delta missing 'role'"
-    assert delta.get("role") == "assistant", (
-        "First delta role should be 'assistant'"
-    )
+    assert delta.get("role") == "assistant", "First delta role should be 'assistant'"
 
     # Verify content chunks present (at least one chunk should have content)
     # NOTE: In real streaming, we'd get content chunks. In mock SDK, we may not
@@ -495,7 +491,7 @@ async def test_streaming_handles_malformed_events_gracefully(
     }
 
     # Act - Use httpx_sse to handle SSE stream
-    chunks: list[dict | str] = []
+    chunks: list[dict[str, object] | str] = []
     async with aconnect_sse(
         async_client,
         "POST",

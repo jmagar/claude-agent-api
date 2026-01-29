@@ -258,7 +258,9 @@ class AgentService:
         async for event in self._query_executor.mock_response(request, ctx):
             yield event
 
-    async def query_single(self, request: "QueryRequest", api_key: str = "") -> "QueryResponseDict":
+    async def query_single(
+        self, request: "QueryRequest", api_key: str = ""
+    ) -> "QueryResponseDict":
         """Execute non-streaming query.
 
         Args:

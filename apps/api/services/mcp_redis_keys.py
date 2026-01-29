@@ -48,7 +48,9 @@ class McpRedisKeyBuilder:
             'mcp_server:tenant-1:my-server'
         """
         McpRedisKeyBuilder.validate_api_key(api_key)
-        McpRedisKeyBuilder.validate_api_key(name)  # Validate name to prevent key injection
+        McpRedisKeyBuilder.validate_api_key(
+            name
+        )  # Validate name to prevent key injection
         return f"mcp_server:{api_key}:{name}"
 
     @staticmethod

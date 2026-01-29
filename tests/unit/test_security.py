@@ -163,7 +163,9 @@ class TestHookWebhookSecurityValidation:
 
     def test_url_allows_external(self) -> None:
         """Test webhook URL allows external endpoints."""
-        schema = HookWebhookSchema(url=cast("HttpUrl", "https://hooks.example.com/webhook"))
+        schema = HookWebhookSchema(
+            url=cast("HttpUrl", "https://hooks.example.com/webhook")
+        )
         assert str(schema.url) == "https://hooks.example.com/webhook"
 
 

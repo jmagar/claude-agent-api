@@ -23,7 +23,7 @@ from apps.api.schemas.responses import (
     McpSharePayloadResponse,
 )
 from apps.api.services.mcp_discovery import McpDiscoveryService
-from apps.api.services.mcp_server_configs import McpServerConfigService
+from apps.api.services.mcp_server_configs import McpServerConfigService, McpServerRecord
 from apps.api.services.mcp_share import McpShareService
 
 router = APIRouter(prefix="/mcp-servers", tags=["MCP Servers"])
@@ -78,7 +78,7 @@ def sanitize_mcp_config(config: dict[str, object]) -> dict[str, object]:
     return sanitized
 
 
-def _map_server(record) -> McpServerConfigResponse:
+def _map_server(record: McpServerRecord) -> McpServerConfigResponse:
     """<summary>Map database server record to response.</summary>"""
     return McpServerConfigResponse(
         id=record.id,
@@ -260,14 +260,16 @@ async def get_mcp_server(
 
     # Otherwise, look up in database (scoped to API key)
     service = McpServerConfigService(cache)
-    server = await service.get_server_for_api_key(api_key, name)
-    if server is None:
+    db_server: McpServerRecord | None = await service.get_server_for_api_key(
+        api_key, name
+    )
+    if db_server is None:
         raise APIError(
             message="MCP server not found",
             code="MCP_SERVER_NOT_FOUND",
             status_code=404,
         )
-    return _map_server(server)
+    return _map_server(db_server)
 
 
 @router.put("/{name}", response_model=McpServerConfigResponse)

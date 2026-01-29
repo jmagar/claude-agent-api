@@ -6,7 +6,7 @@ import pytest
 
 
 @pytest.mark.unit
-def test_session_service_logs_include_storage_context():
+def test_session_service_logs_include_storage_context() -> None:
     """Test that SessionService logs include storage backend context."""
     session_py = Path("apps/api/services/session.py")
     content = session_py.read_text()
@@ -21,7 +21,7 @@ def test_session_service_logs_include_storage_context():
 
 
 @pytest.mark.unit
-def test_agent_service_logs_include_distributed_context():
+def test_agent_service_logs_include_distributed_context() -> None:
     """Test that AgentService logs include distributed context."""
     agent_py = Path("apps/api/services/agent/service.py")
     content = agent_py.read_text()

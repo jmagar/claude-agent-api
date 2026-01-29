@@ -80,7 +80,9 @@ class TestLoadApplicationConfig:
         result1 = loader.load_application_config()
 
         # Modify file after first load
-        config_file.write_text(json.dumps({"mcpServers": {"modified": {"command": "ls"}}}))
+        config_file.write_text(
+            json.dumps({"mcpServers": {"modified": {"command": "ls"}}})
+        )
 
         result2 = loader.load_application_config()
 

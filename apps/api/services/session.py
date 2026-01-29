@@ -19,14 +19,14 @@ import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Literal, TypedDict, TypeVar, cast
+from typing import TYPE_CHECKING, Literal, TypedDict, TypeVar
 from uuid import UUID, uuid4
 
 import structlog
 
 from apps.api.config import get_settings
 from apps.api.exceptions.session import SessionNotFoundError
-from apps.api.types import JsonValue, SessionStatus
+from apps.api.types import JsonValue
 
 T = TypeVar("T")
 
@@ -400,7 +400,7 @@ class SessionService:
             )
 
         # Use owner index for cache-based owner filtering (efficient)
-        sessions: list[Session] = []
+        cached_sessions: list[Session] = []
 
         if self._cache and current_api_key is not None:
             # Use owner index set to get session IDs for this owner
@@ -417,7 +417,7 @@ class SessionService:
                     continue
                 session = self._parse_cached_session(parsed)
                 if session:
-                    sessions.append(session)
+                    cached_sessions.append(session)
 
         elif self._cache:
             # Fall back to full cache scan (only when no owner filter)
@@ -433,16 +433,16 @@ class SessionService:
                     continue
                 session = self._parse_cached_session(parsed)
                 if session:
-                    sessions.append(session)
+                    cached_sessions.append(session)
 
         # Sort by created_at descending
-        sessions.sort(key=lambda s: s.created_at, reverse=True)
+        cached_sessions.sort(key=lambda s: s.created_at, reverse=True)
 
         # Calculate pagination
-        total = len(sessions)
+        total = len(cached_sessions)
         start = (page - 1) * page_size
         end = start + page_size
-        page_sessions = sessions[start:end]
+        page_sessions = cached_sessions[start:end]
 
         return SessionListResult(
             sessions=page_sessions,

@@ -76,25 +76,32 @@ class TestCredentialIsolation:
 
                 # Verify sensitive env vars are redacted
                 env = test_server.get("env", {})
-                assert env.get("SECRET_KEY") == "***REDACTED***", \
+                assert env.get("SECRET_KEY") == "***REDACTED***", (
                     "SECRET_KEY should be redacted"
-                assert env.get("API_KEY") == "***REDACTED***", \
+                )
+                assert env.get("API_KEY") == "***REDACTED***", (
                     "API_KEY should be redacted"
-                assert env.get("PASSWORD") == "***REDACTED***", \
+                )
+                assert env.get("PASSWORD") == "***REDACTED***", (
                     "PASSWORD should be redacted"
+                )
 
                 # Verify safe values are NOT redacted
-                assert env.get("SAFE_VALUE") == "not_secret", \
+                assert env.get("SAFE_VALUE") == "not_secret", (
                     "Non-sensitive values should not be redacted"
+                )
 
                 # Verify actual secret values NEVER appear in response
                 response_text = response.text
-                assert "super_secret_value_12345" not in response_text, \
+                assert "super_secret_value_12345" not in response_text, (
                     "Secret env var value leaked in response!"
-                assert "api_key_secret_value" not in response_text, \
+                )
+                assert "api_key_secret_value" not in response_text, (
                     "API key value leaked in response!"
-                assert "password_secret_value" not in response_text, \
+                )
+                assert "password_secret_value" not in response_text, (
                     "Password value leaked in response!"
+                )
 
             finally:
                 # Restore original working directory
@@ -147,14 +154,16 @@ class TestCommandInjectionPrevention:
             )
 
             # Should reject with 400 or 422 (validation error)
-            assert response.status_code in (400, 422), \
-                f"Command injection payload should be rejected: {payload} " \
+            assert response.status_code in (400, 422), (
+                f"Command injection payload should be rejected: {payload} "
                 f"(got {response.status_code})"
+            )
 
             # Verify error response structure
             data = response.json()
-            assert "error" in data or "detail" in data, \
+            assert "error" in data or "detail" in data, (
                 f"Response should contain error information: {data}"
+            )
 
 
 class TestSSRFPrevention:
@@ -198,11 +207,13 @@ class TestSSRFPrevention:
             )
 
             # Should reject with 400 or 422
-            assert response.status_code in (400, 422), \
-                f"SSRF payload should be rejected: {payload} " \
+            assert response.status_code in (400, 422), (
+                f"SSRF payload should be rejected: {payload} "
                 f"(got {response.status_code})"
+            )
 
             # Verify error response structure
             data = response.json()
-            assert "error" in data or "detail" in data, \
+            assert "error" in data or "detail" in data, (
                 f"Response should contain error information: {data}"
+            )

@@ -7,7 +7,7 @@ from pydantic import SecretStr
 
 
 @pytest.mark.unit
-def test_env_example_has_distributed_session_settings():
+def test_env_example_has_distributed_session_settings() -> None:
     """Test that .env.example documents all distributed session settings."""
     env_example = Path(".env.example")
 
@@ -21,7 +21,7 @@ def test_env_example_has_distributed_session_settings():
 
 
 @pytest.mark.unit
-def test_settings_loads_distributed_session_config():
+def test_settings_loads_distributed_session_config() -> None:
     """Test that Settings can load distributed session configuration."""
     from apps.api.config import Settings
 

@@ -1,6 +1,7 @@
 """Unit tests for agent service."""
 
 import json
+from collections.abc import AsyncGenerator
 from typing import TYPE_CHECKING, Literal, cast
 from unittest.mock import MagicMock, patch
 
@@ -769,7 +770,7 @@ class TestQueryStreamSessionIds:
                 request: QueryRequest,
                 commands_service: object,
                 session_id_override: str | None = None,
-            ):
+            ) -> AsyncGenerator[dict[str, object], None]:
                 self.last_request = request
                 self.last_session_id = session_id_override
                 if False:  # pragma: no cover - required for async generator.
@@ -1051,7 +1052,12 @@ async def test_execute_query_delegates_to_executor() -> None:
         def __init__(self) -> None:
             self.called = False
 
-        async def execute(self, _request, _ctx, _commands_service):
+        async def execute(
+            self,
+            _request: QueryRequest,
+            _ctx: StreamContext,
+            _commands_service: CommandsService,
+        ) -> AsyncGenerator[dict[str, str], None]:
             self.called = True
             if False:  # pragma: no cover - generator requires a yield path
                 yield {"event": "noop", "data": "{}"}

@@ -112,9 +112,7 @@ class TestServerSideMcpOpenAICompatibility:
             "/v1/chat/completions",
             json={
                 "model": "gpt-4",
-                "messages": [
-                    {"role": "user", "content": "Hello"}
-                ],
+                "messages": [{"role": "user", "content": "Hello"}],
                 "stream": False,
             },
             headers=auth_headers,
@@ -139,9 +137,7 @@ class TestServerSideMcpOpenAICompatibility:
             "/v1/chat/completions",
             json={
                 "model": "gpt-4",
-                "messages": [
-                    {"role": "user", "content": "Test"}
-                ],
+                "messages": [{"role": "user", "content": "Test"}],
                 "stream": False,
             },
             headers=auth_headers,
@@ -153,9 +149,7 @@ class TestServerSideMcpOpenAICompatibility:
             "/v1/chat/completions",
             json={
                 "model": "gpt-4",
-                "messages": [
-                    {"role": "user", "content": "Stream test"}
-                ],
+                "messages": [{"role": "user", "content": "Stream test"}],
                 "stream": True,
             },
             headers=auth_headers,

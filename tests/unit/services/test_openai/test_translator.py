@@ -641,12 +641,12 @@ class TestResponseTranslator:
         When: translator.translate(request)
         Then: Assert system_prompt set, QueryRequest creation fails due to empty prompt validation
         """
+        from apps.api.exceptions.base import APIError
         from apps.api.schemas.openai.requests import (
             ChatCompletionRequest,
             OpenAIMessage,
         )
         from apps.api.services.openai.translator import RequestTranslator
-        from apps.api.exceptions.base import APIError
 
         # Given
         request = ChatCompletionRequest(

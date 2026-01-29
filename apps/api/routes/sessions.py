@@ -8,6 +8,7 @@ from fastapi import APIRouter, Query
 from apps.api.adapters.session_repo import SessionRepository
 from apps.api.dependencies import ApiKey, DbSession, SessionSvc
 from apps.api.exceptions import APIError, SessionNotFoundError
+from apps.api.models.session import Session
 from apps.api.schemas.requests.sessions import PromoteRequest
 from apps.api.schemas.responses import (
     SessionResponse,
@@ -33,7 +34,7 @@ async def list_sessions(
     repo = SessionRepository(db_session)
     sessions, _ = await repo.list_sessions(limit=10000, offset=0)
 
-    def matches(session) -> bool:
+    def matches(session: Session) -> bool:
         if session.owner_api_key and session.owner_api_key != _api_key:
             return False
         metadata = session.metadata_ or {}

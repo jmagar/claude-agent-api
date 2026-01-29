@@ -7,6 +7,7 @@ These tests verify that:
 """
 
 from pathlib import Path
+from typing import cast
 
 import pytest
 import yaml
@@ -23,7 +24,7 @@ def load_openapi_spec() -> dict[str, object]:
         / "openapi.yaml"
     )
     with spec_path.open() as f:
-        return yaml.safe_load(f)
+        return cast("dict[str, object]", yaml.safe_load(f))
 
 
 class TestOpenAPIEndpointsExist:

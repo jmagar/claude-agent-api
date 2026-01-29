@@ -84,7 +84,9 @@ class McpConfigInjector:
             app_config_resolved = self.config_loader.resolve_env_vars(app_config_raw)
 
             # Load API-key-level config from database
-            api_key_records = await self.config_service.list_servers_for_api_key(api_key)
+            api_key_records = await self.config_service.list_servers_for_api_key(
+                api_key
+            )
             api_key_config = cast(
                 "dict[str, object]", self._records_to_config_dict(api_key_records)
             )
@@ -158,7 +160,6 @@ class McpConfigInjector:
         config_dict: dict[str, dict[str, object]] = {}
 
         for record in records:
-
             # Skip disabled servers
             if not record.enabled:
                 continue
@@ -201,7 +202,9 @@ class McpConfigInjector:
         config_dict: dict[str, dict[str, object]] = {}
 
         for name, schema in schemas.items():
-            config_dict[name] = cast("dict[str, object]", schema.model_dump(exclude_defaults=False))
+            config_dict[name] = cast(
+                "dict[str, object]", schema.model_dump(exclude_defaults=False)
+            )
 
         return config_dict
 

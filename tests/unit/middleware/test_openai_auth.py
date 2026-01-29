@@ -15,8 +15,7 @@ from apps.api.middleware.openai_auth import BearerAuthMiddleware
 def get_scope_header(request: MagicMock, header_name: str) -> str | None:
     """Extract a header value from the request scope."""
     header_bytes = {
-        key.decode(): value.decode()
-        for key, value in request.scope.get("headers", [])
+        key.decode(): value.decode() for key, value in request.scope.get("headers", [])
     }
     return header_bytes.get(header_name)
 

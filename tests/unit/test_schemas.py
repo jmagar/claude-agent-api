@@ -176,7 +176,9 @@ class TestHooksConfigSchemaValidation:
     def test_post_tool_use_hook(self) -> None:
         """Test PostToolUse hook configuration."""
         config = HooksConfigSchema(
-            PostToolUse=HookWebhookSchema(url=_http_url("https://example.com/post-tool"))
+            PostToolUse=HookWebhookSchema(
+                url=_http_url("https://example.com/post-tool")
+            )
         )
         assert config.post_tool_use is not None
 
@@ -199,14 +201,18 @@ class TestHooksConfigSchemaValidation:
     def test_user_prompt_submit_hook(self) -> None:
         """Test UserPromptSubmit hook configuration."""
         config = HooksConfigSchema(
-            UserPromptSubmit=HookWebhookSchema(url=_http_url("https://example.com/prompt"))
+            UserPromptSubmit=HookWebhookSchema(
+                url=_http_url("https://example.com/prompt")
+            )
         )
         assert config.user_prompt_submit is not None
 
     def test_pre_compact_hook(self) -> None:
         """Test PreCompact hook configuration."""
         config = HooksConfigSchema(
-            PreCompact=HookWebhookSchema(url=_http_url("https://example.com/pre-compact"))
+            PreCompact=HookWebhookSchema(
+                url=_http_url("https://example.com/pre-compact")
+            )
         )
         assert config.pre_compact is not None
 

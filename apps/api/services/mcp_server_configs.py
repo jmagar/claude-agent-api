@@ -1,5 +1,6 @@
 """MCP server configuration service."""
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import cast
@@ -113,9 +114,7 @@ class McpServerConfigService:
             created_at=now,
             updated_at=None,
             metadata=cast("dict[str, object] | None", config.get("metadata")),
-            resources=list(
-                cast("list[dict[str, object]]", config.get("resources", []))
-            )
+            resources=list(cast("list[dict[str, object]]", config.get("resources", [])))
             if config.get("resources")
             else [],
         )
@@ -272,7 +271,7 @@ class McpServerConfigService:
         await self._cache.remove_from_set(self._index_key(api_key), name)
         return await self._cache.delete(self._server_key(api_key, name))
 
-    def _map_record(self, name: str, raw: dict[str, object]) -> McpServerRecord:
+    def _map_record(self, name: str, raw: Mapping[str, object]) -> McpServerRecord:
         """<summary>Map cached data to MCP server record.</summary>"""
         return McpServerRecord(
             id=str(raw.get("id", "")),
@@ -291,9 +290,7 @@ class McpServerConfigService:
             created_at=str(raw.get("created_at", "")),
             updated_at=cast("str | None", raw.get("updated_at")),
             metadata=cast("dict[str, object] | None", raw.get("metadata")),
-            resources=list(
-                cast("list[dict[str, object]]", raw.get("resources", []))
-            )
+            resources=list(cast("list[dict[str, object]]", raw.get("resources", [])))
             if raw.get("resources")
             else [],
         )

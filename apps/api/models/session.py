@@ -22,7 +22,7 @@ class Session(Base):
     __tablename__ = "sessions"
 
     id: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True),  # type: ignore
+        PGUUID(as_uuid=True),
         primary_key=True,
         default=uuid4,
     )
@@ -49,7 +49,7 @@ class Session(Base):
     )
     owner_api_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
     parent_session_id: Mapped[UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),  # type: ignore
+        PGUUID(as_uuid=True),
         ForeignKey("sessions.id"),
         nullable=True,
     )
@@ -100,12 +100,12 @@ class SessionMessage(Base):
     __tablename__ = "session_messages"
 
     id: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True),  # type: ignore
+        PGUUID(as_uuid=True),
         primary_key=True,
         default=uuid4,
     )
     session_id: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True),  # type: ignore
+        PGUUID(as_uuid=True),
         ForeignKey("sessions.id", ondelete="CASCADE"),
         index=True,
     )
@@ -138,12 +138,12 @@ class Checkpoint(Base):
     __tablename__ = "checkpoints"
 
     id: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True),  # type: ignore
+        PGUUID(as_uuid=True),
         primary_key=True,
         default=uuid4,
     )
     session_id: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True),  # type: ignore
+        PGUUID(as_uuid=True),
         ForeignKey("sessions.id", ondelete="CASCADE"),
         index=True,
     )

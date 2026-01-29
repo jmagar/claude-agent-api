@@ -7,6 +7,7 @@ from typing import Literal
 import structlog
 
 from apps.api.exceptions.base import APIError
+from apps.api.protocols import ModelMapper
 from apps.api.schemas.openai.requests import ChatCompletionRequest, OpenAIMessage
 from apps.api.schemas.openai.responses import (
     OpenAIChatCompletion,
@@ -16,7 +17,6 @@ from apps.api.schemas.openai.responses import (
 )
 from apps.api.schemas.requests.query import QueryRequest
 from apps.api.schemas.responses import SingleQueryResponse
-from apps.api.services.openai.models import ModelMapper
 
 logger = structlog.get_logger(__name__)
 
@@ -138,7 +138,7 @@ class RequestTranslator:
             raise APIError(
                 message=str(exc),
                 code="MODEL_NOT_FOUND",
-                status_code=404,
+                status_code=400,
             ) from exc
 
         # Log warnings for unsupported parameters (SDK doesn't support sampling controls)

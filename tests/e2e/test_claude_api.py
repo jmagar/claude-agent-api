@@ -130,7 +130,8 @@ async def test_real_claude_query(
     assert any(event["event"] == "result" for event in events)
     assert any(event["event"] == "done" for event in events)
     done_event = next(event for event in events if event["event"] == "done")
-    assert done_event["data"].get("reason") == "interrupted"
+    done_data = done_event["data"]
+    assert isinstance(done_data, dict) and done_data.get("reason") == "interrupted"
 
     single_response = await async_client.post(
         "/api/v1/query/single",

@@ -6,7 +6,7 @@ import pytest
 
 
 @pytest.mark.unit
-def test_adr_001_exists_and_has_required_sections():
+def test_adr_001_exists_and_has_required_sections() -> None:
     """Test that ADR-001 exists and contains required sections."""
     adr_path = Path("docs/adr/0001-distributed-session-state.md")
 
@@ -24,7 +24,7 @@ def test_adr_001_exists_and_has_required_sections():
 
 
 @pytest.mark.unit
-def test_readme_has_distributed_session_section():
+def test_readme_has_distributed_session_section() -> None:
     """Test that README.md documents distributed session architecture."""
     readme_path = Path("README.md")
 

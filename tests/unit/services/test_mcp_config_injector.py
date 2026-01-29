@@ -6,6 +6,7 @@ validation, and injection into QueryRequest objects.
 TDD Phase: RED - Tests written first, expected to fail.
 """
 
+from collections.abc import Generator
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -15,26 +16,34 @@ from apps.api.services.mcp_config_injector import McpConfigInjector
 
 
 @pytest.fixture
-def mock_loader():
+def mock_loader() -> Generator[Mock, None, None]:
     """Mock config loader dependency."""
     loader = Mock()
-    loader.load_application_config.return_value = {"app-server": {"command": "app-cmd", "type": "stdio"}}
-    loader.resolve_env_vars.return_value = {"app-server": {"command": "app-cmd", "type": "stdio"}}
-    loader.merge_configs.return_value = {"merged-server": {"command": "merged-cmd", "type": "stdio"}}
-    return loader
+    loader.load_application_config.return_value = {
+        "app-server": {"command": "app-cmd", "type": "stdio"}
+    }
+    loader.resolve_env_vars.return_value = {
+        "app-server": {"command": "app-cmd", "type": "stdio"}
+    }
+    loader.merge_configs.return_value = {
+        "merged-server": {"command": "merged-cmd", "type": "stdio"}
+    }
+    yield loader
 
 
 @pytest.fixture
-def mock_validator():
+def mock_validator() -> Generator[Mock, None, None]:
     """Mock config validator dependency."""
     validator = Mock()
-    validator.sanitize_credentials.return_value = {"server": {"command": "***REDACTED***", "type": "stdio"}}
+    validator.sanitize_credentials.return_value = {
+        "server": {"command": "***REDACTED***", "type": "stdio"}
+    }
     validator.validate_config.return_value = None  # No-op, validation passes
-    return validator
+    yield validator
 
 
 @pytest.fixture
-def mock_config_service():
+def mock_config_service() -> Generator[Mock, None, None]:
     """Mock database service dependency."""
     service = Mock()
     service.list_servers_for_api_key = AsyncMock(
@@ -51,11 +60,11 @@ def mock_config_service():
             )
         ]
     )
-    return service
+    yield service
 
 
 @pytest.fixture
-def injector(mock_loader, mock_config_service):
+def injector(mock_loader: Mock, mock_config_service: Mock) -> McpConfigInjector:
     """Create injector with mocked dependencies."""
     return McpConfigInjector(
         config_loader=mock_loader,
@@ -64,10 +73,13 @@ def injector(mock_loader, mock_config_service):
 
 
 @pytest.mark.anyio
-async def test_inject_with_null_request_mcp_servers(injector, mock_loader):
+async def test_inject_with_null_request_mcp_servers(
+    injector: McpConfigInjector, mock_loader: Mock
+) -> None:
     """Test injection uses server-side configs when request mcp_servers is null."""
     request = QueryRequest(
-        prompt="test query", mcp_servers=None  # null = use server-side
+        prompt="test query",
+        mcp_servers=None,  # null = use server-side
     )
 
     result = await injector.inject(request, api_key="test-api-key")
@@ -79,10 +91,13 @@ async def test_inject_with_null_request_mcp_servers(injector, mock_loader):
 
 
 @pytest.mark.anyio
-async def test_inject_with_empty_dict_opts_out(injector, mock_loader):
+async def test_inject_with_empty_dict_opts_out(
+    injector: McpConfigInjector, mock_loader: Mock
+) -> None:
     """Test injection preserves empty dict (opt-out mechanism)."""
     request = QueryRequest(
-        prompt="test query", mcp_servers={}  # empty dict = opt-out
+        prompt="test query",
+        mcp_servers={},  # empty dict = opt-out
     )
 
     result = await injector.inject(request, api_key="test-api-key")
@@ -93,7 +108,11 @@ async def test_inject_with_empty_dict_opts_out(injector, mock_loader):
 
 
 @pytest.mark.anyio
-async def test_inject_logs_sanitized_config(injector, mock_validator, caplog):
+async def test_inject_logs_sanitized_config(
+    injector: McpConfigInjector,
+    mock_validator: Mock,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     """Test injection logs sanitized config (not raw credentials).
 
     This test expects validator integration which will be added in GREEN phase.
@@ -112,13 +131,17 @@ async def test_inject_logs_sanitized_config(injector, mock_validator, caplog):
 
 
 @pytest.mark.anyio
-async def test_inject_with_request_override(injector, mock_loader):
+async def test_inject_with_request_override(
+    injector: McpConfigInjector, mock_loader: Mock
+) -> None:
     """Test injection preserves request config when provided."""
     from apps.api.schemas.requests.config import McpServerConfigSchema
 
     request = QueryRequest(
         prompt="test query",
-        mcp_servers={"request-server": McpServerConfigSchema(command="request-cmd", type="stdio")},
+        mcp_servers={
+            "request-server": McpServerConfigSchema(command="request-cmd", type="stdio")
+        },
     )
 
     result = await injector.inject(request, api_key="test-api-key")
