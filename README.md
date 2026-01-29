@@ -305,8 +305,8 @@ data: [DONE]
 | Service | Port | Description |
 |---------|------|-------------|
 | API | 54000 | FastAPI server |
-| PostgreSQL | 53432 | Database |
-| Redis | 53380 | Cache/pub-sub |
+| PostgreSQL | 54432 | Database |
+| Redis | 54379 | Cache/pub-sub |
 
 ## Development
 

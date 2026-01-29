@@ -43,6 +43,15 @@ async def query_stream(
     - question: When agent asks for user input
     - partial: Partial content deltas (if enabled)
     - result: Final result with stats
+
+    Args:
+        request: FastAPI request object.
+        query: Query request with prompt and session options.
+        api_key: Validated API key for authentication.
+        agent_service: Agent service for executing queries.
+        session_service: Session service for state management.
+        enrichment_service: Service for enriching queries with context.
+        _shutdown: Shutdown state for graceful degradation.
     - error: Error events
     - done: Stream completion
 

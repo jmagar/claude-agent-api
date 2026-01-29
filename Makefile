@@ -95,7 +95,7 @@ dev-web: $(LOG_DIR)
 		fi; \
 		rm -f $(LOG_DIR)/web.pid; \
 	fi
-	`@bash` -c "cd apps/web; setsid nohup pnpm dev > ../../$(WEB_LOG) 2>&1 & echo \$$! > ../../$(LOG_DIR)/web.pid"
+	@bash -c "cd apps/web; setsid nohup pnpm dev > ../../$(WEB_LOG) 2>&1 & echo \$$! > ../../$(LOG_DIR)/web.pid"
 	@echo "  Waiting for web server to be ready..."
 	@count=0; \
 	while [ $$count -lt 10 ]; do \

@@ -640,7 +640,7 @@ class TestCacheCreation:
 
             with patch("apps.api.adapters.cache.get_settings") as mock_settings:
                 # Use DIFFERENT values than hardcoded to verify they're actually used
-                mock_settings.return_value.redis_url = "redis://localhost:53380/0"
+                mock_settings.return_value.redis_url = "redis://localhost:54379/0"
                 mock_settings.return_value.redis_max_connections = (
                     100  # Different from 50
                 )
@@ -653,7 +653,7 @@ class TestCacheCreation:
 
                 assert cache._client == mock_client
                 mock_from_url.assert_called_once_with(
-                    "redis://localhost:53380/0",
+                    "redis://localhost:54379/0",
                     encoding="utf-8",
                     decode_responses=False,
                     max_connections=100,  # Should use settings value

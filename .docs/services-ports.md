@@ -4,7 +4,7 @@
 
 **Port Range:** 53000-54999 (avoiding common ports 80, 443, 3000, 5000, 8000, 8080)
 
-**Last Updated:** 2026-01-10 02:09:16
+**Last Updated:** 2026-01-29 06:23:34
 
 ---
 
@@ -13,8 +13,8 @@
 | Service | Port | Protocol | Status | Environment | Notes |
 |---------|------|----------|--------|-------------|-------|
 | **API Server** | 54000 | HTTP | Active | Development | FastAPI + Uvicorn |
-| **PostgreSQL** | 53432 | TCP | Active | Development | Primary database |
-| **Redis** | 53380 | TCP | Active | Development | Cache + Pub/Sub |
+| **PostgreSQL** | 54432 | TCP | Active | Development | Primary database |
+| **Redis** | 54379 | TCP | Active | Development | Cache + Pub/Sub |
 
 ---
 
@@ -58,12 +58,12 @@ uvicorn apps.api.main:app --host 0.0.0.0 --port 54000 --workers 4
 
 ---
 
-### PostgreSQL (53432)
+### PostgreSQL (54432)
 
 - **Service:** PostgreSQL 15+
 - **Process:** postgres
 - **Deployment:** Docker container
-- **Health Check:** `pg_isready -h localhost -p 53432`
+- **Health Check:** `pg_isready -h localhost -p 54432`
 - **TLS:** Disabled (local development)
 - **Connections:** Max 100 (default PostgreSQL limit)
 
@@ -74,7 +74,7 @@ services:
   postgres:
     image: postgres:15
     ports:
-      - "53432:5432"
+      - "54432:5432"
     environment:
       POSTGRES_DB: claude_agent
       POSTGRES_USER: postgres
@@ -83,17 +83,17 @@ services:
 
 **Connection String:**
 ```bash
-DATABASE_URL=postgresql+asyncpg://postgres:postgres@host.docker.internal:53432/claude_agent
+DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:54432/claude_agent
 ```
 
 ---
 
-### Redis (53380)
+### Redis (54379)
 
 - **Service:** Redis 7+
 - **Process:** redis-server
 - **Deployment:** Docker container
-- **Health Check:** `redis-cli -p 53380 ping`
+- **Health Check:** `redis-cli -p 54379 ping`
 - **TLS:** Disabled (local development)
 - **Connections:** Max 10,000 (default Redis limit)
 
@@ -104,12 +104,12 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "53380:6379"
+      - "54379:6379"
 ```
 
 **Connection String:**
 ```bash
-REDIS_URL=redis://host.docker.internal:53380/0
+REDIS_URL=redis://localhost:54379/0
 ```
 
 ---
@@ -152,8 +152,8 @@ If a port is already in use:
 
 ### Development
 - API: 54000
-- PostgreSQL: 53432
-- Redis: 53380
+- PostgreSQL: 54432
+- Redis: 54379
 
 ### Staging (Future)
 - API: TBD
@@ -175,7 +175,7 @@ If a port is already in use:
 │                                         │
 │  ┌────────────┐   ┌──────────────┐     │
 │  │ PostgreSQL │   │    Redis     │     │
-│  │  :53432    │   │    :53380    │     │
+│  │  :54432    │   │    :54379    │     │
 │  └─────▲──────┘   └──────▲───────┘     │
 │        │                 │              │
 │        └────────┬────────┘              │

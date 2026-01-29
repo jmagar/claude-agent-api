@@ -42,7 +42,7 @@ class Settings(BaseSettings):
 
     # Database
     database_url: str = Field(
-        default="postgresql+asyncpg://user:password@localhost:53432/claude_agent",
+        default="postgresql+asyncpg://user:password@localhost:54432/claude_agent",
         description="PostgreSQL connection string",
     )
     db_pool_size: int = Field(default=10, ge=5, le=50, description="Database pool size")
@@ -52,7 +52,7 @@ class Settings(BaseSettings):
 
     # Redis
     redis_url: str = Field(
-        default="redis://localhost:53380/0",
+        default="redis://localhost:54379/0",
         description="Redis connection string",
     )
     redis_session_ttl: int = Field(

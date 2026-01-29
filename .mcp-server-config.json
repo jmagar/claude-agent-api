@@ -1,6 +1,7 @@
 {
   "mcpServers": {
     "test-app-server": {
+      "type": "stdio",
       "command": "node",
       "args": ["/path/to/test-server.js"],
       "env": {
@@ -8,6 +9,7 @@
       }
     },
     "disabled-app-server": {
+      "type": "stdio",
       "command": "node",
       "args": ["/path/to/disabled.js"],
       "enabled": false

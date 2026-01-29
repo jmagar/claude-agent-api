@@ -7,7 +7,7 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: claude_agent
     ports:
-      - "53432:5432"
+      - "54432:5432"
     volumes:
       - claude_agent_postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -21,7 +21,7 @@ services:
     container_name: claude-agent-redis
     command: redis-server --appendonly yes
     ports:
-      - "53380:6379"
+      - "54379:6379"
     volumes:
       - claude_agent_redis_data:/data
     healthcheck:

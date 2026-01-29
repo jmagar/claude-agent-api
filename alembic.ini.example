@@ -27,7 +27,7 @@ version_table_schema = public
 output_encoding = utf-8
 
 # SQLAlchemy URL - UPDATE THIS FOR YOUR ENVIRONMENT
-sqlalchemy.url = postgresql+asyncpg://postgres:postgres@localhost:53432/claude_agent
+sqlalchemy.url = postgresql+asyncpg://postgres:postgres@localhost:54432/claude_agent
 
 [post_write_hooks]
 # Format migrations with ruff

@@ -27,8 +27,8 @@ def test_settings_loads_distributed_session_config():
 
     # Create settings with distributed session config
     settings = Settings(
-        redis_url="redis://localhost:53380/0",
-        database_url="postgresql+asyncpg://localhost:53432/test",
+        redis_url="redis://localhost:54379/0",
+        database_url="postgresql+asyncpg://localhost:54432/test",
         api_key=SecretStr("test-key"),
     )
 

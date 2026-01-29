@@ -169,7 +169,7 @@ class TestSettings:
             # Disable .env file loading to test pure defaults
             settings = self._settings_no_env_file()
             assert "postgresql+asyncpg://" in settings.database_url
-            assert "53432" in settings.database_url
+            assert "54432" in settings.database_url
 
     def test_redis_url_default(self) -> None:
         """Test default Redis URL."""
@@ -185,7 +185,7 @@ class TestSettings:
             # Disable .env file loading to test pure defaults
             settings = self._settings_no_env_file()
             assert settings.redis_url.startswith("redis://")
-            assert "53380" in settings.redis_url
+            assert "54379" in settings.redis_url
 
 
 class TestGetSettings:

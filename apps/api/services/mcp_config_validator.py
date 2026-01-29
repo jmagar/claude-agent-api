@@ -48,7 +48,6 @@ class ConfigValidator:
         Comprehensive validation that checks:
         - Command injection in "command" field
         - SSRF in "url" field
-        - Null bytes in all string fields
 
         Args:
             config: Configuration dict to validate.

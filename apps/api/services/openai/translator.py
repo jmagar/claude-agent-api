@@ -138,7 +138,7 @@ class RequestTranslator:
             raise APIError(
                 message=str(exc),
                 code="MODEL_NOT_FOUND",
-                status_code=400,
+                status_code=404,
             ) from exc
 
         # Log warnings for unsupported parameters (SDK doesn't support sampling controls)

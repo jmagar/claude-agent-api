@@ -133,6 +133,9 @@ source = ["apps/api"]
 branch = true
 data_file = ".cache/coverage/.coverage"
 
+[tool.coverage.html]
+directory = ".cache/coverage/htmlcov"
+
 [tool.coverage.report]
 exclude_lines = [
     "pragma: no cover",

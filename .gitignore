@@ -38,7 +38,6 @@ Thumbs.db
 
 # Testing
 .pytest_cache/
-htmlcov/
 .coverage
 *.coverage
 coverage.xml
@@ -52,6 +51,8 @@ logs/
 
 # UV
 .uv/
+
+.mcp-server-config.json
 
 # Alembic
 alembic.ini
@@ -101,3 +102,5 @@ package-lock.json
 *.temp
 tmp/
 temp/
+
+.ralph-state.json

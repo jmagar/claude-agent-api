@@ -190,7 +190,12 @@ async def get_agent_service(
     # Create MCP config injector
     loader = get_mcp_config_loader()
     config_service = McpServerConfigService(cache=cache)
-    config_injector = McpConfigInjector(config_loader=loader, config_service=config_service)
+    validator = ConfigValidator()
+    config_injector = McpConfigInjector(
+        config_loader=loader,
+        config_service=config_service,
+        validator=validator,
+    )
 
     # Otherwise create new instance per request with cache and injector
     return AgentService(cache=cache, mcp_config_injector=config_injector)

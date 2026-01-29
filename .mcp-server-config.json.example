@@ -21,7 +21,7 @@
       "args": [
         "mcp-server-postgres",
         "--connection-string",
-        "${POSTGRES_CONNECTION_STRING}"
+        "${DATABASE_URL}"
       ],
       "env": {
         "POSTGRES_CONNECTION_STRING": "${DATABASE_URL}"

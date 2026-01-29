@@ -17,11 +17,11 @@ from alembic import command
 
 # Set test environment variables before importing app
 os.environ.setdefault("API_KEY", "test-api-key-12345")
-# Note: Use host.docker.internal since we're in code-server container and services run on host
+# Default to localhost for dev; override in containers via env vars.
 os.environ.setdefault(
-    "DATABASE_URL", "postgresql+asyncpg://test:test@host.docker.internal:53432/test"
+    "DATABASE_URL", "postgresql+asyncpg://test:test@localhost:54432/test"
 )
-os.environ.setdefault("REDIS_URL", "redis://host.docker.internal:53380/0")
+os.environ.setdefault("REDIS_URL", "redis://localhost:54379/0")
 os.environ.setdefault("DEBUG", "true")
 
 from apps.api.config import get_settings
