@@ -35,7 +35,7 @@ help:
 	@echo "Code Quality:"
 	@echo "  make lint        - Run ruff linter"
 	@echo "  make fmt         - Format code with ruff"
-	@echo "  make typecheck   - Run mypy type checker"
+	@echo "  make typecheck   - Run ty type checker"
 	@echo "  make check       - Run lint + typecheck"
 	@echo ""
 	@echo "Database:"
@@ -53,7 +53,7 @@ $(LOG_DIR):
 
 # Development servers
 dev:
-	uv run uvicorn apps.api.main:app --host 0.0.0.0 --port 54000 --reload
+	uv run uvicorn apps.api.main:app --host 0.0.0.0 --port 54000 --reload --reload-dir apps
 
 dev-api: $(LOG_DIR)
 	@echo "$(CYAN)→ Starting API server$(RESET) (logs: $(API_LOG))"
@@ -66,7 +66,7 @@ dev-api: $(LOG_DIR)
 		fi; \
 		rm -f $(LOG_DIR)/api.pid; \
 	fi
-	@bash -c "nohup uv run uvicorn apps.api.main:app --host 0.0.0.0 --port 54000 --reload > $(API_LOG) 2>&1 & echo \$$! > $(LOG_DIR)/api.pid"
+	@bash -c "nohup uv run uvicorn apps.api.main:app --host 0.0.0.0 --port 54000 --reload --reload-dir apps > $(API_LOG) 2>&1 & echo \$$! > $(LOG_DIR)/api.pid"
 	@echo "  Waiting for API to be ready..."
 	@count=0; \
 	while [ $$count -lt 10 ]; do \
@@ -119,7 +119,7 @@ fmt:
 	uv run ruff check --fix .
 
 typecheck:
-	uv run mypy apps/api tests/
+	uv run ty check
 
 check: lint typecheck
 
@@ -172,5 +172,5 @@ status:
 
 # Cleanup
 clean:
-	rm -rf .cache .pytest_cache .mypy_cache .ruff_cache $(LOG_DIR)
+	rm -rf .cache .pytest_cache .mypy_cache .ruff_cache .ty $(LOG_DIR)
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
