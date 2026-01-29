@@ -131,8 +131,28 @@ class McpConfigInjector:
                 merged_config=sanitized_config,
             )
 
-            # Create enriched request with merged MCP servers
-            return request.model_copy(update={"mcp_servers": merged_schemas})
+            # Build allowed_tools patterns for MCP servers
+            # Pattern: mcp__<server-name>__* allows all tools from the server
+            mcp_tool_patterns = [f"mcp__{name}__*" for name in merged_schemas.keys()]
+
+            # Merge with existing allowed_tools (preserve user-specified tools)
+            existing_allowed = list(request.allowed_tools) if request.allowed_tools else []
+            updated_allowed_tools = existing_allowed + mcp_tool_patterns
+
+            logger.info(
+                "mcp_tools_added_to_allowed",
+                mcp_tool_patterns=mcp_tool_patterns,
+                existing_allowed_count=len(existing_allowed),
+                updated_allowed_count=len(updated_allowed_tools),
+            )
+
+            # Create enriched request with merged MCP servers and updated allowed_tools
+            return request.model_copy(
+                update={
+                    "mcp_servers": merged_schemas,
+                    "allowed_tools": updated_allowed_tools,
+                }
+            )
 
         except Exception as e:
             # Graceful degradation: log error and return original request

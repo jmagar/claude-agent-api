@@ -1,18 +1,9 @@
 {
   "mcpServers": {
-    "test-app-server": {
+    "everything": {
       "type": "stdio",
-      "command": "node",
-      "args": ["/path/to/test-server.js"],
-      "env": {
-        "TEST_VAR": "from_application_config"
-      }
-    },
-    "disabled-app-server": {
-      "type": "stdio",
-      "command": "node",
-      "args": ["/path/to/disabled.js"],
-      "enabled": false
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-everything"]
     }
   }
 }

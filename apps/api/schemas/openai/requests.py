@@ -58,14 +58,23 @@ class OpenAIFunctionCallModel(BaseModel):
     arguments: str  # JSON string
 
 
+class OpenAIContentPart(BaseModel):
+    """Content part for multimodal messages."""
+
+    type: Literal["text", "image_url"]
+    text: str | None = None
+    image_url: dict[str, str] | None = None  # {"url": "..."}
+
+
 class OpenAIMessage(BaseModel):
     """Message object for chat completion requests.
 
     Supports system, user, assistant (with optional tool_calls), and tool messages.
+    Content can be either a string or array of content parts (text/images).
     """
 
     role: Literal["system", "user", "assistant", "tool"]
-    content: str | None = None
+    content: str | list[OpenAIContentPart] | None = None
     # For assistant messages with tool calls
     tool_calls: list[OpenAIToolCallModel] | None = None
     # For tool result messages

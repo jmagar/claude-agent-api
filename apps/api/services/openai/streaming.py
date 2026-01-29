@@ -115,8 +115,8 @@ class StreamingAdapter:
                 }
                 yield role_chunk
 
-            # Handle partial events (content deltas)
-            if event_type == "partial":
+            # Handle message events (full content) and partial events (content deltas)
+            if event_type in ("message", "partial"):
                 partial_data = event_data
                 if isinstance(partial_data, dict) and "content" in partial_data:
                     content_blocks = partial_data.get("content", [])

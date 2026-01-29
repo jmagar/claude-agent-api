@@ -54,6 +54,16 @@ class MessageHandler:
         msg_type = type(message).__name__
 
         if msg_type == "SystemMessage":
+            # Log SystemMessage for debugging MCP server connections
+            subtype = getattr(message, "subtype", None)
+            if subtype == "init":
+                data = getattr(message, "data", {})
+                mcp_servers = data.get("mcp_servers", [])
+                logger.info(
+                    "sdk_system_init_message",
+                    mcp_server_count=len(mcp_servers),
+                    mcp_servers=mcp_servers,
+                )
             return None
 
         if msg_type == "UserMessage":

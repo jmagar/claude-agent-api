@@ -372,7 +372,9 @@ class ModelMapper(Protocol):
 class RequestTranslator(Protocol):
     """Protocol for OpenAI request translation."""
 
-    def translate(self, request: "ChatCompletionRequest") -> "QueryRequest":
+    def translate(
+        self, request: "ChatCompletionRequest", permission_mode: str | None = None
+    ) -> "QueryRequest":
         """Translate OpenAI request to Claude query request."""
         ...
 

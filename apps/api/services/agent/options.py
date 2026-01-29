@@ -103,6 +103,16 @@ class OptionsBuilder:
         sandbox_config = self._build_sandbox_config()
         final_system_prompt = self._resolve_system_prompt()
 
+        # DEBUG: Log what MCP configs are being passed to SDK
+        logger.debug(
+            "Building ClaudeAgentOptions",
+            has_mcp_servers=bool(mcp_configs),
+            mcp_server_count=len(mcp_configs) if mcp_configs else 0,
+            mcp_server_names=list(mcp_configs.keys()) if mcp_configs else [],
+            mcp_configs_detail=mcp_configs,
+            setting_sources=setting_sources_typed,
+        )
+
         # Note: mcp_servers, agents, plugins, setting_sources, and sandbox are cast
         # because SDK expects specific config types but accepts dict-like structures
         return ClaudeAgentOptions(

@@ -54,8 +54,11 @@ async def create_chat_completion(
     Raises:
         APIError: If model name is not recognized
     """
+    # Extract optional permission mode from custom header
+    permission_mode = request.headers.get("X-Permission-Mode")
+
     # Translate OpenAI request to Claude QueryRequest
-    query_request = request_translator.translate(payload)
+    query_request = request_translator.translate(payload, permission_mode=permission_mode)
 
     # Handle streaming vs non-streaming
     if payload.stream:
@@ -76,7 +79,7 @@ async def create_chat_completion(
                 tuple[str, MessageEventDataDict | ResultEventDataDict], None
             ]:
                 """Parse native SSE events into (event_type, data) tuples."""
-                async for event in await native_events:
+                async for event in native_events:
                     # Native events are dicts with 'event' and 'data' keys
                     # where 'data' is a JSON string that needs to be parsed
                     if isinstance(event, dict):
@@ -99,7 +102,8 @@ async def create_chat_completion(
                         else:
                             event_data = event_data_raw
                         # Only yield events that streaming adapter expects
-                        if event_type in ("partial", "result"):
+                        # "message" contains full responses, "partial" contains streaming deltas, "result" contains metadata
+                        if event_type in ("message", "partial", "result"):
                             yield (event_type, event_data)
 
             # Adapt events and yield as SSE format

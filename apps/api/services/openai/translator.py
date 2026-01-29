@@ -8,7 +8,11 @@ import structlog
 
 from apps.api.exceptions.base import APIError
 from apps.api.protocols import ModelMapper
-from apps.api.schemas.openai.requests import ChatCompletionRequest, OpenAIMessage
+from apps.api.schemas.openai.requests import (
+    ChatCompletionRequest,
+    OpenAIContentPart,
+    OpenAIMessage,
+)
 from apps.api.schemas.openai.responses import (
     OpenAIChatCompletion,
     OpenAIChoice,
@@ -23,6 +27,27 @@ logger = structlog.get_logger(__name__)
 
 # Singleton tool translator instance
 _tool_translator = ToolTranslator()
+
+
+def _extract_text_content(content: str | list[OpenAIContentPart] | None) -> str:
+    """Extract text from message content regardless of format.
+
+    Args:
+        content: Message content (string or array of content parts)
+
+    Returns:
+        Text content as a string (empty string if None)
+    """
+    if content is None:
+        return ""
+    if isinstance(content, str):
+        return content
+    # Array of content parts - extract text from text parts
+    text_parts: list[str] = []
+    for part in content:
+        if part.type == "text" and part.text:
+            text_parts.append(part.text)
+    return "\n".join(text_parts)
 
 
 class RequestTranslator:
@@ -71,8 +96,9 @@ class RequestTranslator:
 
         for msg in messages:
             if msg.role == "system":
-                if msg.content:
-                    system_messages.append(msg.content)
+                text = _extract_text_content(msg.content)
+                if text:
+                    system_messages.append(text)
             else:
                 conversation_messages.append(msg)
 
@@ -119,8 +145,9 @@ class RequestTranslator:
                 # Tool result message
                 tool_id = msg.tool_call_id or "unknown"
                 func_name = msg.name or "unknown"
+                content_text = _extract_text_content(msg.content)
                 prompt_parts.append(
-                    f"TOOL_RESULT ({func_name}, id={tool_id}): {msg.content or ''}\n\n"
+                    f"TOOL_RESULT ({func_name}, id={tool_id}): {content_text}\n\n"
                 )
             elif msg.role == "assistant" and msg.tool_calls:
                 # Assistant message with tool calls
@@ -130,22 +157,28 @@ class RequestTranslator:
                         f"  - {tc.function.name}(id={tc.id}): {tc.function.arguments}"
                     )
                 tool_calls_text = "\n".join(tool_call_strs)
-                content = msg.content or ""
+                content_text = _extract_text_content(msg.content)
                 prompt_parts.append(
-                    f"ASSISTANT: {content}\n[Tool Calls]\n{tool_calls_text}\n\n"
+                    f"ASSISTANT: {content_text}\n[Tool Calls]\n{tool_calls_text}\n\n"
                 )
             else:
                 # Regular user or assistant message
                 role_upper = msg.role.upper()
-                prompt_parts.append(f"{role_upper}: {msg.content or ''}\n\n")
+                content_text = _extract_text_content(msg.content)
+                prompt_parts.append(f"{role_upper}: {content_text}\n\n")
 
         return "".join(prompt_parts)
 
-    def translate(self, request: ChatCompletionRequest) -> QueryRequest:
+    def translate(
+        self,
+        request: ChatCompletionRequest,
+        permission_mode: str | None = None,
+    ) -> QueryRequest:
         """Translate OpenAI ChatCompletionRequest to Claude QueryRequest.
 
         Args:
             request: OpenAI chat completion request
+            permission_mode: Optional permission mode override from X-Permission-Mode header
 
         Returns:
             QueryRequest suitable for Claude Agent SDK
@@ -202,11 +235,17 @@ class RequestTranslator:
         # NOTE: We do NOT set max_turns when max_tokens is present because they have
         # incompatible semantics: max_tokens limits output tokens, max_turns limits
         # conversation turns. There's no reliable conversion between them.
+
+        # Use provided permission_mode or default to "acceptEdits" for OpenAI compatibility
+        final_permission_mode = permission_mode or "acceptEdits"
+
         query_request = QueryRequest(
             prompt=prompt,
             model=claude_model,
             system_prompt=system_prompt,
             user=request.user,  # SUPPORTED: User identifier for tracking
+            permission_mode=final_permission_mode,  # type: ignore[arg-type]
+            # setting_sources defaults to None - allows explicit mcp_servers without auto-loading
         )
 
         logger.info(
@@ -306,8 +345,8 @@ class ResponseTranslator:
             if block.type == "text" and block.text:
                 text_parts.append(block.text)
 
-        # Concatenate text blocks with space separator
-        content = " ".join(text_parts) if text_parts else None
+        # Concatenate text blocks with double newline separator to preserve paragraphs
+        content = "\n\n".join(text_parts) if text_parts else None
 
         # Map stop_reason to finish_reason
         finish_reason = self._map_stop_reason(response.stop_reason, has_tool_calls)
