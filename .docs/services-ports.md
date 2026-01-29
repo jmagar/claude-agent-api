@@ -119,8 +119,7 @@ REDIS_URL=redis://localhost:54379/0
 | Port | Service | Status | Purpose |
 |------|---------|--------|---------|
 | 54001 | SSE Worker | Planned | Dedicated SSE streaming worker |
-| 54002 | Frontend | Planned | Next.js frontend application |
-| 54003 | Monitoring | Planned | Prometheus metrics endpoint |
+| 54002 | Monitoring | Planned | Prometheus metrics endpoint |
 
 ---
 
