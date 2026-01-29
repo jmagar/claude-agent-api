@@ -58,11 +58,12 @@ class MockCache:
         """Check if key exists in cache."""
         return key in self._json_store or key in self._string_store
 
-    async def scan_keys(self, pattern: str) -> list[str]:
+    async def scan_keys(self, pattern: str, max_keys: int = 1000) -> list[str]:
         """Scan for keys matching pattern."""
         prefix = pattern.replace("*", "")
         all_keys = list(self._json_store.keys()) + list(self._string_store.keys())
-        return [k for k in all_keys if k.startswith(prefix)]
+        matching = [k for k in all_keys if k.startswith(prefix)]
+        return matching[:max_keys]
 
     async def clear(self) -> bool:
         """Clear all cached values."""

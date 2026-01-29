@@ -60,12 +60,14 @@ class MockCache:
         """Check if key exists in cache."""
         return key in self._store
 
-    async def scan_keys(self, pattern: str) -> list[str]:
+    async def scan_keys(self, pattern: str, max_keys: int = 1000) -> list[str]:
         """Scan for keys matching pattern."""
         # Simple pattern matching for session:* pattern
         if pattern == "session:*":
-            return [k for k in self._store if k.startswith("session:")]
-        return list(self._store.keys())
+            keys = [k for k in self._store if k.startswith("session:")]
+        else:
+            keys = list(self._store.keys())
+        return keys[:max_keys]
 
     async def clear(self) -> bool:
         """Clear all cached values."""
@@ -229,7 +231,9 @@ class TestSessionServiceList:
         """Test that owner filtering avoids full cache scans."""
 
         class NoScanCache(MockCache):
-            async def scan_keys(self, pattern: str) -> list[str]:
+            async def scan_keys(
+                self, pattern: str, max_keys: int = 1000
+            ) -> list[str]:
                 pytest.fail("scan_keys should not be used for owner-filtered list")
 
         cache = NoScanCache()
@@ -271,7 +275,9 @@ class TestSessionServiceListDbRepo:
         from unittest.mock import AsyncMock, MagicMock
 
         class NoScanCache(MockCache):
-            async def scan_keys(self, pattern: str) -> list[str]:
+            async def scan_keys(
+                self, pattern: str, max_keys: int = 1000
+            ) -> list[str]:
                 pytest.fail("scan_keys should not be used when db_repo is available")
 
             async def get_many_json(

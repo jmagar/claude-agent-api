@@ -420,9 +420,15 @@ class SessionService:
                     cached_sessions.append(session)
 
         elif self._cache:
-            # Fall back to full cache scan (only when no owner filter)
+            # WARNING: Full cache scan path - should be avoided in production.
+            # This path is only reached when no owner filter is provided AND
+            # db_repo is not available. Prefer using indexed DB queries.
+            logger.warning(
+                "session_list_full_scan",
+                msg="Using full cache scan - consider adding owner filter for efficiency",
+            )
             pattern = "session:*"
-            all_keys = await self._cache.scan_keys(pattern)
+            all_keys = await self._cache.scan_keys(pattern, max_keys=1000)
 
             # Bulk fetch all session data in one Redis roundtrip
             cached_rows = await self._cache.get_many_json(all_keys)

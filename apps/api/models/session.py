@@ -59,23 +59,25 @@ class Session(Base):
         nullable=True,
     )
 
-    # Relationships
+    # Relationships - use lazy="raise" to prevent N+1 queries.
+    # Access to relationships without explicit loading will raise an error.
+    # Use selectinload() in queries when relationships are actually needed.
     messages: Mapped[list["SessionMessage"]] = relationship(
         "SessionMessage",
         back_populates="session",
         cascade="all, delete-orphan",
-        lazy="selectin",
+        lazy="raise",
     )
     checkpoints: Mapped[list["Checkpoint"]] = relationship(
         "Checkpoint",
         back_populates="session",
         cascade="all, delete-orphan",
-        lazy="selectin",
+        lazy="raise",
     )
     parent_session: Mapped["Session | None"] = relationship(
         "Session",
         remote_side=[id],
-        lazy="selectin",
+        lazy="raise",
     )
 
     __table_args__ = (

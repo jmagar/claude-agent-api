@@ -282,14 +282,17 @@ class Cache(Protocol):
         """
         ...
 
-    async def scan_keys(self, pattern: str) -> list[str]:
+    async def scan_keys(self, pattern: str, max_keys: int = 1000) -> list[str]:
         """Scan for keys matching pattern.
+
+        WARNING: Loads all matching keys into memory. Prefer indexed lookups.
 
         Args:
             pattern: Glob-style pattern (e.g., 'session:*').
+            max_keys: Maximum keys to return (default: 1000).
 
         Returns:
-            List of matching keys.
+            List of matching keys (up to max_keys).
         """
         ...
 

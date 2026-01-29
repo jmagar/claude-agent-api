@@ -243,18 +243,23 @@ class RedisCache:
         """
         return await self.cache_set(key, json.dumps(value), ttl)
 
-    async def scan_keys(self, pattern: str, max_keys: int = 10000) -> list[str]:
+    async def scan_keys(self, pattern: str, max_keys: int = 1000) -> list[str]:
         """Scan for keys matching a pattern.
+
+        WARNING: This method loads all matching keys into memory. For large
+        keyspaces, prefer indexed lookups (e.g., owner index sets) over scans.
 
         Args:
             pattern: Redis key pattern (e.g., "session:*")
-            max_keys: Maximum number of keys to return (default: 10000)
+            max_keys: Maximum number of keys to return (default: 1000).
+                     Reduced from 10000 to prevent memory issues.
 
         Returns:
             List of matching keys (up to max_keys)
 
         Note:
-            If more than max_keys match, only the first max_keys are returned.
+            If more than max_keys match, only the first max_keys are returned
+            and a warning is logged. Consider using indexed lookups instead.
         """
         all_keys: list[str] = []
         cursor: int = 0
@@ -263,7 +268,7 @@ class RedisCache:
             cursor_result = await self._client.scan(
                 cursor=cursor,
                 match=pattern,
-                count=100,
+                count=1000,  # Larger batch for efficiency (was 100)
             )
             cursor = int(cursor_result[0])
 
@@ -276,10 +281,11 @@ class RedisCache:
             # Safety limit to prevent OOM
             if len(all_keys) >= max_keys:
                 logger.warning(
-                    "scan_keys hit limit",
+                    "scan_keys_hit_limit",
                     pattern=pattern,
                     max_keys=max_keys,
                     found=len(all_keys),
+                    msg="Consider using indexed lookups instead of scan",
                 )
                 break
 

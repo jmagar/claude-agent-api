@@ -10,15 +10,20 @@ if TYPE_CHECKING:
     from sqlalchemy import Table
 
 
-def test_session_relationships_use_lazy_select() -> None:
-    """Ensure relationships use selectin for optimal performance."""
+def test_session_relationships_use_lazy_raise() -> None:
+    """Ensure relationships use lazy='raise' to prevent N+1 queries.
+
+    With lazy='raise', accessing relationships without explicit loading
+    will raise an error. This prevents accidental N+1 queries in list
+    operations. Use selectinload() when relationships are needed.
+    """
     assert isinstance(Session.messages.property, RelationshipProperty)
     assert isinstance(Session.checkpoints.property, RelationshipProperty)
     assert isinstance(Session.parent_session.property, RelationshipProperty)
 
-    assert Session.messages.property.lazy == "selectin"
-    assert Session.checkpoints.property.lazy == "selectin"
-    assert Session.parent_session.property.lazy == "selectin"
+    assert Session.messages.property.lazy == "raise"
+    assert Session.checkpoints.property.lazy == "raise"
+    assert Session.parent_session.property.lazy == "raise"
 
 
 def test_session_owner_api_key_index_exists() -> None:
