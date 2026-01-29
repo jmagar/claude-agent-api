@@ -42,7 +42,9 @@ class StreamContext:
     is_error: bool = False
     result_text: str | None = None
     structured_output: dict[str, object] | None = None
-    # Model usage tracking (T110)
+    # Usage tracking - aggregated token usage from SDK ResultMessage
+    usage: dict[str, int] | None = None
+    # Model usage tracking (T110) - per-model breakdown
     model_usage: dict[str, dict[str, int]] | None = None
     # Checkpoint tracking fields (T100, T104)
     enable_file_checkpointing: bool = False

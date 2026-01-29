@@ -5,7 +5,11 @@ from typing import TYPE_CHECKING, Literal, cast
 
 import structlog
 
-from apps.api.schemas.messages import map_sdk_content_block, map_sdk_usage
+from apps.api.schemas.messages import (
+    ContentBlockDict,
+    map_sdk_content_block,
+    map_sdk_usage,
+)
 from apps.api.schemas.responses import (
     ContentBlockSchema,
     ContentDeltaSchema,
@@ -201,6 +205,24 @@ class MessageHandler:
         ctx.total_cost_usd = getattr(message, "total_cost_usd", None)
         ctx.result_text = getattr(message, "result", None)
 
+        # Extract usage if available (token usage from SDK ResultMessage)
+        raw_usage = getattr(message, "usage", None)
+        if raw_usage is not None:
+            if isinstance(raw_usage, dict):
+                ctx.usage = cast("dict[str, int]", raw_usage)
+            else:
+                # Try to extract as object with attributes
+                ctx.usage = {
+                    "input_tokens": getattr(raw_usage, "input_tokens", 0),
+                    "output_tokens": getattr(raw_usage, "output_tokens", 0),
+                    "cache_read_input_tokens": getattr(
+                        raw_usage, "cache_read_input_tokens", 0
+                    ),
+                    "cache_creation_input_tokens": getattr(
+                        raw_usage, "cache_creation_input_tokens", 0
+                    ),
+                }
+
         # Extract model_usage if available (T110: Model Selection)
         raw_model_usage = getattr(message, "model_usage", None)
         if raw_model_usage is not None:
@@ -345,21 +367,24 @@ class MessageHandler:
                 delta_schema = ContentDeltaSchema(
                     type=delta_type,
                     text=text if delta_type == "text_delta" else None,
-                    thinking=(
-                        thinking if delta_type == "thinking_delta" else None
-                    ),
+                    thinking=(thinking if delta_type == "thinking_delta" else None),
                     partial_json=(
                         partial_json if delta_type == "input_json_delta" else None
                     ),
                 )
             else:
                 delta_type_value = getattr(delta, "type", "text_delta")
-                delta_type = (
-                    delta_type_value
-                    if delta_type_value
-                    in ("text_delta", "thinking_delta", "input_json_delta")
-                    else "text_delta"
-                )
+                if isinstance(delta_type_value, str) and delta_type_value in (
+                    "text_delta",
+                    "thinking_delta",
+                    "input_json_delta",
+                ):
+                    delta_type = cast(
+                        "Literal['text_delta', 'thinking_delta', 'input_json_delta']",
+                        delta_type_value,
+                    )
+                else:
+                    delta_type = "text_delta"
                 delta_schema = ContentDeltaSchema(
                     type=delta_type,
                     text=(
@@ -472,31 +497,63 @@ class MessageHandler:
         for block in content:
             if isinstance(block, dict):
                 mapped = map_sdk_content_block(block)
-                blocks.append(ContentBlockSchema(**cast("dict[str, object]", mapped)))
+                blocks.append(ContentBlockSchema(**mapped))
             else:
-                # Dataclass block
-                block_dict = {
-                    "type": getattr(block, "type", "text"),
-                }
-                if hasattr(block, "text"):
-                    block_dict["text"] = block.text
-                if hasattr(block, "thinking"):
-                    block_dict["thinking"] = block.thinking
-                if hasattr(block, "id"):
-                    block_dict["id"] = block.id
-                if hasattr(block, "name"):
-                    block_dict["name"] = block.name
-                if hasattr(block, "input"):
-                    block_dict["input"] = block.input
-                if hasattr(block, "tool_use_id"):
-                    block_dict["tool_use_id"] = block.tool_use_id
-                if hasattr(block, "content"):
-                    block_dict["content"] = block.content
-                if hasattr(block, "is_error"):
-                    block_dict["is_error"] = block.is_error
-                blocks.append(
-                    ContentBlockSchema(**cast("dict[str, object]", block_dict))
+                # Dataclass block - extract and validate types
+                raw_type = getattr(block, "type", "text")
+                if isinstance(raw_type, str) and raw_type in (
+                    "text",
+                    "thinking",
+                    "tool_use",
+                    "tool_result",
+                ):
+                    block_type = cast(
+                        "Literal['text', 'thinking', 'tool_use', 'tool_result']",
+                        raw_type,
+                    )
+                else:
+                    block_type = "text"
+
+                # Extract optional fields with type validation
+                text_val = getattr(block, "text", None) if hasattr(block, "text") else None
+                thinking_val = (
+                    getattr(block, "thinking", None) if hasattr(block, "thinking") else None
                 )
+                id_val = getattr(block, "id", None) if hasattr(block, "id") else None
+                name_val = getattr(block, "name", None) if hasattr(block, "name") else None
+                input_val = getattr(block, "input", None) if hasattr(block, "input") else None
+                tool_use_id_val = (
+                    getattr(block, "tool_use_id", None)
+                    if hasattr(block, "tool_use_id")
+                    else None
+                )
+                content_val = (
+                    getattr(block, "content", None) if hasattr(block, "content") else None
+                )
+                is_error_val = (
+                    getattr(block, "is_error", None) if hasattr(block, "is_error") else None
+                )
+
+                # Build typed dict
+                block_dict = ContentBlockDict(type=block_type)
+                if text_val is not None and isinstance(text_val, str):
+                    block_dict["text"] = text_val
+                if thinking_val is not None and isinstance(thinking_val, str):
+                    block_dict["thinking"] = thinking_val
+                if id_val is not None and isinstance(id_val, str):
+                    block_dict["id"] = id_val
+                if name_val is not None and isinstance(name_val, str):
+                    block_dict["name"] = name_val
+                if input_val is not None and isinstance(input_val, dict):
+                    block_dict["input"] = input_val
+                if tool_use_id_val is not None and isinstance(tool_use_id_val, str):
+                    block_dict["tool_use_id"] = tool_use_id_val
+                if content_val is not None and isinstance(content_val, (str, list)):
+                    block_dict["content"] = content_val
+                if is_error_val is not None and isinstance(is_error_val, bool):
+                    block_dict["is_error"] = is_error_val
+
+                blocks.append(ContentBlockSchema(**block_dict))
 
         return blocks
 

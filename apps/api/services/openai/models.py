@@ -1,93 +1,117 @@
-"""Model mapping service for OpenAI compatibility."""
+"""Model mapping service for Claude API compatibility."""
 
 from apps.api.schemas.openai.responses import OpenAIModelInfo
 
+# Claude model definitions with full names
+# Short aliases map to the actual model identifiers used by Claude Code CLI
+# See: https://code.claude.com/docs/en/model-config
+CLAUDE_MODELS: dict[str, str] = {
+    "claude-sonnet-4-5-20250929": "sonnet",  # Sonnet 4.5
+    "claude-opus-4-5-20251101": "opus",  # Opus 4.5
+    "claude-haiku-4-5-20251001": "haiku",  # Haiku 4.5
+}
+
+# Reverse lookup: short name -> full name
+CLAUDE_ALIASES: dict[str, str] = {v: k for k, v in CLAUDE_MODELS.items()}
+
 
 class ModelMapper:
-    """Maps between OpenAI model names and Claude model names."""
+    """Maps model names to Claude model identifiers."""
 
-    def __init__(self, mapping: dict[str, str]) -> None:
-        """Initialize ModelMapper with bidirectional mapping.
+    def __init__(self, models: dict[str, str] | None = None) -> None:
+        """Initialize ModelMapper with Claude models.
 
         Args:
-            mapping: Dictionary mapping OpenAI model names to Claude model names.
-                    Example: {"gpt-4": "sonnet", "gpt-3.5-turbo": "haiku"}
+            models: Optional custom model mapping. If not provided, uses
+                   default Claude models.
         """
-        if len(set(mapping.values())) != len(mapping):
-            raise ValueError("Mapping must be 1:1; duplicate Claude models found")
+        self._models = models if models is not None else CLAUDE_MODELS
+        self._aliases = {v: k for k, v in self._models.items()}
+        # All valid model names (both full and short)
+        self._valid_names = set(self._models.keys()) | set(self._aliases.keys())
 
-        self._openai_to_claude = mapping
-        self._claude_to_openai = {v: k for k, v in mapping.items()}
+    def to_claude(self, model: str) -> str:
+        """Get the Claude CLI model identifier for a model name.
 
-    def to_claude(self, openai_model: str) -> str:
-        """Convert OpenAI model name to Claude model name.
+        Accepts both full model names (e.g., "claude-sonnet-4-5-20250929")
+        and short aliases (e.g., "sonnet"). Returns the short alias that
+        the Claude Code CLI expects.
 
         Args:
-            openai_model: OpenAI model name (e.g., "gpt-4")
+            model: Model name (full or alias)
 
         Returns:
-            Claude model name (e.g., "sonnet")
+            Claude CLI model identifier (e.g., "sonnet")
 
         Raises:
-            ValueError: If the OpenAI model is not recognized
+            ValueError: If the model is not recognized
         """
-        if openai_model not in self._openai_to_claude:
-            raise ValueError(f"Unknown OpenAI model: {openai_model}")
-        return self._openai_to_claude[openai_model]
+        # If it's a full model name, return the alias
+        if model in self._models:
+            return self._models[model]
 
-    def to_openai(self, claude_model: str) -> str:
-        """Convert Claude model name to OpenAI model name.
+        # If it's already an alias, return as-is
+        if model in self._aliases:
+            return model
+
+        raise ValueError(f"Unknown model: {model}")
+
+    def to_full_name(self, model: str) -> str:
+        """Get the full model name for any model identifier.
 
         Args:
-            claude_model: Claude model name (e.g., "sonnet")
+            model: Model name (full or alias)
 
         Returns:
-            OpenAI model name (e.g., "gpt-4")
+            Full model name (e.g., "claude-sonnet-4-5-20250929")
 
         Raises:
-            ValueError: If the Claude model is not recognized
+            ValueError: If the model is not recognized
         """
-        if claude_model not in self._claude_to_openai:
-            raise ValueError(f"Unknown Claude model: {claude_model}")
-        return self._claude_to_openai[claude_model]
+        # If it's already a full name, return as-is
+        if model in self._models:
+            return model
+
+        # If it's an alias, look up the full name
+        if model in self._aliases:
+            return self._aliases[model]
+
+        raise ValueError(f"Unknown model: {model}")
 
     def list_models(self) -> list[OpenAIModelInfo]:
-        """List all available OpenAI-compatible models.
+        """List all available Claude models.
 
         Returns:
-            List of model information dictionaries with OpenAI format:
-            - id: Model identifier (OpenAI model name)
-            - object: Always "model"
-            - created: Unix timestamp (static value)
-            - owned_by: Owner identifier (static value)
+            List of model information in OpenAI-compatible format.
         """
         return [
             OpenAIModelInfo(
-                id=openai_model,
+                id=full_name,
                 object="model",
                 created=1700000000,
-                owned_by="claude-agent-api",
+                owned_by="anthropic",
             )
-            for openai_model in self._openai_to_claude
+            for full_name in self._models.keys()
         ]
 
-    def get_model_info(self, openai_model: str) -> OpenAIModelInfo:
-        """Get OpenAI model information for a specific model ID.
+    def get_model_info(self, model: str) -> OpenAIModelInfo:
+        """Get model information for a specific model.
+
+        Accepts both full names and short aliases.
 
         Args:
-            openai_model: OpenAI model name (e.g., "gpt-4")
+            model: Model name (full or alias)
 
         Returns:
             OpenAI-formatted model information.
 
         Raises:
-            ValueError: If the OpenAI model is not recognized
+            ValueError: If the model is not recognized
         """
-        if openai_model not in self._openai_to_claude:
-            raise ValueError(f"Unknown OpenAI model: {openai_model}")
+        full_name = self.to_full_name(model)
         return OpenAIModelInfo(
-            id=openai_model,
+            id=full_name,
             object="model",
             created=1700000000,
-            owned_by="claude-agent-api",
+            owned_by="anthropic",
         )

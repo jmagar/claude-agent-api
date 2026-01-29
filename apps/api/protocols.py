@@ -6,13 +6,6 @@ from uuid import UUID
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
-    from apps.api.types import (
-        AgentMessage,
-        CheckpointData,
-        JsonValue,
-        MessageData,
-        SessionData,
-    )
     from apps.api.schemas.openai.requests import ChatCompletionRequest
     from apps.api.schemas.openai.responses import (
         OpenAIChatCompletion,
@@ -21,6 +14,13 @@ if TYPE_CHECKING:
     from apps.api.schemas.requests.query import QueryRequest
     from apps.api.schemas.responses import SingleQueryResponse
     from apps.api.services.agent import QueryResponseDict
+    from apps.api.types import (
+        AgentMessage,
+        CheckpointData,
+        JsonValue,
+        MessageData,
+        SessionData,
+    )
 
 
 @runtime_checkable
@@ -346,22 +346,22 @@ class Cache(Protocol):
 
 @runtime_checkable
 class ModelMapper(Protocol):
-    """Protocol for OpenAI/Claude model mapping."""
+    """Protocol for Claude model mapping."""
 
-    def to_claude(self, openai_model: str) -> str:
-        """Map OpenAI model name to Claude model name."""
+    def to_claude(self, model: str) -> str:
+        """Get Claude CLI model identifier from any model name."""
         ...
 
-    def to_openai(self, claude_model: str) -> str:
-        """Map Claude model name to OpenAI model name."""
+    def to_full_name(self, model: str) -> str:
+        """Get full model name from any model identifier."""
         ...
 
     def list_models(self) -> list["OpenAIModelInfo"]:
-        """List OpenAI model info objects."""
+        """List available Claude models."""
         ...
 
-    def get_model_info(self, openai_model: str) -> "OpenAIModelInfo":
-        """Get OpenAI model info for a specific model ID."""
+    def get_model_info(self, model: str) -> "OpenAIModelInfo":
+        """Get model info for a specific model."""
         ...
 
 

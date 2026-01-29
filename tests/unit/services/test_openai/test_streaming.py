@@ -310,8 +310,8 @@ async def test_handles_empty_stream() -> None:
 
 
 @pytest.mark.anyio
-async def test_skips_role_chunk_when_first_event_is_result() -> None:
-    """Result-only streams should not emit a role chunk."""
+async def test_emits_role_chunk_when_first_event_is_result() -> None:
+    """Result-only streams should still emit a role chunk."""
     adapter = StreamingAdapter(original_model="gpt-4", mapped_model="sonnet")
     chunks: list[OpenAIStreamChunk | str] = []
 
@@ -323,4 +323,4 @@ async def test_skips_role_chunk_when_first_event_is_result() -> None:
         for c in chunks
         if isinstance(c, dict) and c["choices"][0]["delta"].get("role") == "assistant"
     ]
-    assert len(role_chunks) == 0
+    assert len(role_chunks) == 1

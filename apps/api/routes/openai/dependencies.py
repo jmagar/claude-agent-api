@@ -8,20 +8,19 @@ from apps.api.protocols import ModelMapper, RequestTranslator, ResponseTranslato
 from apps.api.services.openai.models import ModelMapper as ModelMapperImpl
 from apps.api.services.openai.translator import (
     RequestTranslator as RequestTranslatorImpl,
+)
+from apps.api.services.openai.translator import (
     ResponseTranslator as ResponseTranslatorImpl,
 )
 
 
 def get_model_mapper() -> ModelMapper:
-    """Get ModelMapper instance with configured model mappings.
+    """Get ModelMapper instance with Claude models.
 
     Returns:
-        ModelMapper instance for OpenAI ↔ Claude model name translation
+        ModelMapper instance for Claude model name handling
     """
-    # Default mapping if not configured
-    # TODO: Make this configurable via settings in the future
-    mapping = {"gpt-4": "sonnet", "gpt-3.5-turbo": "haiku", "gpt-4o": "opus"}
-    return ModelMapperImpl(mapping)
+    return ModelMapperImpl()
 
 
 def get_request_translator(

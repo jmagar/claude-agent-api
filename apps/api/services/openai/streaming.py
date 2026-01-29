@@ -87,28 +87,29 @@ class StreamingAdapter:
 
         created_timestamp = int(time.time())
         chunk_count = 0
-        model_name = self.mapped_model or self.original_model
+        # Use mapped_model (Claude name) in responses as per design spec
+        # Design decision: "Return actual Claude model name (e.g., sonnet), not OpenAI name"
+        model_name: str = self.mapped_model or self.original_model or "unknown"
 
         async for event_type, event_data in native_events:
-            # First chunk: emit role delta only for partial content streams
+            # First chunk: emit role delta once, regardless of event type.
             if self.first_chunk:
                 self.first_chunk = False
-                if event_type == "partial":
-                    role_delta: OpenAIDelta = {"role": "assistant"}
-                    role_chunk: OpenAIStreamChunk = {
-                        "id": self.completion_id,
-                        "object": "chat.completion.chunk",
-                        "created": created_timestamp,
-                        "model": model_name,
-                        "choices": [
-                            {
-                                "index": 0,
-                                "delta": role_delta,
-                                "finish_reason": None,
-                            }
-                        ],
-                    }
-                    yield role_chunk
+                role_delta: OpenAIDelta = {"role": "assistant"}
+                role_chunk: OpenAIStreamChunk = {
+                    "id": self.completion_id,
+                    "object": "chat.completion.chunk",
+                    "created": created_timestamp,
+                    "model": model_name,
+                    "choices": [
+                        {
+                            "index": 0,
+                            "delta": role_delta,
+                            "finish_reason": None,
+                        }
+                    ],
+                }
+                yield role_chunk
 
             # Handle partial events (content deltas)
             if event_type == "partial":
