@@ -44,6 +44,13 @@ uv run alembic upgrade 20260201_000006
 - All existing keys are hashed
 - Application still uses plaintext column (not yet updated)
 
+**Verification:**
+```bash
+# Verify hash consistency after migration
+export DATABASE_URL="postgresql://..."
+uv run python scripts/verify_hash_consistency.py
+```
+
 ### Phase 2: Deploy Application Code
 
 **Changes:**
@@ -75,6 +82,13 @@ docker compose logs api | grep "owner_api_key_hash"
 - Authentication uses hashed comparison
 - Backward compatible (can roll back to Phase 1)
 
+**Verification:**
+```bash
+# Verify hash consistency before Phase 3
+export DATABASE_URL="postgresql://..."
+uv run python scripts/verify_hash_consistency.py
+```
+
 ### Phase 3: Drop Plaintext Column (Manual - After Phase 2 Verification)
 
 ⚠️ **WARNING:** This phase is IRREVERSIBLE. Only run after Phase 2 is verified in production for 7+ days.
@@ -84,15 +98,21 @@ docker compose logs api | grep "owner_api_key_hash"
 **Steps to Create Phase 3 Migration:**
 ```bash
 # 1. Verify Phase 2 has been running successfully for 7+ days
-# 2. Create the migration
+
+# 2. MANDATORY: Verify hash consistency before creating migration
+export DATABASE_URL="postgresql://..."
+uv run python scripts/verify_hash_consistency.py
+# Must exit with code 0 (all hashes match) - DO NOT proceed if mismatches found
+
+# 3. Create the migration
 uv run alembic revision -m "Drop plaintext API key columns (Phase 3)"
 
-# 3. Edit the migration file to drop columns:
+# 4. Edit the migration file to drop columns:
 # - op.drop_column('sessions', 'owner_api_key')
 # - op.drop_column('assistants', 'owner_api_key')
 # - op.drop_index('idx_sessions_owner_api_key')
 
-# 4. Run the migration
+# 5. Run the migration
 uv run alembic upgrade head
 ```
 
@@ -261,6 +281,7 @@ assert verify_api_key("wrong-key", hashed) is False
 - [ ] Verify hash column populated: `SELECT COUNT(*) FROM sessions WHERE owner_api_key_hash IS NOT NULL`
 - [ ] Check migration logs for errors
 - [ ] Verify indexes created: `\d sessions` in psql
+- [ ] **Run hash consistency verification:** `uv run python scripts/verify_hash_consistency.py`
 
 ### Phase 2 Deployment
 
@@ -277,6 +298,7 @@ assert verify_api_key("wrong-key", hashed) is False
 
 - [ ] Verify no rollback needed
 - [ ] Confirm all clients authenticated successfully
+- [ ] **MANDATORY: Run hash consistency verification:** `uv run python scripts/verify_hash_consistency.py` (must exit code 0)
 - [ ] Take final backup before irreversible change
 - [ ] Run migration: `uv run alembic upgrade 20260201_000007`
 - [ ] Verify plaintext column dropped: `\d sessions` in psql
@@ -312,6 +334,34 @@ SELECT COUNT(DISTINCT owner_api_key_hash) FROM sessions;
 ```
 
 ## Troubleshooting
+
+### Issue: Hash consistency verification fails
+
+**Symptom:** `verify_hash_consistency.py` exits with code 1 and reports mismatches.
+
+**Cause:** Database corruption or incomplete migration from Phase 1.
+
+**Solution:**
+```bash
+# 1. Review mismatch details from script output
+uv run python scripts/verify_hash_consistency.py
+
+# 2. Re-run Phase 1 migration to recompute all hashes
+uv run alembic downgrade 20260201_000005  # One revision before hash migration
+uv run alembic upgrade 20260201_000006    # Re-apply hash migration
+
+# 3. Verify hashes now match
+uv run python scripts/verify_hash_consistency.py
+# Must exit code 0 before proceeding
+
+# 4. If mismatches persist, check for application bugs writing incorrect hashes
+docker compose logs api | grep "owner_api_key_hash"
+```
+
+**Prevention:**
+- Always run verification script after Phase 1 and before Phase 3
+- Monitor application logs during Phase 2 for hash computation errors
+- Use staging environment to test migration before production
 
 ### Issue: Authentication fails after Phase 2
 

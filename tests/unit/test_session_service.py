@@ -260,6 +260,7 @@ class FakeSessionModel:
     total_cost_usd: float | None
     parent_session_id: UUID | None
     owner_api_key: str | None
+    owner_api_key_hash: str | None
     created_at: datetime
     updated_at: datetime
 
@@ -292,6 +293,7 @@ class TestSessionServiceListDbRepo:
             total_cost_usd=None,
             parent_session_id=None,
             owner_api_key="owner-key",
+            owner_api_key_hash=None,
             created_at=now,
             updated_at=now,
         )
@@ -320,6 +322,7 @@ class TestSessionServiceListDbRepo:
             total_cost_usd=0.0,
             parent_session_id=None,
             owner_api_key="owner-key",
+            owner_api_key_hash=None,
             created_at=now,
             updated_at=now,
         )
@@ -405,11 +408,15 @@ class TestSessionServiceDelete:
         mock_cache: MockCache,
     ) -> None:
         """Test delete_session removes session ID from owner index set."""
+        from apps.api.utils.crypto import hash_api_key
+
         session = await session_service.create_session(
             model="sonnet",
             owner_api_key="owner-key",
         )
-        owner_index_key = "session:owner:owner-key"
+        # Phase 2: Use hashed owner index key
+        owner_api_key_hash = hash_api_key("owner-key")
+        owner_index_key = f"session:owner:{owner_api_key_hash}"
 
         assert session.id in await mock_cache.set_members(owner_index_key)
 

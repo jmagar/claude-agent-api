@@ -25,6 +25,7 @@ from apps.api.config import get_settings
 from apps.api.exceptions.assistant import AssistantNotFoundError
 from apps.api.models.assistant import generate_assistant_id
 from apps.api.types import JsonValue
+from apps.api.utils.crypto import hash_api_key
 
 if TYPE_CHECKING:
     from apps.api.protocols import Cache
@@ -217,9 +218,21 @@ class AssistantService:
             instructions: System instructions.
             tools: List of tool configurations.
             metadata: Key-value metadata.
-            owner_api_key: Owning API key for authorization.
+            owner_api_key: API key that owns this assistant.
+                          If None, assistant is PUBLIC (accessible to all API keys).
             temperature: Sampling temperature.
             top_p: Nucleus sampling parameter.
+
+        Security Notes:
+            - Public assistants (owner_api_key=None) bypass ownership checks
+            - NULL owner_api_key indicates a globally accessible assistant
+            - Private assistants require matching API key for access
+            - Ownership is enforced in get_assistant() via _enforce_owner()
+
+        Multi-Tenant Isolation:
+            - Public assistants visible to all tenants (owner_api_key=None)
+            - Private assistants filtered by owner_api_key in list operations
+            - Redis cache uses hashed owner index: assistant:owner:<hash>
 
         Returns:
             Created assistant.
@@ -501,6 +514,9 @@ class AssistantService:
         Returns:
             True if deleted, False if not found.
         """
+        # Get assistant to extract owner_api_key before deletion
+        assistant = await self.get_assistant(assistant_id, _current_api_key)
+
         # Delete from database first
         if self._db_repo:
             deleted = await self._db_repo.delete(assistant_id)
@@ -511,6 +527,12 @@ class AssistantService:
         if self._cache:
             key = self._cache_key(assistant_id)
             await self._cache.delete(key)
+
+            # Phase 2: Remove from hashed owner index
+            if assistant and assistant.owner_api_key:
+                owner_api_key_hash = hash_api_key(assistant.owner_api_key)
+                owner_index_key = f"assistant:owner:{owner_api_key_hash}"
+                await self._cache.remove_from_set(owner_index_key, assistant_id)
 
         logger.info("Assistant deleted", assistant_id=assistant_id)
         return True
@@ -542,6 +564,12 @@ class AssistantService:
         }
 
         await self._cache.set_json(key, data, self._ttl)
+
+        # Phase 2: Add to hashed owner index for multi-tenant filtering
+        if assistant.owner_api_key:
+            owner_api_key_hash = hash_api_key(assistant.owner_api_key)
+            owner_index_key = f"assistant:owner:{owner_api_key_hash}"
+            await self._cache.add_to_set(owner_index_key, assistant.id)
 
     async def _get_cached_assistant(self, assistant_id: str) -> Assistant | None:
         """Get an assistant from cache."""

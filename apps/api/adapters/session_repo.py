@@ -1,4 +1,13 @@
-"""Session repository implementation using SQLAlchemy."""
+"""Session repository with Phase 2 API key hashing.
+
+This repository implements Phase 2 of the API key hashing migration:
+- Both owner_api_key (plaintext) and owner_api_key_hash (SHA-256) columns exist
+- All queries filter by hash for security
+- Plaintext column maintained for rollback safety
+- Phase 3 will drop plaintext column after production verification
+
+See: .docs/api-key-hashing-migration.md for full migration plan.
+"""
 
 from collections.abc import Sequence
 from datetime import datetime
@@ -41,12 +50,27 @@ class SessionRepository:
             working_directory: Working directory path.
             parent_session_id: Parent session ID for forks.
             metadata: Additional session metadata.
-            owner_api_key: Owning API key for authorization checks.
+            owner_api_key: API key that owns this session.
+                          If None, session is PUBLIC (visible to all API keys).
+
+        Security Notes:
+            - Public sessions (owner_api_key=None) bypass ownership checks
+            - Hash is only computed for non-NULL keys
+            - NULL in owner_api_key_hash indicates a public session
+            - Use filter_by_owner_or_public=True to include public sessions
+
+        Phase 2 Migration:
+            - Both owner_api_key and owner_api_key_hash columns populated
+            - Queries filter by hash for security (constant-time comparison)
+            - Plaintext column will be dropped in Phase 3
 
         Returns:
             Created session.
         """
-        # Hash API key for secure storage (Phase 2: API key hashing)
+        # Phase 2 Migration: Store both plaintext and hash for safe rollback.
+        # - owner_api_key: Plaintext (will be dropped in Phase 3)
+        # - owner_api_key_hash: SHA-256 hash (permanent)
+        # All filtering/authentication uses hashed values.
         owner_api_key_hash = hash_api_key(owner_api_key) if owner_api_key else None
 
         session = Session(
@@ -180,6 +204,7 @@ class SessionRepository:
             count_stmt = count_stmt.where(Session.status == status)
 
         # Phase 2: Filter by hashed API key instead of plaintext
+        # Prevents timing attacks and prepares for Phase 3 (plaintext removal)
         if owner_api_key:
             owner_api_key_hash = hash_api_key(owner_api_key)
 

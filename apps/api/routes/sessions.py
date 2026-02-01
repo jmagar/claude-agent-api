@@ -15,6 +15,7 @@ from apps.api.schemas.responses import (
     SessionWithMetaListResponse,
     SessionWithMetaResponse,
 )
+from apps.api.utils.crypto import hash_api_key
 
 router = APIRouter(prefix="/sessions", tags=["Sessions"])
 
@@ -148,7 +149,16 @@ async def promote_session(
 ) -> SessionWithMetaResponse:
     """Promote a brainstorm session to code mode."""
     session = await repo.get(UUID(session_id))
-    if not session or (session.owner_api_key and not secrets.compare_digest(session.owner_api_key, _api_key)):
+    # Phase 2 Migration: Compare hashed API keys for security
+    # - Prevents timing attacks via secrets.compare_digest()
+    # - Uses owner_api_key_hash column (added in migration 20260201_000006)
+    # - Plaintext owner_api_key column still exists for rollback (Phase 3 removal pending)
+    if not session or (
+        session.owner_api_key_hash
+        and not secrets.compare_digest(
+            session.owner_api_key_hash, hash_api_key(_api_key)
+        )
+    ):
         raise SessionNotFoundError(session_id)
 
     metadata = dict(session.metadata_ or {})
@@ -199,7 +209,16 @@ async def update_session_tags(
             status_code=400,
         )
     session = await repo.get(UUID(session_id))
-    if not session or (session.owner_api_key and not secrets.compare_digest(session.owner_api_key, _api_key)):
+    # Phase 2 Migration: Compare hashed API keys for security
+    # - Prevents timing attacks via secrets.compare_digest()
+    # - Uses owner_api_key_hash column (added in migration 20260201_000006)
+    # - Plaintext owner_api_key column still exists for rollback (Phase 3 removal pending)
+    if not session or (
+        session.owner_api_key_hash
+        and not secrets.compare_digest(
+            session.owner_api_key_hash, hash_api_key(_api_key)
+        )
+    ):
         raise SessionNotFoundError(session_id)
 
     metadata = dict(session.metadata_ or {})

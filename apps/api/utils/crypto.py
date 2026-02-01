@@ -19,6 +19,8 @@ Note:
 import hashlib
 import secrets
 
+API_KEY_HASH_ALGORITHM = "sha256"
+
 
 def hash_api_key(api_key: str) -> str:
     """Hash API key using SHA-256.
@@ -29,11 +31,15 @@ def hash_api_key(api_key: str) -> str:
     Returns:
         Hexadecimal hash digest (64 characters).
 
+    Security:
+        Uses SHA-256 for cryptographic hashing. Algorithm can be changed
+        via API_KEY_HASH_ALGORITHM constant for future migrations.
+
     Example:
         >>> hash_api_key("test-key-12345")
         '953a6f3acb148f7d0492a99ed5ce98dd442326f6438b39625fd5c85efa7f6f21'
     """
-    return hashlib.sha256(api_key.encode()).hexdigest()
+    return hashlib.new(API_KEY_HASH_ALGORITHM, api_key.encode()).hexdigest()
 
 
 def verify_api_key(api_key: str, hashed: str) -> bool:

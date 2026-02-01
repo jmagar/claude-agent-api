@@ -59,6 +59,7 @@ class Session(Base):
         nullable=True,
     )
     owner_api_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    owner_api_key_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     parent_session_id: Mapped[UUID | None] = mapped_column(
         _uuid_column(),
         ForeignKey("sessions.id"),
@@ -100,6 +101,7 @@ class Session(Base):
             postgresql_where=parent_session_id.isnot(None),
         ),
         Index("idx_sessions_owner_api_key", owner_api_key),
+        Index("idx_sessions_owner_api_key_hash", owner_api_key_hash),
     )
 
     def __repr__(self) -> str:
