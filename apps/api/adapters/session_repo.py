@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.exceptions.session import SessionNotFoundError
 from apps.api.models.session import Checkpoint, Session, SessionMessage
+from apps.api.utils.crypto import hash_api_key
 
 
 class SessionRepository:
@@ -45,13 +46,17 @@ class SessionRepository:
         Returns:
             Created session.
         """
+        # Hash API key for secure storage (Phase 2: API key hashing)
+        owner_api_key_hash = hash_api_key(owner_api_key) if owner_api_key else None
+
         session = Session(
             id=session_id,
             model=model,
             working_directory=working_directory,
             parent_session_id=parent_session_id,
             metadata_=metadata,
-            owner_api_key=owner_api_key,
+            owner_api_key=owner_api_key,  # Keep for backward compatibility during rollout
+            owner_api_key_hash=owner_api_key_hash,
         )
         self._db.add(session)
         await self._db.commit()
@@ -174,18 +179,24 @@ class SessionRepository:
             stmt = stmt.where(Session.status == status)
             count_stmt = count_stmt.where(Session.status == status)
 
-        if owner_api_key and filter_by_owner_or_public:
-            # Secure multi-tenant filter: public sessions OR owned by this key
-            owner_filter = or_(
-                Session.owner_api_key.is_(None),
-                Session.owner_api_key == owner_api_key,
-            )
-            stmt = stmt.where(owner_filter)
-            count_stmt = count_stmt.where(owner_filter)
-        elif owner_api_key:
-            # Exact match only
-            stmt = stmt.where(Session.owner_api_key == owner_api_key)
-            count_stmt = count_stmt.where(Session.owner_api_key == owner_api_key)
+        # Phase 2: Filter by hashed API key instead of plaintext
+        if owner_api_key:
+            owner_api_key_hash = hash_api_key(owner_api_key)
+
+            if filter_by_owner_or_public:
+                # Secure multi-tenant filter: public sessions OR owned by this key
+                owner_filter = or_(
+                    Session.owner_api_key_hash.is_(None),
+                    Session.owner_api_key_hash == owner_api_key_hash,
+                )
+                stmt = stmt.where(owner_filter)
+                count_stmt = count_stmt.where(owner_filter)
+            else:
+                # Exact match only
+                stmt = stmt.where(Session.owner_api_key_hash == owner_api_key_hash)
+                count_stmt = count_stmt.where(
+                    Session.owner_api_key_hash == owner_api_key_hash
+                )
 
         # Get total count
         count_result = await self._db.execute(count_stmt)
