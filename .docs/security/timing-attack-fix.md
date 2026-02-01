@@ -36,20 +36,17 @@ def _enforce_owner(
     session: Session,
     current_api_key: str | None,
 ) -> Session:
-    """Enforce session ownership using constant-time comparison."""
-    if not current_api_key:
-        return session  # No API key = allow access
+    """Enforce session ownership using constant-time comparison.
 
-    # SECURITY: Always perform comparison to prevent timing leaks
-    if session.owner_api_key is None:
-        # Compare against dummy value to ensure constant execution time
-        dummy_key = "x" * max(len(current_api_key), 32)
-        secrets.compare_digest(current_api_key, dummy_key)
-        return session  # Public session
-
-    # Constant-time comparison
-    keys_match = secrets.compare_digest(session.owner_api_key, current_api_key)
-    if not keys_match:
+    When current_api_key is None, access is allowed (backward compatibility).
+    When both keys exist, performs constant-time comparison.
+    """
+    # SECURITY: Use constant-time comparison to prevent timing attacks
+    if (
+        current_api_key
+        and session.owner_api_key
+        and not secrets.compare_digest(session.owner_api_key, current_api_key)
+    ):
         raise SessionNotFoundError(session.id)
 
     return session

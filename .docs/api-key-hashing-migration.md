@@ -163,7 +163,7 @@ SELECT owner_api_key_hash FROM sessions;
 - API keys irreversible from hash (one-way function)
 - Constant-time comparison prevents timing attacks
 - Compliance with security best practices (OWASP)
-- Safe to include in logs (hash is not sensitive)
+- Reduced exposure risk (hashes cannot authenticate directly)
 
 ## Implementation Details
 

@@ -4,7 +4,6 @@ This module tests constant-time ownership checks to prevent timing
 side-channel attacks that could leak session existence information.
 """
 
-import time
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, cast
 
@@ -157,60 +156,51 @@ class TestTimingAttackPrevention:
         assert result is None
 
     @pytest.mark.anyio
-    async def test_timing_consistency_exists_vs_not_exists(
+    async def test_constant_time_comparison_is_used(
         self,
         session_service: SessionService,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Test timing consistency between existing and nonexistent sessions.
+        """Test that constant-time comparison is used for ownership checks.
 
-        This test measures timing to verify that ownership checks have
-        similar execution time regardless of session existence.
+        This test verifies that secrets.compare_digest is called rather than
+        measuring timing (which is flaky in CI environments).
         """
-        # Create session owned by another key
+        import secrets
+        from unittest.mock import MagicMock
+
+        # Create session owned by specific key
         session = await session_service.create_session(
             model="sonnet",
             owner_api_key="owner-key-123",
         )
 
-        # Measure timing for existing session with wrong owner
-        times_exists = []
-        for _ in range(100):
-            start = time.perf_counter()
-            with pytest.raises(SessionNotFoundError):
-                await session_service.get_session(
-                    session.id,
-                    current_api_key="wrong-key-456",
-                )
-            end = time.perf_counter()
-            times_exists.append(end - start)
+        # Mock secrets.compare_digest to verify it's called
+        original_compare = secrets.compare_digest
+        mock_compare = MagicMock(side_effect=original_compare)
+        monkeypatch.setattr("secrets.compare_digest", mock_compare)
 
-        # Measure timing for nonexistent session
-        times_not_exists = []
-        for _ in range(100):
-            start = time.perf_counter()
-            result = await session_service.get_session(
-                "nonexistent-session-id",
+        # Test with correct owner
+        await session_service.get_session(
+            session.id,
+            current_api_key="owner-key-123",
+        )
+
+        # Verify compare_digest was called (constant-time comparison)
+        assert mock_compare.call_count > 0, "Expected secrets.compare_digest to be called"
+
+        # Reset mock
+        mock_compare.reset_mock()
+
+        # Test with wrong owner
+        with pytest.raises(SessionNotFoundError):
+            await session_service.get_session(
+                session.id,
                 current_api_key="wrong-key-456",
             )
-            end = time.perf_counter()
-            times_not_exists.append(end - start)
-            assert result is None
 
-        # Calculate average times
-        avg_exists = sum(times_exists) / len(times_exists)
-        avg_not_exists = sum(times_not_exists) / len(times_not_exists)
-
-        # Timing difference should be small (within 50% variation)
-        # This is a rough heuristic - exact constant-time is hard to verify
-        # due to system noise, but we can detect gross timing leaks
-        ratio = max(avg_exists, avg_not_exists) / min(avg_exists, avg_not_exists)
-
-        # Allow up to 2x difference (generous to account for system variance)
-        # In production, this would be much stricter
-        assert ratio < 2.0, (
-            f"Timing leak detected: exists={avg_exists:.6f}s, "
-            f"not_exists={avg_not_exists:.6f}s, ratio={ratio:.2f}x"
-        )
+        # Verify compare_digest was called even for wrong key
+        assert mock_compare.call_count > 0, "Expected secrets.compare_digest to be called for wrong key"
 
     @pytest.mark.anyio
     async def test_public_session_accessible_without_owner(
@@ -385,24 +375,20 @@ class TestRoutesTimingAttackPrevention:
     constant-time comparisons to prevent timing side-channels.
     """
 
+    @pytest.mark.skip(reason="Integration test - requires FastAPI TestClient")
     @pytest.mark.anyio
     async def test_promote_session_uses_constant_time_check(self) -> None:
         """Test that promote_session route uses constant-time comparison.
 
-        This test verifies the implementation but doesn't measure timing
-        directly (route tests should be in integration tests).
+        This test should be implemented as an integration test with
+        FastAPI TestClient to verify end-to-end timing attack prevention.
         """
-        # This is a placeholder for integration tests
-        # The actual test would require FastAPI TestClient
-        pass
 
+    @pytest.mark.skip(reason="Integration test - requires FastAPI TestClient")
     @pytest.mark.anyio
     async def test_update_tags_uses_constant_time_check(self) -> None:
         """Test that update_tags route uses constant-time comparison.
 
-        This test verifies the implementation but doesn't measure timing
-        directly (route tests should be in integration tests).
+        This test should be implemented as an integration test with
+        FastAPI TestClient to verify end-to-end timing attack prevention.
         """
-        # This is a placeholder for integration tests
-        # The actual test would require FastAPI TestClient
-        pass

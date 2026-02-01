@@ -230,11 +230,13 @@ sessions = db.query(Session).filter_by(owner_api_key_hash=owner_hash).all()
 logger.info(f"Session created for API key: {api_key}")
 ```
 
-### ✅ DO: Log hashes (safe)
+### ✅ DO: Log hash prefix only (if needed)
 
 ```python
-# CORRECT - hash in logs (not sensitive)
-logger.info(f"Session created for key hash: {hash_api_key(api_key)}")
+# CORRECT - truncated hash prefix for debugging (treat as sensitive)
+hash_value = hash_api_key(api_key)
+logger.info(f"Session created for key hash prefix: {hash_value[:8]}...")
+# Note: Even hashes should be treated as credential-derived identifiers
 ```
 
 ---
@@ -276,10 +278,11 @@ hash_value = hash_api_key("secret-key-abc123")
 ### Collision Resistance
 
 ```python
-# Different keys ALWAYS produce different hashes
+# Different keys are expected to produce different hashes
 hash1 = hash_api_key("key-1")
 hash2 = hash_api_key("key-2")
-assert hash1 != hash2  # Always true (collision probability ~0)
+assert hash1 != hash2  # Expected to be true (SHA-256 collision resistance)
+# Note: Theoretical collision probability is ~2^-256, negligible in practice
 ```
 
 ### Deterministic
