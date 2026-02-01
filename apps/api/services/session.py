@@ -28,6 +28,7 @@ import structlog
 from apps.api.config import get_settings
 from apps.api.exceptions.session import SessionNotFoundError
 from apps.api.types import JsonValue
+from apps.api.utils.crypto import hash_api_key
 
 T = TypeVar("T")
 
@@ -559,8 +560,10 @@ class SessionService:
                     owner_api_key = db_session.owner_api_key
 
             key = self._cache_key(session_id)
+            # Phase 2: Use hashed owner index key
             if owner_api_key:
-                owner_index_key = f"session:owner:{owner_api_key}"
+                owner_api_key_hash = hash_api_key(owner_api_key)
+                owner_index_key = f"session:owner:{owner_api_key_hash}"
                 await self._cache.remove_from_set(owner_index_key, session_id)
 
             result = await self._cache.delete(key)
@@ -608,9 +611,10 @@ class SessionService:
 
         await self._cache.set_json(key, data, self._ttl)
 
-        # Maintain owner index for efficient owner-filtered queries
+        # Maintain owner index for efficient owner-filtered queries (Phase 2: use hash)
         if session.owner_api_key:
-            owner_index_key = f"session:owner:{session.owner_api_key}"
+            owner_api_key_hash = hash_api_key(session.owner_api_key)
+            owner_index_key = f"session:owner:{owner_api_key_hash}"
             await self._cache.add_to_set(owner_index_key, session.id)
 
     async def _get_cached_session(self, session_id: str) -> Session | None:
