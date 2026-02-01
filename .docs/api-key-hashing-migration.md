@@ -6,6 +6,20 @@
 
 **Solution:** Hash all API keys using SHA-256 before storage, use constant-time comparison for verification.
 
+---
+
+## ⚠️ CRITICAL DEPLOYMENT NOTES
+
+**Current Branch Status:**
+- ✅ **Phase 1 Migration EXISTS:** `20260201_000006_hash_api_keys.py` (safe to deploy)
+- ❌ **Phase 3 Migration REMOVED:** `20260201_000007` does NOT exist in this branch
+- ⚠️ **DO NOT create Phase 3 migration** until AFTER Phase 2 code is deployed and verified
+
+**Why Phase 3 is Removed:**
+Running `alembic upgrade head` would drop `owner_api_key` columns, but the application code still uses them. This would cause immediate production outage. Phase 3 migration must only be created AFTER Phase 2 code changes are deployed.
+
+---
+
 ## Migration Strategy
 
 This migration uses a **three-phase approach** to ensure zero downtime and safe rollback capability.
@@ -61,20 +75,25 @@ docker compose logs api | grep "owner_api_key_hash"
 - Authentication uses hashed comparison
 - Backward compatible (can roll back to Phase 1)
 
-### Phase 3: Drop Plaintext Column (Optional - Production Only)
+### Phase 3: Drop Plaintext Column (Manual - After Phase 2 Verification)
 
-⚠️ **WARNING:** This phase is IRREVERSIBLE. Only run after Phase 2 is verified in production.
+⚠️ **WARNING:** This phase is IRREVERSIBLE. Only run after Phase 2 is verified in production for 7+ days.
 
-**Migration:** `20260201_000007_drop_plaintext_api_keys.py`
+**Status:** Migration file does NOT exist yet. Must be created manually after Phase 2 deployment.
 
-**Actions:**
-1. Drop `owner_api_key` columns from both tables
-2. Drop old indexes on plaintext columns
-
-**Run:**
+**Steps to Create Phase 3 Migration:**
 ```bash
-# ONLY after Phase 2 is verified working
-uv run alembic upgrade 20260201_000007
+# 1. Verify Phase 2 has been running successfully for 7+ days
+# 2. Create the migration
+uv run alembic revision -m "Drop plaintext API key columns (Phase 3)"
+
+# 3. Edit the migration file to drop columns:
+# - op.drop_column('sessions', 'owner_api_key')
+# - op.drop_column('assistants', 'owner_api_key')
+# - op.drop_index('idx_sessions_owner_api_key')
+
+# 4. Run the migration
+uv run alembic upgrade head
 ```
 
 **State After Phase 3:**
