@@ -375,7 +375,7 @@ class TestRoutesTimingAttackPrevention:
     constant-time comparisons to prevent timing side-channels.
     """
 
-    @pytest.mark.skip(reason="Integration test - requires FastAPI TestClient")
+    @pytest.mark.skip(reason="placeholder - requires FastAPI TestClient / integration test")
     @pytest.mark.anyio
     async def test_promote_session_uses_constant_time_check(self) -> None:
         """Test that promote_session route uses constant-time comparison.
@@ -384,7 +384,7 @@ class TestRoutesTimingAttackPrevention:
         FastAPI TestClient to verify end-to-end timing attack prevention.
         """
 
-    @pytest.mark.skip(reason="Integration test - requires FastAPI TestClient")
+    @pytest.mark.skip(reason="placeholder - requires FastAPI TestClient / integration test")
     @pytest.mark.anyio
     async def test_update_tags_uses_constant_time_check(self) -> None:
         """Test that update_tags route uses constant-time comparison.

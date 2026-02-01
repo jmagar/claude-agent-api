@@ -22,6 +22,7 @@ from typing import (
 import structlog
 
 from apps.api.config import get_settings
+from apps.api.exceptions.assistant import AssistantNotFoundError
 from apps.api.models.assistant import generate_assistant_id
 from apps.api.types import JsonValue
 
@@ -641,13 +642,22 @@ class AssistantService:
         assistant: Assistant,
         current_api_key: str | None,
     ) -> Assistant:
-        """Enforce that the current API key owns the assistant."""
+        """Enforce that the current API key owns the assistant.
+
+        Args:
+            assistant: The assistant to check ownership for.
+            current_api_key: The API key from the request.
+
+        Returns:
+            The assistant if ownership check passes.
+
+        Raises:
+            AssistantNotFoundError: If ownership check fails.
+        """
         if (
             current_api_key
             and assistant.owner_api_key
             and not secrets.compare_digest(assistant.owner_api_key, current_api_key)
         ):
-            # Return None would be cleaner but we need to match the pattern
-            # For now, just return the assistant (ownership check in route layer)
-            pass
+            raise AssistantNotFoundError(assistant.id)
         return assistant

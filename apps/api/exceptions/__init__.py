@@ -9,6 +9,7 @@ from apps.api.exceptions.agent import (
     HookError,
     ToolNotAllowedError,
 )
+from apps.api.exceptions.assistant import AssistantNotFoundError
 from apps.api.exceptions.auth import (
     AuthenticationError,
     RateLimitError,
@@ -39,6 +40,7 @@ from apps.api.exceptions.validation import (
 __all__ = [
     "APIError",
     "AgentError",
+    "AssistantNotFoundError",
     "AuthenticationError",
     "CacheError",
     "CheckpointNotFoundError",

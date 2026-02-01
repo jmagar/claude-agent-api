@@ -445,16 +445,18 @@ class TestSessionListPagination:
         async_client: AsyncClient,
         auth_headers: dict[str, str],
     ) -> None:
-        """Test pagination returns empty results when no sessions exist."""
+        """Test pagination returns empty results when filtering with non-existent tag."""
+        # Use a deterministic filter that guarantees no results
+        # Query for sessions with a guaranteed non-existent tag
         response = await async_client.get(
-            "/api/v1/sessions?page=1&page_size=10",
+            "/api/v1/sessions?page=1&page_size=10&tags=nonexistent-tag-xyz-12345",
             headers=auth_headers,
         )
         assert response.status_code == 200
         data = response.json()
 
         assert data["sessions"] == []
-        assert data["total"] >= 0
+        assert data["total"] == 0
         assert data["page"] == 1
         assert data["page_size"] == 10
 
@@ -622,8 +624,8 @@ class TestSessionUpdates:
             assert response.status_code == 400
             data = response.json()
 
-            assert data["code"] == "VALIDATION_ERROR"
-            assert "must be a list" in data["message"].lower()
+            assert data["error"]["code"] == "VALIDATION_ERROR"
+            assert "must be a list" in data["error"]["message"].lower()
 
         finally:
             await db_gen.aclose()
@@ -794,7 +796,7 @@ class TestSessionPromotion:
             assert response.status_code == 404  # Not found (authorization check)
             data = response.json()
 
-            assert data["code"] == "SESSION_NOT_FOUND"
+            assert data["error"]["code"] == "SESSION_NOT_FOUND"
 
         finally:
             await db_gen.aclose()
@@ -823,8 +825,8 @@ class TestSessionErrorCases:
         assert response.status_code == 404
         data = response.json()
 
-        assert data["code"] == "SESSION_NOT_FOUND"
-        assert unknown_id in data["message"]
+        assert data["error"]["code"] == "SESSION_NOT_FOUND"
+        assert unknown_id in data["error"]["message"]
 
     @pytest.mark.integration
     @pytest.mark.anyio
@@ -845,7 +847,7 @@ class TestSessionErrorCases:
         assert response.status_code == 404
         data = response.json()
 
-        assert data["code"] == "SESSION_NOT_FOUND"
+        assert data["error"]["code"] == "SESSION_NOT_FOUND"
 
     @pytest.mark.integration
     @pytest.mark.anyio
@@ -867,4 +869,4 @@ class TestSessionErrorCases:
         assert response.status_code == 404
         data = response.json()
 
-        assert data["code"] == "SESSION_NOT_FOUND"
+        assert data["error"]["code"] == "SESSION_NOT_FOUND"

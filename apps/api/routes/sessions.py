@@ -6,8 +6,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Query
 
-from apps.api.adapters.session_repo import SessionRepository
-from apps.api.dependencies import ApiKey, DbSession, SessionSvc
+from apps.api.dependencies import ApiKey, SessionRepo, SessionSvc
 from apps.api.exceptions import APIError, SessionNotFoundError
 from apps.api.models.session import Session
 from apps.api.schemas.requests.sessions import PromoteRequest
@@ -23,7 +22,7 @@ router = APIRouter(prefix="/sessions", tags=["Sessions"])
 @router.get("")
 async def list_sessions(
     _api_key: ApiKey,
-    db_session: DbSession,
+    repo: SessionRepo,
     mode: str | None = None,
     project_id: str | None = None,
     tags: list[str] | None = Query(default=None),
@@ -32,7 +31,6 @@ async def list_sessions(
     page_size: int = Query(default=50, ge=1, le=100),
 ) -> SessionWithMetaListResponse:
     """<summary>List sessions with metadata filtering.</summary>"""
-    repo = SessionRepository(db_session)
 
     # Security: filter by owner at DB level (public OR owned by this key)
     sessions, _ = await repo.list_sessions(
@@ -146,10 +144,9 @@ async def promote_session(
     session_id: str,
     request: PromoteRequest,
     _api_key: ApiKey,
-    db_session: DbSession,
+    repo: SessionRepo,
 ) -> SessionWithMetaResponse:
     """Promote a brainstorm session to code mode."""
-    repo = SessionRepository(db_session)
     session = await repo.get(UUID(session_id))
     if not session or (session.owner_api_key and not secrets.compare_digest(session.owner_api_key, _api_key)):
         raise SessionNotFoundError(session_id)
@@ -191,7 +188,7 @@ async def update_session_tags(
     session_id: str,
     request: dict[str, object],
     _api_key: ApiKey,
-    db_session: DbSession,
+    repo: SessionRepo,
 ) -> SessionWithMetaResponse:
     """<summary>Update session tags.</summary>"""
     tags = request.get("tags")
@@ -201,8 +198,6 @@ async def update_session_tags(
             code="VALIDATION_ERROR",
             status_code=400,
         )
-
-    repo = SessionRepository(db_session)
     session = await repo.get(UUID(session_id))
     if not session or (session.owner_api_key and not secrets.compare_digest(session.owner_api_key, _api_key)):
         raise SessionNotFoundError(session_id)

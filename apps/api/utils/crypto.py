@@ -31,7 +31,7 @@ def hash_api_key(api_key: str) -> str:
 
     Example:
         >>> hash_api_key("test-key-12345")
-        'a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3'
+        '953a6f3acb148f7d0492a99ed5ce98dd442326f6438b39625fd5c85efa7f6f21'
     """
     return hashlib.sha256(api_key.encode()).hexdigest()
 

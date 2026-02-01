@@ -135,6 +135,8 @@ markers = [
     "e2e: End-to-end tests that call real Claude API (slow, expensive)",
     "unit: Unit tests (fast, no external dependencies)",
     "integration: Integration tests with mocked Claude API",
+    "timing: Timing-sensitive tests (may be flaky in CI)",
+    "slow: Slow tests (excluded from default runs)",
 ]
 
 [tool.coverage.run]

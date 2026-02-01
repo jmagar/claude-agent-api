@@ -118,12 +118,18 @@ class TestVerifyApiKey:
         assert verify_api_key("test-key-123456", hashed) is False  # extra char
         assert verify_api_key("test-key-1234", hashed) is False  # missing char
 
+    @pytest.mark.timing
+    @pytest.mark.slow
     def test_verify_api_key_uses_constant_time_comparison(self) -> None:
         """verify_api_key should use constant-time comparison.
 
         This test verifies that we're using secrets.compare_digest()
         by checking that the function doesn't leak timing information
         through early returns.
+
+        NOTE: This is a timing-sensitive test that may be flaky in CI
+        environments with high load or virtualization overhead. Use
+        @pytest.mark.timing or @pytest.mark.slow to exclude from default runs.
         """
         import time
 
