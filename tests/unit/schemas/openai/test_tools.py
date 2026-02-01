@@ -9,8 +9,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, get_type_hints
 
-import pytest
-
 if TYPE_CHECKING:
     from apps.api.schemas.openai.tools import (
         OpenAIDeltaWithTools,
@@ -25,7 +23,6 @@ if TYPE_CHECKING:
         OpenAIToolCallDelta,
         OpenAIToolChoice,
         OpenAIToolChoiceFunction,
-        OpenAIToolChoiceObject,
         OpenAIToolResultMessage,
     )
 
@@ -51,7 +48,6 @@ class TestOpenAIFunctionParameters:
 
     def test_can_create_valid_parameters(self) -> None:
         """Can create valid function parameters dict."""
-        from apps.api.schemas.openai.tools import OpenAIFunctionParameters
 
         params: OpenAIFunctionParameters = {
             "type": "object",
@@ -67,7 +63,6 @@ class TestOpenAIFunctionParameters:
 
     def test_can_create_strict_mode_parameters(self) -> None:
         """Can create parameters with strict mode enabled."""
-        from apps.api.schemas.openai.tools import OpenAIFunctionParameters
 
         params: OpenAIFunctionParameters = {
             "type": "object",
@@ -79,7 +74,6 @@ class TestOpenAIFunctionParameters:
 
     def test_can_create_empty_parameters(self) -> None:
         """Can create parameters with no properties."""
-        from apps.api.schemas.openai.tools import OpenAIFunctionParameters
 
         params: OpenAIFunctionParameters = {
             "type": "object",
@@ -111,14 +105,12 @@ class TestOpenAIFunctionDefinition:
 
     def test_can_create_minimal_definition(self) -> None:
         """Can create function definition with only name."""
-        from apps.api.schemas.openai.tools import OpenAIFunctionDefinition
 
         func_def: OpenAIFunctionDefinition = {"name": "get_weather"}
         assert func_def["name"] == "get_weather"
 
     def test_can_create_full_definition(self) -> None:
         """Can create function definition with all fields."""
-        from apps.api.schemas.openai.tools import OpenAIFunctionDefinition
 
         func_def: OpenAIFunctionDefinition = {
             "name": "get_weather",
@@ -136,7 +128,6 @@ class TestOpenAIFunctionDefinition:
 
     def test_can_create_definition_without_parameters(self) -> None:
         """Can create function definition without parameters schema."""
-        from apps.api.schemas.openai.tools import OpenAIFunctionDefinition
 
         func_def: OpenAIFunctionDefinition = {
             "name": "no_params_function",
@@ -164,7 +155,6 @@ class TestOpenAITool:
 
     def test_can_create_valid_tool(self) -> None:
         """Can create valid tool definition."""
-        from apps.api.schemas.openai.tools import OpenAITool
 
         tool: OpenAITool = {
             "type": "function",
@@ -183,7 +173,6 @@ class TestOpenAITool:
 
     def test_can_create_tool_with_strict_mode(self) -> None:
         """Can create tool with strict mode enabled."""
-        from apps.api.schemas.openai.tools import OpenAITool
 
         tool: OpenAITool = {
             "type": "function",
@@ -218,28 +207,24 @@ class TestOpenAIToolChoice:
 
     def test_can_create_auto_tool_choice(self) -> None:
         """Can use 'auto' string for tool_choice."""
-        from apps.api.schemas.openai.tools import OpenAIToolChoice
 
         choice: OpenAIToolChoice = "auto"
         assert choice == "auto"
 
     def test_can_create_none_tool_choice(self) -> None:
         """Can use 'none' string for tool_choice."""
-        from apps.api.schemas.openai.tools import OpenAIToolChoice
 
         choice: OpenAIToolChoice = "none"
         assert choice == "none"
 
     def test_can_create_required_tool_choice(self) -> None:
         """Can use 'required' string for tool_choice."""
-        from apps.api.schemas.openai.tools import OpenAIToolChoice
 
         choice: OpenAIToolChoice = "required"
         assert choice == "required"
 
     def test_can_create_specific_function_choice(self) -> None:
         """Can create object form to force specific function."""
-        from apps.api.schemas.openai.tools import OpenAIToolChoice
 
         choice: OpenAIToolChoice = {
             "type": "function",
@@ -250,7 +235,6 @@ class TestOpenAIToolChoice:
 
     def test_tool_choice_function_schema(self) -> None:
         """OpenAIToolChoiceFunction has correct structure."""
-        from apps.api.schemas.openai.tools import OpenAIToolChoiceFunction
 
         func: OpenAIToolChoiceFunction = {"name": "specific_function"}
         assert func["name"] == "specific_function"
@@ -275,7 +259,6 @@ class TestOpenAIFunctionCall:
 
     def test_can_create_function_call(self) -> None:
         """Can create valid function call dict."""
-        from apps.api.schemas.openai.tools import OpenAIFunctionCall
 
         func_call: OpenAIFunctionCall = {
             "name": "get_weather",
@@ -286,7 +269,6 @@ class TestOpenAIFunctionCall:
 
     def test_arguments_is_json_string(self) -> None:
         """Arguments field is a JSON string, not parsed object."""
-        from apps.api.schemas.openai.tools import OpenAIFunctionCall
 
         func_call: OpenAIFunctionCall = {
             "name": "test_func",
@@ -296,7 +278,6 @@ class TestOpenAIFunctionCall:
 
     def test_can_create_complex_arguments(self) -> None:
         """Can create function call with complex nested arguments."""
-        from apps.api.schemas.openai.tools import OpenAIFunctionCall
 
         import json
 
@@ -332,7 +313,6 @@ class TestOpenAIToolCall:
 
     def test_can_create_tool_call(self) -> None:
         """Can create valid tool call dict."""
-        from apps.api.schemas.openai.tools import OpenAIToolCall
 
         tool_call: OpenAIToolCall = {
             "id": "call_abc123",
@@ -345,7 +325,6 @@ class TestOpenAIToolCall:
 
     def test_tool_call_id_format(self) -> None:
         """Tool call ID follows OpenAI format (call_*)."""
-        from apps.api.schemas.openai.tools import OpenAIToolCall
 
         tool_call: OpenAIToolCall = {
             "id": "call_xyz789",
@@ -376,7 +355,6 @@ class TestOpenAIToolResultMessage:
 
     def test_can_create_tool_result_message(self) -> None:
         """Can create valid tool result message."""
-        from apps.api.schemas.openai.tools import OpenAIToolResultMessage
 
         message: OpenAIToolResultMessage = {
             "role": "tool",
@@ -388,7 +366,6 @@ class TestOpenAIToolResultMessage:
 
     def test_can_create_message_with_function_name(self) -> None:
         """Can create tool result message with optional function name."""
-        from apps.api.schemas.openai.tools import OpenAIToolResultMessage
 
         message: OpenAIToolResultMessage = {
             "role": "tool",
@@ -400,7 +377,6 @@ class TestOpenAIToolResultMessage:
 
     def test_can_create_message_without_name(self) -> None:
         """Can create tool result message without function name."""
-        from apps.api.schemas.openai.tools import OpenAIToolResultMessage
 
         message: OpenAIToolResultMessage = {
             "role": "tool",
@@ -421,7 +397,6 @@ class TestOpenAIFunctionCallDelta:
 
     def test_can_create_name_only_delta(self) -> None:
         """Can create delta with only function name."""
-        from apps.api.schemas.openai.tools import OpenAIFunctionCallDelta
 
         delta: OpenAIFunctionCallDelta = {"name": "get_weather"}
         assert delta["name"] == "get_weather"
@@ -429,7 +404,6 @@ class TestOpenAIFunctionCallDelta:
 
     def test_can_create_arguments_only_delta(self) -> None:
         """Can create delta with only arguments chunk."""
-        from apps.api.schemas.openai.tools import OpenAIFunctionCallDelta
 
         delta: OpenAIFunctionCallDelta = {"arguments": '{"loc'}
         assert delta["arguments"] == '{"loc'
@@ -437,7 +411,6 @@ class TestOpenAIFunctionCallDelta:
 
     def test_can_create_combined_delta(self) -> None:
         """Can create delta with both name and arguments."""
-        from apps.api.schemas.openai.tools import OpenAIFunctionCallDelta
 
         delta: OpenAIFunctionCallDelta = {
             "name": "get_weather",
@@ -448,7 +421,6 @@ class TestOpenAIFunctionCallDelta:
 
     def test_can_create_empty_delta(self) -> None:
         """Can create empty delta dict."""
-        from apps.api.schemas.openai.tools import OpenAIFunctionCallDelta
 
         delta: OpenAIFunctionCallDelta = {}
         assert delta == {}
@@ -475,7 +447,6 @@ class TestOpenAIToolCallDelta:
 
     def test_can_create_first_chunk_delta(self) -> None:
         """Can create first chunk with id and type."""
-        from apps.api.schemas.openai.tools import OpenAIToolCallDelta
 
         delta: OpenAIToolCallDelta = {
             "index": 0,
@@ -489,7 +460,6 @@ class TestOpenAIToolCallDelta:
 
     def test_can_create_arguments_chunk_delta(self) -> None:
         """Can create subsequent chunk with only arguments."""
-        from apps.api.schemas.openai.tools import OpenAIToolCallDelta
 
         delta: OpenAIToolCallDelta = {
             "index": 0,
@@ -501,7 +471,6 @@ class TestOpenAIToolCallDelta:
 
     def test_can_create_multiple_tool_deltas(self) -> None:
         """Can create deltas for multiple tools using index."""
-        from apps.api.schemas.openai.tools import OpenAIToolCallDelta
 
         delta1: OpenAIToolCallDelta = {
             "index": 0,
@@ -539,7 +508,6 @@ class TestOpenAIResponseMessageWithTools:
 
     def test_can_create_regular_message(self) -> None:
         """Can create message without tool calls."""
-        from apps.api.schemas.openai.tools import OpenAIResponseMessageWithTools
 
         message: OpenAIResponseMessageWithTools = {
             "role": "assistant",
@@ -551,7 +519,6 @@ class TestOpenAIResponseMessageWithTools:
 
     def test_can_create_message_with_tool_calls(self) -> None:
         """Can create message with tool calls."""
-        from apps.api.schemas.openai.tools import OpenAIResponseMessageWithTools
 
         message: OpenAIResponseMessageWithTools = {
             "role": "assistant",
@@ -570,7 +537,6 @@ class TestOpenAIResponseMessageWithTools:
 
     def test_can_create_message_with_multiple_tools(self) -> None:
         """Can create message with multiple tool calls."""
-        from apps.api.schemas.openai.tools import OpenAIResponseMessageWithTools
 
         message: OpenAIResponseMessageWithTools = {
             "role": "assistant",
@@ -687,21 +653,18 @@ class TestOpenAIDeltaWithTools:
 
     def test_can_create_role_delta(self) -> None:
         """Can create delta with only role."""
-        from apps.api.schemas.openai.tools import OpenAIDeltaWithTools
 
         delta: OpenAIDeltaWithTools = {"role": "assistant"}
         assert delta["role"] == "assistant"
 
     def test_can_create_content_delta(self) -> None:
         """Can create delta with only content."""
-        from apps.api.schemas.openai.tools import OpenAIDeltaWithTools
 
         delta: OpenAIDeltaWithTools = {"content": "Hello"}
         assert delta["content"] == "Hello"
 
     def test_can_create_tool_calls_delta(self) -> None:
         """Can create delta with tool calls."""
-        from apps.api.schemas.openai.tools import OpenAIDeltaWithTools
 
         delta: OpenAIDeltaWithTools = {
             "tool_calls": [{"index": 0, "id": "call_1", "type": "function"}]
@@ -710,7 +673,6 @@ class TestOpenAIDeltaWithTools:
 
     def test_can_create_empty_delta(self) -> None:
         """Can create empty delta dict."""
-        from apps.api.schemas.openai.tools import OpenAIDeltaWithTools
 
         delta: OpenAIDeltaWithTools = {}
         assert delta == {}
@@ -736,7 +698,6 @@ class TestOpenAIStreamChoiceWithTools:
 
     def test_can_create_initial_chunk(self) -> None:
         """Can create initial streaming chunk with role."""
-        from apps.api.schemas.openai.tools import OpenAIStreamChoiceWithTools
 
         choice: OpenAIStreamChoiceWithTools = {
             "index": 0,
@@ -748,7 +709,6 @@ class TestOpenAIStreamChoiceWithTools:
 
     def test_can_create_content_chunk(self) -> None:
         """Can create streaming chunk with content delta."""
-        from apps.api.schemas.openai.tools import OpenAIStreamChoiceWithTools
 
         choice: OpenAIStreamChoiceWithTools = {
             "index": 0,
@@ -759,7 +719,6 @@ class TestOpenAIStreamChoiceWithTools:
 
     def test_can_create_tool_calls_chunk(self) -> None:
         """Can create streaming chunk with tool call delta."""
-        from apps.api.schemas.openai.tools import OpenAIStreamChoiceWithTools
 
         choice: OpenAIStreamChoiceWithTools = {
             "index": 0,
@@ -779,7 +738,6 @@ class TestOpenAIStreamChoiceWithTools:
 
     def test_can_create_final_chunk(self) -> None:
         """Can create final streaming chunk with finish reason."""
-        from apps.api.schemas.openai.tools import OpenAIStreamChoiceWithTools
 
         choice: OpenAIStreamChoiceWithTools = {
             "index": 0,
@@ -795,7 +753,6 @@ class TestEdgeCases:
 
     def test_function_parameters_with_nested_objects(self) -> None:
         """Can create parameters with deeply nested object structures."""
-        from apps.api.schemas.openai.tools import OpenAIFunctionParameters
 
         params: OpenAIFunctionParameters = {
             "type": "object",
@@ -820,7 +777,6 @@ class TestEdgeCases:
 
     def test_function_parameters_with_array_properties(self) -> None:
         """Can create parameters with array properties."""
-        from apps.api.schemas.openai.tools import OpenAIFunctionParameters
 
         params: OpenAIFunctionParameters = {
             "type": "object",
@@ -836,7 +792,6 @@ class TestEdgeCases:
 
     def test_tool_call_with_empty_arguments(self) -> None:
         """Can create tool call with empty arguments string."""
-        from apps.api.schemas.openai.tools import OpenAIToolCall
 
         tool_call: OpenAIToolCall = {
             "id": "call_1",
@@ -864,7 +819,6 @@ class TestEdgeCases:
 
     def test_tool_result_with_json_content(self) -> None:
         """Can create tool result with complex JSON content."""
-        from apps.api.schemas.openai.tools import OpenAIToolResultMessage
 
         import json
 
@@ -889,7 +843,6 @@ class TestEdgeCases:
 
     def test_message_with_content_and_tool_calls_both_present(self) -> None:
         """Can create message with both content and tool_calls (edge case)."""
-        from apps.api.schemas.openai.tools import OpenAIResponseMessageWithTools
 
         message: OpenAIResponseMessageWithTools = {
             "role": "assistant",

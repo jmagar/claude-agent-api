@@ -6,13 +6,16 @@ side-channel attacks that could leak session existence information.
 
 import time
 from datetime import UTC, datetime
-from uuid import UUID, uuid4
+from typing import TYPE_CHECKING, cast
 
 import pytest
 
 from apps.api.exceptions import SessionNotFoundError
 from apps.api.services.session import SessionService
 from apps.api.types import JsonValue
+
+if TYPE_CHECKING:
+    from apps.api.protocols import Cache
 
 
 class MockCache:
@@ -92,7 +95,8 @@ class MockCache:
 @pytest.fixture
 def session_service() -> SessionService:
     """Create SessionService with mocked cache."""
-    return SessionService(cache=MockCache())
+    mock_cache = MockCache()
+    return SessionService(cache=cast("Cache", mock_cache))
 
 
 class TestTimingAttackPrevention:
@@ -300,7 +304,8 @@ class TestTimingAttackPrevention:
         with pytest.raises(SessionNotFoundError) as exc_info:
             session_service._enforce_owner(session, "wrong-key-456")
 
-        assert str(exc_info.value.session_id) == "test-session-id"
+        # SessionNotFoundError stores session_id in details, not as attribute
+        assert exc_info.value.details["session_id"] == "test-session-id"
 
     @pytest.mark.anyio
     async def test_enforce_owner_with_none_owner(
