@@ -1,10 +1,17 @@
 """Unit tests for RunExecutor (TDD - RED phase)."""
 
-from collections.abc import AsyncIterator
-from typing import Any
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
+
+    from apps.api.services.assistants.run_executor import ToolOutput
+    from apps.api.services.assistants.run_service import ToolCall
 
 
 @pytest.fixture
@@ -100,7 +107,10 @@ class TestRunExecutorExecute:
         mock_thread_service: AsyncMock,
     ) -> None:
         """Execute a run successfully."""
-        from apps.api.services.assistants.run_executor import ExecutionResult, RunExecutor
+        from apps.api.services.assistants.run_executor import (
+            ExecutionResult,
+            RunExecutor,
+        )
         from apps.api.services.assistants.run_service import Run
 
         # Setup mock run
@@ -140,13 +150,15 @@ class TestRunExecutorExecute:
         )
 
         # Mock the SDK response
-        with patch.object(
-            executor, "_execute_with_sdk"
-        ) as mock_execute:
+        with patch.object(executor, "_execute_with_sdk") as mock_execute:
             mock_execute.return_value = ExecutionResult(
                 response_text="Hello! How can I help you?",
                 tool_calls=[],
-                usage={"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
+                usage={
+                    "prompt_tokens": 10,
+                    "completion_tokens": 20,
+                    "total_tokens": 30,
+                },
             )
 
             result = await executor.execute_run(
@@ -171,7 +183,10 @@ class TestRunExecutorExecute:
         mock_thread_service: AsyncMock,
     ) -> None:
         """Execute run that requires tool calls."""
-        from apps.api.services.assistants.run_executor import ExecutionResult, RunExecutor
+        from apps.api.services.assistants.run_executor import (
+            ExecutionResult,
+            RunExecutor,
+        )
         from apps.api.services.assistants.run_service import Run
 
         # Setup mock run
@@ -189,7 +204,9 @@ class TestRunExecutorExecute:
         mock_assistant = MagicMock()
         mock_assistant.model = "gpt-4"
         mock_assistant.instructions = None
-        mock_assistant.tools = [{"type": "function", "function": {"name": "get_weather"}}]
+        mock_assistant.tools = [
+            {"type": "function", "function": {"name": "get_weather"}}
+        ]
         mock_assistant_service.get_assistant = AsyncMock(return_value=mock_assistant)
 
         # Setup mock thread
@@ -205,7 +222,7 @@ class TestRunExecutorExecute:
         )
 
         # Mock the SDK response with tool calls
-        tool_calls = [
+        tool_calls: list[ToolCall] = [
             {
                 "id": "call_abc123",
                 "type": "function",
@@ -213,9 +230,7 @@ class TestRunExecutorExecute:
             }
         ]
 
-        with patch.object(
-            executor, "_execute_with_sdk"
-        ) as mock_execute:
+        with patch.object(executor, "_execute_with_sdk") as mock_execute:
             mock_execute.return_value = ExecutionResult(
                 response_text=None,
                 tool_calls=tool_calls,
@@ -277,9 +292,7 @@ class TestRunExecutorExecute:
         )
 
         # Mock the SDK to raise an error
-        with patch.object(
-            executor, "_execute_with_sdk"
-        ) as mock_execute:
+        with patch.object(executor, "_execute_with_sdk") as mock_execute:
             mock_execute.side_effect = Exception("SDK error")
 
             result = await executor.execute_run(
@@ -333,7 +346,10 @@ class TestRunExecutorToolOutputs:
         mock_thread_service: AsyncMock,
     ) -> None:
         """Submit tool outputs and continue execution."""
-        from apps.api.services.assistants.run_executor import ExecutionResult, RunExecutor
+        from apps.api.services.assistants.run_executor import (
+            ExecutionResult,
+            RunExecutor,
+        )
         from apps.api.services.assistants.run_service import Run
 
         # Setup mock run in requires_action state
@@ -378,18 +394,20 @@ class TestRunExecutorToolOutputs:
             thread_service=mock_thread_service,
         )
 
-        tool_outputs = [
+        tool_outputs: list[ToolOutput] = [
             {"tool_call_id": "call_abc123", "output": '{"temperature": 72}'}
         ]
 
         # Mock the SDK response after tool outputs
-        with patch.object(
-            executor, "_execute_with_sdk"
-        ) as mock_execute:
+        with patch.object(executor, "_execute_with_sdk") as mock_execute:
             mock_execute.return_value = ExecutionResult(
                 response_text="The weather in NYC is 72°F.",
                 tool_calls=[],
-                usage={"prompt_tokens": 20, "completion_tokens": 10, "total_tokens": 30},
+                usage={
+                    "prompt_tokens": 20,
+                    "completion_tokens": 10,
+                    "total_tokens": 30,
+                },
             )
 
             result = await executor.submit_tool_outputs(
@@ -463,9 +481,7 @@ class TestRunExecutorStreaming:
             yield {"type": "message.delta", "delta": {"content": " World"}}
             yield {"type": "run.completed", "run_id": "run_abc123"}
 
-        with patch.object(
-            executor, "_stream_with_sdk"
-        ) as mock_stream_sdk:
+        with patch.object(executor, "_stream_with_sdk") as mock_stream_sdk:
             mock_stream_sdk.return_value = mock_stream()
 
             events = []
@@ -492,7 +508,10 @@ class TestRunExecutorMessages:
         mock_thread_service: AsyncMock,
     ) -> None:
         """Creates assistant message after successful execution."""
-        from apps.api.services.assistants.run_executor import ExecutionResult, RunExecutor
+        from apps.api.services.assistants.run_executor import (
+            ExecutionResult,
+            RunExecutor,
+        )
         from apps.api.services.assistants.run_service import Run
 
         # Setup mock run
@@ -532,13 +551,15 @@ class TestRunExecutorMessages:
         )
 
         # Mock the SDK response
-        with patch.object(
-            executor, "_execute_with_sdk"
-        ) as mock_execute:
+        with patch.object(executor, "_execute_with_sdk") as mock_execute:
             mock_execute.return_value = ExecutionResult(
                 response_text="Hello! How can I help you?",
                 tool_calls=[],
-                usage={"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
+                usage={
+                    "prompt_tokens": 10,
+                    "completion_tokens": 20,
+                    "total_tokens": 30,
+                },
             )
 
             await executor.execute_run(
@@ -567,7 +588,10 @@ class TestRunExecutorGetMessages:
         mock_thread_service: AsyncMock,
     ) -> None:
         """Gets thread messages for context."""
-        from apps.api.services.assistants.message_service import Message, MessageListResult
+        from apps.api.services.assistants.message_service import (
+            Message,
+            MessageListResult,
+        )
         from apps.api.services.assistants.run_executor import RunExecutor
 
         # Setup mock messages in thread
@@ -576,9 +600,13 @@ class TestRunExecutorGetMessages:
             MagicMock(spec=Message),
         ]
         mock_messages[0].role = "user"
-        mock_messages[0].content = [{"type": "text", "text": {"value": "Hello", "annotations": []}}]
+        mock_messages[0].content = [
+            {"type": "text", "text": {"value": "Hello", "annotations": []}}
+        ]
         mock_messages[1].role = "assistant"
-        mock_messages[1].content = [{"type": "text", "text": {"value": "Hi there!", "annotations": []}}]
+        mock_messages[1].content = [
+            {"type": "text", "text": {"value": "Hi there!", "annotations": []}}
+        ]
 
         mock_message_service.list_messages = AsyncMock(
             return_value=MessageListResult(

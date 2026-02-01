@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, Request
 from sse_starlette import EventSourceResponse
 
 from apps.api.dependencies import get_agent_service, verify_api_key
-from apps.api.protocols import AgentService, RequestTranslator, ResponseTranslator
+from apps.api.protocols import RequestTranslator, ResponseTranslator
 from apps.api.routes.openai.dependencies import (
     get_request_translator,
     get_response_translator,
@@ -17,6 +17,7 @@ from apps.api.routes.openai.dependencies import (
 from apps.api.schemas.openai.requests import ChatCompletionRequest
 from apps.api.schemas.openai.responses import OpenAIChatCompletion
 from apps.api.schemas.responses import SingleQueryResponse
+from apps.api.services.agent import AgentService
 from apps.api.services.openai.streaming import StreamingAdapter
 from apps.api.types import MessageEventDataDict, ResultEventDataDict
 
@@ -58,7 +59,9 @@ async def create_chat_completion(
     permission_mode = request.headers.get("X-Permission-Mode")
 
     # Translate OpenAI request to Claude QueryRequest
-    query_request = request_translator.translate(payload, permission_mode=permission_mode)
+    query_request = request_translator.translate(
+        payload, permission_mode=permission_mode
+    )
 
     # Handle streaming vs non-streaming
     if payload.stream:
@@ -71,7 +74,7 @@ async def create_chat_completion(
             # Adapt to OpenAI streaming format
             adapter = StreamingAdapter(
                 original_model=payload.model,
-                mapped_model=query_request.model,
+                mapped_model=payload.model,
             )
 
             # Create async generator that yields (event_type, event_data) tuples

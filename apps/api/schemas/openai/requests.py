@@ -11,7 +11,7 @@ class OpenAIFunctionParametersModel(BaseModel):
     type: Literal["object"] = "object"
     properties: dict[str, dict[str, Any]] = Field(default_factory=dict)
     required: list[str] = Field(default_factory=list)
-    additionalProperties: bool = True  # noqa: N815 - matches OpenAI spec
+    additionalProperties: bool = True
 
 
 class OpenAIFunctionModel(BaseModel):
@@ -98,5 +98,7 @@ class ChatCompletionRequest(BaseModel):
     user: str | None = None
     # Tool calling parameters
     tools: list[OpenAIToolModel] | None = None
-    tool_choice: Literal["auto", "none", "required"] | OpenAIToolChoiceObjectModel | None = None
+    tool_choice: (
+        Literal["auto", "none", "required"] | OpenAIToolChoiceObjectModel | None
+    ) = None
     parallel_tool_calls: bool = True

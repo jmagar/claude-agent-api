@@ -109,7 +109,7 @@ class RedisCache:
 
     @classmethod
     async def create(cls, url: str | None = None) -> RedisCache:
-        """Create Redis cache instance.
+        """Create Redis cache instance with retry configuration.
 
         Args:
             url: Redis URL. Uses settings if not provided.
@@ -117,8 +117,19 @@ class RedisCache:
         Returns:
             RedisCache instance.
         """
+        from redis import exceptions as redis_exceptions
+        from redis.backoff import ExponentialBackoff
+        from redis.retry import Retry
+
         settings = get_settings()
         redis_url = url or settings.redis_url
+
+        # Configure exponential backoff retry policy
+        retry_policy = Retry(
+            ExponentialBackoff(base=settings.redis_retry_backoff_base_ms / 1000),
+            retries=settings.redis_retry_max_attempts,
+        )
+
         client = redis.from_url(
             redis_url,
             encoding="utf-8",
@@ -126,6 +137,11 @@ class RedisCache:
             max_connections=settings.redis_max_connections,
             socket_connect_timeout=settings.redis_socket_connect_timeout,
             socket_timeout=settings.redis_socket_timeout,
+            retry=retry_policy,
+            retry_on_error=[
+                redis_exceptions.ConnectionError,
+                redis_exceptions.TimeoutError,
+            ],
         )
         return cls(client)
 

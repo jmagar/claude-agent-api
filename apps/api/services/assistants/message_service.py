@@ -213,6 +213,7 @@ class MessageService:
         Returns:
             Paginated message list.
         """
+        _ = (after, before)
         if not self._cache:
             return MessageListResult(
                 data=[],
@@ -351,7 +352,9 @@ class MessageService:
                 created_at = 0
 
             role_val = str(parsed["role"])
-            role: Literal["user", "assistant"] = "user" if role_val == "user" else "assistant"
+            role: Literal["user", "assistant"] = (
+                "user" if role_val == "user" else "assistant"
+            )
 
             # Parse content blocks
             content_raw = parsed.get("content", [])

@@ -69,17 +69,68 @@ async def close_db() -> None:
 
 
 async def init_cache(settings: Settings) -> RedisCache:
-    """Initialize Redis cache.
+    """Initialize Redis cache with health check and retry.
 
     Args:
         settings: Application settings.
 
     Returns:
         Redis cache instance.
+
+    Raises:
+        ServiceUnavailableError: If Redis is not reachable after retries.
     """
+    import asyncio
+
+    import structlog
+
+    from apps.api.adapters.cache import RedisCache
+
+    logger = structlog.get_logger(__name__)
     global _redis_cache
+
     _redis_cache = await RedisCache.create(settings.redis_url)
-    return _redis_cache
+
+    # Health check with retry logic
+    max_attempts = 10
+    backoff_base_ms = 100
+    last_error = None
+
+    for attempt in range(1, max_attempts + 1):
+        try:
+            await _redis_cache.ping()
+            logger.info(
+                "redis_health_check_passed",
+                attempt=attempt,
+                max_attempts=max_attempts,
+            )
+            return _redis_cache
+        except Exception as exc:
+            last_error = exc
+            if attempt < max_attempts:
+                backoff_ms = backoff_base_ms * (2 ** (attempt - 1))
+                backoff_s = backoff_ms / 1000
+                logger.warning(
+                    "redis_health_check_failed_retrying",
+                    attempt=attempt,
+                    max_attempts=max_attempts,
+                    backoff_seconds=backoff_s,
+                    error=str(exc),
+                )
+                await asyncio.sleep(backoff_s)
+            else:
+                logger.error(
+                    "redis_health_check_failed_permanently",
+                    attempt=attempt,
+                    max_attempts=max_attempts,
+                    error=str(exc),
+                )
+
+    # All retries exhausted
+    raise ServiceUnavailableError(
+        message=f"Redis health check failed after {max_attempts} attempts: {last_error}",
+        retry_after=10,
+    )
 
 
 async def close_cache() -> None:

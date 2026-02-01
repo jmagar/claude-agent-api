@@ -119,10 +119,7 @@ class Run(Base):
 
     def __repr__(self) -> str:
         """String representation."""
-        return (
-            f"<Run(id={self.id}, thread_id={self.thread_id}, "
-            f"status={self.status})>"
-        )
+        return f"<Run(id={self.id}, thread_id={self.thread_id}, status={self.status})>"
 
 
 class RunStep(Base):

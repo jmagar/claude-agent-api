@@ -214,9 +214,9 @@ class StreamingAdapter:
                     is_error = result_data.get("is_error", False)
 
                     # Determine finish_reason based on content and error state
-                    finish_reason: Literal[
-                        "stop", "length", "tool_calls", "error"
-                    ] | None
+                    finish_reason: (
+                        Literal["stop", "length", "tool_calls", "error"] | None
+                    )
                     if is_error:
                         finish_reason = "error"
                     elif has_tool_calls:

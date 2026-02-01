@@ -1,6 +1,6 @@
 """Unit tests for MessageService (TDD - RED phase)."""
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -95,7 +95,9 @@ class TestMessageServiceGet:
             "thread_id": "thread_abc123",
             "created_at": 1704067200,
             "role": "user",
-            "content": [{"type": "text", "text": {"value": "Hello!", "annotations": []}}],
+            "content": [
+                {"type": "text", "text": {"value": "Hello!", "annotations": []}}
+            ],
             "metadata": {},
         }
         mock_cache.get_json = AsyncMock(return_value=cached_data)
@@ -158,7 +160,9 @@ class TestMessageServiceList:
                     "thread_id": "thread_abc123",
                     "created_at": 1704067200,
                     "role": "user",
-                    "content": [{"type": "text", "text": {"value": "Hello!", "annotations": []}}],
+                    "content": [
+                        {"type": "text", "text": {"value": "Hello!", "annotations": []}}
+                    ],
                     "metadata": {},
                 }
             ]
@@ -187,7 +191,9 @@ class TestMessageServiceModify:
             "thread_id": "thread_abc123",
             "created_at": 1704067200,
             "role": "user",
-            "content": [{"type": "text", "text": {"value": "Hello!", "annotations": []}}],
+            "content": [
+                {"type": "text", "text": {"value": "Hello!", "annotations": []}}
+            ],
             "metadata": {"old": "value"},
         }
         mock_cache.get_json = AsyncMock(return_value=cached_data)

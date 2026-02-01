@@ -1,6 +1,9 @@
 """Unit tests for Assistant database model (TDD - RED phase)."""
 
-import pytest
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from sqlalchemy import Table
 
 
 class TestAssistantModel:
@@ -57,9 +60,12 @@ class TestAssistantModel:
 
     def test_has_owner_api_key_index(self) -> None:
         """Has index on owner_api_key column."""
+        from typing import cast
+
         from apps.api.models.assistant import Assistant
 
-        index_names = {idx.name for idx in Assistant.__table__.indexes}
+        table = cast("Table", Assistant.__table__)
+        index_names = {idx.name for idx in table.indexes}
         assert "idx_assistants_owner_api_key" in index_names
 
     def test_tablename_is_assistants(self) -> None:

@@ -2,8 +2,6 @@
 
 import json
 
-import pytest
-
 
 class TestToolTranslator:
     """Tests for ToolTranslator class."""

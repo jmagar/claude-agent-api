@@ -76,6 +76,15 @@ class Settings(BaseSettings):
     redis_socket_timeout: int = Field(
         default=5, ge=1, le=30, description="Redis socket timeout (seconds)"
     )
+    redis_retry_max_attempts: int = Field(
+        default=3, ge=1, le=10, description="Redis max retry attempts"
+    )
+    redis_retry_backoff_base_ms: int = Field(
+        default=100,
+        ge=10,
+        le=1000,
+        description="Redis retry backoff base (milliseconds)",
+    )
 
     # Logging
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(

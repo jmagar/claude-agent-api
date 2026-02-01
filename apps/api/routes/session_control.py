@@ -60,7 +60,7 @@ async def resume_session(
         continue_conversation=True,
         allowed_tools=request.allowed_tools or [],
         disallowed_tools=request.disallowed_tools or [],
-        permission_mode=request.permission_mode or "default",
+        permission_mode=request.permission_mode or "bypassPermissions",
         max_turns=request.max_turns,
         hooks=request.hooks,
     )
@@ -127,7 +127,7 @@ async def fork_session(
         fork_session=True,  # Key difference from resume
         allowed_tools=request.allowed_tools or [],
         disallowed_tools=request.disallowed_tools or [],
-        permission_mode=request.permission_mode or "default",
+        permission_mode=request.permission_mode or "bypassPermissions",
         max_turns=request.max_turns,
         model=model,
         hooks=request.hooks,

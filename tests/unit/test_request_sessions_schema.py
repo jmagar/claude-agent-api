@@ -43,7 +43,7 @@ class TestForkRequest:
     def test_fork_invalid_model(self) -> None:
         """Test fork with invalid model."""
         with pytest.raises(ValidationError, match="Invalid model"):
-            ForkRequest(prompt="Fork", model="gpt-4")
+            ForkRequest(prompt="Fork", model="invalid-model-name")
 
 
 class TestAnswerRequest:

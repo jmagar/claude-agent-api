@@ -50,10 +50,18 @@ class TestModelMapper:
         assert mapper.to_full_name("opus") == "claude-opus-4-5-20251101"
         assert mapper.to_full_name("haiku") == "claude-haiku-4-5-20251001"
 
-    def test_to_full_name_returns_full_name_unchanged(self, mapper: ModelMapper) -> None:
+    def test_to_full_name_returns_full_name_unchanged(
+        self, mapper: ModelMapper
+    ) -> None:
         """Assert mapper.to_full_name with full name returns same name."""
-        assert mapper.to_full_name("claude-sonnet-4-5-20250929") == "claude-sonnet-4-5-20250929"
-        assert mapper.to_full_name("claude-opus-4-5-20251101") == "claude-opus-4-5-20251101"
+        assert (
+            mapper.to_full_name("claude-sonnet-4-5-20250929")
+            == "claude-sonnet-4-5-20250929"
+        )
+        assert (
+            mapper.to_full_name("claude-opus-4-5-20251101")
+            == "claude-opus-4-5-20251101"
+        )
 
     def test_to_full_name_raises_on_unknown_model(self, mapper: ModelMapper) -> None:
         """Assert to_full_name raises ValueError for unknown model."""
@@ -92,7 +100,9 @@ class TestModelMapper:
         assert info["object"] == "model"
         assert info["owned_by"] == "anthropic"
 
-    def test_get_model_info_returns_model_by_full_name(self, mapper: ModelMapper) -> None:
+    def test_get_model_info_returns_model_by_full_name(
+        self, mapper: ModelMapper
+    ) -> None:
         """Assert get_model_info accepts full name."""
         info = mapper.get_model_info("claude-opus-4-5-20251101")
         assert info["id"] == "claude-opus-4-5-20251101"

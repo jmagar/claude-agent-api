@@ -525,23 +525,35 @@ class MessageHandler:
                     block_type = "text"
 
                 # Extract optional fields with type validation
-                text_val = getattr(block, "text", None) if hasattr(block, "text") else None
+                text_val = (
+                    getattr(block, "text", None) if hasattr(block, "text") else None
+                )
                 thinking_val = (
-                    getattr(block, "thinking", None) if hasattr(block, "thinking") else None
+                    getattr(block, "thinking", None)
+                    if hasattr(block, "thinking")
+                    else None
                 )
                 id_val = getattr(block, "id", None) if hasattr(block, "id") else None
-                name_val = getattr(block, "name", None) if hasattr(block, "name") else None
-                input_val = getattr(block, "input", None) if hasattr(block, "input") else None
+                name_val = (
+                    getattr(block, "name", None) if hasattr(block, "name") else None
+                )
+                input_val = (
+                    getattr(block, "input", None) if hasattr(block, "input") else None
+                )
                 tool_use_id_val = (
                     getattr(block, "tool_use_id", None)
                     if hasattr(block, "tool_use_id")
                     else None
                 )
                 content_val = (
-                    getattr(block, "content", None) if hasattr(block, "content") else None
+                    getattr(block, "content", None)
+                    if hasattr(block, "content")
+                    else None
                 )
                 is_error_val = (
-                    getattr(block, "is_error", None) if hasattr(block, "is_error") else None
+                    getattr(block, "is_error", None)
+                    if hasattr(block, "is_error")
+                    else None
                 )
 
                 # Build typed dict

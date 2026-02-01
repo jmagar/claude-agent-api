@@ -1,7 +1,6 @@
 """OpenAI-compatible response TypedDict schemas."""
 
-from typing import Literal, NotRequired, Required, TypedDict
-
+from typing import Literal, Required, TypedDict
 
 # =============================================================================
 # Tool Call Response Types

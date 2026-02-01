@@ -8,7 +8,7 @@ This module handles bidirectional translation of:
 
 import json
 import uuid
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import structlog
 
@@ -18,6 +18,7 @@ if TYPE_CHECKING:
         OpenAIToolModel,
     )
     from apps.api.schemas.openai.responses import (
+        OpenAIFunctionCallResponse,
         OpenAIToolCallResponse,
     )
 
@@ -129,11 +130,6 @@ class ToolTranslator:
         Returns:
             List of OpenAI tool call objects
         """
-        from apps.api.schemas.openai.responses import (
-            OpenAIFunctionCallResponse,
-            OpenAIToolCallResponse,
-        )
-
         tool_calls: list[OpenAIToolCallResponse] = []
 
         for block in content_blocks:
@@ -150,16 +146,22 @@ class ToolTranslator:
             else:
                 arguments = str(input_data)
 
-            function_call: OpenAIFunctionCallResponse = {
-                "name": name,
-                "arguments": arguments,
-            }
+            function_call = cast(
+                "OpenAIFunctionCallResponse",
+                {
+                    "name": name,
+                    "arguments": arguments,
+                },
+            )
 
-            tool_call: OpenAIToolCallResponse = {
-                "id": tool_id,
-                "type": "function",
-                "function": function_call,
-            }
+            tool_call = cast(
+                "OpenAIToolCallResponse",
+                {
+                    "id": tool_id,
+                    "type": "function",
+                    "function": function_call,
+                },
+            )
 
             tool_calls.append(tool_call)
 

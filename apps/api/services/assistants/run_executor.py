@@ -46,11 +46,11 @@ class ExecutionResult:
     """Result of run execution."""
 
     response_text: str | None
-    tool_calls: list[dict[str, object]] = field(default_factory=list)
-    usage: dict[str, int] | None = None
+    tool_calls: list[ToolCall] = field(default_factory=list)
+    usage: RunUsage | None = None
 
 
-def _extract_tool_call(tc: dict[str, object]) -> ToolCall:
+def _extract_tool_call(tc: ToolCall | dict[str, object]) -> ToolCall:
     """Extract ToolCall from a dict with proper type handling.
 
     Args:

@@ -91,7 +91,7 @@ class ModelMapper:
                 created=1700000000,
                 owned_by="anthropic",
             )
-            for full_name in self._models.keys()
+            for full_name in self._models
         ]
 
     def get_model_info(self, model: str) -> OpenAIModelInfo:

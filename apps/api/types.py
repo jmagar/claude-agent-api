@@ -26,7 +26,7 @@ PermissionMode = Literal["default", "acceptEdits", "plan", "bypassPermissions"]
 ModelOption = Literal["sonnet", "opus", "haiku"]
 
 # Valid short model names
-VALID_SHORT_MODEL_NAMES: set[str] = {"sonnet", "opus", "haiku"}
+VALID_SHORT_MODEL_NAMES: set[str] = {"sonnet", "opus", "haiku", "gpt-4"}
 
 # Valid full model IDs (exact matches)
 VALID_FULL_MODEL_IDS: set[str] = {

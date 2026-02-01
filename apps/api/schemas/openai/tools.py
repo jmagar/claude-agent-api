@@ -7,7 +7,6 @@ including request parameters (tools, tool_choice) and response structures
 
 from typing import Literal, NotRequired, Required, TypedDict
 
-
 # =============================================================================
 # Tool Definition Schemas (Request)
 # =============================================================================

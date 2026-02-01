@@ -100,7 +100,9 @@ class MessageDeltaEvent(TypedDict):
 
 
 # Union type for all assistant stream events
-AssistantStreamEvent = RunCreatedEvent | RunDeltaEvent | RunStepDeltaEvent | MessageDeltaEvent
+AssistantStreamEvent = (
+    RunCreatedEvent | RunDeltaEvent | RunStepDeltaEvent | MessageDeltaEvent
+)
 
 
 # =============================================================================

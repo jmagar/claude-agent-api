@@ -577,7 +577,7 @@ class TestModelValidation:
     def test_model_rejects_arbitrary_string(self) -> None:
         """Test that arbitrary string model is rejected."""
         with pytest.raises(ValidationError):
-            QueryRequest(prompt="Test", model="gpt-4")
+            QueryRequest(prompt="Test", model="invalid-model-name")
 
     def test_model_rejects_partial_model_name(self) -> None:
         """Test that partial model names are rejected."""

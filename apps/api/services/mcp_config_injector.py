@@ -133,10 +133,12 @@ class McpConfigInjector:
 
             # Build allowed_tools patterns for MCP servers
             # Pattern: mcp__<server-name>__* allows all tools from the server
-            mcp_tool_patterns = [f"mcp__{name}__*" for name in merged_schemas.keys()]
+            mcp_tool_patterns = [f"mcp__{name}__*" for name in merged_schemas]
 
             # Merge with existing allowed_tools (preserve user-specified tools)
-            existing_allowed = list(request.allowed_tools) if request.allowed_tools else []
+            existing_allowed = (
+                list(request.allowed_tools) if request.allowed_tools else []
+            )
             updated_allowed_tools = existing_allowed + mcp_tool_patterns
 
             logger.info(

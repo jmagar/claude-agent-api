@@ -32,28 +32,22 @@ from apps.api.services.assistants.thread_service import (
 )
 
 __all__ = [
-    # Assistant
     "Assistant",
     "AssistantListResult",
     "AssistantService",
-    # Message
+    "AssistantStreamEvent",
+    "ExecutionResult",
     "Message",
     "MessageListResult",
     "MessageService",
-    # Run
     "Run",
+    "RunExecutor",
     "RunListResult",
     "RunService",
-    # Run Executor
-    "ExecutionResult",
-    "RunExecutor",
-    "ToolOutput",
-    # Run Streaming
-    "AssistantStreamEvent",
     "RunStreamingAdapter",
-    "format_sse_event",
-    # Thread
     "Thread",
     "ThreadListResult",
     "ThreadService",
+    "ToolOutput",
+    "format_sse_event",
 ]

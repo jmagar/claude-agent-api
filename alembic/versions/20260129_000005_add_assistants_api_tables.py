@@ -172,7 +172,9 @@ def upgrade() -> None:
         # Type: message_creation or tool_calls
         sa.Column("type", sa.String(20), nullable=False),
         # Status: in_progress, cancelled, failed, completed, expired
-        sa.Column("status", sa.String(20), nullable=False, server_default="in_progress"),
+        sa.Column(
+            "status", sa.String(20), nullable=False, server_default="in_progress"
+        ),
         # Step details: JSONB with type-specific content
         # For message_creation: { "message_creation": { "message_id": "msg_xxx" } }
         # For tool_calls: { "tool_calls": [{ "id": "call_xxx", ... }] }

@@ -8,7 +8,6 @@ from typing import Literal, TypedDict
 
 from pydantic import BaseModel, Field
 
-
 # =============================================================================
 # Tool Types for Requests (TypedDict for flexibility)
 # =============================================================================
@@ -108,13 +107,19 @@ class CreateAssistantRequest(BaseModel):
         default=None, max_length=256000, description="System instructions"
     )
     tools: list[AssistantToolRequest] = Field(
-        default_factory=list, max_length=128, description="Tools available to the assistant"
+        default_factory=list,
+        max_length=128,
+        description="Tools available to the assistant",
     )
     metadata: dict[str, str] = Field(
         default_factory=dict, description="Metadata key-value pairs"
     )
-    temperature: float | None = Field(default=None, ge=0, le=2, description="Sampling temperature")
-    top_p: float | None = Field(default=None, ge=0, le=1, description="Nucleus sampling parameter")
+    temperature: float | None = Field(
+        default=None, ge=0, le=2, description="Sampling temperature"
+    )
+    top_p: float | None = Field(
+        default=None, ge=0, le=1, description="Nucleus sampling parameter"
+    )
     response_format: str | dict[str, str] | None = Field(
         default=None, description="Response format (auto or json_object)"
     )
@@ -129,8 +134,12 @@ class ModifyAssistantRequest(BaseModel):
 
     model: str | None = Field(default=None, min_length=1, description="Model to use")
     name: str | None = Field(default=None, max_length=256, description="Assistant name")
-    description: str | None = Field(default=None, max_length=512, description="Description")
-    instructions: str | None = Field(default=None, max_length=256000, description="Instructions")
+    description: str | None = Field(
+        default=None, max_length=512, description="Description"
+    )
+    instructions: str | None = Field(
+        default=None, max_length=256000, description="Instructions"
+    )
     tools: list[AssistantToolRequest] | None = Field(default=None, description="Tools")
     metadata: dict[str, str] | None = Field(default=None, description="Metadata")
     temperature: float | None = Field(default=None, ge=0, le=2)
@@ -230,7 +239,9 @@ class CreateRunRequest(BaseModel):
     metadata: dict[str, str] | None = Field(default=None, description="Run metadata")
     stream: bool = Field(default=False, description="Enable streaming")
     max_prompt_tokens: int | None = Field(default=None, description="Max prompt tokens")
-    max_completion_tokens: int | None = Field(default=None, description="Max completion tokens")
+    max_completion_tokens: int | None = Field(
+        default=None, description="Max completion tokens"
+    )
     truncation_strategy: dict[str, str | int] | None = Field(
         default=None, description="Message truncation strategy"
     )
@@ -265,7 +276,9 @@ class SubmitToolOutputsRequest(BaseModel):
     tool_outputs: list[ToolOutput] = Field(
         ..., min_length=1, description="Tool outputs to submit"
     )
-    stream: bool = Field(default=False, description="Enable streaming for continued run")
+    stream: bool = Field(
+        default=False, description="Enable streaming for continued run"
+    )
 
 
 # =============================================================================
@@ -285,11 +298,15 @@ class CreateThreadAndRunRequest(BaseModel):
     )
     model: str | None = Field(default=None, description="Model override")
     instructions: str | None = Field(default=None, description="Instructions override")
-    tools: list[AssistantToolRequest] | None = Field(default=None, description="Tools override")
+    tools: list[AssistantToolRequest] | None = Field(
+        default=None, description="Tools override"
+    )
     metadata: dict[str, str] | None = Field(default=None, description="Run metadata")
     stream: bool = Field(default=False, description="Enable streaming")
     max_prompt_tokens: int | None = Field(default=None, description="Max prompt tokens")
-    max_completion_tokens: int | None = Field(default=None, description="Max completion tokens")
+    max_completion_tokens: int | None = Field(
+        default=None, description="Max completion tokens"
+    )
     truncation_strategy: dict[str, str | int] | None = Field(default=None)
     tool_choice: str | dict[str, str | dict[str, str]] | None = Field(default=None)
     parallel_tool_calls: bool | None = Field(default=None)

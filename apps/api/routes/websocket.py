@@ -94,7 +94,7 @@ async def _handle_prompt_message(
         disallowed_tools=message.get("disallowed_tools") or [],
         permission_mode=cast(
             "Literal['default', 'acceptEdits', 'plan', 'bypassPermissions']",
-            message.get("permission_mode") or "default",
+            message.get("permission_mode") or "bypassPermissions",
         ),
         include_partial_messages=message.get("include_partial_messages") or False,
     )

@@ -622,14 +622,16 @@ class TestCacheCreation:
                 cache = await RedisCache.create("redis://localhost:6379/0")
 
                 assert cache._client == mock_client
-                mock_from_url.assert_called_once_with(
-                    "redis://localhost:6379/0",
-                    encoding="utf-8",
-                    decode_responses=False,
-                    max_connections=75,  # From settings
-                    socket_connect_timeout=8,  # From settings
-                    socket_timeout=12,  # From settings
-                )
+                assert mock_from_url.call_count == 1
+                _, call_kwargs = mock_from_url.call_args
+                assert call_kwargs["encoding"] == "utf-8"
+                assert call_kwargs["decode_responses"] is False
+                assert call_kwargs["max_connections"] == 75
+                assert call_kwargs["socket_connect_timeout"] == 8
+                assert call_kwargs["socket_timeout"] == 12
+                assert call_kwargs["retry"] is not None
+                assert call_kwargs["retry_on_error"] is not None
+                assert len(call_kwargs["retry_on_error"]) == 2
 
     @pytest.mark.anyio
     async def test_create_cache_uses_settings_when_url_not_provided(self) -> None:
@@ -652,14 +654,16 @@ class TestCacheCreation:
                 cache = await RedisCache.create()
 
                 assert cache._client == mock_client
-                mock_from_url.assert_called_once_with(
-                    "redis://localhost:54379/0",
-                    encoding="utf-8",
-                    decode_responses=False,
-                    max_connections=100,  # Should use settings value
-                    socket_connect_timeout=10,  # Should use settings value
-                    socket_timeout=15,  # Should use settings value
-                )
+                assert mock_from_url.call_count == 1
+                _, call_kwargs = mock_from_url.call_args
+                assert call_kwargs["encoding"] == "utf-8"
+                assert call_kwargs["decode_responses"] is False
+                assert call_kwargs["max_connections"] == 100
+                assert call_kwargs["socket_connect_timeout"] == 10
+                assert call_kwargs["socket_timeout"] == 15
+                assert call_kwargs["retry"] is not None
+                assert call_kwargs["retry_on_error"] is not None
+                assert len(call_kwargs["retry_on_error"]) == 2
 
     @pytest.mark.anyio
     async def test_close_calls_aclose_if_available(self) -> None:

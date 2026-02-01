@@ -165,4 +165,4 @@ class TestValidateModelName:
     def test_invalid_model_name(self) -> None:
         """Test invalid model names raise ValueError."""
         with pytest.raises(ValueError, match="Invalid model"):
-            validate_model_name("gpt-4")
+            validate_model_name("invalid-model-name")

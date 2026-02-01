@@ -47,7 +47,9 @@ class Assistant(Base):
     model: Mapped[str] = mapped_column(String(100))
     name: Mapped[str | None] = mapped_column(String(256), nullable=True)
     description: Mapped[str | None] = mapped_column(String(512), nullable=True)
-    instructions: Mapped[str | None] = mapped_column(String, nullable=True)  # Up to 256000 chars
+    instructions: Mapped[str | None] = mapped_column(
+        String, nullable=True
+    )  # Up to 256000 chars
     tools: Mapped[list[dict[str, object]]] = mapped_column(
         JSONB,
         default=list,

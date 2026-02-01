@@ -24,14 +24,18 @@ class TestCreateAssistantRequest:
 
     def test_full_valid_request(self) -> None:
         """Request with all optional fields."""
-        from apps.api.schemas.openai.assistant_requests import CreateAssistantRequest
+        from apps.api.schemas.openai.assistant_requests import (
+            AssistantToolCodeInterpreter,
+            CreateAssistantRequest,
+        )
 
+        tool: AssistantToolCodeInterpreter = {"type": "code_interpreter"}
         request = CreateAssistantRequest(
             model="gpt-4",
             name="My Assistant",
             description="A helpful assistant",
             instructions="You are a helpful assistant.",
-            tools=[{"type": "code_interpreter"}],
+            tools=[tool],
             metadata={"key": "value"},
         )
         assert request.name == "My Assistant"
@@ -43,28 +47,34 @@ class TestCreateAssistantRequest:
         from apps.api.schemas.openai.assistant_requests import CreateAssistantRequest
 
         with pytest.raises(ValidationError):
-            CreateAssistantRequest()  # type: ignore[call-arg]
+            CreateAssistantRequest.model_validate({})
 
     def test_function_tool_validation(self) -> None:
         """Function tool format is validated."""
-        from apps.api.schemas.openai.assistant_requests import CreateAssistantRequest
+        from apps.api.schemas.openai.assistant_requests import (
+            AssistantToolFunction,
+            CreateAssistantRequest,
+            FunctionDefinition,
+            FunctionParameters,
+        )
 
+        parameters: FunctionParameters = {
+            "type": "object",
+            "properties": {"location": {"type": "string"}},
+            "required": ["location"],
+        }
+        function_def: FunctionDefinition = {
+            "name": "get_weather",
+            "description": "Get weather for a location",
+            "parameters": parameters,
+        }
+        tool: AssistantToolFunction = {
+            "type": "function",
+            "function": function_def,
+        }
         request = CreateAssistantRequest(
             model="gpt-4",
-            tools=[
-                {
-                    "type": "function",
-                    "function": {
-                        "name": "get_weather",
-                        "description": "Get weather for a location",
-                        "parameters": {
-                            "type": "object",
-                            "properties": {"location": {"type": "string"}},
-                            "required": ["location"],
-                        },
-                    },
-                }
-            ],
+            tools=[tool],
         )
         assert request.tools[0]["type"] == "function"
 
@@ -114,12 +124,17 @@ class TestCreateThreadRequest:
 
     def test_with_initial_messages(self) -> None:
         """Request with initial messages."""
-        from apps.api.schemas.openai.assistant_requests import CreateThreadRequest
+        from apps.api.schemas.openai.assistant_requests import (
+            CreateThreadRequest,
+            ThreadMessageRequest,
+        )
 
+        message: ThreadMessageRequest = {"role": "user", "content": "Hello!"}
         request = CreateThreadRequest(
-            messages=[{"role": "user", "content": "Hello!"}],
+            messages=[message],
             metadata={"key": "value"},
         )
+        assert request.messages is not None
         assert len(request.messages) == 1
         assert request.messages[0]["role"] == "user"
 
@@ -226,12 +241,17 @@ class TestCreateRunRequest:
 
     def test_with_additional_messages(self) -> None:
         """Request with additional messages to append."""
-        from apps.api.schemas.openai.assistant_requests import CreateRunRequest
+        from apps.api.schemas.openai.assistant_requests import (
+            CreateRunRequest,
+            ThreadMessageRequest,
+        )
 
+        message: ThreadMessageRequest = {"role": "user", "content": "Follow-up"}
         request = CreateRunRequest(
             assistant_id="asst_abc123",
-            additional_messages=[{"role": "user", "content": "Follow-up"}],
+            additional_messages=[message],
         )
+        assert request.additional_messages is not None
         assert len(request.additional_messages) == 1
 
     def test_streaming_flag(self) -> None:
@@ -300,7 +320,7 @@ class TestSubmitToolOutputsRequest:
         from apps.api.schemas.openai.assistant_requests import SubmitToolOutputsRequest
 
         with pytest.raises(ValidationError):
-            SubmitToolOutputsRequest()  # type: ignore[call-arg]
+            SubmitToolOutputsRequest.model_validate({})
 
     def test_streaming_with_tool_outputs(self) -> None:
         """Can enable streaming when submitting tool outputs."""
@@ -332,11 +352,15 @@ class TestCreateThreadAndRunRequest:
 
     def test_with_thread_and_messages(self) -> None:
         """Request with thread containing messages."""
-        from apps.api.schemas.openai.assistant_requests import CreateThreadAndRunRequest
+        from apps.api.schemas.openai.assistant_requests import (
+            CreateThreadAndRunRequest,
+            ThreadMessageRequest,
+        )
 
+        message: ThreadMessageRequest = {"role": "user", "content": "Hello!"}
         request = CreateThreadAndRunRequest(
             assistant_id="asst_abc123",
-            thread={"messages": [{"role": "user", "content": "Hello!"}]},
+            thread={"messages": [message]},
         )
         assert request.thread is not None
         assert len(request.thread["messages"]) == 1

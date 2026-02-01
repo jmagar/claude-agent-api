@@ -151,13 +151,13 @@ class ThreadService:
     async def get_thread(
         self,
         thread_id: str,
-        current_api_key: str | None = None,
+        _current_api_key: str | None = None,
     ) -> Thread | None:
         """Get thread by ID.
 
         Args:
             thread_id: The thread ID.
-            current_api_key: API key for ownership enforcement.
+            _current_api_key: API key for ownership enforcement.
 
         Returns:
             Thread if found, None otherwise.
@@ -245,10 +245,12 @@ class ThreadService:
             return
 
         key = self._cache_key(thread.id)
+        # Convert metadata dict[str, str] to dict[str, JsonValue]
+        metadata_json: dict[str, JsonValue] = dict(thread.metadata)
         data: dict[str, JsonValue] = {
             "id": thread.id,
             "created_at": thread.created_at,
-            "metadata": thread.metadata,
+            "metadata": metadata_json,
             "session_id": thread.session_id,
         }
 

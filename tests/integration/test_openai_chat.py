@@ -149,9 +149,11 @@ async def test_streaming_completion_basic(async_client: AsyncClient) -> None:
         first_choice = choices[0]
         if not isinstance(first_choice, dict):
             continue
+        first_choice = cast("dict[str, object]", first_choice)
         delta = first_choice.get("delta")
         if not isinstance(delta, dict):
             continue
+        delta = cast("dict[str, object]", delta)
         if delta.get("content") is not None:
             content_chunks.append(chunk)
     # We assert that content chunks exist OR we're in mock mode (no content but still valid streaming)
@@ -169,6 +171,7 @@ async def test_streaming_completion_basic(async_client: AsyncClient) -> None:
         first_choice = choices[0]
         if not isinstance(first_choice, dict):
             continue
+        first_choice = cast("dict[str, object]", first_choice)
         if first_choice.get("finish_reason") is not None:
             finish_chunks.append(chunk)
     assert len(finish_chunks) > 0, "Should have at least one chunk with finish_reason"

@@ -9,7 +9,11 @@ from httpx import ASGITransport, AsyncClient
 
 from apps.api.main import create_app
 from apps.api.routes.openai.dependencies import get_assistant_service
-from apps.api.services.assistants import Assistant, AssistantListResult, AssistantService
+from apps.api.services.assistants import (
+    Assistant,
+    AssistantListResult,
+    AssistantService,
+)
 
 
 @pytest.fixture
@@ -65,7 +69,9 @@ async def assistants_test_client(
     test_app = create_app()
 
     # Override the dependency
-    test_app.dependency_overrides[get_assistant_service] = lambda: mock_assistant_service
+    test_app.dependency_overrides[get_assistant_service] = (
+        lambda: mock_assistant_service
+    )
 
     async with AsyncClient(
         transport=ASGITransport(app=test_app),
@@ -192,7 +198,9 @@ class TestGetAssistant:
 
         # Create fresh app with updated mock
         test_app = create_app()
-        test_app.dependency_overrides[get_assistant_service] = lambda: mock_assistant_service
+        test_app.dependency_overrides[get_assistant_service] = (
+            lambda: mock_assistant_service
+        )
 
         async with AsyncClient(
             transport=ASGITransport(app=test_app),
@@ -282,7 +290,9 @@ class TestModifyAssistant:
 
         # Create fresh app with updated mock
         test_app = create_app()
-        test_app.dependency_overrides[get_assistant_service] = lambda: mock_assistant_service
+        test_app.dependency_overrides[get_assistant_service] = (
+            lambda: mock_assistant_service
+        )
 
         async with AsyncClient(
             transport=ASGITransport(app=test_app),
@@ -331,7 +341,9 @@ class TestDeleteAssistant:
 
         # Create fresh app with updated mock
         test_app = create_app()
-        test_app.dependency_overrides[get_assistant_service] = lambda: mock_assistant_service
+        test_app.dependency_overrides[get_assistant_service] = (
+            lambda: mock_assistant_service
+        )
 
         async with AsyncClient(
             transport=ASGITransport(app=test_app),

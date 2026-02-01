@@ -1,9 +1,34 @@
 """Unit tests for OpenAI Assistants API TypedDict schemas (TDD - RED phase)."""
 
-import time
-from typing import get_type_hints
+from __future__ import annotations
 
-import pytest
+import time
+from typing import TYPE_CHECKING, get_type_hints
+
+if TYPE_CHECKING:
+    from apps.api.schemas.openai.assistants import (
+        OpenAIAssistant,
+        OpenAIAssistantCodeInterpreterTool,
+        OpenAIAssistantFileSearchTool,
+        OpenAIAssistantFunctionTool,
+        OpenAIAssistantList,
+        OpenAIDeletionStatus,
+        OpenAIMessageContent,
+        OpenAIMessageCreationDetails,
+        OpenAIMessageCreationStepDetails,
+        OpenAIMessageImageFileContent,
+        OpenAIMessageTextContent,
+        OpenAIRun,
+        OpenAIRunList,
+        OpenAIRunStep,
+        OpenAIRunStepList,
+        OpenAIThread,
+        OpenAIThreadMessage,
+        OpenAIThreadMessageList,
+        OpenAIToolCallFunctionOutput,
+        OpenAIToolCallsStepDetails,
+        OpenAIToolCallStepItem,
+    )
 
 
 class TestOpenAIAssistantSchema:
@@ -33,8 +58,6 @@ class TestOpenAIAssistantSchema:
 
     def test_can_create_valid_instance(self) -> None:
         """Can create a valid assistant dict."""
-        from apps.api.schemas.openai.assistants import OpenAIAssistant
-
         assistant: OpenAIAssistant = {
             "id": "asst_abc123",
             "object": "assistant",
@@ -55,22 +78,16 @@ class TestOpenAIAssistantToolSchema:
 
     def test_code_interpreter_tool_schema(self) -> None:
         """Code interpreter tool has correct structure."""
-        from apps.api.schemas.openai.assistants import OpenAIAssistantCodeInterpreterTool
-
         tool: OpenAIAssistantCodeInterpreterTool = {"type": "code_interpreter"}
         assert tool["type"] == "code_interpreter"
 
     def test_file_search_tool_schema(self) -> None:
         """File search tool has correct structure."""
-        from apps.api.schemas.openai.assistants import OpenAIAssistantFileSearchTool
-
         tool: OpenAIAssistantFileSearchTool = {"type": "file_search"}
         assert tool["type"] == "file_search"
 
     def test_function_tool_schema(self) -> None:
         """Function tool has correct structure."""
-        from apps.api.schemas.openai.assistants import OpenAIAssistantFunctionTool
-
         tool: OpenAIAssistantFunctionTool = {
             "type": "function",
             "function": {
@@ -108,8 +125,6 @@ class TestOpenAIThreadSchema:
 
     def test_can_create_valid_instance(self) -> None:
         """Can create a valid thread dict."""
-        from apps.api.schemas.openai.assistants import OpenAIThread
-
         thread: OpenAIThread = {
             "id": "thread_abc123",
             "object": "thread",
@@ -144,15 +159,18 @@ class TestOpenAIMessageSchema:
 
     def test_can_create_user_message(self) -> None:
         """Can create a valid user message dict."""
-        from apps.api.schemas.openai.assistants import OpenAIThreadMessage
-
+        text_content: OpenAIMessageTextContent = {
+            "type": "text",
+            "text": {"value": "Hello!", "annotations": []},
+        }
+        content: list[OpenAIMessageContent] = [text_content]
         message: OpenAIThreadMessage = {
             "id": "msg_abc123",
             "object": "thread.message",
             "created_at": int(time.time()),
             "thread_id": "thread_abc123",
             "role": "user",
-            "content": [{"type": "text", "text": {"value": "Hello!", "annotations": []}}],
+            "content": content,
             "metadata": {},
         }
         assert message["id"] == "msg_abc123"
@@ -160,15 +178,18 @@ class TestOpenAIMessageSchema:
 
     def test_can_create_assistant_message(self) -> None:
         """Can create a valid assistant message dict."""
-        from apps.api.schemas.openai.assistants import OpenAIThreadMessage
-
+        text_content: OpenAIMessageTextContent = {
+            "type": "text",
+            "text": {"value": "Hi there!", "annotations": []},
+        }
+        content: list[OpenAIMessageContent] = [text_content]
         message: OpenAIThreadMessage = {
             "id": "msg_abc123",
             "object": "thread.message",
             "created_at": int(time.time()),
             "thread_id": "thread_abc123",
             "role": "assistant",
-            "content": [{"type": "text", "text": {"value": "Hi there!", "annotations": []}}],
+            "content": content,
             "assistant_id": "asst_abc123",
             "run_id": "run_abc123",
             "metadata": {},
@@ -182,8 +203,6 @@ class TestOpenAIMessageContentSchema:
 
     def test_text_content_schema(self) -> None:
         """Text content block has correct structure."""
-        from apps.api.schemas.openai.assistants import OpenAIMessageTextContent
-
         content: OpenAIMessageTextContent = {
             "type": "text",
             "text": {"value": "Hello world", "annotations": []},
@@ -193,8 +212,6 @@ class TestOpenAIMessageContentSchema:
 
     def test_image_file_content_schema(self) -> None:
         """Image file content block has correct structure."""
-        from apps.api.schemas.openai.assistants import OpenAIMessageImageFileContent
-
         content: OpenAIMessageImageFileContent = {
             "type": "image_file",
             "image_file": {"file_id": "file_abc123"},
@@ -226,8 +243,6 @@ class TestOpenAIRunSchema:
 
     def test_can_create_queued_run(self) -> None:
         """Can create a run in queued state."""
-        from apps.api.schemas.openai.assistants import OpenAIRun
-
         run: OpenAIRun = {
             "id": "run_abc123",
             "object": "thread.run",
@@ -244,8 +259,6 @@ class TestOpenAIRunSchema:
 
     def test_can_create_run_requiring_action(self) -> None:
         """Can create a run in requires_action state with tool calls."""
-        from apps.api.schemas.openai.assistants import OpenAIRun
-
         run: OpenAIRun = {
             "id": "run_abc123",
             "object": "thread.run",
@@ -301,8 +314,11 @@ class TestOpenAIRunStepSchema:
 
     def test_can_create_message_creation_step(self) -> None:
         """Can create a message creation run step."""
-        from apps.api.schemas.openai.assistants import OpenAIRunStep
-
+        message_creation: OpenAIMessageCreationDetails = {"message_id": "msg_abc123"}
+        step_details: OpenAIMessageCreationStepDetails = {
+            "type": "message_creation",
+            "message_creation": message_creation,
+        }
         step: OpenAIRunStep = {
             "id": "step_abc123",
             "object": "thread.run.step",
@@ -312,17 +328,26 @@ class TestOpenAIRunStepSchema:
             "thread_id": "thread_abc123",
             "type": "message_creation",
             "status": "completed",
-            "step_details": {
-                "type": "message_creation",
-                "message_creation": {"message_id": "msg_abc123"},
-            },
+            "step_details": step_details,
         }
         assert step["type"] == "message_creation"
 
     def test_can_create_tool_calls_step(self) -> None:
         """Can create a tool calls run step."""
-        from apps.api.schemas.openai.assistants import OpenAIRunStep
-
+        function_output: OpenAIToolCallFunctionOutput = {
+            "name": "get_weather",
+            "arguments": "{}",
+            "output": None,
+        }
+        tool_call: OpenAIToolCallStepItem = {
+            "id": "call_abc123",
+            "type": "function",
+            "function": function_output,
+        }
+        step_details: OpenAIToolCallsStepDetails = {
+            "type": "tool_calls",
+            "tool_calls": [tool_call],
+        }
         step: OpenAIRunStep = {
             "id": "step_abc123",
             "object": "thread.run.step",
@@ -332,16 +357,7 @@ class TestOpenAIRunStepSchema:
             "thread_id": "thread_abc123",
             "type": "tool_calls",
             "status": "in_progress",
-            "step_details": {
-                "type": "tool_calls",
-                "tool_calls": [
-                    {
-                        "id": "call_abc123",
-                        "type": "function",
-                        "function": {"name": "get_weather", "arguments": "{}", "output": None},
-                    }
-                ],
-            },
+            "step_details": step_details,
         }
         assert step["type"] == "tool_calls"
 
@@ -351,8 +367,6 @@ class TestPaginatedListSchemas:
 
     def test_assistant_list_schema(self) -> None:
         """Can create a paginated assistant list."""
-        from apps.api.schemas.openai.assistants import OpenAIAssistantList
-
         list_response: OpenAIAssistantList = {
             "object": "list",
             "data": [],
@@ -364,8 +378,6 @@ class TestPaginatedListSchemas:
 
     def test_message_list_schema(self) -> None:
         """Can create a paginated message list."""
-        from apps.api.schemas.openai.assistants import OpenAIThreadMessageList
-
         list_response: OpenAIThreadMessageList = {
             "object": "list",
             "data": [],
@@ -377,8 +389,6 @@ class TestPaginatedListSchemas:
 
     def test_run_list_schema(self) -> None:
         """Can create a paginated run list."""
-        from apps.api.schemas.openai.assistants import OpenAIRunList
-
         list_response: OpenAIRunList = {
             "object": "list",
             "data": [],
@@ -390,8 +400,6 @@ class TestPaginatedListSchemas:
 
     def test_run_step_list_schema(self) -> None:
         """Can create a paginated run step list."""
-        from apps.api.schemas.openai.assistants import OpenAIRunStepList
-
         list_response: OpenAIRunStepList = {
             "object": "list",
             "data": [],
@@ -413,8 +421,6 @@ class TestDeletionStatusSchema:
 
     def test_can_create_deletion_status(self) -> None:
         """Can create a valid deletion status dict."""
-        from apps.api.schemas.openai.assistants import OpenAIDeletionStatus
-
         status: OpenAIDeletionStatus = {
             "id": "asst_abc123",
             "object": "assistant.deleted",

@@ -1,6 +1,9 @@
 """Unit tests for Run and RunStep database models (TDD - RED phase)."""
 
-import pytest
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from sqlalchemy import Table
 
 
 class TestRunModel:
@@ -67,16 +70,22 @@ class TestRunModel:
 
     def test_has_thread_id_index(self) -> None:
         """Has index on thread_id column."""
+        from typing import cast
+
         from apps.api.models.run import Run
 
-        index_names = {idx.name for idx in Run.__table__.indexes}
+        table = cast("Table", Run.__table__)
+        index_names = {idx.name for idx in table.indexes}
         assert "idx_runs_thread_id" in index_names
 
     def test_has_status_index(self) -> None:
         """Has index on status column."""
+        from typing import cast
+
         from apps.api.models.run import Run
 
-        index_names = {idx.name for idx in Run.__table__.indexes}
+        table = cast("Table", Run.__table__)
+        index_names = {idx.name for idx in table.indexes}
         assert "idx_runs_status" in index_names
 
     def test_tablename_is_runs(self) -> None:
@@ -152,9 +161,12 @@ class TestRunStepModel:
 
     def test_has_run_id_index(self) -> None:
         """Has index on run_id column."""
+        from typing import cast
+
         from apps.api.models.run import RunStep
 
-        index_names = {idx.name for idx in RunStep.__table__.indexes}
+        table = cast("Table", RunStep.__table__)
+        index_names = {idx.name for idx in table.indexes}
         assert "idx_run_steps_run_id" in index_names
 
     def test_tablename_is_run_steps(self) -> None:
@@ -199,7 +211,11 @@ class TestRunStepModel:
                     {
                         "id": "call_abc123",
                         "type": "function",
-                        "function": {"name": "get_weather", "arguments": "{}", "output": None},
+                        "function": {
+                            "name": "get_weather",
+                            "arguments": "{}",
+                            "output": None,
+                        },
                     }
                 ],
             },

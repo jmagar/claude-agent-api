@@ -6,7 +6,6 @@ following OpenAI's API specification with strict type safety (zero Any types).
 
 from typing import Literal, NotRequired, Required, TypedDict
 
-
 # =============================================================================
 # Tool Types for Assistants
 # =============================================================================
@@ -326,7 +325,9 @@ class OpenAIRunStep(TypedDict, total=False):
     assistant_id: Required[str]
     thread_id: Required[str]
     type: Required[Literal["message_creation", "tool_calls"]]
-    status: Required[Literal["in_progress", "cancelled", "failed", "completed", "expired"]]
+    status: Required[
+        Literal["in_progress", "cancelled", "failed", "completed", "expired"]
+    ]
     step_details: Required[OpenAIRunStepDetails]
     # Optional fields based on status
     last_error: OpenAIRunError | None

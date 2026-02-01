@@ -16,10 +16,10 @@ class TestRunStreamingImports:
         """Streaming event TypedDicts can be imported."""
         from apps.api.services.assistants.run_streaming import (
             AssistantStreamEvent,
+            MessageDeltaEvent,
             RunCreatedEvent,
             RunDeltaEvent,
             RunStepDeltaEvent,
-            MessageDeltaEvent,
         )
 
         assert AssistantStreamEvent is not None
@@ -143,6 +143,8 @@ class TestStreamRunCompletedEvent:
     @pytest.mark.anyio
     async def test_stream_run_completed_event(self) -> None:
         """Emit thread.run.completed when run finishes."""
+        from typing import cast
+
         from apps.api.services.assistants.run_service import Run
         from apps.api.services.assistants.run_streaming import RunStreamingAdapter
 
@@ -167,8 +169,12 @@ class TestStreamRunCompletedEvent:
         event = await adapter.emit_run_completed(run)
 
         assert event["event"] == "thread.run.completed"
-        assert event["data"]["status"] == "completed"
-        assert event["data"]["usage"]["total_tokens"] == 150
+        data = event["data"]
+        assert data["status"] == "completed"
+        usage = data.get("usage")
+        assert isinstance(usage, dict)
+        usage_dict = cast("dict[str, int]", usage)
+        assert usage_dict["total_tokens"] == 150
 
 
 class TestStreamRunRequiresActionEvent:
@@ -222,6 +228,8 @@ class TestStreamRunFailedEvent:
     @pytest.mark.anyio
     async def test_stream_run_failed_event(self) -> None:
         """Emit thread.run.failed when run errors."""
+        from typing import cast
+
         from apps.api.services.assistants.run_service import Run
         from apps.api.services.assistants.run_streaming import RunStreamingAdapter
 
@@ -246,8 +254,12 @@ class TestStreamRunFailedEvent:
         event = await adapter.emit_run_failed(run)
 
         assert event["event"] == "thread.run.failed"
-        assert event["data"]["status"] == "failed"
-        assert event["data"]["last_error"]["code"] == "server_error"
+        data = event["data"]
+        assert data["status"] == "failed"
+        last_error = data.get("last_error")
+        assert isinstance(last_error, dict)
+        last_error_dict = cast("dict[str, str]", last_error)
+        assert last_error_dict["code"] == "server_error"
 
 
 class TestStreamDoneMarker:
@@ -274,9 +286,12 @@ class TestFormatSSEEvent:
 
     def test_format_event_as_sse(self) -> None:
         """Format event as SSE data line."""
-        from apps.api.services.assistants.run_streaming import format_sse_event
+        from apps.api.services.assistants.run_streaming import (
+            RunCreatedEvent,
+            format_sse_event,
+        )
 
-        event = {
+        event: RunCreatedEvent = {
             "event": "thread.run.created",
             "data": {"id": "run_abc123", "status": "queued"},
         }

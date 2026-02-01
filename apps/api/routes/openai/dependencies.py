@@ -11,7 +11,12 @@ from apps.api.services.assistants import (
     RunService,
     ThreadService,
 )
-from apps.api.services.openai.models import ModelMapper as ModelMapperImpl
+from apps.api.services.openai.models import (
+    CLAUDE_MODELS,
+)
+from apps.api.services.openai.models import (
+    ModelMapper as ModelMapperImpl,
+)
 from apps.api.services.openai.translator import (
     RequestTranslator as RequestTranslatorImpl,
 )
@@ -26,7 +31,9 @@ def get_model_mapper() -> ModelMapper:
     Returns:
         ModelMapper instance for Claude model name handling
     """
-    return ModelMapperImpl()
+    # Include OpenAI-compatible aliases for chat completion requests.
+    openai_models = {**CLAUDE_MODELS, "gpt-4": "sonnet"}
+    return ModelMapperImpl(openai_models)
 
 
 def get_request_translator(

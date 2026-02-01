@@ -423,7 +423,8 @@ class TestGeneralExceptionHandler:
             if details:
                 assert isinstance(details, dict)
                 assert "type" in details
-                assert details["type"] == "ValueError"
+                details_dict = cast("dict[str, object]", details)
+                assert details_dict["type"] == "ValueError"
         finally:
             settings.debug = original_debug
 

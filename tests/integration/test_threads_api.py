@@ -1,6 +1,8 @@
 """Integration tests for Threads API endpoints (TDD - RED phase)."""
 
-from collections.abc import AsyncGenerator
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock
 
 import pytest
@@ -23,6 +25,14 @@ from apps.api.services.assistants import (
     ThreadService,
 )
 
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
+
+    from apps.api.services.assistants.message_service import (
+        MessageContent,
+        MessageTextContent,
+    )
+
 
 @pytest.fixture
 def mock_thread() -> Thread:
@@ -38,12 +48,17 @@ def mock_thread() -> Thread:
 @pytest.fixture
 def mock_message() -> Message:
     """Create a mock message object."""
+    text_content: MessageTextContent = {
+        "type": "text",
+        "text": {"value": "Hello", "annotations": []},
+    }
+    content: list[MessageContent] = [text_content]
     return Message(
         id="msg_abc123",
         thread_id="thread_abc123",
         created_at=1704067200,
         role="user",
-        content=[{"type": "text", "text": {"value": "Hello", "annotations": []}}],
+        content=content,
         metadata={},
     )
 

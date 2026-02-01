@@ -57,9 +57,8 @@ class StreamQueryRunner:
             include_partial_messages=request.include_partial_messages,
         )
 
-        await self._session_tracker.register(session_id)
-
         try:
+            await self._session_tracker.register(session_id)
             async for event in self._query_executor.execute(
                 request, ctx, commands_service
             ):

@@ -9,7 +9,14 @@ Follows the cache-aside pattern for read operations.
 
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Protocol, runtime_checkable
+from typing import (
+    TYPE_CHECKING,
+    NotRequired,
+    Protocol,
+    TypedDict,
+    cast,
+    runtime_checkable,
+)
 
 import structlog
 
@@ -21,6 +28,47 @@ if TYPE_CHECKING:
     from apps.api.protocols import Cache
 
 logger = structlog.get_logger(__name__)
+
+
+# =============================================================================
+# Type Definitions
+# =============================================================================
+
+
+class DbAssistantDict(TypedDict):
+    """Type definition for database assistant object."""
+
+    id: str
+    model: str
+    created_at: datetime
+    updated_at: datetime
+    name: NotRequired[str | None]
+    description: NotRequired[str | None]
+    instructions: NotRequired[str | None]
+    tools: NotRequired[list[dict[str, object]]]
+    metadata_: NotRequired[dict[str, str] | None]
+    owner_api_key: NotRequired[str | None]
+    temperature: NotRequired[float | None]
+    top_p: NotRequired[float | None]
+    response_format: NotRequired[dict[str, str] | None]
+
+
+@runtime_checkable
+class DbAssistant(Protocol):
+    """Protocol for database assistant object returned from repository."""
+
+    id: str
+    model: str
+    created_at: datetime
+    updated_at: datetime
+    name: str | None
+    description: str | None
+    instructions: str | None
+    tools: list[dict[str, object]]
+    metadata_: dict[str, str] | None
+    owner_api_key: str | None
+    temperature: float | None
+    top_p: float | None
 
 
 # =============================================================================
@@ -48,7 +96,7 @@ class AssistantRepository(Protocol):
         """Create assistant in database."""
         ...
 
-    async def get(self, assistant_id: str) -> object | None:
+    async def get(self, assistant_id: str) -> DbAssistant | None:
         """Get assistant by ID."""
         ...
 
@@ -60,7 +108,7 @@ class AssistantRepository(Protocol):
         order: str = "desc",
         after: str | None = None,
         before: str | None = None,
-    ) -> tuple[list[object], int]:
+    ) -> tuple[list[DbAssistant], int]:
         """List assistants with pagination."""
         ...
 
@@ -322,7 +370,7 @@ class AssistantService:
             )
 
         try:
-            db_assistants, total = await self._db_repo.list_assistants(
+            db_assistants, _total = await self._db_repo.list_assistants(
                 owner_api_key=owner_api_key,
                 limit=limit + 1,  # Fetch one extra to detect has_more
                 offset=0,
@@ -440,13 +488,13 @@ class AssistantService:
     async def delete_assistant(
         self,
         assistant_id: str,
-        current_api_key: str | None = None,
+        _current_api_key: str | None = None,
     ) -> bool:
         """Delete an assistant.
 
         Args:
             assistant_id: Assistant ID to delete.
-            current_api_key: API key for ownership enforcement.
+            _current_api_key: API key for ownership enforcement.
 
         Returns:
             True if deleted, False if not found.
@@ -472,8 +520,10 @@ class AssistantService:
 
         key = self._cache_key(assistant.id)
         # Build data dict - tools and metadata need to be cast for JsonValue compatibility
-        tools_json: list[JsonValue] = [dict(t) for t in assistant.tools]
-        metadata_json: dict[str, JsonValue] = dict(assistant.metadata)
+        tools_json: list[JsonValue] = cast("list[JsonValue]", assistant.tools)
+        metadata_json: dict[str, JsonValue] = cast(
+            "dict[str, JsonValue]", assistant.metadata
+        )
         data: dict[str, JsonValue] = {
             "id": assistant.id,
             "model": assistant.model,
@@ -543,12 +593,20 @@ class AssistantService:
                 id=str(parsed["id"]),
                 model=str(parsed["model"]),
                 name=str(parsed["name"]) if parsed.get("name") else None,
-                description=str(parsed["description"]) if parsed.get("description") else None,
-                instructions=str(parsed["instructions"]) if parsed.get("instructions") else None,
+                description=str(parsed["description"])
+                if parsed.get("description")
+                else None,
+                instructions=str(parsed["instructions"])
+                if parsed.get("instructions")
+                else None,
                 tools=tools,
                 metadata=metadata,
-                owner_api_key=str(parsed["owner_api_key"]) if parsed.get("owner_api_key") else None,
-                temperature=float(str(parsed["temperature"])) if parsed.get("temperature") else None,
+                owner_api_key=str(parsed["owner_api_key"])
+                if parsed.get("owner_api_key")
+                else None,
+                temperature=float(str(parsed["temperature"]))
+                if parsed.get("temperature")
+                else None,
                 top_p=float(str(parsed["top_p"])) if parsed.get("top_p") else None,
                 created_at=created_at,
                 updated_at=updated_at,
@@ -560,22 +618,21 @@ class AssistantService:
             )
             return None
 
-    def _map_db_to_service(self, db_assistant: object) -> Assistant:
+    def _map_db_to_service(self, db_assistant: DbAssistant) -> Assistant:
         """Map database assistant to service assistant."""
-        # Access attributes dynamically since we use Protocol
         return Assistant(
-            id=str(getattr(db_assistant, "id")),
-            model=str(getattr(db_assistant, "model")),
-            name=getattr(db_assistant, "name", None),
-            description=getattr(db_assistant, "description", None),
-            instructions=getattr(db_assistant, "instructions", None),
-            tools=getattr(db_assistant, "tools", []) or [],
-            metadata=getattr(db_assistant, "metadata_", {}) or {},
-            owner_api_key=getattr(db_assistant, "owner_api_key", None),
-            temperature=getattr(db_assistant, "temperature", None),
-            top_p=getattr(db_assistant, "top_p", None),
-            created_at=getattr(db_assistant, "created_at"),
-            updated_at=getattr(db_assistant, "updated_at"),
+            id=db_assistant.id,
+            model=db_assistant.model,
+            name=db_assistant.name,
+            description=db_assistant.description,
+            instructions=db_assistant.instructions,
+            tools=db_assistant.tools,
+            metadata=db_assistant.metadata_ or {},
+            owner_api_key=db_assistant.owner_api_key,
+            temperature=db_assistant.temperature,
+            top_p=db_assistant.top_p,
+            created_at=db_assistant.created_at,
+            updated_at=db_assistant.updated_at,
         )
 
     def _enforce_owner(

@@ -563,7 +563,9 @@ class RunService:
             await self._db_repo.update(
                 run_id=run.id,
                 status=run.status,
-                required_action=dict(run.required_action) if run.required_action else None,
+                required_action=dict(run.required_action)
+                if run.required_action
+                else None,
                 last_error=dict(run.last_error) if run.last_error else None,
                 usage=dict(run.usage) if run.usage else None,
             )
@@ -588,7 +590,9 @@ class RunService:
             "instructions": run.instructions,
             "tools": tools_json,
             "metadata": run.metadata,
-            "required_action": dict(run.required_action) if run.required_action else None,
+            "required_action": dict(run.required_action)
+            if run.required_action
+            else None,
             "last_error": dict(run.last_error) if run.last_error else None,
             "usage": dict(run.usage) if run.usage else None,
             "started_at": run.started_at,

@@ -236,8 +236,8 @@ class RequestTranslator:
         # incompatible semantics: max_tokens limits output tokens, max_turns limits
         # conversation turns. There's no reliable conversion between them.
 
-        # Use provided permission_mode or default to "acceptEdits" for OpenAI compatibility
-        final_permission_mode = permission_mode or "acceptEdits"
+        # Use provided permission_mode or default to "default" for OpenAI compatibility
+        final_permission_mode = permission_mode or "default"
 
         query_request = QueryRequest(
             prompt=prompt,
@@ -345,8 +345,8 @@ class ResponseTranslator:
             if block.type == "text" and block.text:
                 text_parts.append(block.text)
 
-        # Concatenate text blocks with double newline separator to preserve paragraphs
-        content = "\n\n".join(text_parts) if text_parts else None
+        # Concatenate text blocks with space separator for OpenAI-compatible output
+        content = " ".join(text_parts) if text_parts else None
 
         # Map stop_reason to finish_reason
         finish_reason = self._map_stop_reason(response.stop_reason, has_tool_calls)

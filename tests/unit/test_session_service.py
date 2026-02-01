@@ -231,9 +231,7 @@ class TestSessionServiceList:
         """Test that owner filtering avoids full cache scans."""
 
         class NoScanCache(MockCache):
-            async def scan_keys(
-                self, pattern: str, max_keys: int = 1000
-            ) -> list[str]:
+            async def scan_keys(self, pattern: str, max_keys: int = 1000) -> list[str]:
                 pytest.fail("scan_keys should not be used for owner-filtered list")
 
         cache = NoScanCache()
@@ -275,9 +273,7 @@ class TestSessionServiceListDbRepo:
         from unittest.mock import AsyncMock, MagicMock
 
         class NoScanCache(MockCache):
-            async def scan_keys(
-                self, pattern: str, max_keys: int = 1000
-            ) -> list[str]:
+            async def scan_keys(self, pattern: str, max_keys: int = 1000) -> list[str]:
                 pytest.fail("scan_keys should not be used when db_repo is available")
 
             async def get_many_json(

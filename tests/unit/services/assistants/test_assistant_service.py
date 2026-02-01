@@ -1,8 +1,14 @@
 """Unit tests for AssistantService (TDD - RED phase)."""
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+
+if TYPE_CHECKING:
+    from apps.api.types import JsonValue
 
 
 @pytest.fixture
@@ -115,7 +121,7 @@ class TestAssistantServiceCreate:
 
         service = AssistantService(cache=mock_cache, db_repo=mock_db_repo)
 
-        assistant = await service.create_assistant(model="gpt-4")
+        await service.create_assistant(model="gpt-4")
 
         mock_db_repo.create.assert_called_once()
         call_kwargs = mock_db_repo.create.call_args.kwargs
@@ -151,7 +157,7 @@ class TestAssistantServiceGet:
         """Get assistant retrieves from cache first."""
         from apps.api.services.assistants.assistant_service import AssistantService
 
-        cached_data = {
+        cached_data: dict[str, JsonValue] = {
             "id": "asst_abc123",
             "model": "gpt-4",
             "name": "Cached Assistant",
@@ -314,7 +320,7 @@ class TestAssistantServiceUpdate:
         from apps.api.services.assistants.assistant_service import AssistantService
 
         # Setup existing assistant
-        cached_data = {
+        cached_data: dict[str, JsonValue] = {
             "id": "asst_abc123",
             "model": "gpt-4",
             "name": "Original Name",

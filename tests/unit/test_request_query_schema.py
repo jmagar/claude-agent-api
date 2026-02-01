@@ -31,7 +31,7 @@ class TestQueryRequest:
     def test_invalid_model(self) -> None:
         """Test invalid model raises error."""
         with pytest.raises(ValidationError, match="Invalid model"):
-            QueryRequest(prompt="Hello", model="gpt-4")
+            QueryRequest(prompt="Hello", model="invalid-model-name")
 
     def test_valid_allowed_tools(self) -> None:
         """Test valid allowed tools."""
