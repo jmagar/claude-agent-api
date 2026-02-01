@@ -7,6 +7,7 @@ This service implements a dual-storage architecture:
 Follows the cache-aside pattern for read operations.
 """
 
+import secrets
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import (
@@ -644,7 +645,7 @@ class AssistantService:
         if (
             current_api_key
             and assistant.owner_api_key
-            and assistant.owner_api_key != current_api_key
+            and not secrets.compare_digest(assistant.owner_api_key, current_api_key)
         ):
             # Return None would be cleaner but we need to match the pattern
             # For now, just return the assistant (ownership check in route layer)

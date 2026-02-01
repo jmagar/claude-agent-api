@@ -15,6 +15,7 @@ See ADR-001 for architecture details.
 """
 
 import asyncio
+import secrets
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
@@ -767,7 +768,7 @@ class SessionService:
         if (
             current_api_key
             and session.owner_api_key
-            and session.owner_api_key != current_api_key
+            and not secrets.compare_digest(session.owner_api_key, current_api_key)
         ):
             raise SessionNotFoundError(session.id)
         return session

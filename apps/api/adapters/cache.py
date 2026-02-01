@@ -262,21 +262,36 @@ class RedisCache:
     async def scan_keys(self, pattern: str, max_keys: int = 1000) -> list[str]:
         """Scan for keys matching a pattern.
 
-        WARNING: This method loads all matching keys into memory. For large
-        keyspaces, prefer indexed lookups (e.g., owner index sets) over scans.
+        DEPRECATED: Only use for scoped patterns (e.g., 'run:{thread_id}:*').
+        NEVER use for unbounded patterns (e.g., 'session:*' without scope).
+
+        WARNING: O(N) operation that scans entire Redis keyspace. Dangerous in
+        production with many keys. Prefer indexed lookups (e.g., owner index sets).
 
         Args:
-            pattern: Redis key pattern (e.g., "session:*")
-            max_keys: Maximum number of keys to return (default: 1000).
-                     Reduced from 10000 to prevent memory issues.
+            pattern: Redis SCAN pattern. MUST be scoped to bounded entity.
+            max_keys: Safety limit (default: 1000, max: 10000).
 
         Returns:
-            List of matching keys (up to max_keys)
+            List of matching keys (up to max_keys).
 
-        Note:
-            If more than max_keys match, only the first max_keys are returned
-            and a warning is logged. Consider using indexed lookups instead.
+        Raises:
+            ValueError: If max_keys exceeds 10000 (safety limit).
         """
+        if max_keys > 10000:
+            raise ValueError(
+                f"max_keys={max_keys} exceeds safety limit of 10000. "
+                "Use indexed lookups for large result sets."
+            )
+
+        # Log deprecation warning for unbounded patterns
+        if pattern.count(":") <= 1:
+            logger.warning(
+                "scan_keys_unbounded_pattern",
+                pattern=pattern,
+                msg="Unbounded pattern detected. Prefer indexed lookups (owner sets).",
+            )
+
         all_keys: list[str] = []
         cursor: int = 0
 
@@ -284,7 +299,7 @@ class RedisCache:
             cursor_result = await self._client.scan(
                 cursor=cursor,
                 match=pattern,
-                count=1000,  # Larger batch for efficiency (was 100)
+                count=1000,
             )
             cursor = int(cursor_result[0])
 

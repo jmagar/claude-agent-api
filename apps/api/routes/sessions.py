@@ -1,5 +1,6 @@
 """Session CRUD endpoints."""
 
+import secrets
 from typing import Literal, cast
 from uuid import UUID
 
@@ -150,7 +151,7 @@ async def promote_session(
     """Promote a brainstorm session to code mode."""
     repo = SessionRepository(db_session)
     session = await repo.get(UUID(session_id))
-    if not session or (session.owner_api_key and session.owner_api_key != _api_key):
+    if not session or (session.owner_api_key and not secrets.compare_digest(session.owner_api_key, _api_key)):
         raise SessionNotFoundError(session_id)
 
     metadata = dict(session.metadata_ or {})
@@ -203,7 +204,7 @@ async def update_session_tags(
 
     repo = SessionRepository(db_session)
     session = await repo.get(UUID(session_id))
-    if not session or (session.owner_api_key and session.owner_api_key != _api_key):
+    if not session or (session.owner_api_key and not secrets.compare_digest(session.owner_api_key, _api_key)):
         raise SessionNotFoundError(session_id)
 
     metadata = dict(session.metadata_ or {})

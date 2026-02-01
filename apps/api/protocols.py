@@ -4,8 +4,9 @@ from typing import TYPE_CHECKING, Protocol, runtime_checkable
 from uuid import UUID
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterator
+    from collections.abc import AsyncIterator, Sequence
 
+    from apps.api.models.session import Checkpoint, Session, SessionMessage
     from apps.api.schemas.openai.requests import ChatCompletionRequest
     from apps.api.schemas.openai.responses import (
         OpenAIChatCompletion,
@@ -14,13 +15,7 @@ if TYPE_CHECKING:
     from apps.api.schemas.requests.query import QueryRequest
     from apps.api.schemas.responses import SingleQueryResponse
     from apps.api.services.agent import QueryResponseDict
-    from apps.api.types import (
-        AgentMessage,
-        CheckpointData,
-        JsonValue,
-        MessageData,
-        SessionData,
-    )
+    from apps.api.types import AgentMessage, JsonValue
 
 
 @runtime_checkable
@@ -34,7 +29,8 @@ class SessionRepository(Protocol):
         working_directory: str | None = None,
         parent_session_id: UUID | None = None,
         metadata: dict[str, object] | None = None,
-    ) -> "SessionData":
+        owner_api_key: str | None = None,
+    ) -> "Session":
         """Create a new session record.
 
         Args:
@@ -43,20 +39,21 @@ class SessionRepository(Protocol):
             working_directory: Working directory path.
             parent_session_id: Parent session ID for forks.
             metadata: Additional session metadata.
+            owner_api_key: Owning API key for authorization checks.
 
         Returns:
-            Created session data.
+            Created session.
         """
         ...
 
-    async def get(self, session_id: UUID) -> "SessionData | None":
+    async def get(self, session_id: UUID) -> "Session | None":
         """Get a session by ID.
 
         Args:
             session_id: Session identifier.
 
         Returns:
-            Session data or None if not found.
+            Session or None if not found.
         """
         ...
 
@@ -66,7 +63,7 @@ class SessionRepository(Protocol):
         status: str | None = None,
         total_turns: int | None = None,
         total_cost_usd: float | None = None,
-    ) -> "SessionData | None":
+    ) -> "Session | None":
         """Update a session record.
 
         Args:
@@ -76,22 +73,29 @@ class SessionRepository(Protocol):
             total_cost_usd: Updated cost.
 
         Returns:
-            Updated session data or None if not found.
+            Updated session or None if not found.
         """
         ...
 
     async def list_sessions(
         self,
         status: str | None = None,
+        owner_api_key: str | None = None,
         limit: int = 50,
         offset: int = 0,
-    ) -> tuple[list["SessionData"], int]:
+        *,
+        filter_by_owner_or_public: bool = False,
+    ) -> tuple["Sequence[Session]", int]:
         """List sessions with optional filtering.
 
         Args:
             status: Filter by status.
+            owner_api_key: Filter by owner API key (exact match).
             limit: Maximum results.
             offset: Pagination offset.
+            filter_by_owner_or_public: If True, returns sessions where
+                owner_api_key is NULL (public) OR matches the provided key.
+                This is the secure multi-tenant filter.
 
         Returns:
             Tuple of session list and total count.
@@ -103,7 +107,7 @@ class SessionRepository(Protocol):
         session_id: UUID,
         message_type: str,
         content: dict[str, object],
-    ) -> "MessageData":
+    ) -> "SessionMessage":
         """Add a message to a session.
 
         Args:
@@ -112,7 +116,7 @@ class SessionRepository(Protocol):
             content: Message content.
 
         Returns:
-            Created message data.
+            Created message.
         """
         ...
 
@@ -120,7 +124,7 @@ class SessionRepository(Protocol):
         self,
         session_id: UUID,
         limit: int | None = None,
-    ) -> list["MessageData"]:
+    ) -> "Sequence[SessionMessage]":
         """Get messages for a session.
 
         Args:
@@ -128,7 +132,7 @@ class SessionRepository(Protocol):
             limit: Maximum messages to return.
 
         Returns:
-            List of message data.
+            List of messages.
         """
         ...
 
@@ -137,7 +141,7 @@ class SessionRepository(Protocol):
         session_id: UUID,
         user_message_uuid: str,
         files_modified: list[str],
-    ) -> "CheckpointData":
+    ) -> "Checkpoint":
         """Add a checkpoint to a session.
 
         Args:
@@ -146,18 +150,18 @@ class SessionRepository(Protocol):
             files_modified: List of modified file paths.
 
         Returns:
-            Created checkpoint data.
+            Created checkpoint.
         """
         ...
 
-    async def get_checkpoints(self, session_id: UUID) -> list["CheckpointData"]:
+    async def get_checkpoints(self, session_id: UUID) -> "Sequence[Checkpoint]":
         """Get checkpoints for a session.
 
         Args:
             session_id: Session identifier.
 
         Returns:
-            List of checkpoint data.
+            List of checkpoints.
         """
         ...
 
@@ -285,11 +289,15 @@ class Cache(Protocol):
     async def scan_keys(self, pattern: str, max_keys: int = 1000) -> list[str]:
         """Scan for keys matching pattern.
 
-        WARNING: Loads all matching keys into memory. Prefer indexed lookups.
+        DEPRECATED: Only use for scoped patterns (e.g., 'run:{thread_id}:*').
+        NEVER use for unbounded patterns (e.g., 'session:*' without scope).
+
+        WARNING: O(N) operation that scans entire Redis keyspace. Dangerous in
+        production with many keys. Prefer indexed lookups (e.g., owner index sets).
 
         Args:
-            pattern: Glob-style pattern (e.g., 'session:*').
-            max_keys: Maximum keys to return (default: 1000).
+            pattern: Redis SCAN pattern. MUST be scoped to bounded entity.
+            max_keys: Safety limit (default: 1000, max: 10000).
 
         Returns:
             List of matching keys (up to max_keys).

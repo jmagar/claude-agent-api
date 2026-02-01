@@ -567,30 +567,37 @@ class TestSessionServiceEdgeCases:
         session_service: SessionService,
     ) -> None:
         """Test that pagination works correctly."""
-        # Create 5 sessions
+        # Create 5 sessions with owner
         session_ids = []
         for i in range(5):
             session = await session_service.create_session(
                 model="sonnet",
                 session_id=f"session-{i}",
+                owner_api_key="test-key",
             )
             session_ids.append(session.id)
 
         # Get first page (2 items)
-        page1 = await session_service.list_sessions(page=1, page_size=2)
+        page1 = await session_service.list_sessions(
+            page=1, page_size=2, current_api_key="test-key"
+        )
         assert page1.total == 5
         assert len(page1.sessions) == 2
         assert page1.page == 1
         assert page1.page_size == 2
 
         # Get second page (2 items)
-        page2 = await session_service.list_sessions(page=2, page_size=2)
+        page2 = await session_service.list_sessions(
+            page=2, page_size=2, current_api_key="test-key"
+        )
         assert page2.total == 5
         assert len(page2.sessions) == 2
         assert page2.page == 2
 
         # Get third page (1 item)
-        page3 = await session_service.list_sessions(page=3, page_size=2)
+        page3 = await session_service.list_sessions(
+            page=3, page_size=2, current_api_key="test-key"
+        )
         assert page3.total == 5
         assert len(page3.sessions) == 1
         assert page3.page == 3
@@ -603,26 +610,31 @@ class TestSessionServiceEdgeCases:
         """Test that sessions are returned in descending created_at order."""
         import asyncio
 
-        # Create 3 sessions with small delays
+        # Create 3 sessions with small delays and owner
         session1 = await session_service.create_session(
             model="sonnet",
             session_id="session-1",
+            owner_api_key="test-key",
         )
         await asyncio.sleep(0.01)  # Small delay to ensure different timestamps
 
         session2 = await session_service.create_session(
             model="sonnet",
             session_id="session-2",
+            owner_api_key="test-key",
         )
         await asyncio.sleep(0.01)
 
         session3 = await session_service.create_session(
             model="sonnet",
             session_id="session-3",
+            owner_api_key="test-key",
         )
 
         # List sessions
-        result = await session_service.list_sessions(page=1, page_size=10)
+        result = await session_service.list_sessions(
+            page=1, page_size=10, current_api_key="test-key"
+        )
 
         assert len(result.sessions) == 3
         # Most recent first (session-3, session-2, session-1)
@@ -702,18 +714,21 @@ class TestSessionServiceEdgeCases:
         mock_cache: MockCache,
     ) -> None:
         """Test that list_sessions uses bulk cache read instead of N individual reads."""
-        # Create 3 sessions
+        # Create 3 sessions with owner
         for i in range(3):
             await session_service.create_session(
                 model="sonnet",
                 session_id=f"session-{i}",
+                owner_api_key="test-key",
             )
 
         # Reset counter after creation
         mock_cache.get_many_calls = 0
 
         # List sessions
-        result = await session_service.list_sessions(page=1, page_size=10)
+        result = await session_service.list_sessions(
+            page=1, page_size=10, current_api_key="test-key"
+        )
 
         # Should make exactly 1 bulk cache call (not 3 individual calls)
         assert result.total == 3
