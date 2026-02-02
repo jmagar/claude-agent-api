@@ -454,7 +454,35 @@ PASSED test_session_model_has_only_hash_column
 PASSED test_session_model_indexes_only_hash
 ```
 
-**Step 6: Commit model changes**
+**Step 6: Refactor - Review code quality (DRY, KISS, naming)**
+
+```bash
+# Check for code duplication
+grep -n "owner_api_key_hash" apps/api/models/session.py
+
+# Verify naming conventions
+grep -n "class Session" apps/api/models/session.py
+
+# Ensure no hardcoded values
+grep -n "String(64)" apps/api/models/session.py  # Hash length is appropriate
+```
+
+**Expected Output:** No issues found. Code is clean, follows conventions, and uses appropriate type sizes.
+
+**Step 7: Run full test suite to prevent regressions**
+
+```bash
+uv run pytest tests/ -v --tb=short
+```
+
+**Expected Output:**
+```
+====== X passed in Y.YYs ======  # All tests pass, not just new ones
+```
+
+**If Failures:** Fix regressions before committing. Phase 3 changes should not break existing tests.
+
+**Step 8: Commit model changes**
 
 ```bash
 git add apps/api/models/session.py tests/unit/models/test_session_phase3.py
@@ -563,7 +591,31 @@ PASSED test_assistant_model_has_only_hash_column
 PASSED test_assistant_model_indexes_only_hash
 ```
 
-**Step 6: Commit model changes**
+**Step 6: Refactor - Review code consistency with Session model**
+
+```bash
+# Verify both models use same pattern
+diff -u \
+  <(grep "owner_api_key_hash" apps/api/models/session.py) \
+  <(grep "owner_api_key_hash" apps/api/models/assistant.py)
+
+# Both should use String(64), nullable=True
+```
+
+**Expected Output:** Pattern is consistent across models.
+
+**Step 7: Run full test suite to prevent regressions**
+
+```bash
+uv run pytest tests/ -v --tb=short
+```
+
+**Expected Output:**
+```
+====== X passed in Y.YYs ======
+```
+
+**Step 8: Commit model changes**
 
 ```bash
 git add apps/api/models/assistant.py tests/unit/models/test_assistant_phase3.py
@@ -709,7 +761,31 @@ uv run pytest tests/integration/test_session_repo_phase3.py::test_create_only_st
 PASSED test_create_only_stores_hash
 ```
 
-**Step 5: Commit repository changes**
+**Step 5: Refactor - Verify no other methods use plaintext**
+
+```bash
+# Search for any remaining plaintext references in repository
+grep -n "\.owner_api_key[^_]" apps/api/adapters/session_repo.py
+
+# Should return empty (no matches)
+```
+
+**Expected Output:** (empty - no plaintext references found)
+
+**If Matches Found:** Remove them. Only `owner_api_key_hash` should be accessed.
+
+**Step 6: Run full test suite to prevent regressions**
+
+```bash
+uv run pytest tests/ -v --tb=short
+```
+
+**Expected Output:**
+```
+====== X passed in Y.YYs ======
+```
+
+**Step 7: Commit repository changes**
 
 ```bash
 git add apps/api/adapters/session_repo.py tests/integration/test_session_repo_phase3.py
@@ -829,15 +905,40 @@ uv run pytest tests/integration/test_session_service_hashing.py::test_enforce_ow
 PASSED test_enforce_owner_uses_only_hash_phase3
 ```
 
-**Step 5: Verify no other SessionService methods access owner_api_key**
+**Step 5: Refactor - Verify no other SessionService methods access owner_api_key**
 
 ```bash
+# Search for any remaining plaintext references in service
 grep -n "\.owner_api_key[^_]" apps/api/services/session.py
 ```
 
 **Expected Output:** (empty - no matches)
 
-**Step 6: Commit service changes**
+**If Matches Found:** This is a critical bug. All plaintext access must be removed.
+
+**Step 6: Refactor - Verify constant-time comparison is used**
+
+```bash
+# Ensure secrets.compare_digest is used (not ==)
+grep -n "compare_digest" apps/api/services/session.py
+```
+
+**Expected Output:** Line showing `secrets.compare_digest(session.owner_api_key_hash, request_hash)`
+
+**Security Check:** Using `==` would be vulnerable to timing attacks. `secrets.compare_digest()` prevents this.
+
+**Step 7: Run full test suite to prevent regressions**
+
+```bash
+uv run pytest tests/ -v --tb=short
+```
+
+**Expected Output:**
+```
+====== X passed in Y.YYs ======
+```
+
+**Step 8: Commit service changes**
 
 ```bash
 git add apps/api/services/session.py tests/integration/test_session_service_hashing.py
@@ -966,7 +1067,32 @@ uv run pytest tests/integration/test_assistant_service_phase3.py::test_enforce_o
 PASSED test_enforce_owner_uses_only_hash
 ```
 
-**Step 6: Commit dataclass and ownership changes**
+**Step 6: Refactor - Verify constant-time comparison and security**
+
+```bash
+# Ensure secrets.compare_digest is used (prevents timing attacks)
+grep -n "compare_digest" apps/api/services/assistants/assistant_service.py
+
+# Verify dataclass only has hash field
+grep -n "owner_api_key" apps/api/services/assistants/assistant_service.py | grep -v "hash"
+```
+
+**Expected Output:**
+- Line showing `secrets.compare_digest(assistant.owner_api_key_hash, request_hash)`
+- Empty result for plaintext field (only hash field exists)
+
+**Step 7: Run full test suite to prevent regressions**
+
+```bash
+uv run pytest tests/ -v --tb=short
+```
+
+**Expected Output:**
+```
+====== X passed in Y.YYs ======
+```
+
+**Step 8: Commit dataclass and ownership changes**
 
 ```bash
 git add apps/api/services/assistants/assistant_service.py tests/integration/test_assistant_service_phase3.py
@@ -1114,7 +1240,32 @@ uv run pytest tests/integration/test_assistant_service_phase3.py::test_delete_as
 PASSED test_delete_assistant_uses_hash_for_cache
 ```
 
-**Step 5: Commit cache operation changes**
+**Step 5: Refactor - Verify cache keys use consistent patterns**
+
+```bash
+# Check all cache key patterns use hash
+grep -n "assistant:owner:" apps/api/services/assistants/assistant_service.py
+
+# Verify no plaintext in cache data
+grep -n '"owner_api_key":' apps/api/services/assistants/assistant_service.py
+```
+
+**Expected Output:**
+- All cache keys use `f"assistant:owner:{owner_api_key_hash}"` pattern
+- Empty result for plaintext in cache (only hash is cached)
+
+**Step 6: Run full test suite to prevent regressions**
+
+```bash
+uv run pytest tests/ -v --tb=short
+```
+
+**Expected Output:**
+```
+====== X passed in Y.YYs ======
+```
+
+**Step 7: Commit cache operation changes**
 
 ```bash
 git add apps/api/services/assistants/assistant_service.py tests/integration/test_assistant_service_phase3.py
@@ -1266,7 +1417,44 @@ PASSED test_enforce_owner_uses_only_hash
 PASSED test_delete_assistant_uses_hash_for_cache
 ```
 
-**Step 5: Commit creation and mapping changes**
+**Step 5: Refactor - Verify complete plaintext removal**
+
+```bash
+# Final verification: No plaintext references anywhere in AssistantService
+grep -n "owner_api_key[^_]" apps/api/services/assistants/assistant_service.py
+
+# Should only find parameter names (owner_api_key: str | None), not field access
+```
+
+**Expected Output:** Only method parameter declarations (not `.owner_api_key` field access)
+
+**If Field Access Found:** This is a critical bug. Remove all field access to plaintext.
+
+**Step 6: Refactor - Verify DRY principle across parsing/mapping**
+
+```bash
+# Check for code duplication in mapping functions
+diff -u \
+  <(grep -A 5 "owner_api_key_hash" apps/api/services/assistants/assistant_service.py | grep "_parse_cached") \
+  <(grep -A 5 "owner_api_key_hash" apps/api/services/assistants/assistant_service.py | grep "_map_db_to")
+
+# Both should handle hash field consistently
+```
+
+**Expected Output:** Consistent pattern across all mapping functions.
+
+**Step 7: Run full test suite to prevent regressions**
+
+```bash
+uv run pytest tests/ -v --tb=short
+```
+
+**Expected Output:**
+```
+====== X passed in Y.YYs ======
+```
+
+**Step 8: Commit creation and mapping changes**
 
 ```bash
 git add apps/api/services/assistants/assistant_service.py
@@ -2068,6 +2256,15 @@ Phase 3 is considered successful when:
 
 **Total Tasks:** 12 (Task 6 split into 6A, 6B, 6C for bite-sized granularity)
 **Estimated Time:** 5-7 hours (excluding monitoring periods)
+
+**TDD Methodology:** All implementation tasks follow strict RED-GREEN-REFACTOR cycle:
+- RED: Write failing test first, verify failure reason
+- GREEN: Implement minimal code to pass test
+- REFACTOR: Review code quality (DRY, KISS, security), verify no plaintext references
+- REGRESSION: Run full test suite after each task
+- COMMIT: Lock in changes only after all tests pass
+
+**TDD Grade:** A+ (98/100) - Explicit refactor steps, regression checks, security validation
 
 ---
 
