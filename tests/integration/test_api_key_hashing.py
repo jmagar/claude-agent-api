@@ -56,7 +56,7 @@ class TestSessionRepositoryHashing:
         result = await db_session.execute(stmt)
         session = result.scalar_one()
 
-        assert session.owner_api_key == api_key  # Plaintext kept during Phase 2
+        # Phase 3: Only hash column exists (plaintext removed)
         assert session.owner_api_key_hash is not None
         assert session.owner_api_key_hash == hash_api_key(api_key)
 
@@ -78,7 +78,7 @@ class TestSessionRepositoryHashing:
         result = await db_session.execute(stmt)
         session = result.scalar_one()
 
-        assert session.owner_api_key is None
+        # Phase 3: Only hash column exists (plaintext removed)
         assert session.owner_api_key_hash is None
 
     @pytest.mark.anyio

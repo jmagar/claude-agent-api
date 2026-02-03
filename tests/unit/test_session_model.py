@@ -26,8 +26,11 @@ def test_session_relationships_use_lazy_raise() -> None:
     assert Session.parent_session.property.lazy == "raise"
 
 
-def test_session_owner_api_key_index_exists() -> None:
-    """Ensure sessions.owner_api_key has an index for filtered lookups."""
+def test_session_owner_api_key_hash_index_exists() -> None:
+    """Ensure sessions.owner_api_key_hash has an index for filtered lookups.
+
+    Phase 3: Only hash index exists (plaintext column removed).
+    """
     table = cast("Table", Session.__table__)
     index_names = {index.name for index in table.indexes}
-    assert "idx_sessions_owner_api_key" in index_names
+    assert "idx_sessions_owner_api_key_hash" in index_names

@@ -62,7 +62,6 @@ class Assistant(Base):
         default=dict,
         server_default="{}",
     )
-    owner_api_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
     owner_api_key_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     # Additional optional fields per OpenAI spec
     temperature: Mapped[float | None] = mapped_column(nullable=True)
@@ -74,7 +73,6 @@ class Assistant(Base):
 
     __table_args__ = (
         Index("idx_assistants_created_at", created_at.desc()),
-        Index("idx_assistants_owner_api_key", owner_api_key),
         Index("idx_assistants_owner_api_key_hash", owner_api_key_hash),
     )
 

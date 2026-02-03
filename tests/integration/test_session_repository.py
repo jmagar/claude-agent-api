@@ -17,6 +17,7 @@ from apps.api.adapters.session_repo import SessionRepository
 from apps.api.dependencies import get_db
 from apps.api.exceptions.session import SessionNotFoundError
 from apps.api.models.session import Checkpoint, Session, SessionMessage
+from apps.api.utils.crypto import hash_api_key
 
 
 @pytest.fixture
@@ -315,7 +316,9 @@ class TestSessionList:
         )
 
         assert total >= 2
-        assert all(s.owner_api_key == owner_a for s in sessions)
+        # Phase 3: Check via hash (plaintext column removed)
+        owner_a_hash = hash_api_key(owner_a)
+        assert all(s.owner_api_key_hash == owner_a_hash for s in sessions)
         found_ids = {s.id for s in sessions}
         assert id1 in found_ids
         assert id2 in found_ids

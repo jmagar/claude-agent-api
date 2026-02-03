@@ -50,7 +50,7 @@ class DbAssistantDict(TypedDict):
     instructions: NotRequired[str | None]
     tools: NotRequired[list[dict[str, object]]]
     metadata_: NotRequired[dict[str, str] | None]
-    owner_api_key: NotRequired[str | None]
+    owner_api_key_hash: NotRequired[str | None]
     temperature: NotRequired[float | None]
     top_p: NotRequired[float | None]
     response_format: NotRequired[dict[str, str] | None]
@@ -69,7 +69,7 @@ class DbAssistant(Protocol):
     instructions: str | None
     tools: list[dict[str, object]]
     metadata_: dict[str, str] | None
-    owner_api_key: str | None
+    owner_api_key_hash: str | None
     temperature: float | None
     top_p: float | None
 
@@ -153,7 +153,7 @@ class Assistant:
     instructions: str | None = None
     tools: list[dict[str, object]] = field(default_factory=list)
     metadata: dict[str, str] = field(default_factory=dict)
-    owner_api_key: str | None = None
+    owner_api_key_hash: str | None = None
     temperature: float | None = None
     top_p: float | None = None
     response_format: dict[str, str] | None = None
@@ -242,6 +242,9 @@ class AssistantService:
         tools_list = tools if tools is not None else []
         metadata_dict = metadata if metadata is not None else {}
 
+        # Phase 3: Hash the API key (plaintext is never stored)
+        owner_api_key_hash = hash_api_key(owner_api_key) if owner_api_key else None
+
         assistant = Assistant(
             id=assistant_id,
             model=model,
@@ -250,7 +253,7 @@ class AssistantService:
             instructions=instructions,
             tools=tools_list,
             metadata=metadata_dict,
-            owner_api_key=owner_api_key,
+            owner_api_key_hash=owner_api_key_hash,
             temperature=temperature,
             top_p=top_p,
             created_at=now,
@@ -268,7 +271,7 @@ class AssistantService:
                     instructions=instructions,
                     tools=tools_list,
                     metadata=metadata_dict,
-                    owner_api_key=owner_api_key,
+                    owner_api_key=owner_api_key,  # Repository hashes internally
                     temperature=temperature,
                     top_p=top_p,
                 )
@@ -528,10 +531,9 @@ class AssistantService:
             key = self._cache_key(assistant_id)
             await self._cache.delete(key)
 
-            # Phase 2: Remove from hashed owner index
-            if assistant and assistant.owner_api_key:
-                owner_api_key_hash = hash_api_key(assistant.owner_api_key)
-                owner_index_key = f"assistant:owner:{owner_api_key_hash}"
+            # Phase 3: Remove from owner index using hash directly
+            if assistant and assistant.owner_api_key_hash:
+                owner_index_key = f"assistant:owner:{assistant.owner_api_key_hash}"
                 await self._cache.remove_from_set(owner_index_key, assistant_id)
 
         logger.info("Assistant deleted", assistant_id=assistant_id)
@@ -556,7 +558,7 @@ class AssistantService:
             "instructions": assistant.instructions,
             "tools": tools_json,
             "metadata": metadata_json,
-            "owner_api_key": assistant.owner_api_key,
+            "owner_api_key_hash": assistant.owner_api_key_hash,
             "temperature": assistant.temperature,
             "top_p": assistant.top_p,
             "created_at": assistant.created_at.isoformat(),
@@ -565,10 +567,9 @@ class AssistantService:
 
         await self._cache.set_json(key, data, self._ttl)
 
-        # Phase 2: Add to hashed owner index for multi-tenant filtering
-        if assistant.owner_api_key:
-            owner_api_key_hash = hash_api_key(assistant.owner_api_key)
-            owner_index_key = f"assistant:owner:{owner_api_key_hash}"
+        # Phase 3: Add to owner index using hash directly
+        if assistant.owner_api_key_hash:
+            owner_index_key = f"assistant:owner:{assistant.owner_api_key_hash}"
             await self._cache.add_to_set(owner_index_key, assistant.id)
 
     async def _get_cached_assistant(self, assistant_id: str) -> Assistant | None:
@@ -631,8 +632,8 @@ class AssistantService:
                 else None,
                 tools=tools,
                 metadata=metadata,
-                owner_api_key=str(parsed["owner_api_key"])
-                if parsed.get("owner_api_key")
+                owner_api_key_hash=str(parsed["owner_api_key_hash"])
+                if parsed.get("owner_api_key_hash")
                 else None,
                 temperature=float(str(parsed["temperature"]))
                 if parsed.get("temperature")
@@ -658,7 +659,7 @@ class AssistantService:
             instructions=db_assistant.instructions,
             tools=db_assistant.tools,
             metadata=db_assistant.metadata_ or {},
-            owner_api_key=db_assistant.owner_api_key,
+            owner_api_key_hash=db_assistant.owner_api_key_hash,
             temperature=db_assistant.temperature,
             top_p=db_assistant.top_p,
             created_at=db_assistant.created_at,
@@ -674,18 +675,20 @@ class AssistantService:
 
         Args:
             assistant: The assistant to check ownership for.
-            current_api_key: The API key from the request.
+            current_api_key: The API key from the request (plaintext).
 
         Returns:
             The assistant if ownership check passes.
 
         Raises:
             AssistantNotFoundError: If ownership check fails.
+
+        Phase 3:
+            Uses hash-based comparison for security.
         """
-        if (
-            current_api_key
-            and assistant.owner_api_key
-            and not secrets.compare_digest(assistant.owner_api_key, current_api_key)
-        ):
-            raise AssistantNotFoundError(assistant.id)
+        if current_api_key and assistant.owner_api_key_hash:
+            # Phase 3: Hash the incoming key and compare to stored hash
+            request_hash = hash_api_key(current_api_key)
+            if not secrets.compare_digest(assistant.owner_api_key_hash, request_hash):
+                raise AssistantNotFoundError(assistant.id)
         return assistant

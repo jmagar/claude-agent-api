@@ -51,7 +51,6 @@ class CachedSessionData(TypedDict):
     total_turns: int
     total_cost_usd: float | None
     parent_session_id: str | None
-    owner_api_key: str | None
     owner_api_key_hash: str | None
 
 
@@ -67,7 +66,6 @@ class Session:
     total_turns: int = 0
     total_cost_usd: float | None = None
     parent_session_id: str | None = None
-    owner_api_key: str | None = None
     owner_api_key_hash: str | None = None
 
 
@@ -227,7 +225,7 @@ class SessionService:
 
         # Create session object
         now = datetime.now(UTC)
-        # Compute hash for owner API key if provided
+        # Phase 3: Compute hash for owner API key (plaintext never stored)
         owner_api_key_hash = hash_api_key(owner_api_key) if owner_api_key else None
         session = Session(
             id=session_id,
@@ -236,7 +234,6 @@ class SessionService:
             total_turns=0,
             total_cost_usd=None,
             parent_session_id=parent_session_id,
-            owner_api_key=owner_api_key,
             owner_api_key_hash=owner_api_key_hash,
             created_at=now,
             updated_at=now,
@@ -553,22 +550,22 @@ class SessionService:
             True if deleted, False if not found.
         """
         if self._cache:
-            owner_api_key: str | None = None
+            # Phase 3: Get hash directly (plaintext column no longer exists)
+            owner_api_key_hash: str | None = None
             cached_session = await self._get_cached_session(session_id)
             if cached_session:
-                owner_api_key = cached_session.owner_api_key
+                owner_api_key_hash = cached_session.owner_api_key_hash
             elif self._db_repo:
                 try:
                     db_session = await self._db_repo.get(UUID(session_id))
                 except (TypeError, ValueError):
                     db_session = None
                 if db_session:
-                    owner_api_key = db_session.owner_api_key
+                    owner_api_key_hash = db_session.owner_api_key_hash
 
             key = self._cache_key(session_id)
-            # Phase 2: Use hashed owner index key
-            if owner_api_key:
-                owner_api_key_hash = hash_api_key(owner_api_key)
+            # Phase 3: Use hash directly for owner index
+            if owner_api_key_hash:
                 owner_index_key = f"session:owner:{owner_api_key_hash}"
                 await self._cache.remove_from_set(owner_index_key, session_id)
 
@@ -612,16 +609,14 @@ class SessionService:
             "total_turns": session.total_turns,
             "total_cost_usd": session.total_cost_usd,
             "parent_session_id": session.parent_session_id,
-            "owner_api_key": session.owner_api_key,
             "owner_api_key_hash": session.owner_api_key_hash,
         }
 
         await self._cache.set_json(key, data, self._ttl)
 
-        # Maintain owner index for efficient owner-filtered queries (Phase 2: use hash)
-        if session.owner_api_key:
-            owner_api_key_hash = hash_api_key(session.owner_api_key)
-            owner_index_key = f"session:owner:{owner_api_key_hash}"
+        # Phase 3: Maintain owner index using hash directly
+        if session.owner_api_key_hash:
+            owner_index_key = f"session:owner:{session.owner_api_key_hash}"
             await self._cache.add_to_set(owner_index_key, session.id)
 
     async def _get_cached_session(self, session_id: str) -> Session | None:
@@ -698,8 +693,7 @@ class SessionService:
 
             parent_id_raw = parsed.get("parent_session_id")
             parent_id_val = str(parent_id_raw) if parent_id_raw is not None else None
-            owner_raw = parsed.get("owner_api_key")
-            owner_val = str(owner_raw) if owner_raw is not None else None
+            # Phase 3: Only hash is stored
             owner_hash_raw = parsed.get("owner_api_key_hash")
             owner_hash_val = str(owner_hash_raw) if owner_hash_raw is not None else None
 
@@ -722,7 +716,6 @@ class SessionService:
                 total_turns=total_turns_val,
                 total_cost_usd=total_cost_val,
                 parent_session_id=parent_id_val,
-                owner_api_key=owner_val,
                 owner_api_key_hash=owner_hash_val,
             )
         except (KeyError, ValueError, TypeError) as e:
@@ -768,7 +761,6 @@ class SessionService:
                 if db_session.parent_session_id
                 else None
             ),
-            owner_api_key=db_session.owner_api_key,
             owner_api_key_hash=db_session.owner_api_key_hash,
             created_at=db_session.created_at,
             updated_at=db_session.updated_at,
@@ -790,25 +782,21 @@ class SessionService:
 
         Raises:
             SessionNotFoundError: If ownership check fails (logged with structured data).
+
+        Phase 3:
+            Only uses owner_api_key_hash (plaintext column removed).
         """
-        if current_api_key and session.owner_api_key:
-            # Get session hash (prefer owner_api_key_hash, fallback to hashing owner_api_key)
-            session_hash = (
-                session.owner_api_key_hash
-                if session.owner_api_key_hash
-                else hash_api_key(session.owner_api_key)
-            )
-            # Hash the request API key
+        if current_api_key and session.owner_api_key_hash:
+            # Phase 3: Hash the request API key and compare to stored hash
             request_hash = hash_api_key(current_api_key)
 
             # Constant-time comparison of hashes
-            if not secrets.compare_digest(session_hash, request_hash):
-                # Issue #9: Add structured logging before raising
+            if not secrets.compare_digest(session.owner_api_key_hash, request_hash):
                 logger.warning(
                     "ownership_check_failed",
                     session_id=session.id,
-                    has_session_hash=bool(session.owner_api_key_hash),
-                    has_request_key=bool(current_api_key),
+                    has_session_hash=True,
+                    has_request_key=True,
                 )
                 raise SessionNotFoundError(session.id)
         return session

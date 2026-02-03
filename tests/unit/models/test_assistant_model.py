@@ -31,7 +31,7 @@ class TestAssistantModel:
         assert "instructions" in columns
         assert "tools" in columns
         assert "metadata" in columns
-        assert "owner_api_key" in columns
+        assert "owner_api_key_hash" in columns
 
     def test_id_is_string_primary_key(self) -> None:
         """ID column is a string (asst_xxx format) primary key."""
@@ -58,15 +58,15 @@ class TestAssistantModel:
         metadata_col = Assistant.__table__.c.metadata
         assert isinstance(metadata_col.type, JSONB)
 
-    def test_has_owner_api_key_index(self) -> None:
-        """Has index on owner_api_key column."""
+    def test_has_owner_api_key_hash_index(self) -> None:
+        """Has index on owner_api_key_hash column (Phase 3)."""
         from typing import cast
 
         from apps.api.models.assistant import Assistant
 
         table = cast("Table", Assistant.__table__)
         index_names = {idx.name for idx in table.indexes}
-        assert "idx_assistants_owner_api_key" in index_names
+        assert "idx_assistants_owner_api_key_hash" in index_names
 
     def test_tablename_is_assistants(self) -> None:
         """Table name is 'assistants'."""

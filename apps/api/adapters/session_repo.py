@@ -1,10 +1,9 @@
-"""Session repository with Phase 2 API key hashing.
+"""Session repository with API key hashing.
 
-This repository implements Phase 2 of the API key hashing migration:
-- Both owner_api_key (plaintext) and owner_api_key_hash (SHA-256) columns exist
+This repository implements secure API key hashing:
+- Only owner_api_key_hash (SHA-256) column exists (Phase 3 complete)
 - All queries filter by hash for security
-- Plaintext column maintained for rollback safety
-- Phase 3 will drop plaintext column after production verification
+- Plaintext API keys are never stored
 
 See: .docs/api-key-hashing-migration.md for full migration plan.
 """
@@ -59,18 +58,10 @@ class SessionRepository:
             - NULL in owner_api_key_hash indicates a public session
             - Use filter_by_owner_or_public=True to include public sessions
 
-        Phase 2 Migration:
-            - Both owner_api_key and owner_api_key_hash columns populated
-            - Queries filter by hash for security (constant-time comparison)
-            - Plaintext column will be dropped in Phase 3
-
         Returns:
             Created session.
         """
-        # Phase 2 Migration: Store both plaintext and hash for safe rollback.
-        # - owner_api_key: Plaintext (will be dropped in Phase 3)
-        # - owner_api_key_hash: SHA-256 hash (permanent)
-        # All filtering/authentication uses hashed values.
+        # Phase 3: Only hash is stored, plaintext column no longer exists
         owner_api_key_hash = hash_api_key(owner_api_key) if owner_api_key else None
 
         session = Session(
@@ -79,7 +70,6 @@ class SessionRepository:
             working_directory=working_directory,
             parent_session_id=parent_session_id,
             metadata_=metadata,
-            owner_api_key=owner_api_key,  # Keep for backward compatibility during rollout
             owner_api_key_hash=owner_api_key_hash,
         )
         self._db.add(session)

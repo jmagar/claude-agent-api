@@ -11,12 +11,18 @@
 ## ⚠️ CRITICAL DEPLOYMENT NOTES
 
 **Current Branch Status:**
-- ✅ **Phase 1 Migration EXISTS:** `20260201_000006_hash_api_keys.py` (safe to deploy)
-- ❌ **Phase 3 Migration REMOVED:** `20260201_000007` does NOT exist in this branch
-- ⚠️ **DO NOT create Phase 3 migration** until AFTER Phase 2 code is deployed and verified
+- ✅ **Phase 1 Migration EXISTS:** `20260201_000006_hash_api_keys.py`
+- ✅ **Phase 2 Code EXISTS:** Application code uses hash-based authentication
+- ✅ **Phase 3 Migration EXISTS:** `20260208_000007_drop_plaintext_api_keys.py`
+- ✅ **Phase 3 Code EXISTS:** Models and services use only `owner_api_key_hash`
 
-**Why Phase 3 is Removed:**
-Running `alembic upgrade head` would drop `owner_api_key` columns, but the application code still uses them. This would cause immediate production outage. Phase 3 migration must only be created AFTER Phase 2 code changes are deployed.
+**Deployment Order:**
+1. Run Phase 1 migration (adds hash columns)
+2. Deploy Phase 2 code (uses both columns)
+3. Wait for verification period
+4. Run Phase 3 migration (drops plaintext columns)
+
+**WARNING:** Running `alembic upgrade head` will apply Phase 3 migration. Ensure Phase 2 code is deployed first.
 
 ---
 
@@ -89,31 +95,30 @@ export DATABASE_URL="postgresql://..."
 uv run python scripts/verify_hash_consistency.py
 ```
 
-### Phase 3: Drop Plaintext Column (Manual - After Phase 2 Verification)
+### Phase 3: Drop Plaintext Column (IMPLEMENTED)
 
-⚠️ **WARNING:** This phase is IRREVERSIBLE. Only run after Phase 2 is verified in production for 7+ days.
+⚠️ **WARNING:** This phase is IRREVERSIBLE. Only run after Phase 2 is verified.
 
-**Status:** Migration file does NOT exist yet. Must be created manually after Phase 2 deployment.
+**Status:** ✅ Migration and code changes implemented.
 
-**Steps to Create Phase 3 Migration:**
+**Migration:** `20260208_000007_drop_plaintext_api_keys.py`
+
+**Code Changes:**
+- Removed `owner_api_key` column from `Session` and `Assistant` models
+- Updated `SessionRepository.create()` to only set hash
+- Updated `SessionService._enforce_owner()` to use only hash
+- Updated `AssistantService` dataclass, cache, and ownership check
+- All services and adapters use `owner_api_key_hash` exclusively
+
+**Run Migration:**
 ```bash
-# 1. Verify Phase 2 has been running successfully for 7+ days
-
-# 2. MANDATORY: Verify hash consistency before creating migration
+# 1. Verify Phase 2 has been running successfully
 export DATABASE_URL="postgresql://..."
 uv run python scripts/verify_hash_consistency.py
-# Must exit with code 0 (all hashes match) - DO NOT proceed if mismatches found
+# Must exit with code 0 (all hashes match)
 
-# 3. Create the migration
-uv run alembic revision -m "Drop plaintext API key columns (Phase 3)"
-
-# 4. Edit the migration file to drop columns:
-# - op.drop_column('sessions', 'owner_api_key')
-# - op.drop_column('assistants', 'owner_api_key')
-# - op.drop_index('idx_sessions_owner_api_key')
-
-# 5. Run the migration
-uv run alembic upgrade head
+# 2. Run the migration
+uv run alembic upgrade 20260208_000007
 ```
 
 **State After Phase 3:**
@@ -464,3 +469,4 @@ A: Cache stores hashed keys (same as database). Cache-aside pattern ensures cons
 | Date | Version | Author | Changes |
 |------|---------|--------|---------|
 | 2026-02-01 | 1.0 | Claude | Initial migration guide |
+| 2026-02-02 | 2.0 | Claude | Phase 3 implementation complete - migration + code changes |

@@ -96,7 +96,8 @@ class TestSessionServiceCacheHashing:
         )
 
         assert session.id == session_id
-        assert session.owner_api_key == api_key
+        # Phase 3: Check via hash (plaintext column removed)
+        assert session.owner_api_key_hash == hash_api_key(api_key)
 
         # Verify Redis cache has hashed owner index key
         hashed_key = hash_api_key(api_key)
@@ -166,7 +167,7 @@ class TestSessionServiceCacheHashing:
 
         # Create multiple sessions via SessionService
         session_ids = []
-        for i in range(3):
+        for _ in range(3):
             session_id = str(uuid4())
             await session_service.create_session(
                 model="sonnet",
@@ -200,10 +201,11 @@ class TestSessionServiceCacheHashing:
         for session_id in session_ids:
             assert session_id in result_ids, f"Session {session_id} should be in results"
 
-        # Verify sessions have correct owner
+        # Verify sessions have correct owner (check via hash, plaintext removed in Phase 3)
+        api_key_hash = hash_api_key(api_key)
         for session in result.sessions:
             if session.id in session_ids:
-                assert session.owner_api_key == api_key
+                assert session.owner_api_key_hash == api_key_hash
 
     @pytest.mark.anyio
     async def test_session_service_enforce_owner_uses_hash(
@@ -223,7 +225,8 @@ class TestSessionServiceCacheHashing:
             owner_api_key=owner_a,
         )
 
-        assert session.owner_api_key == owner_a
+        # Phase 3: Check via hash (plaintext column removed)
+        assert session.owner_api_key_hash == hash_api_key(owner_a)
 
         # Attempt to get session with wrong API key (owner B)
         with pytest.raises(SessionNotFoundError) as exc_info:
@@ -243,7 +246,8 @@ class TestSessionServiceCacheHashing:
 
         assert retrieved is not None
         assert retrieved.id == session_id
-        assert retrieved.owner_api_key == owner_a
+        # Phase 3: Check via hash (plaintext column removed)
+        assert retrieved.owner_api_key_hash == hash_api_key(owner_a)
 
         # Verify different key (owner B) cannot access owned session
         with pytest.raises(SessionNotFoundError):
@@ -309,7 +313,8 @@ class TestSessionServiceCacheHashing:
             owner_api_key=None,
         )
 
-        assert session.owner_api_key is None
+        # Phase 3: Only hash column exists (plaintext removed)
+        assert session.owner_api_key_hash is None
 
         # Verify no owner index was created (check common hash patterns)
         # Hash of empty string

@@ -257,8 +257,13 @@ class TestTimingAttackPrevention:
         self,
         session_service: SessionService,
     ) -> None:
-        """Test _enforce_owner method with matching API keys."""
+        """Test _enforce_owner method with matching API keys.
+
+        Phase 3: Session uses owner_api_key_hash, _enforce_owner hashes
+        incoming key and compares.
+        """
         from apps.api.services.session import Session
+        from apps.api.utils.crypto import hash_api_key
 
         session = Session(
             id="test-session-id",
@@ -266,10 +271,10 @@ class TestTimingAttackPrevention:
             status="active",
             created_at=datetime.now(UTC),
             updated_at=datetime.now(UTC),
-            owner_api_key="owner-key-123",
+            owner_api_key_hash=hash_api_key("owner-key-123"),
         )
 
-        # Should succeed with matching key
+        # Should succeed with matching key (hashed internally)
         result = session_service._enforce_owner(session, "owner-key-123")
         assert result.id == session.id
 
@@ -278,8 +283,12 @@ class TestTimingAttackPrevention:
         self,
         session_service: SessionService,
     ) -> None:
-        """Test _enforce_owner method with mismatched API keys."""
+        """Test _enforce_owner method with mismatched API keys.
+
+        Phase 3: Comparison is done via hashes.
+        """
         from apps.api.services.session import Session
+        from apps.api.utils.crypto import hash_api_key
 
         session = Session(
             id="test-session-id",
@@ -287,7 +296,7 @@ class TestTimingAttackPrevention:
             status="active",
             created_at=datetime.now(UTC),
             updated_at=datetime.now(UTC),
-            owner_api_key="owner-key-123",
+            owner_api_key_hash=hash_api_key("owner-key-123"),
         )
 
         # Should raise SessionNotFoundError with mismatched key
@@ -302,7 +311,10 @@ class TestTimingAttackPrevention:
         self,
         session_service: SessionService,
     ) -> None:
-        """Test _enforce_owner method when session has no owner."""
+        """Test _enforce_owner method when session has no owner.
+
+        Phase 3: Public sessions have owner_api_key_hash=None.
+        """
         from apps.api.services.session import Session
 
         session = Session(
@@ -311,7 +323,7 @@ class TestTimingAttackPrevention:
             status="active",
             created_at=datetime.now(UTC),
             updated_at=datetime.now(UTC),
-            owner_api_key=None,
+            owner_api_key_hash=None,
         )
 
         # Should succeed regardless of provided API key
@@ -323,8 +335,12 @@ class TestTimingAttackPrevention:
         self,
         session_service: SessionService,
     ) -> None:
-        """Test _enforce_owner method when no current API key is provided."""
+        """Test _enforce_owner method when no current API key is provided.
+
+        Phase 3: Uses owner_api_key_hash.
+        """
         from apps.api.services.session import Session
+        from apps.api.utils.crypto import hash_api_key
 
         session = Session(
             id="test-session-id",
@@ -332,7 +348,7 @@ class TestTimingAttackPrevention:
             status="active",
             created_at=datetime.now(UTC),
             updated_at=datetime.now(UTC),
-            owner_api_key="owner-key-123",
+            owner_api_key_hash=hash_api_key("owner-key-123"),
         )
 
         # Should succeed when no API key is provided (backward compatibility)
