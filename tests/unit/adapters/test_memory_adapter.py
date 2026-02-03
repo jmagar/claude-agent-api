@@ -1,6 +1,9 @@
 """Tests for Mem0 memory adapter."""
+
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+
 from apps.api.adapters.memory import Mem0MemoryAdapter
 from apps.api.config import Settings
 
@@ -87,4 +90,56 @@ async def test_mem0_adapter_add(settings: Settings) -> None:
             agent_id="main",
             metadata={"source": "conversation"},
             enable_graph=True,
+        )
+
+
+@pytest.mark.anyio
+async def test_mem0_adapter_get_all(settings: Settings) -> None:
+    """Mem0 adapter should retrieve all memories for a user."""
+    with patch("apps.api.adapters.memory.Memory") as mock_memory_class:
+        mock_memory = MagicMock()
+        mock_memory.get_all.return_value = [{"id": "mem_123", "memory": "Test memory"}]
+        mock_memory_class.from_config.return_value = mock_memory
+
+        adapter = Mem0MemoryAdapter(settings)
+        results = await adapter.get_all(user_id="test-api-key")
+
+        assert len(results) == 1
+        assert results[0]["id"] == "mem_123"
+        mock_memory.get_all.assert_called_once_with(
+            user_id="test-api-key",
+            agent_id="main",
+        )
+
+
+@pytest.mark.anyio
+async def test_mem0_adapter_delete(settings: Settings) -> None:
+    """Mem0 adapter should delete a specific memory."""
+    with patch("apps.api.adapters.memory.Memory") as mock_memory_class:
+        mock_memory = MagicMock()
+        mock_memory.delete.return_value = None
+        mock_memory_class.from_config.return_value = mock_memory
+
+        adapter = Mem0MemoryAdapter(settings)
+        await adapter.delete(memory_id="mem_123", user_id="test-api-key")
+
+        mock_memory.delete.assert_called_once_with(
+            memory_id="mem_123",
+            user_id="test-api-key",
+        )
+
+
+@pytest.mark.anyio
+async def test_mem0_adapter_delete_all(settings: Settings) -> None:
+    """Mem0 adapter should delete all memories for a user."""
+    with patch("apps.api.adapters.memory.Memory") as mock_memory_class:
+        mock_memory = MagicMock()
+        mock_memory.delete_all.return_value = None
+        mock_memory_class.from_config.return_value = mock_memory
+
+        adapter = Mem0MemoryAdapter(settings)
+        await adapter.delete_all(user_id="test-api-key")
+
+        mock_memory.delete_all.assert_called_once_with(
+            user_id="test-api-key",
         )

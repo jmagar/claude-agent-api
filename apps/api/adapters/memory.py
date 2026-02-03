@@ -1,6 +1,6 @@
 """Mem0 memory adapter implementation."""
+
 import asyncio
-from typing import cast
 
 import structlog
 from mem0 import Memory
@@ -20,7 +20,11 @@ class Mem0MemoryAdapter:
         self._agent_id = settings.mem0_agent_id
 
         # Parse Qdrant URL
-        qdrant_parts = settings.qdrant_url.replace("http://", "").replace("https://", "").split(":")
+        qdrant_parts = (
+            settings.qdrant_url.replace("http://", "")
+            .replace("https://", "")
+            .split(":")
+        )
         qdrant_host = qdrant_parts[0]
         qdrant_port = int(qdrant_parts[1]) if len(qdrant_parts) > 1 else 6333
 
@@ -72,7 +76,22 @@ class Mem0MemoryAdapter:
         limit: int = 10,
         enable_graph: bool = True,
     ) -> list[MemorySearchResult]:
-        """Search memories for a user."""
+        """Search memories for a user.
+
+        Performs semantic search across user's memory store with optional
+        graph context enhancement. Results are scoped to user_id for
+        multi-tenant isolation.
+
+        Args:
+            query: Search query string for semantic matching.
+            user_id: User identifier for multi-tenant isolation.
+            limit: Maximum number of results to return.
+            enable_graph: Include graph relationships in search.
+                Adds ~100-200ms latency when enabled.
+
+        Returns:
+            List of memory search results sorted by relevance score.
+        """
         loop = asyncio.get_event_loop()
         results = await loop.run_in_executor(
             None,
@@ -86,14 +105,11 @@ class Mem0MemoryAdapter:
         )
 
         return [
-            cast(
-                "MemorySearchResult",
-                {
-                    "id": r["id"],
-                    "memory": r["memory"],
-                    "score": r.get("score", 0.0),
-                    "metadata": r.get("metadata", {}),
-                },
+            MemorySearchResult(
+                id=r["id"],
+                memory=r["memory"],
+                score=r.get("score", 0.0),
+                metadata=r.get("metadata", {}),
             )
             for r in results
         ]
@@ -105,7 +121,21 @@ class Mem0MemoryAdapter:
         metadata: dict[str, object] | None = None,
         enable_graph: bool = True,
     ) -> list[dict[str, object]]:
-        """Add memories from conversation."""
+        """Add memories from conversation.
+
+        Extracts and stores memories from conversation text. Uses LLM to
+        identify meaningful information for future retrieval.
+
+        Args:
+            messages: Conversation content to extract memories from.
+            user_id: User identifier for multi-tenant isolation.
+            metadata: Optional metadata to attach to extracted memories.
+            enable_graph: Enable graph-based entity/relationship extraction.
+                Adds ~100-200ms latency when enabled.
+
+        Returns:
+            List of created memory records with IDs and content.
+        """
         loop = asyncio.get_event_loop()
         results = await loop.run_in_executor(
             None,
@@ -123,7 +153,17 @@ class Mem0MemoryAdapter:
         self,
         user_id: str,
     ) -> list[dict[str, object]]:
-        """Get all memories for a user."""
+        """Get all memories for a user.
+
+        Retrieves all stored memories without filtering by relevance.
+        Results are scoped to user_id for multi-tenant isolation.
+
+        Args:
+            user_id: User identifier for multi-tenant isolation.
+
+        Returns:
+            List of all memory records for the user.
+        """
         loop = asyncio.get_event_loop()
         results = await loop.run_in_executor(
             None,
@@ -139,7 +179,18 @@ class Mem0MemoryAdapter:
         memory_id: str,
         user_id: str,
     ) -> None:
-        """Delete a specific memory."""
+        """Delete a specific memory.
+
+        Removes a memory from both vector and graph stores. Requires
+        user_id for authorization verification.
+
+        Args:
+            memory_id: Memory identifier to delete.
+            user_id: User identifier for authorization check.
+
+        Raises:
+            ValueError: If memory does not belong to user_id.
+        """
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(
             None,
@@ -153,7 +204,14 @@ class Mem0MemoryAdapter:
         self,
         user_id: str,
     ) -> None:
-        """Delete all memories for a user."""
+        """Delete all memories for a user.
+
+        Removes all memories from both vector and graph stores for the
+        specified user. This operation is irreversible.
+
+        Args:
+            user_id: User identifier whose memories should be deleted.
+        """
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(
             None,
