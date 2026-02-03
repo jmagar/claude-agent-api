@@ -7,6 +7,7 @@ from mem0 import Memory
 
 from apps.api.config import Settings
 from apps.api.protocols import MemorySearchResult
+from apps.api.types import JsonValue
 
 logger = structlog.get_logger(__name__)
 
@@ -118,9 +119,9 @@ class Mem0MemoryAdapter:
         self,
         messages: str,
         user_id: str,
-        metadata: dict[str, object] | None = None,
+        metadata: dict[str, JsonValue] | None = None,
         enable_graph: bool = True,
-    ) -> list[dict[str, object]]:
+    ) -> list[dict[str, JsonValue]]:
         """Add memories from conversation.
 
         Extracts and stores memories from conversation text. Uses LLM to
@@ -152,7 +153,7 @@ class Mem0MemoryAdapter:
     async def get_all(
         self,
         user_id: str,
-    ) -> list[dict[str, object]]:
+    ) -> list[dict[str, JsonValue]]:
         """Get all memories for a user.
 
         Retrieves all stored memories without filtering by relevance.

@@ -3,6 +3,7 @@
 import structlog
 
 from apps.api.protocols import MemoryProtocol, MemorySearchResult
+from apps.api.types import JsonValue
 
 logger = structlog.get_logger(__name__)
 
@@ -55,9 +56,9 @@ class MemoryService:
         self,
         messages: str,
         user_id: str,
-        metadata: dict[str, object] | None = None,
+        metadata: dict[str, JsonValue] | None = None,
         enable_graph: bool = True,
-    ) -> list[dict[str, object]]:
+    ) -> list[dict[str, JsonValue]]:
         """Add memories from conversation.
 
         Args:
@@ -79,7 +80,7 @@ class MemoryService:
     async def get_all_memories(
         self,
         user_id: str,
-    ) -> list[dict[str, object]]:
+    ) -> list[dict[str, JsonValue]]:
         """Get all memories for a user.
 
         Args:

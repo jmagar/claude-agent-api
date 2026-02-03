@@ -6,6 +6,7 @@ from fastapi import APIRouter, status
 from apps.api.dependencies import ApiKey, MemorySvc
 from apps.api.schemas.memory import (
     MemoryAddRequest,
+    MemoryAddResponse,
     MemoryDeleteResponse,
     MemoryListResponse,
     MemoryResult,
@@ -46,12 +47,12 @@ async def search_memories(
     )
 
 
-@router.post("", status_code=status.HTTP_201_CREATED)
+@router.post("", status_code=status.HTTP_201_CREATED, response_model=MemoryAddResponse)
 async def add_memory(
     request: MemoryAddRequest,
     api_key: ApiKey,
     memory_service: MemorySvc,
-) -> dict[str, object]:
+) -> MemoryAddResponse:
     """Add a memory for the current user.
 
     Args:
@@ -69,7 +70,7 @@ async def add_memory(
         enable_graph=request.enable_graph,
     )
 
-    return {"memories": results, "count": len(results)}
+    return MemoryAddResponse(memories=results, count=len(results))
 
 
 @router.get("", response_model=MemoryListResponse)

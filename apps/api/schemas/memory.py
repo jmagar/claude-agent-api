@@ -1,18 +1,17 @@
 """Memory API request/response schemas."""
 
-from typing import Any
-
 from pydantic import BaseModel, Field
 
-# JSON-serializable value type (recursive union for nested structures)
-JsonValue = str | int | float | bool | None | dict[str, Any] | list[Any]
+# Note: Using object instead of recursive object for Pydantic compatibility
+# Pydantic cannot handle recursive type aliases in models (causes RecursionError)
+# The recursive object type is used in protocols and services for type safety
 
 
 class MemoryAddRequest(BaseModel):
     """Request to add a memory."""
 
     messages: str = Field(..., description="Content to extract memories from")
-    metadata: dict[str, JsonValue] | None = Field(
+    metadata: dict[str, object] | None = Field(
         None, description="Optional metadata to attach to memories"
     )
     enable_graph: bool = Field(
@@ -34,7 +33,7 @@ class MemoryResult(BaseModel):
     id: str = Field(..., description="Unique memory identifier")
     memory: str = Field(..., description="Memory content text")
     score: float = Field(0.0, description="Relevance score (0.0-1.0)")
-    metadata: dict[str, JsonValue] = Field(
+    metadata: dict[str, object] = Field(
         default_factory=dict, description="Associated metadata"
     )
 
@@ -46,10 +45,17 @@ class MemorySearchResponse(BaseModel):
     count: int
 
 
+class MemoryAddResponse(BaseModel):
+    """Response from adding memories."""
+
+    memories: list[dict[str, object]]
+    count: int
+
+
 class MemoryListResponse(BaseModel):
     """Response from listing all memories."""
 
-    memories: list[dict[str, JsonValue]]
+    memories: list[dict[str, object]]
     count: int
 
 

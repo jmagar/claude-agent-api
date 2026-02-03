@@ -3,6 +3,8 @@
 from typing import TYPE_CHECKING, Protocol, TypedDict, runtime_checkable
 from uuid import UUID
 
+from apps.api.types import JsonValue
+
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Sequence
 
@@ -15,7 +17,7 @@ if TYPE_CHECKING:
     from apps.api.schemas.requests.query import QueryRequest
     from apps.api.schemas.responses import SingleQueryResponse
     from apps.api.services.agent import QueryResponseDict
-    from apps.api.types import AgentMessage, JsonValue
+    from apps.api.types import AgentMessage
 
 
 class MemorySearchResult(TypedDict):
@@ -24,7 +26,7 @@ class MemorySearchResult(TypedDict):
     id: str
     memory: str
     score: float
-    metadata: dict[str, object]
+    metadata: dict[str, JsonValue]
 
 
 @runtime_checkable
@@ -497,9 +499,9 @@ class MemoryProtocol(Protocol):
         self,
         messages: str,
         user_id: str,
-        metadata: dict[str, object] | None = None,
+        metadata: dict[str, JsonValue] | None = None,
         enable_graph: bool = True,
-    ) -> list[dict[str, object]]:
+    ) -> list[dict[str, JsonValue]]:
         """Add memories from conversation.
 
         Args:
@@ -516,7 +518,7 @@ class MemoryProtocol(Protocol):
     async def get_all(
         self,
         user_id: str,
-    ) -> list[dict[str, object]]:
+    ) -> list[dict[str, JsonValue]]:
         """Get all memories for a user.
 
         Args:
