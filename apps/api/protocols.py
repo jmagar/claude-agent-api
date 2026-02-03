@@ -1,6 +1,6 @@
 """Protocol interfaces for dependency injection."""
 
-from typing import TYPE_CHECKING, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, TypedDict, runtime_checkable
 from uuid import UUID
 
 if TYPE_CHECKING:
@@ -16,6 +16,15 @@ if TYPE_CHECKING:
     from apps.api.schemas.responses import SingleQueryResponse
     from apps.api.services.agent import QueryResponseDict
     from apps.api.types import AgentMessage, JsonValue
+
+
+class MemorySearchResult(TypedDict):
+    """Result from memory search."""
+
+    id: str
+    memory: str
+    score: float
+    metadata: dict[str, object]
 
 
 @runtime_checkable
@@ -456,5 +465,88 @@ class AgentClient(Protocol):
 
         Returns:
             True if successful.
+        """
+        ...
+
+
+@runtime_checkable
+class MemoryProtocol(Protocol):
+    """Protocol for memory operations."""
+
+    async def search(
+        self,
+        query: str,
+        user_id: str,
+        limit: int = 10,
+        enable_graph: bool = True,
+    ) -> list[MemorySearchResult]:
+        """Search memories for a user.
+
+        Args:
+            query: Search query string.
+            user_id: User identifier for multi-tenant isolation.
+            limit: Maximum results to return.
+            enable_graph: Include graph context in search.
+
+        Returns:
+            List of memory search results.
+        """
+        ...
+
+    async def add(
+        self,
+        messages: str,
+        user_id: str,
+        metadata: dict[str, object] | None = None,
+        enable_graph: bool = True,
+    ) -> list[dict[str, object]]:
+        """Add memories from conversation.
+
+        Args:
+            messages: Content to extract memories from.
+            user_id: User identifier for multi-tenant isolation.
+            metadata: Optional metadata to attach to memories.
+            enable_graph: Enable graph memory extraction.
+
+        Returns:
+            List of created memory records.
+        """
+        ...
+
+    async def get_all(
+        self,
+        user_id: str,
+    ) -> list[dict[str, object]]:
+        """Get all memories for a user.
+
+        Args:
+            user_id: User identifier for multi-tenant isolation.
+
+        Returns:
+            List of all memories for the user.
+        """
+        ...
+
+    async def delete(
+        self,
+        memory_id: str,
+        user_id: str,
+    ) -> None:
+        """Delete a specific memory.
+
+        Args:
+            memory_id: Memory identifier to delete.
+            user_id: User identifier for authorization.
+        """
+        ...
+
+    async def delete_all(
+        self,
+        user_id: str,
+    ) -> None:
+        """Delete all memories for a user.
+
+        Args:
+            user_id: User identifier for authorization.
         """
         ...
