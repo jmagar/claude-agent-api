@@ -126,6 +126,43 @@ class Settings(BaseSettings):
         default=100000, ge=1, le=500000, description="Max prompt length"
     )
 
+    # Mem0 LLM Configuration
+    llm_api_key: str = Field(default="", description="LLM API key for Mem0")
+    llm_base_url: str = Field(
+        default="https://cli-api.tootie.tv/v1", description="LLM base URL for Mem0"
+    )
+    llm_model: str = Field(
+        default="gemini-3-flash-preview", description="LLM model for Mem0"
+    )
+
+    # Neo4j Configuration
+    neo4j_url: str = Field(
+        default="bolt://localhost:54687", description="Neo4j connection URL"
+    )
+    neo4j_username: str = Field(default="neo4j", description="Neo4j username")
+    neo4j_password: str = Field(default="neo4jpassword", description="Neo4j password")
+    neo4j_database: str = Field(default="neo4j", description="Neo4j database name")
+
+    # Qdrant Configuration
+    qdrant_url: str = Field(
+        default="http://localhost:53333", description="Qdrant connection URL"
+    )
+
+    # TEI Configuration
+    tei_url: str = Field(
+        default="http://100.74.16.82:52000",
+        description="Text Embeddings Inference URL",
+    )
+
+    # Mem0 Configuration
+    mem0_collection_name: str = Field(
+        default="mem0_memories", description="Mem0 vector collection name"
+    )
+    mem0_embedding_dims: int = Field(
+        default=1024, ge=1, le=4096, description="Mem0 embedding dimensions"
+    )
+    mem0_agent_id: str = Field(default="main", description="Mem0 agent identifier")
+
     @model_validator(mode="after")
     def validate_cors_in_production(self) -> "Settings":
         """Validate CORS configuration in production.
