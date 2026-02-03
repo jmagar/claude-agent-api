@@ -120,6 +120,7 @@ async def async_client(
     dependencies._async_engine = None
     dependencies._async_session_maker = None
     dependencies._agent_service = None  # Clear agent service singleton
+    dependencies._memory_service = None  # Clear memory service singleton
 
     settings = get_settings()
 

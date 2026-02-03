@@ -35,6 +35,7 @@ _async_engine: AsyncEngine | None = None
 _async_session_maker: async_sessionmaker[AsyncSession] | None = None
 _redis_cache: RedisCache | None = None
 _agent_service: AgentService | None = None  # Singleton for tests, None for per-request
+_memory_service: MemoryService | None = None  # Singleton for tests, None for cached
 
 
 async def init_db(settings: Settings) -> async_sessionmaker[AsyncSession]:
@@ -379,6 +380,9 @@ async def get_mcp_config_injector(
 def get_memory_service() -> MemoryService:
     """Get cached memory service instance.
 
+    In tests, if a global singleton is set, that instance is returned instead
+    to allow test fixtures to inject mocks.
+
     Note: The Memory client is initialized once and reused (singleton).
     This is intentional - Mem0 Memory instances are stateless and can be
     safely shared across requests. The lru_cache ensures only one instance
@@ -387,6 +391,10 @@ def get_memory_service() -> MemoryService:
     Returns:
         MemoryService instance with Mem0 adapter configured.
     """
+    # Use singleton if set (for tests)
+    if _memory_service is not None:
+        return _memory_service
+
     settings = get_settings()
     adapter = Mem0MemoryAdapter(settings)
     return MemoryService(adapter)
