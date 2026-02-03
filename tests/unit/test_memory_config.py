@@ -1,7 +1,5 @@
 """Tests for memory configuration."""
 
-import os
-
 import pytest
 
 from apps.api.config import Settings

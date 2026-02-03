@@ -1,5 +1,5 @@
 """Tests for memory protocol interface."""
-import pytest
+
 from apps.api.protocols import MemoryProtocol
 
 
