@@ -783,20 +783,38 @@ class SessionService:
         Raises:
             SessionNotFoundError: If ownership check fails (logged with structured data).
 
-        Phase 3:
-            Only uses owner_api_key_hash (plaintext column removed).
+        Security Model (fail closed):
+            - No API key in request: allow access (anonymous/public session)
+            - API key in request + session has hash: verify via hash comparison
+            - API key in request + session lacks hash: DENY (cannot verify ownership)
         """
-        if current_api_key and session.owner_api_key_hash:
-            # Phase 3: Hash the request API key and compare to stored hash
-            request_hash = hash_api_key(current_api_key)
+        if not current_api_key:
+            # No API key in request - allow access (anonymous/public session)
+            return session
 
-            # Constant-time comparison of hashes
-            if not secrets.compare_digest(session.owner_api_key_hash, request_hash):
-                logger.warning(
-                    "ownership_check_failed",
-                    session_id=session.id,
-                    has_session_hash=True,
-                    has_request_key=True,
-                )
-                raise SessionNotFoundError(session.id)
+        if not session.owner_api_key_hash:
+            # SECURITY: Fail closed - request has API key but session lacks hash
+            # Cannot verify ownership, so deny access to prevent bypass attacks
+            # This handles cached sessions from before hashing was implemented
+            logger.warning(
+                "ownership_check_failed_missing_hash",
+                session_id=session.id,
+                has_session_hash=False,
+                has_request_key=True,
+            )
+            raise SessionNotFoundError(session.id)
+
+        # Hash the request API key and compare to stored hash
+        request_hash = hash_api_key(current_api_key)
+
+        # Constant-time comparison of hashes
+        if not secrets.compare_digest(session.owner_api_key_hash, request_hash):
+            logger.warning(
+                "ownership_check_failed",
+                session_id=session.id,
+                has_session_hash=True,
+                has_request_key=True,
+            )
+            raise SessionNotFoundError(session.id)
+
         return session

@@ -1,8 +1,10 @@
+# Clarification Plugins
+
 [0.83] https://docs.openclaw.ai/tools/lobster — [​](https://docs.openclaw.ai/tools/lobster#optional-inputs)
   Learn more
 --------------------------------------------------------------------
 
-*   [Plugins](https://docs.openclaw.ai/...
+*   [Plugins](https://docs.openclaw.ai/plugin)
 
 [0.83] https://docs.openclaw.ai/channels/twitch
   Details: [Plugins](https://docs.openclaw.ai/plugin)
@@ -17,4 +19,4 @@
   [​](https://docs.openclaw.ai/tools#plugins-+-tools)
 
 💡 To retrieve full documents from the vector DB, use:
-  firecrawl retrieve <url>
+  `firecrawl retrieve [url]`

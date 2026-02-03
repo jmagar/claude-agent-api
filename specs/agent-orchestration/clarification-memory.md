@@ -1,3 +1,5 @@
+# Clarification Memory
+
 [0.71] https://docs.openclaw.ai/cli/memory
   `openclaw memory`
 =============================================================================
@@ -15,4 +17,4 @@
   *   [How the memory tools work](https://docs.openclaw.ai/concepts/memory#how-the-memory-tools-work)
 
 💡 To retrieve full documents from the vector DB, use:
-  firecrawl retrieve <url>
+  `firecrawl retrieve <url>`

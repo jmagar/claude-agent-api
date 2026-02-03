@@ -389,21 +389,6 @@ How to Run OpenClaw with DigitalOcean's One-Click Deploy
   Step 3 — Installing Skills ... OpenClaw comes with over 50 skills automatically loaded in the skill registry. You can install skills in the GUI by ...
 
   --- Content ---
-  Report this
-  -----------
-  
-  What is the reason for this report?
-  
-  This undefined is spam
-  
-  This undefined is offensive
-  
-  This undefined is off-topic
-  
-  This undefined is other
-  
-  Submit
-  
   [Tutorial](https://www.digitalocean.com/community/tutorials?subtype=tutorial)
   
   How to Run OpenClaw with DigitalOcean's One-Click Deploy

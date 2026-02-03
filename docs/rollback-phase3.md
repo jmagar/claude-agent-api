@@ -59,21 +59,37 @@ docker compose restart api
 **SQL to Generate New Keys:**
 
 ```sql
--- Generate UUIDs as new API keys
+-- Generate UUIDs as new API keys and compute hashes consistently
+WITH new_session_keys AS (
+  SELECT id, gen_random_uuid()::text AS new_key
+  FROM sessions
+  WHERE owner_api_key_hash IS NOT NULL
+)
 UPDATE sessions
-SET owner_api_key = gen_random_uuid()::text
-WHERE owner_api_key_hash IS NOT NULL;
+SET
+  owner_api_key = new_session_keys.new_key,
+  owner_api_key_hash = encode(sha256(new_session_keys.new_key::bytea), 'hex')
+FROM new_session_keys
+WHERE sessions.id = new_session_keys.id;
 
+WITH new_assistant_keys AS (
+  SELECT id, gen_random_uuid()::text AS new_key
+  FROM assistants
+  WHERE owner_api_key_hash IS NOT NULL
+)
 UPDATE assistants
-SET owner_api_key = gen_random_uuid()::text
-WHERE owner_api_key_hash IS NOT NULL;
+SET
+  owner_api_key = new_assistant_keys.new_key,
+  owner_api_key_hash = encode(sha256(new_assistant_keys.new_key::bytea), 'hex')
+FROM new_assistant_keys
+WHERE assistants.id = new_assistant_keys.id;
 ```
 
 ### Step 5: Communicate with Clients
 
 **Email Template:**
 
-```
+```text
 Subject: URGENT: API Key Rotation Required
 
 Due to an emergency database rollback, all API keys have been reset.

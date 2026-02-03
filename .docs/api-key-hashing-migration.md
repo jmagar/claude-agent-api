@@ -17,12 +17,11 @@
 - ✅ **Phase 3 Code EXISTS:** Models and services use only `owner_api_key_hash`
 
 **Deployment Order:**
-1. Run Phase 1 migration (adds hash columns)
-2. Deploy Phase 2 code (uses both columns)
-3. Wait for verification period
-4. Run Phase 3 migration (drops plaintext columns)
+1. Run Phase 1 migration (adds hash columns, hashes existing keys)
+2. Run Phase 3 migration (drops plaintext columns)
+3. Deploy Phase 3 code (uses only `owner_api_key_hash`)
 
-**WARNING:** Running `alembic upgrade head` will apply Phase 3 migration. Ensure Phase 2 code is deployed first.
+**WARNING:** This branch contains Phase 3 code which uses ONLY `owner_api_key_hash`. The plaintext `owner_api_key` column must be dropped (Phase 3 migration) before deploying this code, otherwise the application will fail to start due to missing column references.
 
 ---
 

@@ -203,32 +203,53 @@ class TestTimingAttackPrevention:
         assert mock_compare.call_count > 0, "Expected secrets.compare_digest to be called for wrong key"
 
     @pytest.mark.anyio
-    async def test_public_session_accessible_without_owner(
+    async def test_public_session_accessible_without_api_key(
         self,
         session_service: SessionService,
     ) -> None:
-        """Test that sessions without owner_api_key are publicly accessible."""
+        """Test that sessions without owner_api_key are accessible without API key.
+
+        Security model (fail closed):
+        - Session without owner + request without API key = allow (public access)
+        - Session without owner + request WITH API key = deny (cannot verify)
+        """
         # Create session without owner (public session)
         session = await session_service.create_session(
             model="sonnet",
             owner_api_key=None,
         )
 
-        # Should be accessible with any API key
-        retrieved1 = await session_service.get_session(
-            session.id,
-            current_api_key="any-key-123",
-        )
-        assert retrieved1 is not None
-        assert retrieved1.id == session.id
-
-        # Should also be accessible without API key
-        retrieved2 = await session_service.get_session(
+        # Should be accessible without API key (true public access)
+        retrieved = await session_service.get_session(
             session.id,
             current_api_key=None,
         )
-        assert retrieved2 is not None
-        assert retrieved2.id == session.id
+        assert retrieved is not None
+        assert retrieved.id == session.id
+
+    @pytest.mark.anyio
+    async def test_public_session_denied_with_api_key(
+        self,
+        session_service: SessionService,
+    ) -> None:
+        """Test that sessions without owner_api_key are denied when API key provided.
+
+        Security model (fail closed):
+        - Cannot verify ownership if session lacks hash, so deny access
+        - This prevents bypass attacks using old cached sessions
+        """
+        # Create session without owner (no hash)
+        session = await session_service.create_session(
+            model="sonnet",
+            owner_api_key=None,
+        )
+
+        # Should be denied when API key is provided (cannot verify ownership)
+        with pytest.raises(SessionNotFoundError):
+            await session_service.get_session(
+                session.id,
+                current_api_key="any-key-123",
+            )
 
     @pytest.mark.anyio
     async def test_owned_session_accessible_without_api_key_param(
@@ -313,7 +334,9 @@ class TestTimingAttackPrevention:
     ) -> None:
         """Test _enforce_owner method when session has no owner.
 
-        Phase 3: Public sessions have owner_api_key_hash=None.
+        Security model (fail closed):
+        - Session without hash + request without API key = allow (public access)
+        - Session without hash + request WITH API key = deny (cannot verify)
         """
         from apps.api.services.session import Session
 
@@ -326,9 +349,10 @@ class TestTimingAttackPrevention:
             owner_api_key_hash=None,
         )
 
-        # Should succeed regardless of provided API key
-        result = session_service._enforce_owner(session, "any-key-123")
-        assert result.id == session.id
+        # Should deny when API key is provided but session has no hash
+        # (cannot verify ownership, so fail closed)
+        with pytest.raises(SessionNotFoundError):
+            session_service._enforce_owner(session, "any-key-123")
 
     @pytest.mark.anyio
     async def test_enforce_owner_with_none_current_key(

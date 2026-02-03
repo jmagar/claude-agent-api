@@ -15,6 +15,7 @@ A simplified, Claude-only personal AI assistant inspired by OpenClaw's capabilit
 ### What Already Exists
 
 #### claude-agent-api (This Repository)
+
 ✅ **Full Skills System** - Filesystem + database skill discovery, CRUD API, auto-injection into queries
 ✅ **FastAPI Backend** - Async routes, SSE streaming, OpenAI compatibility layer
 ✅ **Three-Tier MCP Config** - Application → API-Key → Request level MCP server injection
@@ -23,6 +24,7 @@ A simplified, Claude-only personal AI assistant inspired by OpenClaw's capabilit
 ✅ **Claude Code SDK** - Full tool access (bash, filesystem, git, etc.)
 
 #### cli-firecrawl (`../cli-firecrawl`)
+
 ✅ **Firecrawl Integration** - Web scraping CLI with 13 commands (scrape, crawl, map, search, extract, etc.)
 ✅ **TEI Integration** - Text Embeddings Inference at `http://localhost:52000` for vector generation
 ✅ **Qdrant Integration** - Vector database at `http://localhost:53333` with semantic search
@@ -30,6 +32,7 @@ A simplified, Claude-only personal AI assistant inspired by OpenClaw's capabilit
 ✅ **Semantic Search** - `firecrawl query <text>` for vector similarity search
 
 #### homelab (`../homelab`)
+
 ✅ **13+ Domain Skills** - tailscale, unifi, unraid, radarr, sonarr, prowlarr, sabnzbd, qbittorrent, plex, overseerr, gotify, glances, linkding
 ✅ **SSH Inventory Discovery** - Parses `~/.ssh/config` to build device inventory
 ✅ **Remote Execution** - Timeout-protected SSH with parallel support
@@ -38,12 +41,14 @@ A simplified, Claude-only personal AI assistant inspired by OpenClaw's capabilit
 ✅ **Infrastructure Monitoring** - Dashboard scripts for Unraid, Linux, UniFi
 
 #### Memory Bank (`~/memory/bank/`)
+
 ✅ **Temporal Data Storage** - Timestamped JSON snapshots per topic
 ✅ **Human-Readable Dashboards** - `latest.md` markdown summaries
 ✅ **12 Topic Directories** - docker, linux, unraid, unifi, tailscale, ssh, swag, overseerr, weekly
 ✅ **Device Inventory** - 9 SSH hosts, 144 Docker containers, 2 Unraid servers, 33 network clients
 
 #### synapse-mcp (`../synapse-mcp`)
+
 ✅ **Infrastructure MCP Server** - Unified multi-host Docker + SSH management via MCP protocol
 ✅ **Flux Tool (40 operations)** - Container lifecycle, Compose management, system operations, host resources
 ✅ **Scout Tool (16 operations)** - SSH commands, file transfer, ZFS pools, log retrieval (syslog, journal, dmesg)
@@ -53,6 +58,7 @@ A simplified, Claude-only personal AI assistant inspired by OpenClaw's capabilit
 ✅ **Multi-Host Transparent** - Seamless operations across all configured SSH hosts
 
 #### Chrome Integration (Claude Code Built-in)
+
 ✅ **Browser Automation** - Navigate, click, type, fill forms, scroll via Claude in Chrome extension
 ✅ **Live Debugging** - Read console errors/logs, DOM state directly from browser
 ✅ **Authenticated Apps** - Access Google Docs, Gmail, Notion without API setup (uses existing login)
@@ -71,6 +77,7 @@ A simplified, Claude-only personal AI assistant inspired by OpenClaw's capabilit
 - Automate repetitive browser tasks
 
 #### LLM Gateway (Multi-Provider Support)
+
 ✅ **Environment Variable Config** - Switch providers via `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN`
 ✅ **Model Aliases** - `ANTHROPIC_DEFAULT_OPUS_MODEL`, `ANTHROPIC_DEFAULT_SONNET_MODEL`, `ANTHROPIC_DEFAULT_HAIKU_MODEL`
 ✅ **Subagent Models** - `CLAUDE_CODE_SUBAGENT_MODEL` for fast agent tasks
@@ -114,12 +121,58 @@ class Memory:
     id: str
     content: str
     memory_type: Literal["fact", "preference", "relationship", "workflow"]
-    embedding: list[float]  # Generated via TEI
+    embedding: list[float]  # Generated via TEI, 384-dim (BAAI/bge-small-en-v1.5)
+    embedding_model: str  # e.g., "BAAI/bge-small-en-v1.5"
     created_at: datetime
     last_accessed: datetime
     access_count: int
     source: Literal["user", "inferred", "imported"]
 ```
+
+**Embedding Storage:**
+- **Dimensionality**: 384 dimensions (BAAI/bge-small-en-v1.5 default)
+- **Storage Strategy**: Embeddings stored ONLY in Qdrant vector DB
+  - PostgreSQL stores memory metadata + reference to Qdrant point ID
+  - Reduces DB size: 384 floats × 4 bytes = 1.5KB per embedding
+  - 10K memories = ~15MB in Qdrant vs ~15MB + metadata in PostgreSQL
+- **Compression**: Qdrant supports scalar/product quantization (8x reduction)
+- **Vector Search**: Sub-100ms for 1M+ vectors with HNSW indexing
+
+**Memory Security & Privacy:**
+
+1. **Encryption at Rest:**
+   - PostgreSQL: Enable Transparent Data Encryption (TDE) via pgcrypto extension
+   - Qdrant: Disk encryption via LUKS/dm-crypt at OS level
+   - Embedding vectors encrypted in Qdrant storage backend
+
+2. **Data Retention & Garbage Collection:**
+   - Configurable TTL per memory type:
+     - Facts: 365 days (long-term knowledge)
+     - Preferences: 180 days (may change over time)
+     - Relationships: 730 days (stable over years)
+     - Workflows: 90 days (task-specific, short-lived)
+   - Background GC job runs daily, deletes expired memories from PostgreSQL + Qdrant
+   - Manual deletion cascade: PostgreSQL DELETE → trigger Qdrant point deletion
+
+3. **Access Control:**
+   - All memory reads/writes scoped to authenticated API key
+   - Redis/PostgreSQL memory keys: `memory:{api_key}:{memory_id}`
+   - Qdrant collections use API key as namespace filter (multi-tenant isolation)
+   - Cannot read/write other tenants' memories
+
+4. **PII Detection & Handling:**
+   - Pre-storage PII scan using regex patterns (SSN, credit card, email, phone)
+   - Flagged memories: `contains_pii: bool`, `pii_types: list[str]`
+   - Redaction workflow:
+     - Automatic: Replace detected PII with placeholders (`[EMAIL]`, `[PHONE]`)
+     - Manual review: Flag for user confirmation before storage
+   - Configurable PII handling mode: `block`, `redact`, `flag`, `allow`
+
+5. **Audit Logging:**
+   - All memory operations logged to PostgreSQL audit table:
+     - `memory_audit` table: api_key, memory_id, operation (create/read/update/delete), timestamp, ip_address
+   - Retention: 90 days for compliance, then archived/deleted
+   - Query patterns for anomaly detection (excessive access, bulk exports)
 
 ### 2. AgentSkills-Compatible Skills System
 
@@ -150,7 +203,7 @@ The claude-agent-api already has a complete skill system:
 - HEARTBEAT.md checklist
 
 **Our implementation:**
-- Background scheduler (APScheduler)
+- Background scheduler (APScheduler with PostgreSQL persistence)
 - Configurable heartbeat interval
 - HEARTBEAT.md in user workspace
 - Active hours support
@@ -158,7 +211,42 @@ The claude-agent-api already has a complete skill system:
 - Heartbeat history logging
 - **gog skill** for Gmail/Calendar checks (clawhub.com)
 
+**APScheduler Persistence & Reliability:**
+
+1. **Job Persistence:**
+   - PostgreSQLJobStore for durable job storage
+   - Survives application restarts (jobs auto-resume)
+   - Job state includes: next_run_time, misfire_grace_time, coalesce settings
+
+2. **Missed Heartbeat Recovery:**
+   - `misfire_grace_time`: 5 minutes (if heartbeat missed by <5min, still execute)
+   - `coalesce=True`: Multiple missed runs coalesce into one execution
+   - Prevents backlog of queued heartbeats after downtime
+
+3. **Backpressure Handling:**
+   - `max_instances=1`: Only one heartbeat runs at a time (prevents overlap)
+   - `replace_existing=True`: New config overwrites old job definition
+   - Rate limiting: Minimum 5-minute interval enforced
+
+4. **Failsafe Limits:**
+   - Backoff after 3 consecutive failures: exponential backoff (5min → 10min → 20min)
+   - Bounded catch-up: After >24h downtime, skip missed runs (configurable)
+   - Alert user via Gotify if heartbeat fails 5+ times consecutively
+
+5. **Configuration Knobs:**
+   ```python
+   class HeartbeatPersistenceConfig:
+       heartbeat_interval: int = 30  # minutes
+       misfire_grace_time: int = 300  # seconds (5 min)
+       max_instances: int = 1
+       coalesce: bool = True
+       max_consecutive_failures: int = 5
+       max_backfill_hours: int = 24  # Skip runs older than this
+       backoff_multiplier: float = 2.0  # Exponential backoff
+   ```
+
 **Heartbeat Checks via gog (Google):**
+
 ```bash
 # Check urgent emails
 gog gmail search 'newer_than:30m is:unread' --max 5 --json
@@ -171,6 +259,7 @@ gog drive search 'modifiedTime > 1d' --max 10 --json
 ```
 
 **Heartbeat Checks via caldav (iCloud/Fastmail/Nextcloud):**
+
 ```bash
 # Sync first
 vdirsyncer sync
@@ -221,6 +310,24 @@ class CronJob:
     created_at: datetime
     last_run: datetime | None
     next_run: datetime | None
+
+# Supporting types referenced in CronJob.payload
+
+class SystemEvent:
+    """System-generated event (e.g., heartbeat trigger, scheduled check)"""
+    event_type: Literal["heartbeat", "scheduled_check", "reminder", "alert"]
+    source: str  # e.g., "heartbeat_scheduler", "cron_job_123"
+    metadata: dict[str, str | int | float | bool]  # Event-specific data
+    timestamp: datetime
+
+class AgentTurn:
+    """Agent execution turn (prompt + context for isolated session)"""
+    agent_id: str  # Agent identifier for tracking
+    inputs: dict[str, str]  # Input context (e.g., {"prompt": "Check emails"})
+    outputs: dict[str, str] | None  # Execution results (populated after run)
+    status: Literal["pending", "running", "completed", "failed"]
+    timestamp: datetime
+    error_message: str | None  # If status == "failed"
 ```
 
 ### 5. Full System Access
@@ -321,6 +428,7 @@ On-device semantic search for markdown files:
 - Semantic search across documentation, notes, project files
 
 **Implementation:**
+
 - **Skill**: QMD skill for searching markdown files
 - **Hook**: Auto-index new/modified markdown files
 - **Integration**: Use cli-firecrawl's embed pipeline
@@ -350,6 +458,7 @@ Semantic search across Claude session logs:
 - Retrieve relevant context from historical sessions
 
 **Implementation:**
+
 - Parse JSONL session files
 - Extract user prompts and assistant responses
 - Generate embeddings via TEI
@@ -365,7 +474,7 @@ class SessionSearchConfig:
 
 ## Architecture
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────┐
 │                    Mobile-First Web App                         │
 │                    (Next.js 15 PWA)                             │
@@ -526,7 +635,8 @@ SKILLBOX_PATH = Path.home() / ".config" / "skillbox" / "skills"
 **Core Philosophy**: Skill-agnostic automations using abstract interfaces (capabilities) that map to concrete skill implementations. "Write once, run anywhere" - automations don't break when you switch underlying skills.
 
 **Capability → Skill Mapping:**
-```
+
+```text
 Capability (abstract)       →    Skill (concrete implementation)
 ───────────────────────────────────────────────────────────────
 calendar.list_events        →    gog, caldav, google-calendar
@@ -550,7 +660,8 @@ social.search               →    twitter, x-search
 - Agent-driven automation creation (AI writes YAML, docs, opens PR)
 
 **Control Surface:**
-```
+
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                            Control Surface                                   │
 ├─────────────────┬─────────────────┬─────────────────┬───────────────────────┤
@@ -595,7 +706,8 @@ Skills/MCP servers are plug-and-play across:
 ## API Surface
 
 ### Agent Endpoints (Existing)
-```
+
+```http
 POST   /api/v1/query                     # Single query
 POST   /api/v1/stream                    # SSE streaming
 GET    /api/v1/sessions                  # List sessions
@@ -605,7 +717,8 @@ DELETE /api/v1/sessions/{id}             # Delete session
 ```
 
 ### Skills Endpoints (Existing)
-```
+
+```http
 GET    /api/v1/skills                    # List available skills
 POST   /api/v1/skills                    # Create skill (database)
 GET    /api/v1/skills/{id}               # Get skill details
@@ -614,7 +727,8 @@ DELETE /api/v1/skills/{id}               # Delete skill (database)
 ```
 
 ### Memory Endpoints (New)
-```
+
+```http
 GET    /api/v1/memory                    # List memories
 POST   /api/v1/memory                    # Create memory
 GET    /api/v1/memory/search             # Search memories (semantic)
@@ -622,7 +736,8 @@ DELETE /api/v1/memory/{id}               # Delete memory
 ```
 
 ### Heartbeat Endpoints (New)
-```
+
+```http
 GET    /api/v1/heartbeat/config          # Get heartbeat config
 PUT    /api/v1/heartbeat/config          # Update heartbeat config
 POST   /api/v1/heartbeat/trigger         # Trigger immediate heartbeat
@@ -630,7 +745,8 @@ GET    /api/v1/heartbeat/history         # Get heartbeat history
 ```
 
 ### Cron Endpoints (New)
-```
+
+```http
 GET    /api/v1/cron                      # List cron jobs
 POST   /api/v1/cron                      # Create cron job
 GET    /api/v1/cron/{id}                 # Get cron job
@@ -641,21 +757,24 @@ GET    /api/v1/cron/{id}/history         # Get run history
 ```
 
 ### QMD Endpoints (New)
-```
+
+```http
 POST   /api/v1/qmd/index                 # Index markdown directory
 GET    /api/v1/qmd/search                # Semantic search markdown files
 GET    /api/v1/qmd/status                # Indexing status
 ```
 
 ### Session Search Endpoints (New)
-```
+
+```http
 POST   /api/v1/session-search/index      # Index Claude sessions
 GET    /api/v1/session-search/search     # Search past sessions
 GET    /api/v1/session-search/status     # Indexing status
 ```
 
 ### Device Endpoints (New)
-```
+
+```http
 GET    /api/v1/devices                   # List devices (from memory bank)
 GET    /api/v1/devices/{name}            # Get device details
 POST   /api/v1/devices/{name}/exec       # Execute command on device
@@ -663,7 +782,8 @@ GET    /api/v1/devices/inventory/refresh # Refresh SSH inventory
 ```
 
 ### Infrastructure Endpoints (New - via synapse-mcp)
-```
+
+```http
 GET    /api/v1/infrastructure/containers                  # List containers (all hosts)
 GET    /api/v1/infrastructure/containers/{name}/logs      # Container logs with grep
 GET    /api/v1/infrastructure/compose                     # List Compose projects
@@ -674,7 +794,8 @@ GET    /api/v1/infrastructure/hosts/{host}/logs/journal   # systemd journal logs
 ```
 
 ### Persona Endpoints (New)
-```
+
+```http
 GET    /api/v1/persona                   # Get persona config
 PUT    /api/v1/persona                   # Update persona config
 ```
@@ -682,12 +803,14 @@ PUT    /api/v1/persona                   # Update persona config
 ## Implementation Phases
 
 ### Phase 1: Memory System Integration
+
 - Integrate with existing TEI + Qdrant (cli-firecrawl)
 - Memory service using existing embedding pipeline
 - Memory injection into prompts
 - Memory CRUD API endpoints
 
 ### Phase 2: Heartbeat System
+
 - Background scheduler (APScheduler)
 - HEARTBEAT.md loading and parsing
 - Active hours support

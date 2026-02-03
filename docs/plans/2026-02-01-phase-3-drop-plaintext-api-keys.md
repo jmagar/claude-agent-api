@@ -60,6 +60,7 @@ redis-cli INFO stats | grep keyspace_hits
 ```
 
 **Expected Output:** Document in `.docs/phase3-baseline-metrics.md`:
+
 ```markdown
 # Phase 3 Baseline Metrics (Pre-Migration)
 
@@ -1794,13 +1795,13 @@ owner_api_key_hash | character varying(64) |
 ```bash
 # Create test session with API key
 curl -X POST http://staging:54000/api/v1/sessions \
-  -H "X-API-Key: staging-test-key" \
+  -H "X-API-Key: ${STAGING_API_KEY}" \
   -H "Content-Type: application/json" \
   -d '{"model": "sonnet"}'
 
 # List sessions (verify ownership filtering works)
 curl http://staging:54000/api/v1/sessions \
-  -H "X-API-Key: staging-test-key"
+  -H "X-API-Key: ${STAGING_API_KEY}"
 ```
 
 **Expected Output:** Session created and listed successfully
@@ -1817,14 +1818,14 @@ echo "Running load test: 100 concurrent requests..."
 
 # Session creation load test
 ab -n 1000 -c 100 \
-  -H "X-API-Key: staging-test-key" \
+  -H "X-API-Key: ${STAGING_API_KEY}" \
   -H "Content-Type: application/json" \
   -p session_payload.json \
   http://staging:54000/api/v1/sessions
 
 # Session listing load test
 ab -n 1000 -c 100 \
-  -H "X-API-Key: staging-test-key" \
+  -H "X-API-Key: ${STAGING_API_KEY}" \
   http://staging:54000/api/v1/sessions
 
 # Check for errors during load test

@@ -1174,14 +1174,18 @@ class DeviceService:
     async def refresh_inventory(self) -> int:
         """Trigger inventory refresh via homelab script."""
         script = self.HOMELAB_PATH / "inventory/ssh.sh"
-        result = subprocess.run(
-            ["bash", str(script)],
-            capture_output=True,
-            text=True,
-            timeout=120,
+        proc = await asyncio.create_subprocess_exec(
+            "bash", str(script),
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
         )
-        if result.returncode != 0:
-            raise RuntimeError(f"Inventory refresh failed: {result.stderr}")
+        try:
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=120)
+        except asyncio.TimeoutError:
+            proc.kill()
+            raise RuntimeError("Inventory refresh timed out after 120 seconds")
+        if proc.returncode != 0:
+            raise RuntimeError(f"Inventory refresh failed: {stderr.decode()}")
 
         # Return count of discovered hosts
         inventory = await self.get_inventory()
@@ -1201,26 +1205,35 @@ class DeviceService:
         if device.get("status") != "reachable":
             raise ValueError(f"Device not reachable: {device_name}")
 
+        # Validate command for dangerous shell metacharacters
+        dangerous_chars = [";", "|", "`", "$", "(", ")", "&", "<", ">", "\n", "\r"]
+        if any(char in command for char in dangerous_chars):
+            raise ValueError(
+                f"Command contains dangerous shell metacharacters: {command}"
+            )
+
         # Use homelab remote-exec library
-        result = subprocess.run(
-            [
-                "ssh",
-                "-o", "ConnectTimeout=10",
-                "-o", "StrictHostKeyChecking=no",
-                device["hostname"],
-                command,
-            ],
-            capture_output=True,
-            text=True,
-            timeout=timeout,
+        proc = await asyncio.create_subprocess_exec(
+            "ssh",
+            "-o", "ConnectTimeout=10",
+            "-o", "StrictHostKeyChecking=accept-new",
+            device["hostname"],
+            command,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
         )
+        try:
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+        except asyncio.TimeoutError:
+            proc.kill()
+            raise RuntimeError(f"Command timed out after {timeout} seconds")
 
         return {
             "device": device_name,
             "command": command,
-            "stdout": result.stdout,
-            "stderr": result.stderr,
-            "exit_code": result.returncode,
+            "stdout": stdout.decode(),
+            "stderr": stderr.decode(),
+            "exit_code": proc.returncode,
         }
 ```
 
@@ -1502,6 +1515,7 @@ async def get_journal_logs(
 **Goal**: Mobile-first PWA for chat and configuration.
 
 ### 7.1 Tech Stack
+
 - Next.js 15 with App Router
 - Tailwind CSS v4
 - shadcn/ui components
@@ -1510,7 +1524,7 @@ async def get_journal_logs(
 
 ### 7.2 Key Screens
 
-```
+```text
 /                    # Chat interface
 /settings            # Persona, heartbeat, general config
 /settings/skills     # Skill management
@@ -1607,6 +1621,7 @@ INSERT INTO persona_config (id) VALUES ('default');
 ## Testing Strategy
 
 ### Unit Tests
+
 - Memory service (add, search, context injection)
 - Embedding service (TEI client)
 - Vector service (Qdrant client)
@@ -1617,6 +1632,7 @@ INSERT INTO persona_config (id) VALUES ('default');
 - Device service (inventory reading)
 
 ### Integration Tests
+
 - Memory search with real TEI + Qdrant
 - Heartbeat execution with Gotify
 - Cron job lifecycle
@@ -1625,6 +1641,7 @@ INSERT INTO persona_config (id) VALUES ('default');
 - Device command execution
 
 ### Coverage Target
+
 - Unit tests: ≥90%
 - Integration tests: ≥80%
 - Overall: ≥85%

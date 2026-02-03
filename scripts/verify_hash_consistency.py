@@ -62,16 +62,32 @@ async def check_column_exists(
     return bool(row and row[0])
 
 
-async def count_hashed_records(session: AsyncSession, table_name: str) -> tuple[int, int]:
+async def count_hashed_records(
+    session: AsyncSession, table_name: str
+) -> tuple[int, int]:
     """Count total and hashed records in a table.
 
     Args:
         session: Database session.
-        table_name: Name of the table.
+        table_name: Name of the table. MUST be one of: "sessions", "assistants".
 
     Returns:
         Tuple of (total_records, records_with_hash).
+
+    Raises:
+        ValueError: If table_name is not an expected literal.
+
+    Security Note:
+        table_name is validated against an allowlist before SQL construction
+        to prevent SQL injection. Only "sessions" and "assistants" are allowed.
     """
+    # Validate table_name against allowlist to prevent SQL injection
+    allowed_tables = {"sessions", "assistants"}
+    if table_name not in allowed_tables:
+        raise ValueError(
+            f"Invalid table_name: {table_name}. Must be one of: {allowed_tables}"
+        )
+
     # Count total records
     total_query = text(f"SELECT COUNT(*) FROM {table_name}")
     total_result = await session.execute(total_query)
@@ -112,7 +128,9 @@ async def verify_phase3_state() -> int:
     display_url = database_url.split("@")[1] if "@" in database_url else database_url
     print(f"Connecting to database: {display_url}")
     engine = create_async_engine(database_url, echo=False)
-    async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    async_session = async_sessionmaker(
+        engine, class_=AsyncSession, expire_on_commit=False
+    )
 
     try:
         async with async_session() as session:
@@ -132,6 +150,12 @@ async def verify_phase3_state() -> int:
                 session, "assistants", "owner_api_key_hash"
             )
 
+            # Track hash completeness for both tables
+            sessions_total = 0
+            sessions_hashed = 0
+            assistants_total = 0
+            assistants_hashed = 0
+
             print("\n[1/2] Verifying sessions table...")
             if sessions_has_plaintext:
                 print("  ⚠️  owner_api_key column still exists (Phase 3 not complete)")
@@ -140,9 +164,15 @@ async def verify_phase3_state() -> int:
 
             if sessions_has_hash:
                 print("  ✅ owner_api_key_hash column exists")
-                total, hashed = await count_hashed_records(session, "sessions")
-                print(f"  Total records: {total}")
-                print(f"  Records with hash: {hashed}")
+                sessions_total, sessions_hashed = await count_hashed_records(
+                    session, "sessions"
+                )
+                print(f"  Total records: {sessions_total}")
+                print(f"  Records with hash: {sessions_hashed}")
+                if sessions_total > 0 and sessions_hashed < sessions_total:
+                    print(
+                        f"  ❌ Missing hashes: {sessions_total - sessions_hashed} records"
+                    )
             else:
                 print("  ❌ owner_api_key_hash column missing!")
                 return 1
@@ -155,9 +185,15 @@ async def verify_phase3_state() -> int:
 
             if assistants_has_hash:
                 print("  ✅ owner_api_key_hash column exists")
-                total, hashed = await count_hashed_records(session, "assistants")
-                print(f"  Total records: {total}")
-                print(f"  Records with hash: {hashed}")
+                assistants_total, assistants_hashed = await count_hashed_records(
+                    session, "assistants"
+                )
+                print(f"  Total records: {assistants_total}")
+                print(f"  Records with hash: {assistants_hashed}")
+                if assistants_total > 0 and assistants_hashed < assistants_total:
+                    print(
+                        f"  ❌ Missing hashes: {assistants_total - assistants_hashed} records"
+                    )
             else:
                 print("  ❌ owner_api_key_hash column missing!")
                 return 1
@@ -167,18 +203,42 @@ async def verify_phase3_state() -> int:
             print("SUMMARY")
             print("=" * 70)
 
-            phase3_complete = not sessions_has_plaintext and not assistants_has_plaintext
+            phase3_complete = (
+                not sessions_has_plaintext and not assistants_has_plaintext
+            )
 
-            if phase3_complete:
+            # Check hash completeness
+            sessions_complete = sessions_total == 0 or sessions_hashed == sessions_total
+            assistants_complete = (
+                assistants_total == 0 or assistants_hashed == assistants_total
+            )
+            hashes_complete = sessions_complete and assistants_complete
+
+            if phase3_complete and hashes_complete:
                 print("\n✅ VERIFICATION PASSED - PHASE 3 COMPLETE")
                 print("Both tables have hash columns only (plaintext columns removed).")
+                print("All records have owner_api_key_hash populated.")
                 print("API key hashing migration is fully complete.")
+                return 0
+            elif not hashes_complete:
+                print("\n❌ VERIFICATION FAILED - INCOMPLETE HASHES")
+                if not sessions_complete:
+                    missing = sessions_total - sessions_hashed
+                    print(
+                        f"  sessions: {missing} of {sessions_total} records missing hash"
+                    )
+                if not assistants_complete:
+                    missing = assistants_total - assistants_hashed
+                    print(
+                        f"  assistants: {missing} of {assistants_total} records missing hash"
+                    )
+                print("\nAll records must have owner_api_key_hash populated.")
+                return 1
             else:
                 print("\n⚠️  PHASE 3 NOT YET COMPLETE")
                 print("Plaintext columns still exist. Run the Phase 3 migration:")
                 print("  uv run alembic upgrade 20260208_000007")
-
-            return 0
+                return 0
 
     except Exception as e:
         print(f"\nERROR: {e}", file=sys.stderr)
