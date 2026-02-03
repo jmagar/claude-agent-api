@@ -2,6 +2,7 @@
 
 import secrets
 from collections.abc import AsyncGenerator
+from functools import lru_cache
 from typing import Annotated
 
 from fastapi import Depends, Header, Request
@@ -13,6 +14,7 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from apps.api.adapters.cache import RedisCache
+from apps.api.adapters.memory import Mem0MemoryAdapter
 from apps.api.adapters.session_repo import SessionRepository
 from apps.api.config import Settings, get_settings
 from apps.api.exceptions import AuthenticationError, ServiceUnavailableError
@@ -22,6 +24,7 @@ from apps.api.services.mcp_config_injector import McpConfigInjector
 from apps.api.services.mcp_config_loader import McpConfigLoader
 from apps.api.services.mcp_config_validator import ConfigValidator
 from apps.api.services.mcp_server_configs import McpServerConfigService
+from apps.api.services.memory import MemoryService
 from apps.api.services.query_enrichment import QueryEnrichmentService
 from apps.api.services.session import SessionService
 from apps.api.services.shutdown import ShutdownManager, get_shutdown_manager
@@ -372,6 +375,23 @@ async def get_mcp_config_injector(
     )
 
 
+@lru_cache
+def get_memory_service() -> MemoryService:
+    """Get cached memory service instance.
+
+    Note: The Memory client is initialized once and reused (singleton).
+    This is intentional - Mem0 Memory instances are stateless and can be
+    safely shared across requests. The lru_cache ensures only one instance
+    is created per process.
+
+    Returns:
+        MemoryService instance with Mem0 adapter configured.
+    """
+    settings = get_settings()
+    adapter = Mem0MemoryAdapter(settings)
+    return MemoryService(adapter)
+
+
 # Type aliases for dependency injection
 DbSession = Annotated[AsyncSession, Depends(get_db)]
 Cache = Annotated[RedisCache, Depends(get_cache)]
@@ -387,3 +407,4 @@ QueryEnrichment = Annotated[
 ]
 McpConfigLdr = Annotated[McpConfigLoader, Depends(get_mcp_config_loader)]
 McpConfigInj = Annotated[McpConfigInjector, Depends(get_mcp_config_injector)]
+MemorySvc = Annotated[MemoryService, Depends(get_memory_service)]
