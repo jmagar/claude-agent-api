@@ -1,4 +1,8 @@
-"""<summary>Run streaming queries for AgentService.</summary>"""
+"""Run streaming queries for AgentService.
+
+Handles the streaming query flow with memory integration and session tracking.
+Yields SSE events for real-time updates during query execution.
+"""
 
 import time
 from collections.abc import AsyncGenerator
@@ -21,7 +25,11 @@ logger = structlog.get_logger(__name__)
 
 
 class StreamQueryRunner:
-    """<summary>Handles the streaming query flow.</summary>"""
+    """Handles the streaming query flow.
+
+    Coordinates session tracking, query execution, and result streaming for
+    real-time query processing with interrupt support.
+    """
 
     def __init__(
         self,
@@ -29,7 +37,13 @@ class StreamQueryRunner:
         query_executor: QueryExecutor | None = None,
         stream_orchestrator: StreamOrchestrator | None = None,
     ) -> None:
-        """<summary>Initialize dependencies.</summary>"""
+        """Initialize dependencies.
+
+        Args:
+            session_tracker: Optional session tracker (required if not injected).
+            query_executor: Optional query executor (required if not injected).
+            stream_orchestrator: Optional stream orchestrator (required if not injected).
+        """
         self._session_tracker = session_tracker
         self._query_executor = query_executor
         self._stream_orchestrator = stream_orchestrator
@@ -42,17 +56,23 @@ class StreamQueryRunner:
         memory_service: "MemoryService | None" = None,
         api_key: str = "",
     ) -> AsyncGenerator[dict[str, str], None]:
-        """<summary>Execute the streaming query flow with memory integration.</summary>
+        """Execute the streaming query flow with memory integration.
+
+        Manages the complete lifecycle of a streaming query including session
+        registration, query execution, interrupt handling, and cleanup.
 
         Args:
-            request: Query request.
-            commands_service: Commands service for slash command detection.
-            session_id_override: Optional session ID override.
-            memory_service: Optional MemoryService for memory injection/extraction.
-            api_key: API key for memory multi-tenant isolation.
+            request: Query request with prompt and configuration.
+            commands_service: Service for detecting slash commands.
+            session_id_override: Override session ID (uses request.session_id if None).
+            memory_service: Optional memory service for context injection/extraction.
+            api_key: API key for multi-tenant memory isolation.
 
         Yields:
-            SSE event dicts.
+            SSE event dictionaries with query progress and results.
+
+        Raises:
+            RuntimeError: If dependencies are not configured.
         """
         if (
             not self._session_tracker

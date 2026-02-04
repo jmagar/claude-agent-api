@@ -222,8 +222,23 @@ def verify_api_key(
     return x_api_key
 
 
+async def get_checkpoint_service(
+    cache: Annotated[RedisCache, Depends(get_cache)],
+) -> CheckpointService:
+    """Get checkpoint service instance with injected cache.
+
+    Args:
+        cache: Redis cache from dependency injection.
+
+    Returns:
+        CheckpointService instance.
+    """
+    return CheckpointService(cache=cache)
+
+
 async def get_agent_service(
     cache: Annotated[RedisCache, Depends(get_cache)],
+    checkpoint_service: Annotated[CheckpointService, Depends(get_checkpoint_service)],
 ) -> AgentService:
     """Get agent service instance.
 
@@ -235,10 +250,14 @@ async def get_agent_service(
 
     Args:
         cache: Redis cache from dependency injection.
+        checkpoint_service: Checkpoint service from dependency injection.
 
     Returns:
         AgentService instance with cache, config injector, and memory service configured.
     """
+    from apps.api.services.agent.config import AgentServiceConfig
+    from apps.api.services.webhook import WebhookService
+
     # Use singleton if set (for tests)
     if _agent_service is not None:
         return _agent_service
@@ -256,12 +275,17 @@ async def get_agent_service(
     # Get memory service
     memory_service = get_memory_service()
 
-    # Otherwise create new instance per request with cache, injector, and memory service
-    return AgentService(
+    # Build config object
+    config = AgentServiceConfig(
+        webhook_service=WebhookService(),
+        checkpoint_service=checkpoint_service,
         cache=cache,
         mcp_config_injector=config_injector,
         memory_service=memory_service,
     )
+
+    # Otherwise create new instance per request with config
+    return AgentService(config=config)
 
 
 def set_agent_service_singleton(service: AgentService | None) -> None:
@@ -288,20 +312,6 @@ async def get_session_service(
         SessionService instance.
     """
     return SessionService(cache=cache, db_repo=db_repo)
-
-
-async def get_checkpoint_service(
-    cache: Annotated[RedisCache, Depends(get_cache)],
-) -> CheckpointService:
-    """Get checkpoint service instance with injected cache.
-
-    Args:
-        cache: Redis cache from dependency injection.
-
-    Returns:
-        CheckpointService instance.
-    """
-    return CheckpointService(cache=cache)
 
 
 def check_shutdown_state() -> ShutdownManager:

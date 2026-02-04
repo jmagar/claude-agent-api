@@ -1,4 +1,7 @@
-"""<summary>Run single-shot queries for AgentService.</summary>"""
+"""Run single-shot queries for AgentService.
+
+Handles non-streaming queries with memory integration and result aggregation.
+"""
 
 import time
 from typing import TYPE_CHECKING
@@ -20,10 +23,17 @@ logger = structlog.get_logger(__name__)
 
 
 class SingleQueryRunner:
-    """<summary>Handles the single query flow.</summary>"""
+    """Handles the single query flow.
+
+    Executes non-streaming queries and aggregates results into a complete response.
+    """
 
     def __init__(self, query_executor: QueryExecutor | None = None) -> None:
-        """<summary>Initialize dependencies.</summary>"""
+        """Initialize dependencies.
+
+        Args:
+            query_executor: Optional query executor (required if not injected).
+        """
         self._query_executor = query_executor
 
     async def run(
@@ -33,16 +43,22 @@ class SingleQueryRunner:
         memory_service: "MemoryService | None" = None,
         api_key: str = "",
     ) -> "QueryResponseDict":
-        """<summary>Execute a single query and aggregate results with memory integration.</summary>
+        """Execute a single query and aggregate results with memory integration.
+
+        Runs the query to completion, collects all events, and returns a complete
+        response dictionary with messages, usage, and metadata.
 
         Args:
-            request: Query request.
-            commands_service: Commands service for slash command detection.
-            memory_service: Optional MemoryService for memory injection/extraction.
-            api_key: API key for memory multi-tenant isolation.
+            request: Query request with prompt and configuration.
+            commands_service: Service for detecting slash commands.
+            memory_service: Optional memory service for context injection/extraction.
+            api_key: API key for multi-tenant memory isolation.
 
         Returns:
-            Complete query response dict.
+            Complete query response dictionary.
+
+        Raises:
+            RuntimeError: If dependencies are not configured.
         """
         if not self._query_executor:
             raise RuntimeError("SingleQueryRunner dependency not configured")

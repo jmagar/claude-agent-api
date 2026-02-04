@@ -10,6 +10,7 @@ import structlog
 from apps.api.config import get_settings
 from apps.api.services.agent.checkpoint_manager import CheckpointManager
 from apps.api.services.agent.command_discovery import CommandDiscovery
+from apps.api.services.agent.config import AgentServiceConfig
 from apps.api.services.agent.file_modification_tracker import FileModificationTracker
 from apps.api.services.agent.handlers import MessageHandler
 from apps.api.services.agent.hook_facade import HookFacade
@@ -22,16 +23,13 @@ from apps.api.services.agent.single_query_runner import SingleQueryRunner
 from apps.api.services.agent.stream_orchestrator import StreamOrchestrator
 from apps.api.services.agent.stream_query_runner import StreamQueryRunner
 from apps.api.services.agent.types import QueryResponseDict, StreamContext
-from apps.api.services.mcp_config_injector import McpConfigInjector
 from apps.api.services.webhook import WebhookService
 
 if TYPE_CHECKING:
-    from apps.api.protocols import Cache
     from apps.api.schemas.requests.config import HooksConfigSchema
     from apps.api.schemas.requests.query import QueryRequest
-    from apps.api.services.checkpoint import Checkpoint, CheckpointService
+    from apps.api.services.checkpoint import Checkpoint
     from apps.api.services.commands import CommandsService
-    from apps.api.services.memory import MemoryService
 
 logger = structlog.get_logger(__name__)
 
@@ -41,9 +39,7 @@ class AgentService:
 
     def __init__(
         self,
-        webhook_service: WebhookService | None = None,
-        checkpoint_service: "CheckpointService | None" = None,
-        cache: "Cache | None" = None,
+        config: AgentServiceConfig | None = None,
         session_tracker: AgentSessionTracker | None = None,
         query_executor: QueryExecutor | None = None,
         stream_runner: StreamQueryRunner | None = None,
@@ -51,27 +47,32 @@ class AgentService:
         session_control: SessionControl | None = None,
         checkpoint_manager: CheckpointManager | None = None,
         file_modification_tracker: FileModificationTracker | None = None,
-        mcp_config_injector: McpConfigInjector | None = None,
-        memory_service: "MemoryService | None" = None,
     ) -> None:
         """Initialize agent service.
 
         Args:
-            webhook_service: Optional WebhookService for hook callbacks.
-                           If not provided, a default instance is created.
-            checkpoint_service: Optional CheckpointService for file checkpointing.
-                              Required for enable_file_checkpointing functionality.
-            cache: Optional Cache instance for distributed session tracking.
-                   Required for horizontal scaling across multiple instances.
-            mcp_config_injector: Optional McpConfigInjector for server-side MCP config.
-                               If not provided, MCP injection is skipped.
-            memory_service: Optional MemoryService for memory injection/extraction.
+            config: Configuration for optional dependencies (webhook, checkpoint, cache, MCP, memory).
+                    If not provided, defaults to empty config.
+            session_tracker: Optional AgentSessionTracker (created with cache from config if not provided).
+            query_executor: Optional QueryExecutor (created with default MessageHandler if not provided).
+            stream_runner: Optional StreamQueryRunner (created if not provided).
+            single_query_runner: Optional SingleQueryRunner (created if not provided).
+            session_control: Optional SessionControl (created if not provided).
+            checkpoint_manager: Optional CheckpointManager (created if not provided).
+            file_modification_tracker: Optional FileModificationTracker (created if not provided).
         """
         self._settings = get_settings()
-        self._webhook_service = webhook_service or WebhookService()
-        self._checkpoint_service = checkpoint_service
-        self._cache = cache
-        self._session_tracker = session_tracker or AgentSessionTracker(cache=cache)
+        self._config = config or AgentServiceConfig()
+
+        # Extract config values for backward compatibility
+        self._webhook_service = self._config.webhook_service or WebhookService()
+        self._checkpoint_service = self._config.checkpoint_service
+        self._cache = self._config.cache
+        self._mcp_config_injector = self._config.mcp_config_injector
+        self._memory_service = self._config.memory_service
+
+        # Initialize core components
+        self._session_tracker = session_tracker or AgentSessionTracker(cache=self._cache)
         self._message_handler = MessageHandler()
         self._hook_executor = HookExecutor(self._webhook_service)
         self._hook_facade = HookFacade(self._hook_executor)
@@ -92,8 +93,6 @@ class AgentService:
         self._file_modification_tracker = (
             file_modification_tracker or FileModificationTracker(self._message_handler)
         )
-        self._mcp_config_injector = mcp_config_injector
-        self._memory_service = memory_service
 
     async def _register_active_session(self, session_id: str) -> None:
         """Register session as active in Redis for distributed tracking.
@@ -155,7 +154,7 @@ class AgentService:
         return await self._session_tracker.is_interrupted(session_id)
 
     @property
-    def checkpoint_service(self) -> "CheckpointService | None":
+    def checkpoint_service(self) -> object | None:
         """Get the checkpoint service instance.
 
         Returns:
