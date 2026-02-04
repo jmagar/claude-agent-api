@@ -14,14 +14,18 @@ if TYPE_CHECKING:
     from apps.api.schemas.requests.query import QueryRequest
     from apps.api.services.agent.handlers import MessageHandler
     from apps.api.services.commands import CommandsService
+    from apps.api.services.memory import MemoryService
 
 logger = structlog.get_logger(__name__)
 
 
 class QueryExecutor:
-    """Executes queries against the Claude Agent SDK."""
+    """Executes queries against the Claude Agent SDK with memory integration."""
 
-    def __init__(self, message_handler: "MessageHandler") -> None:
+    def __init__(
+        self,
+        message_handler: "MessageHandler",
+    ) -> None:
         """Initialize query executor.
 
         Args:
@@ -34,13 +38,17 @@ class QueryExecutor:
         request: "QueryRequest",
         ctx: StreamContext,
         commands_service: "CommandsService",
+        memory_service: "MemoryService | None" = None,
+        api_key: str = "",
     ) -> AsyncGenerator[dict[str, str], None]:
-        """Execute query using Claude Agent SDK.
+        """Execute query using Claude Agent SDK with memory integration.
 
         Args:
             request: Query request containing prompt and options.
             ctx: Stream context for tracking execution state.
             commands_service: Service for parsing slash commands.
+            memory_service: Optional MemoryService for memory injection/extraction.
+            api_key: API key for memory multi-tenant isolation.
 
         Yields:
             SSE-formatted event dictionaries.
@@ -58,6 +66,9 @@ class QueryExecutor:
             ProcessError,
         )
 
+        # Track assistant responses for memory extraction
+        assistant_responses: list[str] = []
+
         try:
             # Detect slash commands in prompt for observability logging
             parsed_command = commands_service.parse_command(request.prompt)
@@ -71,6 +82,29 @@ class QueryExecutor:
                     command=parsed_command["command"],
                     args=parsed_command["args"],
                 )
+
+            # INJECT: Retrieve and inject relevant memories BEFORE query
+            if memory_service and api_key:
+                memory_context = await memory_service.format_memory_context(
+                    query=request.prompt,
+                    user_id=api_key,
+                )
+
+                # Enhance system prompt with memory context if memories found
+                if memory_context:
+                    original_system_prompt = request.system_prompt or ""
+                    enhanced_system_prompt = (
+                        f"{original_system_prompt}\n\n{memory_context}".strip()
+                    )
+                    # Modify request in-place to include memory context
+                    request.system_prompt = enhanced_system_prompt
+
+                    logger.info(
+                        "memory_context_injected",
+                        session_id=ctx.session_id,
+                        user_id=api_key,
+                        memory_count=memory_context.count("\n- "),
+                    )
 
             # Build options using OptionsBuilder
             options = OptionsBuilder(request).build()
@@ -153,12 +187,45 @@ class QueryExecutor:
                         message_type=type(message).__name__,
                     )
 
+                    # Track assistant messages for memory extraction
+                    if hasattr(message, "type") and message.type == "assistant":
+                        if hasattr(message, "content"):
+                            for content_block in message.content:
+                                if hasattr(content_block, "type") and content_block.type == "text":
+                                    if hasattr(content_block, "text"):
+                                        assistant_responses.append(content_block.text)
+
                     # Map SDK message to API event using MessageHandler
                     event_str = self._message_handler.map_sdk_message(message, ctx)
                     if event_str:
                         yield event_str
 
                 logger.debug("SDK client disconnecting", session_id=ctx.session_id)
+
+            # EXTRACT: Store memories from conversation AFTER query completes
+            if memory_service and api_key:
+                # Format conversation for memory extraction
+                if assistant_responses:
+                    assistant_text = " ".join(assistant_responses)
+                    conversation = f"User: {request.prompt}\n\nAssistant: {assistant_text}"
+                else:
+                    # Even without responses, store the user prompt
+                    conversation = f"User: {request.prompt}"
+
+                await memory_service.add_memory(
+                    messages=conversation,
+                    user_id=api_key,
+                    metadata={
+                        "session_id": ctx.session_id,
+                        "source": "query",
+                    },
+                )
+                logger.info(
+                    "memory_extracted",
+                    session_id=ctx.session_id,
+                    user_id=api_key,
+                    has_response=bool(assistant_responses),
+                )
 
         except ImportError:
             # SDK not installed - emit mock response for development

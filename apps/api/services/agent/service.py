@@ -31,6 +31,7 @@ if TYPE_CHECKING:
     from apps.api.schemas.requests.query import QueryRequest
     from apps.api.services.checkpoint import Checkpoint, CheckpointService
     from apps.api.services.commands import CommandsService
+    from apps.api.services.memory import MemoryService
 
 logger = structlog.get_logger(__name__)
 
@@ -51,6 +52,7 @@ class AgentService:
         checkpoint_manager: CheckpointManager | None = None,
         file_modification_tracker: FileModificationTracker | None = None,
         mcp_config_injector: McpConfigInjector | None = None,
+        memory_service: "MemoryService | None" = None,
     ) -> None:
         """Initialize agent service.
 
@@ -63,6 +65,7 @@ class AgentService:
                    Required for horizontal scaling across multiple instances.
             mcp_config_injector: Optional McpConfigInjector for server-side MCP config.
                                If not provided, MCP injection is skipped.
+            memory_service: Optional MemoryService for memory injection/extraction.
         """
         self._settings = get_settings()
         self._webhook_service = webhook_service or WebhookService()
@@ -90,6 +93,7 @@ class AgentService:
             file_modification_tracker or FileModificationTracker(self._message_handler)
         )
         self._mcp_config_injector = mcp_config_injector
+        self._memory_service = memory_service
 
     async def _register_active_session(self, session_id: str) -> None:
         """Register session as active in Redis for distributed tracking.
@@ -219,6 +223,8 @@ class AgentService:
             request,
             discovery.commands_service,
             session_id_override=session_id,
+            memory_service=self._memory_service,
+            api_key=api_key,
         ):
             yield event
 
@@ -276,7 +282,12 @@ class AgentService:
 
         project_path = Path(request.cwd) if request.cwd else Path.cwd()
         discovery = CommandDiscovery(project_path=project_path)
-        return await self._single_query_runner.run(request, discovery.commands_service)
+        return await self._single_query_runner.run(
+            request,
+            discovery.commands_service,
+            memory_service=self._memory_service,
+            api_key=api_key,
+        )
 
     async def interrupt(self, session_id: str) -> bool:
         """Interrupt a running agent session (distributed).

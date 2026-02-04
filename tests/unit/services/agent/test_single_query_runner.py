@@ -14,7 +14,11 @@ async def test_single_query_runner_aggregates_assistant_content() -> None:
     query_executor = MagicMock()
 
     async def _execute(
-        _request: QueryRequest, _ctx: object, _commands: object
+        _request: QueryRequest,
+        _ctx: object,
+        _commands: object,
+        _memory_service: object = None,
+        _api_key: str = "",
     ) -> AsyncGenerator[dict[str, str], None]:
         yield {
             "event": "message",
@@ -37,7 +41,11 @@ async def test_single_query_runner_handles_executor_error() -> None:
     query_executor = MagicMock()
 
     async def _execute(
-        _request: QueryRequest, _ctx: object, _commands: object
+        _request: QueryRequest,
+        _ctx: object,
+        _commands: object,
+        _memory_service: object = None,
+        _api_key: str = "",
     ) -> AsyncGenerator[dict[str, str], None]:
         raise RuntimeError("boom")
         yield {"event": "never", "data": "{}"}

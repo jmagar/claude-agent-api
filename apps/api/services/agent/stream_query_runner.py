@@ -15,6 +15,7 @@ from apps.api.services.agent.types import StreamContext
 if TYPE_CHECKING:
     from apps.api.schemas.requests.query import QueryRequest
     from apps.api.services.commands import CommandsService
+    from apps.api.services.memory import MemoryService
 
 logger = structlog.get_logger(__name__)
 
@@ -38,8 +39,21 @@ class StreamQueryRunner:
         request: "QueryRequest",
         commands_service: "CommandsService",
         session_id_override: str | None = None,
+        memory_service: "MemoryService | None" = None,
+        api_key: str = "",
     ) -> AsyncGenerator[dict[str, str], None]:
-        """<summary>Execute the streaming query flow.</summary>"""
+        """<summary>Execute the streaming query flow with memory integration.</summary>
+
+        Args:
+            request: Query request.
+            commands_service: Commands service for slash command detection.
+            session_id_override: Optional session ID override.
+            memory_service: Optional MemoryService for memory injection/extraction.
+            api_key: API key for memory multi-tenant isolation.
+
+        Yields:
+            SSE event dicts.
+        """
         if (
             not self._session_tracker
             or not self._query_executor
@@ -60,7 +74,7 @@ class StreamQueryRunner:
         try:
             await self._session_tracker.register(session_id)
             async for event in self._query_executor.execute(
-                request, ctx, commands_service
+                request, ctx, commands_service, memory_service, api_key
             ):
                 yield event
                 if await self._session_tracker.is_interrupted(session_id):

@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from apps.api.schemas.requests.query import QueryRequest
     from apps.api.services.agent.types import QueryResponseDict
     from apps.api.services.commands import CommandsService
+    from apps.api.services.memory import MemoryService
 
 logger = structlog.get_logger(__name__)
 
@@ -26,9 +27,23 @@ class SingleQueryRunner:
         self._query_executor = query_executor
 
     async def run(
-        self, request: "QueryRequest", commands_service: "CommandsService"
+        self,
+        request: "QueryRequest",
+        commands_service: "CommandsService",
+        memory_service: "MemoryService | None" = None,
+        api_key: str = "",
     ) -> "QueryResponseDict":
-        """<summary>Execute a single query and aggregate results.</summary>"""
+        """<summary>Execute a single query and aggregate results with memory integration.</summary>
+
+        Args:
+            request: Query request.
+            commands_service: Commands service for slash command detection.
+            memory_service: Optional MemoryService for memory injection/extraction.
+            api_key: API key for memory multi-tenant isolation.
+
+        Returns:
+            Complete query response dict.
+        """
         if not self._query_executor:
             raise RuntimeError("SingleQueryRunner dependency not configured")
 
@@ -47,7 +62,7 @@ class SingleQueryRunner:
 
         try:
             async for event in self._query_executor.execute(
-                request, ctx, commands_service
+                request, ctx, commands_service, memory_service, api_key
             ):
                 aggregator.handle_event(event)
         except Exception as exc:

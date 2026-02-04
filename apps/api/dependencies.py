@@ -237,7 +237,7 @@ async def get_agent_service(
         cache: Redis cache from dependency injection.
 
     Returns:
-        AgentService instance with cache and config injector configured.
+        AgentService instance with cache, config injector, and memory service configured.
     """
     # Use singleton if set (for tests)
     if _agent_service is not None:
@@ -253,8 +253,15 @@ async def get_agent_service(
         validator=validator,
     )
 
-    # Otherwise create new instance per request with cache and injector
-    return AgentService(cache=cache, mcp_config_injector=config_injector)
+    # Get memory service
+    memory_service = get_memory_service()
+
+    # Otherwise create new instance per request with cache, injector, and memory service
+    return AgentService(
+        cache=cache,
+        mcp_config_injector=config_injector,
+        memory_service=memory_service,
+    )
 
 
 def set_agent_service_singleton(service: AgentService | None) -> None:

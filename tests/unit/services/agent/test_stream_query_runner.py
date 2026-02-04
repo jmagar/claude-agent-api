@@ -25,7 +25,11 @@ async def test_stream_query_runner_executes_query() -> None:
     }
 
     async def _execute(
-        _request: QueryRequest, _ctx: object, _commands: object
+        _request: QueryRequest,
+        _ctx: object,
+        _commands: object,
+        _memory_service: object = None,
+        _api_key: str = "",
     ) -> AsyncGenerator[dict[str, str], None]:
         yield {"event": "message", "data": "{}"}
 
@@ -63,7 +67,11 @@ async def test_stream_query_runner_interrupts_session() -> None:
     }
 
     async def _execute(
-        _request: QueryRequest, _ctx: object, _commands: object
+        _request: QueryRequest,
+        _ctx: object,
+        _commands: object,
+        _memory_service: object = None,
+        _api_key: str = "",
     ) -> AsyncGenerator[dict[str, str], None]:
         yield {"event": "message", "data": "{}"}
 
@@ -101,7 +109,11 @@ async def test_stream_query_runner_emits_error_on_exception() -> None:
     }
 
     async def _execute(
-        _request: QueryRequest, _ctx: object, _commands: object
+        _request: QueryRequest,
+        _ctx: object,
+        _commands: object,
+        _memory_service: object = None,
+        _api_key: str = "",
     ) -> AsyncGenerator[dict[str, str], None]:
         raise RuntimeError("boom")
         yield {"event": "never", "data": "{}"}
