@@ -417,6 +417,106 @@ def get_memory_service() -> MemoryService:
     return MemoryService(adapter)
 
 
+# --- CRUD Service Providers (Phase 2: DI Refactor) ---
+
+
+async def get_agent_config_service(
+    cache: Annotated[RedisCache, Depends(get_cache)],
+) -> object:
+    """Get agent CRUD service (for agents.py route).
+
+    Note: Different from AgentService in services/agent/service.py (orchestration).
+    This is the CRUD service from services/agents.py.
+
+    Args:
+        cache: Redis cache from dependency injection.
+
+    Returns:
+        AgentService instance for agent CRUD operations.
+    """
+    from apps.api.services.agents import AgentService as AgentCrudService
+
+    return AgentCrudService(cache=cache)
+
+
+async def get_project_service(
+    cache: Annotated[RedisCache, Depends(get_cache)],
+) -> object:
+    """Get project CRUD service.
+
+    Args:
+        cache: Redis cache from dependency injection.
+
+    Returns:
+        ProjectService instance.
+    """
+    from apps.api.services.projects import ProjectService
+
+    return ProjectService(cache=cache)
+
+
+async def get_tool_preset_service(
+    cache: Annotated[RedisCache, Depends(get_cache)],
+) -> object:
+    """Get tool preset CRUD service.
+
+    Args:
+        cache: Redis cache from dependency injection.
+
+    Returns:
+        ToolPresetService instance.
+    """
+    from apps.api.services.tool_presets import ToolPresetService
+
+    return ToolPresetService(cache=cache)
+
+
+async def get_slash_command_service(
+    cache: Annotated[RedisCache, Depends(get_cache)],
+) -> object:
+    """Get slash command CRUD service.
+
+    Args:
+        cache: Redis cache from dependency injection.
+
+    Returns:
+        SlashCommandService instance.
+    """
+    from apps.api.services.slash_commands import SlashCommandService
+
+    return SlashCommandService(cache=cache)
+
+
+def get_mcp_discovery_service() -> object:
+    """Get MCP discovery service for filesystem operations.
+
+    Returns:
+        McpDiscoveryService instance configured with current working directory.
+    """
+    from pathlib import Path
+
+    from apps.api.services.mcp_discovery import McpDiscoveryService
+
+    return McpDiscoveryService(project_path=Path.cwd())
+
+
+async def get_mcp_server_config_service_provider(
+    cache: Annotated[RedisCache, Depends(get_cache)],
+) -> McpServerConfigService:
+    """Get MCP server config service.
+
+    Note: This is a separate provider from the one used in get_mcp_config_injector.
+    Routes that need direct access to MCP server configs should use this.
+
+    Args:
+        cache: Redis cache from dependency injection.
+
+    Returns:
+        McpServerConfigService instance.
+    """
+    return McpServerConfigService(cache=cache)
+
+
 # Type aliases for dependency injection
 DbSession = Annotated[AsyncSession, Depends(get_db)]
 Cache = Annotated[RedisCache, Depends(get_cache)]
@@ -433,3 +533,13 @@ QueryEnrichment = Annotated[
 McpConfigLdr = Annotated[McpConfigLoader, Depends(get_mcp_config_loader)]
 McpConfigInj = Annotated[McpConfigInjector, Depends(get_mcp_config_injector)]
 MemorySvc = Annotated[MemoryService, Depends(get_memory_service)]
+
+# CRUD service type aliases (Phase 2: DI Refactor)
+AgentConfigSvc = Annotated[object, Depends(get_agent_config_service)]
+ProjectSvc = Annotated[object, Depends(get_project_service)]
+ToolPresetSvc = Annotated[object, Depends(get_tool_preset_service)]
+SlashCommandSvc = Annotated[object, Depends(get_slash_command_service)]
+McpDiscoverySvc = Annotated[object, Depends(get_mcp_discovery_service)]
+McpServerConfigSvc = Annotated[
+    McpServerConfigService, Depends(get_mcp_server_config_service_provider)
+]
