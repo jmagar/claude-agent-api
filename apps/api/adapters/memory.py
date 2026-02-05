@@ -33,7 +33,7 @@ class Mem0MemoryAdapter:
             "llm": {
                 "provider": "openai",
                 "config": {
-                    "base_url": settings.llm_base_url,
+                    "openai_base_url": settings.llm_base_url,
                     "model": settings.llm_model,
                     "api_key": settings.llm_api_key,
                 },
