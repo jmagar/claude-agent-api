@@ -17,6 +17,8 @@ if TYPE_CHECKING:
     from apps.api.schemas.requests.query import QueryRequest
     from apps.api.schemas.responses import SingleQueryResponse
     from apps.api.services.agent import QueryResponseDict
+    from apps.api.services.commands import CommandsService
+    from apps.api.services.memory import MemoryService
     from apps.api.types import AgentMessage
 
 
@@ -550,5 +552,474 @@ class MemoryProtocol(Protocol):
 
         Args:
             user_id: User identifier for authorization.
+        """
+        ...
+
+
+@runtime_checkable
+class QueryRunner(Protocol):
+    """Protocol for query runner implementations (stream/single)."""
+
+    async def run(
+        self,
+        request: "QueryRequest",
+        commands_service: "CommandsService",
+        session_id_override: str | None = None,
+        api_key: str = "",
+        memory_service: "MemoryService | None" = None,
+    ) -> object:
+        """Execute query with optional parameters.
+
+        Args:
+            request: Query request to execute.
+            commands_service: Commands service for slash command detection.
+            session_id_override: Optional session ID override.
+            api_key: API key for scoped configuration.
+            memory_service: Optional memory service for context injection.
+
+        Returns:
+            Query result (type varies by implementation: AsyncIterator or dict).
+        """
+        ...
+
+
+# --- CRUD Service Protocols (for DI Refactor) ---
+
+
+@runtime_checkable
+class AgentConfigProtocol(Protocol):
+    """Protocol for agent CRUD operations.
+
+    This protocol represents the CRUD service for agent configurations,
+    distinct from the AgentService protocol which handles orchestration.
+    """
+
+    async def list_agents(self) -> list[object]:
+        """List all agents.
+
+        Returns:
+            List of agent records.
+        """
+        ...
+
+    async def create_agent(
+        self,
+        name: str,
+        description: str,
+        prompt: str,
+        tools: list[str] | None,
+        model: str | None,
+    ) -> object:
+        """Create a new agent.
+
+        Args:
+            name: Agent name.
+            description: Agent description.
+            prompt: System prompt.
+            tools: Available tools list.
+            model: Claude model identifier.
+
+        Returns:
+            Created agent record.
+        """
+        ...
+
+    async def get_agent(self, agent_id: str) -> object | None:
+        """Get agent by ID.
+
+        Args:
+            agent_id: Agent identifier.
+
+        Returns:
+            Agent record or None if not found.
+        """
+        ...
+
+    async def update_agent(
+        self,
+        agent_id: str,
+        name: str,
+        description: str,
+        prompt: str,
+        tools: list[str] | None,
+        model: str | None,
+    ) -> object | None:
+        """Update an agent.
+
+        Args:
+            agent_id: Agent identifier.
+            name: Updated name.
+            description: Updated description.
+            prompt: Updated prompt.
+            tools: Updated tools list.
+            model: Updated model.
+
+        Returns:
+            Updated agent record or None if not found.
+        """
+        ...
+
+    async def delete_agent(self, agent_id: str) -> bool:
+        """Delete an agent.
+
+        Args:
+            agent_id: Agent identifier.
+
+        Returns:
+            True if deleted successfully.
+        """
+        ...
+
+    async def share_agent(self, agent_id: str, share_url: str) -> object | None:
+        """Mark agent as shared and generate token.
+
+        Args:
+            agent_id: Agent identifier.
+            share_url: Shareable URL.
+
+        Returns:
+            Updated agent record or None if not found.
+        """
+        ...
+
+
+@runtime_checkable
+class ProjectProtocol(Protocol):
+    """Protocol for project CRUD operations."""
+
+    async def list_projects(self) -> list[object]:
+        """List all projects.
+
+        Returns:
+            List of project records.
+        """
+        ...
+
+    async def create_project(
+        self,
+        name: str,
+        path: str | None,
+        metadata: dict[str, object] | None,
+    ) -> object | None:
+        """Create a new project.
+
+        Args:
+            name: Project name.
+            path: Project path.
+            metadata: Additional metadata.
+
+        Returns:
+            Created project record or None if duplicate.
+        """
+        ...
+
+    async def get_project(self, project_id: str) -> object | None:
+        """Get project by ID.
+
+        Args:
+            project_id: Project identifier.
+
+        Returns:
+            Project record or None if not found.
+        """
+        ...
+
+    async def update_project(
+        self,
+        project_id: str,
+        name: str | None,
+        metadata: dict[str, object] | None,
+    ) -> object | None:
+        """Update a project.
+
+        Args:
+            project_id: Project identifier.
+            name: Updated name.
+            metadata: Updated metadata.
+
+        Returns:
+            Updated project record or None if not found.
+        """
+        ...
+
+    async def delete_project(self, project_id: str) -> bool:
+        """Delete a project.
+
+        Args:
+            project_id: Project identifier.
+
+        Returns:
+            True if deleted successfully.
+        """
+        ...
+
+
+@runtime_checkable
+class ToolPresetProtocol(Protocol):
+    """Protocol for tool preset CRUD operations."""
+
+    async def list_presets(self) -> list[object]:
+        """List all tool presets.
+
+        Returns:
+            List of tool preset records.
+        """
+        ...
+
+    async def create_preset(
+        self,
+        name: str,
+        description: str | None,
+        allowed_tools: list[str],
+        disallowed_tools: list[str],
+        is_system: bool = False,
+    ) -> object:
+        """Create a new tool preset.
+
+        Args:
+            name: Preset name.
+            description: Preset description.
+            allowed_tools: List of allowed tools.
+            disallowed_tools: List of disallowed tools.
+            is_system: Whether this is a system preset.
+
+        Returns:
+            Created tool preset record.
+        """
+        ...
+
+    async def get_preset(self, preset_id: str) -> object | None:
+        """Get tool preset by ID.
+
+        Args:
+            preset_id: Preset identifier.
+
+        Returns:
+            Tool preset record or None if not found.
+        """
+        ...
+
+    async def update_preset(
+        self,
+        preset_id: str,
+        name: str,
+        description: str | None,
+        allowed_tools: list[str],
+        disallowed_tools: list[str],
+    ) -> object | None:
+        """Update a tool preset.
+
+        Args:
+            preset_id: Preset identifier.
+            name: Updated name.
+            description: Updated description.
+            allowed_tools: Updated allowed tools.
+            disallowed_tools: Updated disallowed tools.
+
+        Returns:
+            Updated tool preset record or None if not found.
+        """
+        ...
+
+    async def delete_preset(self, preset_id: str) -> bool:
+        """Delete a tool preset.
+
+        Args:
+            preset_id: Preset identifier.
+
+        Returns:
+            True if deleted successfully.
+        """
+        ...
+
+
+@runtime_checkable
+class McpServerConfigProtocol(Protocol):
+    """Protocol for MCP server configuration operations."""
+
+    async def list_servers_for_api_key(self, api_key: str) -> list[object]:
+        """List all MCP servers for a specific API key.
+
+        Args:
+            api_key: API key for multi-tenant isolation.
+
+        Returns:
+            List of MCP server records.
+        """
+        ...
+
+    async def get_server(self, api_key: str, name: str) -> object | None:
+        """Get MCP server config by name for an API key.
+
+        Args:
+            api_key: API key for scoping.
+            name: Server name.
+
+        Returns:
+            MCP server record or None if not found.
+        """
+        ...
+
+    async def create_server(
+        self,
+        api_key: str,
+        name: str,
+        config: dict[str, object],
+    ) -> object:
+        """Create a new MCP server config.
+
+        Args:
+            api_key: API key for scoping.
+            name: Server name.
+            config: Server configuration.
+
+        Returns:
+            Created MCP server record.
+        """
+        ...
+
+    async def update_server(
+        self,
+        api_key: str,
+        name: str,
+        config: dict[str, object],
+    ) -> bool:
+        """Update an MCP server config.
+
+        Args:
+            api_key: API key for scoping.
+            name: Server name.
+            config: Updated configuration.
+
+        Returns:
+            True if updated successfully.
+        """
+        ...
+
+    async def delete_server(self, api_key: str, name: str) -> bool:
+        """Delete an MCP server config.
+
+        Args:
+            api_key: API key for scoping.
+            name: Server name.
+
+        Returns:
+            True if deleted successfully.
+        """
+        ...
+
+
+@runtime_checkable
+class McpDiscoveryProtocol(Protocol):
+    """Protocol for MCP server filesystem discovery."""
+
+    def discover_servers(self) -> dict[str, object]:
+        """Discover MCP servers from filesystem configs.
+
+        Returns:
+            Dict mapping server name to server info.
+        """
+        ...
+
+    def get_enabled_servers(
+        self, disabled_servers: list[str] | None = None
+    ) -> dict[str, object]:
+        """Get enabled servers filtering out disabled ones.
+
+        Args:
+            disabled_servers: List of server names to exclude.
+
+        Returns:
+            Dict mapping server name to server info (enabled only).
+        """
+        ...
+
+
+@runtime_checkable
+class SkillsProtocol(Protocol):
+    """Protocol for skill discovery operations."""
+
+    def discover_skills(self) -> list[dict[str, str]]:
+        """Discover skills from filesystem.
+
+        Returns:
+            List of skill info dictionaries.
+        """
+        ...
+
+
+@runtime_checkable
+class SlashCommandProtocol(Protocol):
+    """Protocol for slash command CRUD operations."""
+
+    async def list_commands(self) -> list[object]:
+        """List all slash commands.
+
+        Returns:
+            List of slash command records.
+        """
+        ...
+
+    async def create_command(
+        self,
+        name: str,
+        description: str,
+        content: str,
+        enabled: bool,
+    ) -> object:
+        """Create a new slash command.
+
+        Args:
+            name: Command name.
+            description: Command description.
+            content: Command content.
+            enabled: Whether command is enabled.
+
+        Returns:
+            Created slash command record.
+        """
+        ...
+
+    async def get_command(self, command_id: str) -> object | None:
+        """Get slash command by ID.
+
+        Args:
+            command_id: Command identifier.
+
+        Returns:
+            Slash command record or None if not found.
+        """
+        ...
+
+    async def update_command(
+        self,
+        command_id: str,
+        name: str,
+        description: str,
+        content: str,
+        enabled: bool,
+    ) -> object | None:
+        """Update a slash command.
+
+        Args:
+            command_id: Command identifier.
+            name: Updated name.
+            description: Updated description.
+            content: Updated content.
+            enabled: Updated enabled status.
+
+        Returns:
+            Updated slash command record or None if not found.
+        """
+        ...
+
+    async def delete_command(self, command_id: str) -> bool:
+        """Delete a slash command.
+
+        Args:
+            command_id: Command identifier.
+
+        Returns:
+            True if deleted successfully.
         """
         ...
