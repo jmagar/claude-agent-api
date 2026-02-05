@@ -43,6 +43,7 @@ class Mem0MemoryAdapter:
                 "config": {
                     "huggingface_base_url": f"{settings.tei_url}/v1",
                     "embedding_dims": settings.mem0_embedding_dims,
+                    "api_key": settings.tei_api_key,
                 },
             },
             "vector_store": {
@@ -93,16 +94,13 @@ class Mem0MemoryAdapter:
         Returns:
             List of memory search results sorted by relevance score.
         """
-        loop = asyncio.get_event_loop()
-        results = await loop.run_in_executor(
-            None,
-            lambda: self._memory.search(
-                query=query,
-                user_id=user_id,
-                agent_id=self._agent_id,
-                limit=limit,
-                enable_graph=enable_graph,
-            ),
+        results = await asyncio.to_thread(
+            self._memory.search,
+            query=query,
+            user_id=user_id,
+            agent_id=self._agent_id,
+            limit=limit,
+            enable_graph=enable_graph,
         )
 
         return [
@@ -137,16 +135,13 @@ class Mem0MemoryAdapter:
         Returns:
             List of created memory records with IDs and content.
         """
-        loop = asyncio.get_event_loop()
-        results = await loop.run_in_executor(
-            None,
-            lambda: self._memory.add(
-                messages=messages,
-                user_id=user_id,
-                agent_id=self._agent_id,
-                metadata=metadata or {},
-                enable_graph=enable_graph,
-            ),
+        results = await asyncio.to_thread(
+            self._memory.add,
+            messages=messages,
+            user_id=user_id,
+            agent_id=self._agent_id,
+            metadata=metadata or {},
+            enable_graph=enable_graph,
         )
         return results
 
@@ -165,13 +160,10 @@ class Mem0MemoryAdapter:
         Returns:
             List of all memory records for the user.
         """
-        loop = asyncio.get_event_loop()
-        results = await loop.run_in_executor(
-            None,
-            lambda: self._memory.get_all(
-                user_id=user_id,
-                agent_id=self._agent_id,
-            ),
+        results = await asyncio.to_thread(
+            self._memory.get_all,
+            user_id=user_id,
+            agent_id=self._agent_id,
         )
         return results
 
@@ -192,13 +184,10 @@ class Mem0MemoryAdapter:
         Raises:
             ValueError: If memory does not belong to user_id.
         """
-        loop = asyncio.get_event_loop()
-        await loop.run_in_executor(
-            None,
-            lambda: self._memory.delete(
-                memory_id=memory_id,
-                user_id=user_id,
-            ),
+        await asyncio.to_thread(
+            self._memory.delete,
+            memory_id=memory_id,
+            user_id=user_id,
         )
 
     async def delete_all(
@@ -213,10 +202,7 @@ class Mem0MemoryAdapter:
         Args:
             user_id: User identifier whose memories should be deleted.
         """
-        loop = asyncio.get_event_loop()
-        await loop.run_in_executor(
-            None,
-            lambda: self._memory.delete_all(
-                user_id=user_id,
-            ),
+        await asyncio.to_thread(
+            self._memory.delete_all,
+            user_id=user_id,
         )

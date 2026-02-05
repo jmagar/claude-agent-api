@@ -153,6 +153,10 @@ class Settings(BaseSettings):
         default="http://100.74.16.82:52000",
         description="Text Embeddings Inference URL",
     )
+    tei_api_key: str = Field(
+        default="not-needed",
+        description="TEI API key (placeholder - TEI doesn't require auth but Mem0's OpenAI client needs a value)",
+    )
 
     # Mem0 Configuration
     mem0_collection_name: str = Field(
