@@ -538,6 +538,22 @@ async def get_mcp_share_service(
     return McpShareService(cache=cache)
 
 
+async def get_skills_crud_service(
+    cache: Annotated[RedisCache, Depends(get_cache)],
+) -> object:
+    """Get skills CRUD service for database operations.
+
+    Args:
+        cache: Redis cache from dependency injection.
+
+    Returns:
+        SkillCrudService instance.
+    """
+    from apps.api.services.skills_crud import SkillCrudService
+
+    return SkillCrudService(cache=cache)
+
+
 # Type aliases for dependency injection
 DbSession = Annotated[AsyncSession, Depends(get_db)]
 Cache = Annotated[RedisCache, Depends(get_cache)]
@@ -565,3 +581,4 @@ McpServerConfigSvc = Annotated[
     McpServerConfigService, Depends(get_mcp_server_config_service_provider)
 ]
 McpShareSvc = Annotated[object, Depends(get_mcp_share_service)]
+SkillCrudSvc = Annotated[object, Depends(get_skills_crud_service)]

@@ -5,12 +5,11 @@ from pathlib import Path
 
 from fastapi import APIRouter, Query
 
-from apps.api.dependencies import ApiKey, Cache
+from apps.api.dependencies import ApiKey, SkillCrudSvc, SkillsSvc
 from apps.api.exceptions import APIError
 from apps.api.schemas.requests.skills_crud import SkillCreateRequest, SkillUpdateRequest
 from apps.api.schemas.responses import SkillDefinitionResponse, SkillListResponse
-from apps.api.services.skills import SkillsService
-from apps.api.services.skills_crud import SkillCrudService, SkillRecord
+from apps.api.services.skills_crud import SkillRecord
 
 
 def _parse_datetime(value: str | None) -> datetime | None:
@@ -26,15 +25,11 @@ def _parse_datetime(value: str | None) -> datetime | None:
 router = APIRouter(prefix="/skills", tags=["Skills"])
 
 
-def _get_skills_service() -> SkillsService:
-    """Get skills service for filesystem discovery."""
-    return SkillsService(project_path=Path.cwd())
-
-
 @router.get("", response_model=SkillListResponse)
 async def list_skills(
     _api_key: ApiKey,
-    cache: Cache,
+    skills_discovery: SkillsSvc,
+    skills_crud: SkillCrudSvc,
     source: str | None = Query(
         None,
         description="Filter by source: 'filesystem', 'database', or None for both",
@@ -52,8 +47,7 @@ async def list_skills(
 
     # Get filesystem skills (unless filtering to database only)
     if source != "database":
-        fs_service = _get_skills_service()
-        fs_skills = fs_service.discover_skills()
+        fs_skills = skills_discovery.discover_skills()
         for skill in fs_skills:
             # Read content from file
             try:
@@ -75,8 +69,7 @@ async def list_skills(
 
     # Get database skills (unless filtering to filesystem only)
     if source != "filesystem":
-        db_service = SkillCrudService(cache)
-        db_skills = await db_service.list_skills()
+        db_skills = await skills_crud.list_skills()
         for db_skill in db_skills:
             skills.append(
                 SkillDefinitionResponse(
@@ -100,15 +93,14 @@ async def list_skills(
 async def create_skill(
     request: SkillCreateRequest,
     _api_key: ApiKey,
-    cache: Cache,
+    skills_crud: SkillCrudSvc,
 ) -> SkillDefinitionResponse:
     """Create a new skill in the database.
 
     Note: To add filesystem-based skills, create a .md file in .claude/skills/
     with YAML frontmatter containing 'name' and 'description' fields.
     """
-    service = SkillCrudService(cache)
-    created_skill = await service.create_skill(
+    created_skill = await skills_crud.create_skill(
         name=request.name,
         description=request.description,
         content=request.content,
@@ -132,7 +124,8 @@ async def create_skill(
 async def get_skill(
     skill_id: str,
     _api_key: ApiKey,
-    cache: Cache,
+    skills_discovery: SkillsSvc,
+    skills_crud: SkillCrudSvc,
 ) -> SkillDefinitionResponse:
     """Get skill details by ID.
 
@@ -142,8 +135,7 @@ async def get_skill(
     # Check if it's a filesystem skill
     if skill_id.startswith("fs:"):
         skill_name = skill_id[3:]  # Remove 'fs:' prefix
-        fs_service = _get_skills_service()
-        fs_skills = fs_service.discover_skills()
+        fs_skills = skills_discovery.discover_skills()
 
         for skill in fs_skills:
             if skill["name"] == skill_name:
@@ -169,8 +161,7 @@ async def get_skill(
         )
 
     # Otherwise, look up in database
-    service = SkillCrudService(cache)
-    db_skill: SkillRecord | None = await service.get_skill(skill_id)
+    db_skill: SkillRecord | None = await skills_crud.get_skill(skill_id)
     if db_skill is None:
         raise APIError(
             message="Skill not found",
@@ -196,7 +187,7 @@ async def update_skill(
     skill_id: str,
     request: SkillUpdateRequest,
     _api_key: ApiKey,
-    cache: Cache,
+    skills_crud: SkillCrudSvc,
 ) -> SkillDefinitionResponse:
     """Update a database skill.
 
@@ -211,8 +202,7 @@ async def update_skill(
             status_code=400,
         )
 
-    service = SkillCrudService(cache)
-    updated_skill = await service.update_skill(
+    updated_skill = await skills_crud.update_skill(
         skill_id=skill_id,
         name=request.name,
         description=request.description,
@@ -243,7 +233,7 @@ async def update_skill(
 async def delete_skill(
     skill_id: str,
     _api_key: ApiKey,
-    cache: Cache,
+    skills_crud: SkillCrudSvc,
 ) -> None:
     """Delete a database skill.
 
@@ -258,8 +248,7 @@ async def delete_skill(
             status_code=400,
         )
 
-    service = SkillCrudService(cache)
-    deleted = await service.delete_skill(skill_id)
+    deleted = await skills_crud.delete_skill(skill_id)
     if not deleted:
         raise APIError(
             message="Skill not found",
