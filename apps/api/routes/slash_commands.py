@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter
 
-from apps.api.dependencies import ApiKey, Cache
+from apps.api.dependencies import ApiKey, SlashCommandSvc
 from apps.api.exceptions import APIError
 from apps.api.schemas.requests.slash_commands import (
     SlashCommandCreateRequest,
@@ -12,7 +12,6 @@ from apps.api.schemas.responses import (
     SlashCommandDefinitionResponse,
     SlashCommandListResponse,
 )
-from apps.api.services.slash_commands import SlashCommandService
 
 router = APIRouter(prefix="/slash-commands", tags=["Slash Commands"])
 
@@ -20,10 +19,10 @@ router = APIRouter(prefix="/slash-commands", tags=["Slash Commands"])
 @router.get("", response_model=SlashCommandListResponse)
 async def list_slash_commands(
     _api_key: ApiKey,
-    cache: Cache,
+    slash_command_service: SlashCommandSvc,
 ) -> SlashCommandListResponse:
     """<summary>List slash commands.</summary>"""
-    service = SlashCommandService(cache)
+    service = slash_command_service
     commands = await service.list_commands()
     return SlashCommandListResponse(
         commands=[SlashCommandDefinitionResponse(**c.__dict__) for c in commands]
@@ -34,10 +33,10 @@ async def list_slash_commands(
 async def create_slash_command(
     request: SlashCommandCreateRequest,
     _api_key: ApiKey,
-    cache: Cache,
+    slash_command_service: SlashCommandSvc,
 ) -> SlashCommandDefinitionResponse:
     """<summary>Create a slash command.</summary>"""
-    service = SlashCommandService(cache)
+    service = slash_command_service
     command = await service.create_command(
         name=request.name,
         description=request.description,
@@ -51,10 +50,10 @@ async def create_slash_command(
 async def get_slash_command(
     command_id: str,
     _api_key: ApiKey,
-    cache: Cache,
+    slash_command_service: SlashCommandSvc,
 ) -> SlashCommandDefinitionResponse:
     """<summary>Get slash command details.</summary>"""
-    service = SlashCommandService(cache)
+    service = slash_command_service
     command = await service.get_command(command_id)
     if command is None:
         raise APIError(
@@ -70,10 +69,10 @@ async def update_slash_command(
     command_id: str,
     request: SlashCommandUpdateRequest,
     _api_key: ApiKey,
-    cache: Cache,
+    slash_command_service: SlashCommandSvc,
 ) -> SlashCommandDefinitionResponse:
     """<summary>Update slash command.</summary>"""
-    service = SlashCommandService(cache)
+    service = slash_command_service
     command = await service.update_command(
         command_id=command_id,
         name=request.name,
@@ -94,10 +93,10 @@ async def update_slash_command(
 async def delete_slash_command(
     command_id: str,
     _api_key: ApiKey,
-    cache: Cache,
+    slash_command_service: SlashCommandSvc,
 ) -> None:
     """<summary>Delete slash command.</summary>"""
-    service = SlashCommandService(cache)
+    service = slash_command_service
     deleted = await service.delete_command(command_id)
     if not deleted:
         raise APIError(
