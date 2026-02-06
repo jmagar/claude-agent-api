@@ -2,14 +2,13 @@
 
 from fastapi import APIRouter
 
-from apps.api.dependencies import ApiKey, Cache
+from apps.api.dependencies import ApiKey, ToolPresetSvc
 from apps.api.exceptions import ToolPresetNotFoundError
 from apps.api.schemas.requests.tool_presets import (
     ToolPresetCreateRequest,
     ToolPresetUpdateRequest,
 )
 from apps.api.schemas.responses import ToolPresetListResponse, ToolPresetResponse
-from apps.api.services.tool_presets import ToolPresetService
 
 router = APIRouter(prefix="/tool-presets", tags=["Tool Presets"])
 
@@ -17,10 +16,10 @@ router = APIRouter(prefix="/tool-presets", tags=["Tool Presets"])
 @router.get("", response_model=ToolPresetListResponse)
 async def list_tool_presets(
     _api_key: ApiKey,
-    cache: Cache,
+    tool_preset_service: ToolPresetSvc,
 ) -> ToolPresetListResponse:
     """List all tool presets."""
-    service = ToolPresetService(cache)
+    service = tool_preset_service
     presets = await service.list_presets()
 
     return ToolPresetListResponse(
@@ -32,10 +31,10 @@ async def list_tool_presets(
 async def create_tool_preset(
     request: ToolPresetCreateRequest,
     _api_key: ApiKey,
-    cache: Cache,
+    tool_preset_service: ToolPresetSvc,
 ) -> ToolPresetResponse:
     """Create a new tool preset."""
-    service = ToolPresetService(cache)
+    service = tool_preset_service
     allowed_tools = (
         request.allowed_tools if request.allowed_tools is not None else request.tools
     )
@@ -54,10 +53,10 @@ async def create_tool_preset(
 async def get_tool_preset(
     preset_id: str,
     _api_key: ApiKey,
-    cache: Cache,
+    tool_preset_service: ToolPresetSvc,
 ) -> ToolPresetResponse:
     """Get tool preset details by ID."""
-    service = ToolPresetService(cache)
+    service = tool_preset_service
     preset = await service.get_preset(preset_id)
     if preset is None:
         raise ToolPresetNotFoundError(preset_id)
@@ -70,10 +69,10 @@ async def update_tool_preset(
     preset_id: str,
     request: ToolPresetUpdateRequest,
     _api_key: ApiKey,
-    cache: Cache,
+    tool_preset_service: ToolPresetSvc,
 ) -> ToolPresetResponse:
     """Update a tool preset by ID."""
-    service = ToolPresetService(cache)
+    service = tool_preset_service
     allowed_tools = (
         request.allowed_tools if request.allowed_tools is not None else request.tools
     )
@@ -97,10 +96,10 @@ async def update_tool_preset(
 async def delete_tool_preset(
     preset_id: str,
     _api_key: ApiKey,
-    cache: Cache,
+    tool_preset_service: ToolPresetSvc,
 ) -> None:
     """Delete a tool preset by ID."""
-    service = ToolPresetService(cache)
+    service = tool_preset_service
     deleted = await service.delete_preset(preset_id)
     if not deleted:
         raise ToolPresetNotFoundError(preset_id)
