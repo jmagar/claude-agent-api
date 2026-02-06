@@ -115,6 +115,127 @@ If external libraries return `Any`, wrap them in typed adapter functions.
 - Session storage: Redis (cache) + PostgreSQL (durability)
 - Webhook-based hooks for tool approval
 
+## Dependency Injection
+
+All routes use FastAPI dependency injection for services. **Never instantiate services directly in routes.**
+
+### Service Injection Example
+
+```python
+from typing import Annotated
+from fastapi import APIRouter, Depends
+from apps.api.dependencies import (
+    ApiKey,
+    ProjectSvc,
+    AgentSvc,
+    get_project_service,
+    get_agent_service,
+)
+
+router = APIRouter()
+
+@router.get("/projects")
+async def list_projects(
+    api_key: ApiKey,
+    project_svc: ProjectSvc,
+) -> list[ProjectResponse]:
+    """List all projects for the authenticated API key."""
+    projects = await project_svc.list_projects(api_key)
+    return [ProjectResponse.from_protocol(p) for p in projects]
+
+@router.post("/agents")
+async def create_agent(
+    api_key: ApiKey,
+    agent_svc: AgentSvc,
+    request: CreateAgentRequest,
+) -> AgentResponse:
+    """Create a new agent configuration."""
+    agent = await agent_svc.create_agent(api_key, request.to_protocol())
+    return AgentResponse.from_protocol(agent)
+```
+
+### Available Service Dependencies
+
+| Dependency Type | Provider Function | Purpose |
+|----------------|-------------------|---------|
+| `ApiKey` | `get_api_key()` | Authenticated API key extraction |
+| `ProjectSvc` | `get_project_service()` | Project CRUD operations |
+| `AgentSvc` | `get_agent_service()` | Agent configuration management |
+| `ToolPresetSvc` | `get_tool_preset_service()` | Tool preset CRUD |
+| `McpServerConfigSvc` | `get_mcp_server_config_service()` | MCP server configuration |
+| `McpDiscoverySvc` | `get_mcp_discovery_service()` | MCP filesystem discovery |
+| `McpShareSvc` | `get_mcp_share_service()` | MCP share token management |
+| `SkillCrudSvc` | `get_skills_crud_service()` | Skills CRUD operations |
+| `SlashCommandSvc` | `get_slash_command_service()` | Slash command CRUD |
+
+All service types are annotated type aliases defined in `dependencies.py` using `Annotated[ServiceClass, Depends(provider)]`.
+
+### Testing with DI Overrides
+
+```python
+import pytest
+from fastapi.testclient import TestClient
+from apps.api.dependencies import get_project_service
+from apps.api.main import app
+
+@pytest.fixture
+def mock_project_service():
+    """Mock project service for testing."""
+    class MockProjectService:
+        async def list_projects(self, api_key: str):
+            return [{"id": "test-1", "name": "Test Project"}]
+    return MockProjectService()
+
+def test_list_projects(mock_project_service):
+    """Test project listing with mocked service."""
+    app.dependency_overrides[get_project_service] = lambda: mock_project_service
+
+    client = TestClient(app)
+    response = client.get(
+        "/api/v1/projects",
+        headers={"X-API-Key": "test-key"}
+    )
+
+    assert response.status_code == 200
+    assert len(response.json()) == 1
+
+    app.dependency_overrides.clear()
+```
+
+### Anti-Patterns to Avoid
+
+**DON'T** instantiate services directly:
+```python
+# ❌ WRONG
+@router.get("/projects")
+async def list_projects(cache: RedisCache):
+    project_svc = ProjectService(cache)  # Direct instantiation
+    return await project_svc.list_projects()
+```
+
+**DON'T** create helper functions:
+```python
+# ❌ WRONG
+def _get_project_service(cache: RedisCache) -> ProjectService:
+    return ProjectService(cache)
+
+@router.get("/projects")
+async def list_projects(cache: RedisCache):
+    project_svc = _get_project_service(cache)  # Helper anti-pattern
+    return await project_svc.list_projects()
+```
+
+**DO** use dependency injection:
+```python
+# ✅ CORRECT
+@router.get("/projects")
+async def list_projects(
+    api_key: ApiKey,
+    project_svc: ProjectSvc,
+):
+    return await project_svc.list_projects(api_key)
+```
+
 ## Server-Side MCP Configuration
 
 The API supports **automatic MCP server configuration injection** using a three-tier configuration system. This enables all requests to access configured MCP tools without requiring per-request configuration.
@@ -383,13 +504,27 @@ apps/api/
 | API | 54000 | FastAPI server |
 | PostgreSQL | 54432 | Database |
 | Redis | 54379 | Cache/pub-sub |
+| Neo4j (Bolt) | 54687 | Graph database (Bolt protocol) |
+| Neo4j (HTTP) | 54474 | Graph database (HTTP interface) |
+| Qdrant | 53333 | Vector database (external) |
+| TEI | 52000 | Text Embeddings Inference (external: 100.74.16.82) |
 
 ## Required Environment Variables
 
 ```bash
-DATABASE_URL=           # PostgreSQL connection string
-REDIS_URL=              # Redis connection string
+# API & Database
+DATABASE_URL=postgresql://postgres:postgres@localhost:54432/claude_agent
+REDIS_URL=redis://localhost:54379
 API_KEY=                # API key for client authentication
+
+# Neo4j
+NEO4J_URL=bolt://localhost:54687
+NEO4J_USERNAME=neo4j
+NEO4J_PASSWORD=neo4jpassword
+
+# External Services
+QDRANT_URL=http://localhost:53333
+TEI_URL=http://100.74.16.82:52000
 ```
 
 ## SDK Notes
@@ -397,5 +532,129 @@ API_KEY=                # API key for client authentication
 - Use `ClaudeSDKClient` (not `query()`) for sessions, hooks, and checkpointing
 - SDK requires Claude Code CLI installed: `npm install -g @anthropic-ai/claude-code`
 - File checkpointing needs `CLAUDE_CODE_ENABLE_SDK_FILE_CHECKPOINTING=1` env var
+
+## Mem0 OSS Integration
+
+The API integrates [Mem0 OSS](https://mem0.ai/) for persistent, graph-enhanced memory across conversations.
+
+**Embedding Model:** Qwen/Qwen3-Embedding-0.6B (1024 dimensions) via TEI at http://100.74.16.82:52000
+
+### Architecture
+
+```
+Request →
+  mem0.search(user_id=api_key) → inject memories →
+  Claude response →
+  mem0.add(conversation, user_id=api_key)
+```
+
+### Configuration
+
+**Complete Mem0 Configuration:**
+
+```python
+from mem0 import Memory
+import os
+
+config = {
+    # LLM Provider (for memory extraction)
+    "llm": {
+        "provider": "openai",
+        "config": {
+            "base_url": "https://cli-api.tootie.tv/v1",
+            "model": "gemini-3-flash-preview",
+            "api_key": os.environ.get("LLM_API_KEY", "")
+        }
+    },
+
+    # Embedder (TEI on remote host - Qwen/Qwen3-Embedding-0.6B)
+    "embedder": {
+        "provider": "openai",  # TEI exposes OpenAI-compatible API
+        "config": {
+            "model": "text-embedding-3-small",  # Dummy model name (TEI ignores this)
+            "openai_base_url": "http://100.74.16.82:52000/v1",
+            "embedding_dims": 1024,  # Qwen/Qwen3-Embedding-0.6B output dimension
+            "api_key": "not-needed"  # TEI doesn't require auth
+        }
+    },
+
+    # Vector Store (Qdrant)
+    "vector_store": {
+        "provider": "qdrant",
+        "config": {
+            "host": "localhost",
+            "port": 53333,
+            "collection_name": "mem0_memories",
+            "embedding_model_dims": 1024,  # Must match embedder
+            "distance": "cosine",
+            "on_disk": True
+        }
+    },
+
+    # Graph Store (Neo4j)
+    "graph_store": {
+        "provider": "neo4j",
+        "config": {
+            "url": "bolt://localhost:54687",
+            "username": "neo4j",
+            "password": "neo4jpassword",
+            "database": "neo4j"
+        }
+    },
+
+    "version": "v1.1"
+}
+
+memory = Memory.from_config(config)
+```
+
+### Stack Details
+
+| Component | Service | Model/Version | Dimensions |
+|-----------|---------|---------------|------------|
+| **LLM** | cli-api.tootie.tv | gemini-3-flash-preview | - |
+| **Embeddings** | TEI (100.74.16.82:52000) | Qwen/Qwen3-Embedding-0.6B | 1024 |
+| **Vector DB** | Qdrant (localhost:53333) | - | 1024 |
+| **Graph DB** | Neo4j (localhost:54687) | 5-community | - |
+| **History** | SQLite | ~/.mem0/history.db | - |
+
+### Multi-Tenant Isolation
+
+Mem0 provides built-in multi-tenancy through scoping parameters:
+
+```python
+# Map API key to user_id for tenant isolation
+memory.add(
+    messages="User prefers technical explanations",
+    user_id=api_key,  # Tenant isolation
+    agent_id="main",
+    metadata={"category": "preferences"}
+)
+
+# Search scoped to specific tenant
+results = memory.search(
+    query="What are the user's preferences?",
+    user_id=api_key,  # Only returns this tenant's memories
+    agent_id="main"
+)
+```
+
+**Isolation Guarantees:**
+- Vector store: Filters applied at query time using user/agent IDs
+- Graph store: Entities and relationships tagged with ownership metadata
+- No cross-contamination: API keys cannot access each other's memories
+
+### Graph Memory Features
+
+- **Automatic Entity Extraction**: Extracts entities and relationships from conversations
+- **Dual Storage**: Embeddings in Qdrant, relationships in Neo4j
+- **Contextual Retrieval**: Returns vector matches plus related graph context
+- **Per-Request Toggle**: Disable graph operations with `enable_graph=False` for performance
+
+### Performance Considerations
+
+- **Graph Operations**: Add ~100-200ms latency per request
+- **Disable for High-Frequency**: Use `enable_graph=False` for routine conversations
+- **Enable for Context**: Use graph for queries requiring relationship understanding
 
 <!-- MANUAL ADDITIONS END -->
