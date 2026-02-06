@@ -18,6 +18,7 @@ from apps.api.adapters.memory import Mem0MemoryAdapter
 from apps.api.adapters.session_repo import SessionRepository
 from apps.api.config import Settings, get_settings
 from apps.api.exceptions import AuthenticationError, ServiceUnavailableError
+from apps.api.protocols import AgentConfigProtocol, ProjectProtocol
 from apps.api.services.agent import AgentService
 from apps.api.services.checkpoint import CheckpointService
 from apps.api.services.mcp_config_injector import McpConfigInjector
@@ -422,7 +423,7 @@ def get_memory_service() -> MemoryService:
 
 async def get_agent_config_service(
     cache: Annotated[RedisCache, Depends(get_cache)],
-) -> object:
+) -> "AgentConfigProtocol":
     """Get agent CRUD service (for agents.py route).
 
     Note: Different from AgentService in services/agent/service.py (orchestration).
@@ -434,14 +435,16 @@ async def get_agent_config_service(
     Returns:
         AgentService instance for agent CRUD operations.
     """
+    from typing import cast
+
     from apps.api.services.agents import AgentService as AgentCrudService
 
-    return AgentCrudService(cache=cache)
+    return cast("AgentConfigProtocol", AgentCrudService(cache=cache))
 
 
 async def get_project_service(
     cache: Annotated[RedisCache, Depends(get_cache)],
-) -> object:
+) -> ProjectProtocol:
     """Get project CRUD service.
 
     Args:
@@ -450,9 +453,11 @@ async def get_project_service(
     Returns:
         ProjectService instance.
     """
+    from typing import cast
+
     from apps.api.services.projects import ProjectService
 
-    return ProjectService(cache=cache)
+    return cast("ProjectProtocol", ProjectService(cache=cache))
 
 
 async def get_tool_preset_service(
@@ -517,6 +522,22 @@ async def get_mcp_server_config_service_provider(
     return McpServerConfigService(cache=cache)
 
 
+async def get_mcp_share_service(
+    cache: Annotated[RedisCache, Depends(get_cache)],
+) -> object:
+    """Get MCP share service for share token management.
+
+    Args:
+        cache: Redis cache from dependency injection.
+
+    Returns:
+        McpShareService instance.
+    """
+    from apps.api.services.mcp_share import McpShareService
+
+    return McpShareService(cache=cache)
+
+
 # Type aliases for dependency injection
 DbSession = Annotated[AsyncSession, Depends(get_db)]
 Cache = Annotated[RedisCache, Depends(get_cache)]
@@ -535,11 +556,12 @@ McpConfigInj = Annotated[McpConfigInjector, Depends(get_mcp_config_injector)]
 MemorySvc = Annotated[MemoryService, Depends(get_memory_service)]
 
 # CRUD service type aliases (Phase 2: DI Refactor)
-AgentConfigSvc = Annotated[object, Depends(get_agent_config_service)]
-ProjectSvc = Annotated[object, Depends(get_project_service)]
+AgentConfigSvc = Annotated["AgentConfigProtocol", Depends(get_agent_config_service)]
+ProjectSvc = Annotated[ProjectProtocol, Depends(get_project_service)]
 ToolPresetSvc = Annotated[object, Depends(get_tool_preset_service)]
 SlashCommandSvc = Annotated[object, Depends(get_slash_command_service)]
 McpDiscoverySvc = Annotated[object, Depends(get_mcp_discovery_service)]
 McpServerConfigSvc = Annotated[
     McpServerConfigService, Depends(get_mcp_server_config_service_provider)
 ]
+McpShareSvc = Annotated[object, Depends(get_mcp_share_service)]

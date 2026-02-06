@@ -6,7 +6,7 @@ from typing import Any, cast
 
 from fastapi import APIRouter, Query
 
-from apps.api.dependencies import ApiKey, Cache
+from apps.api.dependencies import ApiKey, McpDiscoverySvc, McpServerConfigSvc, McpShareSvc
 from apps.api.exceptions import APIError, McpShareNotFoundError
 from apps.api.schemas.requests.mcp_servers import (
     McpServerCreateRequest,
@@ -22,16 +22,9 @@ from apps.api.schemas.responses import (
     McpShareCreateResponse,
     McpSharePayloadResponse,
 )
-from apps.api.services.mcp_discovery import McpDiscoveryService
-from apps.api.services.mcp_server_configs import McpServerConfigService, McpServerRecord
-from apps.api.services.mcp_share import McpShareService
+from apps.api.services.mcp_server_configs import McpServerRecord
 
 router = APIRouter(prefix="/mcp-servers", tags=["MCP Servers"])
-
-
-def _get_mcp_discovery_service() -> McpDiscoveryService:
-    """Get MCP discovery service for filesystem discovery."""
-    return McpDiscoveryService(project_path=Path.cwd())
 
 
 def _parse_datetime(value: str | None) -> datetime:
@@ -102,7 +95,8 @@ def _map_server(record: McpServerRecord) -> McpServerConfigResponse:
 @router.get("", response_model=McpServerListResponse)
 async def list_mcp_servers(
     api_key: ApiKey,
-    cache: Cache,
+    mcp_discovery: McpDiscoverySvc,
+    mcp_config: McpServerConfigSvc,
     source: str | None = Query(
         None,
         description="Filter by source: 'filesystem', 'database', or None for both",
@@ -121,8 +115,7 @@ async def list_mcp_servers(
 
     # Get filesystem servers (unless filtering to database only)
     if source != "database":
-        fs_service = _get_mcp_discovery_service()
-        fs_servers = fs_service.discover_servers()
+        fs_servers = mcp_discovery.discover_servers()
         for name, server in fs_servers.items():
             # Redact sensitive data from filesystem servers
             env = server.get("env", {})
@@ -163,8 +156,7 @@ async def list_mcp_servers(
     # Get database servers (unless filtering to filesystem only)
     # Filter by authenticated API key
     if source != "filesystem":
-        db_service = McpServerConfigService(cache)
-        db_servers = await db_service.list_servers_for_api_key(api_key)
+        db_servers = await mcp_config.list_servers_for_api_key(api_key)
         for s in db_servers:
             servers.append(_map_server(s))
 
@@ -175,7 +167,7 @@ async def list_mcp_servers(
 async def create_mcp_server(
     request: McpServerCreateRequest,
     api_key: ApiKey,
-    cache: Cache,
+    mcp_config: McpServerConfigSvc,
 ) -> McpServerConfigResponse:
     """Create a new MCP server configuration in the database.
 
@@ -183,8 +175,7 @@ async def create_mcp_server(
     or create .mcp.json / .claude/mcp.json in your project.
     Server is scoped to the authenticated API key.
     """
-    service = McpServerConfigService(cache)
-    server = await service.create_server_for_api_key(
+    server = await mcp_config.create_server_for_api_key(
         api_key=api_key,
         name=request.name,
         transport_type=request.type,
@@ -203,7 +194,8 @@ async def create_mcp_server(
 async def get_mcp_server(
     name: str,
     api_key: ApiKey,
-    cache: Cache,
+    mcp_discovery: McpDiscoverySvc,
+    mcp_config: McpServerConfigSvc,
 ) -> McpServerConfigResponse:
     """Get MCP server configuration by name.
 
@@ -213,8 +205,7 @@ async def get_mcp_server(
     # Check if it's a filesystem server
     if name.startswith("fs:"):
         server_name = name[3:]  # Remove 'fs:' prefix
-        fs_service = _get_mcp_discovery_service()
-        fs_servers = fs_service.discover_servers()
+        fs_servers = mcp_discovery.discover_servers()
 
         if server_name in fs_servers:
             server = fs_servers[server_name]
@@ -259,8 +250,7 @@ async def get_mcp_server(
         )
 
     # Otherwise, look up in database (scoped to API key)
-    service = McpServerConfigService(cache)
-    db_server: McpServerRecord | None = await service.get_server_for_api_key(
+    db_server: McpServerRecord | None = await mcp_config.get_server_for_api_key(
         api_key, name
     )
     if db_server is None:
@@ -277,7 +267,7 @@ async def update_mcp_server(
     name: str,
     request: McpServerUpdateRequest,
     api_key: ApiKey,
-    cache: Cache,
+    mcp_config: McpServerConfigSvc,
 ) -> McpServerConfigResponse:
     """Update a database MCP server configuration.
 
@@ -293,8 +283,7 @@ async def update_mcp_server(
             status_code=400,
         )
 
-    service = McpServerConfigService(cache)
-    server = await service.update_server_for_api_key(
+    server = await mcp_config.update_server_for_api_key(
         api_key, name, request.type, request.config
     )
     if server is None:
@@ -310,7 +299,7 @@ async def update_mcp_server(
 async def delete_mcp_server(
     name: str,
     api_key: ApiKey,
-    cache: Cache,
+    mcp_config: McpServerConfigSvc,
 ) -> None:
     """Delete a database MCP server configuration.
 
@@ -326,8 +315,7 @@ async def delete_mcp_server(
             status_code=400,
         )
 
-    service = McpServerConfigService(cache)
-    deleted = await service.delete_server_for_api_key(api_key, name)
+    deleted = await mcp_config.delete_server_for_api_key(api_key, name)
     if not deleted:
         raise APIError(
             message="MCP server not found",
@@ -340,11 +328,10 @@ async def delete_mcp_server(
 async def list_mcp_resources(
     name: str,
     api_key: ApiKey,
-    cache: Cache,
+    mcp_config: McpServerConfigSvc,
 ) -> McpResourceListResponse:
     """<summary>List MCP server resources (scoped to authenticated API key).</summary>"""
-    service = McpServerConfigService(cache)
-    server = await service.get_server_for_api_key(api_key, name)
+    server = await mcp_config.get_server_for_api_key(api_key, name)
     if server is None:
         raise APIError(
             message="MCP server not found",
@@ -371,11 +358,10 @@ async def get_mcp_resource(
     name: str,
     uri: str,
     api_key: ApiKey,
-    cache: Cache,
+    mcp_config: McpServerConfigSvc,
 ) -> McpResourceContentResponse:
     """<summary>Get MCP resource content (scoped to authenticated API key).</summary>"""
-    service = McpServerConfigService(cache)
-    server = await service.get_server_for_api_key(api_key, name)
+    server = await mcp_config.get_server_for_api_key(api_key, name)
     if server is None:
         raise APIError(
             message="MCP server not found",
@@ -403,12 +389,11 @@ async def create_mcp_share(
     name: str,
     payload: McpShareCreateRequest,
     _api_key: ApiKey,
-    cache: Cache,
+    mcp_share: McpShareSvc,
 ) -> McpShareCreateResponse:
     """Create and persist a share token for an MCP server."""
-    service = McpShareService(cache)
     sanitized_config = sanitize_mcp_config(payload.config)
-    token, share_payload = await service.create_share(
+    token, share_payload = await mcp_share.create_share(
         name=name, config=sanitized_config
     )
 
@@ -424,11 +409,10 @@ async def create_mcp_share(
 async def get_mcp_share(
     token: str,
     _api_key: ApiKey,
-    cache: Cache,
+    mcp_share: McpShareSvc,
 ) -> McpSharePayloadResponse:
     """Resolve a share token to its persisted payload."""
-    service = McpShareService(cache)
-    payload = await service.get_share(token)
+    payload = await mcp_share.get_share(token)
     if payload is None:
         raise McpShareNotFoundError(token)
 
