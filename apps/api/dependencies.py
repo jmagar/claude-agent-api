@@ -462,7 +462,7 @@ async def get_project_service(
 
 async def get_tool_preset_service(
     cache: Annotated[RedisCache, Depends(get_cache)],
-) -> object:
+) -> "ToolPresetService":
     """Get tool preset CRUD service.
 
     Args:
@@ -478,7 +478,7 @@ async def get_tool_preset_service(
 
 async def get_slash_command_service(
     cache: Annotated[RedisCache, Depends(get_cache)],
-) -> object:
+) -> "SlashCommandService":
     """Get slash command CRUD service.
 
     Args:
@@ -492,7 +492,7 @@ async def get_slash_command_service(
     return SlashCommandService(cache=cache)
 
 
-def get_mcp_discovery_service() -> object:
+def get_mcp_discovery_service() -> "McpDiscoveryService":
     """Get MCP discovery service for filesystem operations.
 
     Returns:
@@ -524,7 +524,7 @@ async def get_mcp_server_config_service_provider(
 
 async def get_mcp_share_service(
     cache: Annotated[RedisCache, Depends(get_cache)],
-) -> object:
+) -> "McpShareService":
     """Get MCP share service for share token management.
 
     Args:
@@ -540,7 +540,7 @@ async def get_mcp_share_service(
 
 async def get_skills_crud_service(
     cache: Annotated[RedisCache, Depends(get_cache)],
-) -> object:
+) -> "SkillCrudService":
     """Get skills CRUD service for database operations.
 
     Args:
@@ -574,11 +574,11 @@ MemorySvc = Annotated[MemoryService, Depends(get_memory_service)]
 # CRUD service type aliases (Phase 2: DI Refactor)
 AgentConfigSvc = Annotated["AgentConfigProtocol", Depends(get_agent_config_service)]
 ProjectSvc = Annotated[ProjectProtocol, Depends(get_project_service)]
-ToolPresetSvc = Annotated[object, Depends(get_tool_preset_service)]
-SlashCommandSvc = Annotated[object, Depends(get_slash_command_service)]
-McpDiscoverySvc = Annotated[object, Depends(get_mcp_discovery_service)]
+ToolPresetSvc = Annotated["ToolPresetService", Depends(get_tool_preset_service)]
+SlashCommandSvc = Annotated["SlashCommandService", Depends(get_slash_command_service)]
+McpDiscoverySvc = Annotated["McpDiscoveryService", Depends(get_mcp_discovery_service)]
 McpServerConfigSvc = Annotated[
     McpServerConfigService, Depends(get_mcp_server_config_service_provider)
 ]
-McpShareSvc = Annotated[object, Depends(get_mcp_share_service)]
-SkillCrudSvc = Annotated[object, Depends(get_skills_crud_service)]
+McpShareSvc = Annotated["McpShareService", Depends(get_mcp_share_service)]
+SkillCrudSvc = Annotated["SkillCrudService", Depends(get_skills_crud_service)]
