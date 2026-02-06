@@ -30,6 +30,9 @@ def mock_memory_service() -> AsyncMock:
         {"id": "mem_456", "memory": "User likes Python"},
     ]
 
+    # Clear lru_cache before setting singleton
+    dependencies.get_memory_service.cache_clear()
+
     # Set as singleton (will be cleared by async_client fixture)
     dependencies._memory_service = mock
 
