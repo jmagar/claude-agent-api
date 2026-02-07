@@ -43,6 +43,118 @@ Build a simplified Claude-only personal AI assistant with ~90% of OpenClaw's cap
 
 ---
 
+## Dependency Injection Architecture
+
+All routes use FastAPI dependency injection for services. **Never instantiate services directly in routes.**
+
+### Pattern Overview
+
+```python
+from typing import Annotated
+from fastapi import APIRouter, Depends
+from apps.api.dependencies import (
+    ApiKey,
+    ProjectSvc,
+    get_project_service,
+)
+
+router = APIRouter()
+
+@router.get("/projects")
+async def list_projects(
+    api_key: ApiKey,
+    project_svc: ProjectSvc,
+) -> list[ProjectResponse]:
+    """List all projects for the authenticated API key."""
+    projects = await project_svc.list_projects(api_key)
+    return [ProjectResponse.from_protocol(p) for p in projects]
+```
+
+### Available Service Dependencies
+
+| Dependency Type | Provider Function | Purpose |
+|----------------|-------------------|---------|
+| `ApiKey` | `get_api_key()` | Authenticated API key extraction |
+| `ProjectSvc` | `get_project_service()` | Project CRUD operations |
+| `AgentSvc` | `get_agent_service()` | Agent configuration management |
+| `MemorySvc` | `get_memory_service()` | Memory storage and retrieval |
+| `ToolPresetSvc` | `get_tool_preset_service()` | Tool preset CRUD |
+| `McpServerConfigSvc` | `get_mcp_server_config_service()` | MCP server configuration |
+| `SkillCrudSvc` | `get_skills_crud_service()` | Skills CRUD operations |
+| `HeartbeatSvc` | `get_heartbeat_service()` | Heartbeat scheduler management |
+| `CronSvc` | `get_cron_service()` | Cron job execution |
+
+All service types are annotated type aliases defined in `dependencies.py` using `Annotated[ServiceClass, Depends(provider)]`.
+
+### Anti-Patterns to Avoid
+
+**DON'T** instantiate services directly:
+```python
+# ❌ WRONG
+@router.get("/projects")
+async def list_projects(cache: RedisCache):
+    project_svc = ProjectService(cache)  # Direct instantiation
+    return await project_svc.list_projects()
+```
+
+**DO** use dependency injection:
+```python
+# ✅ CORRECT
+@router.get("/projects")
+async def list_projects(
+    api_key: ApiKey,
+    project_svc: ProjectSvc,
+):
+    return await project_svc.list_projects(api_key)
+```
+
+### Testing with DI Overrides
+
+```python
+import pytest
+from fastapi.testclient import TestClient
+from apps.api.dependencies import get_memory_service
+from apps.api.main import app
+
+@pytest.fixture
+def mock_memory_service():
+    """Mock memory service for testing."""
+    class MockMemoryService:
+        async def search_memories(self, query: str):
+            return [{"id": "test-1", "content": "Test memory"}]
+    return MockMemoryService()
+
+def test_search_memories(mock_memory_service):
+    """Test memory search with mocked service."""
+    app.dependency_overrides[get_memory_service] = lambda: mock_memory_service
+
+    client = TestClient(app)
+    response = client.get(
+        "/api/v1/memory/search?query=test",
+        headers={"X-API-Key": "test-key"}
+    )
+
+    assert response.status_code == 200
+    assert len(response.json()) == 1
+
+    app.dependency_overrides.clear()
+```
+
+### New Service Checklist
+
+When adding a new service:
+
+1. Create protocol in `apps/api/protocols.py`
+2. Create implementation in `apps/api/services/`
+3. Add provider function in `apps/api/dependencies.py`
+4. Create type alias: `ServiceSvc = Annotated[ServiceClass, Depends(get_service)]`
+5. Use in routes via dependency injection
+6. Add to Available Service Dependencies table above
+
+See root CLAUDE.md for complete examples and testing patterns.
+
+---
+
 ## Phase 1: Memory System Integration
 
 **Goal**: Persistent memory with semantic search using existing TEI + Qdrant.
