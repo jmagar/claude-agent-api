@@ -1140,9 +1140,9 @@ class SessionSearchService:
 
 ```python
 # apps/api/services/device_service.py
+import asyncio
 import json
 from pathlib import Path
-import subprocess
 
 class DeviceService:
     """Device inventory and execution using existing infrastructure.
@@ -1239,123 +1239,62 @@ class DeviceService:
 
 ### 6.2 synapse-mcp Integration
 
-For real-time infrastructure operations, leverage synapse-mcp via MCP protocol:
+**Integration Mode: stdio (MCP protocol)**
+
+We integrate synapse-mcp using stdio mode, NOT HTTP mode. The Claude SDK handles all communication automatically - no custom HTTP client is needed.
+
+**Configuration (.mcp-server-config.json):**
+
+```json
+{
+  "mcpServers": {
+    "synapse": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["../synapse-mcp/dist/index.js"],
+      "env": {
+        "SYNAPSE_CONFIG_FILE": "../synapse-mcp/synapse.config.json"
+      }
+    }
+  }
+}
+```
+
+**Usage in queries:**
 
 ```python
-# apps/api/services/synapse_client.py
-from httpx import AsyncClient
-from typing import Literal
+# No custom client needed - SDK handles all MCP communication
 
-class SynapseClient:
-    """Client for synapse-mcp HTTP mode.
+# Query with server-side MCP config (application-level + api-key-level)
+response = await sdk_client.query(
+    prompt="List all running Docker containers across hosts",
+    mcp_servers=None  # Use server-side configs (includes synapse)
+)
 
-    Alternative: Use MCP protocol directly via stdio.
-    HTTP mode enables direct API integration.
-    """
-
-    def __init__(self, base_url: str = "http://localhost:3000"):
-        self.base_url = base_url
-
-    async def flux(
-        self,
-        action: Literal["container", "compose", "system", "host"],
-        subaction: str,
-        host: str = "local",
-        **kwargs,
-    ) -> dict:
-        """Docker infrastructure operations."""
-        async with AsyncClient() as client:
-            response = await client.post(
-                f"{self.base_url}/mcp",
-                json={
-                    "tool": "flux",
-                    "action": action,
-                    "subaction": subaction,
-                    "host": host,
-                    **kwargs,
-                },
-                timeout=60.0,
-            )
-            return response.json()
-
-    async def scout(
-        self,
-        action: str,
-        host: str = "local",
-        **kwargs,
-    ) -> dict:
-        """SSH/file/ZFS operations."""
-        async with AsyncClient() as client:
-            response = await client.post(
-                f"{self.base_url}/mcp",
-                json={
-                    "tool": "scout",
-                    "action": action,
-                    "host": host,
-                    **kwargs,
-                },
-                timeout=60.0,
-            )
-            return response.json()
-
-    # Convenience methods
-
-    async def list_containers(self, host: str = "all") -> list[dict]:
-        """List Docker containers across hosts."""
-        return await self.flux("container", "list", host=host)
-
-    async def container_logs(
-        self,
-        container: str,
-        host: str = "local",
-        lines: int = 100,
-        grep: str | None = None,
-    ) -> str:
-        """Get container logs."""
-        result = await self.flux(
-            "container", "logs",
-            host=host,
-            container=container,
-            lines=lines,
-            grep=grep,
-        )
-        return result.get("logs", "")
-
-    async def compose_status(self, project: str) -> dict:
-        """Get Compose project status (auto-discovers host)."""
-        return await self.flux("compose", "status", project=project)
-
-    async def host_resources(self, host: str) -> dict:
-        """Get CPU/memory/disk usage."""
-        return await self.flux("host", "resources", host=host)
-
-    async def read_file(self, host: str, path: str) -> str:
-        """Read remote file."""
-        result = await self.scout("peek", host=host, path=path)
-        return result.get("content", "")
-
-    async def zfs_pools(self, host: str) -> list[dict]:
-        """Get ZFS pool status."""
-        return await self.scout("zfs", host=host, subaction="pools")
-
-    async def journal_logs(
-        self,
-        host: str,
-        unit: str | None = None,
-        lines: int = 100,
-        priority: str | None = None,
-    ) -> str:
-        """Get systemd journal logs."""
-        result = await self.scout(
-            "logs",
-            host=host,
-            subaction="journal",
-            unit=unit,
-            lines=lines,
-            priority=priority,
-        )
-        return result.get("logs", "")
+# The SDK automatically:
+# 1. Spawns the synapse MCP server as subprocess
+# 2. Calls the flux tool with action="container", subaction="list"
+# 3. Pipes stdin/stdout communication
+# 4. Returns results in the response
 ```
+
+**Available Tools (auto-discovered by SDK):**
+
+- **flux**: Docker/Compose operations (40 subactions)
+  - Actions: container, compose, system, host
+- **scout**: SSH/file/ZFS operations (16 subactions)
+  - Actions: nodes, peek, exec, find, delta, emit, beam, ps, df, zfs, logs
+
+**Why stdio mode?**
+
+- **Zero deployment overhead**: SDK auto-starts subprocess on-demand
+- **MCP ecosystem compatibility**: Works with all MCP-aware skills and tools
+- **Simplified configuration**: Single config file for all MCP servers
+- **SDK-managed lifecycle**: No process management code needed
+
+**HTTP mode alternative:**
+
+If you need direct REST API access (e.g., for a web dashboard without Claude SDK), synapse-mcp can run as an independent HTTP server. However, for this assistant, stdio mode via the SDK is the recommended approach.
 
 **When to use which:**
 

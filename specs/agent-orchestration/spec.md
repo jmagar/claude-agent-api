@@ -694,6 +694,40 @@ The synapse-mcp server provides unified infrastructure management:
 - Monitor system resources
 - Execute commands with allowlist protection
 
+**Integration Approach:**
+
+synapse-mcp supports two integration modes:
+
+1. **stdio mode (MCP protocol)** - Recommended
+   - Run as subprocess managed by Claude SDK
+   - Auto-starts on first MCP tool invocation
+   - Configured via `.mcp-server-config.json`
+   - SDK handles all communication automatically
+   - No custom HTTP client needed
+
+2. **HTTP mode (REST API)** - Alternative
+   - Run as independent server process
+   - Direct REST calls for infrastructure queries
+   - Separate deployment/lifecycle management
+   - Better for multi-user or web dashboard scenarios
+
+**Our choice: stdio mode**
+
+We use stdio mode because:
+- **Zero deployment overhead**: No separate server to manage, SDK auto-starts the subprocess
+- **MCP ecosystem compatibility**: Works seamlessly with all MCP-aware tools and skills
+- **Simplified configuration**: Single `.mcp-server-config.json` file for all MCP servers
+- **SDK-managed lifecycle**: Claude SDK handles process spawning, stdin/stdout piping, and cleanup
+
+**HTTP mode use case:**
+
+HTTP mode is useful when:
+- Building a web dashboard that queries infrastructure without Claude SDK
+- Supporting multiple concurrent users with persistent connection pooling
+- Integrating with non-MCP tools or legacy systems requiring REST APIs
+
+For our personal assistant, stdio mode provides the simplest integration path.
+
 ### 8. Semantic Search (QMD - Query Markup Documents)
 
 **New Feature**
