@@ -155,7 +155,39 @@ See root CLAUDE.md for complete examples and testing patterns.
 
 ---
 
-## Phase 1: Memory System Integration
+## Implementation Status
+
+This document tracks the implementation progress of each phase with clear status indicators.
+
+**Status Legend:**
+- ✅ **COMPLETED** - Phase fully implemented and tested
+- 🚧 **IN PROGRESS** - Active development underway
+- ⏸️ **BLOCKED** - Waiting on dependencies or decisions
+- ❌ **NOT STARTED** - Not yet begun, ready to implement
+- 🔄 **NEEDS REFACTOR** - Requires architectural changes
+
+---
+
+## Phase 1: Memory System Integration ✅
+
+**Status:** ✅ COMPLETED
+**Completion Date:** 2026-02-03
+**Implementation Notes:**
+- Successfully integrated Mem0 OSS for memory management
+- Using Qwen/Qwen3-Embedding-0.6B (1024 dims) via TEI at 100.74.16.82:52000
+- Qdrant vector store at localhost:53333
+- Neo4j graph store at localhost:54687 (Bolt protocol)
+- Multi-tenant isolation via user_id (API key scoping)
+- Graph operations toggle with enable_graph parameter
+
+**Files Modified:**
+- `apps/api/routes/memories.py` - Memory CRUD endpoints
+- `apps/api/services/memory_service.py` - Mem0 integration layer
+- `apps/api/adapters/memory_adapter.py` - Protocol implementation
+- `apps/api/schemas/memory.py` - Pydantic models
+- `apps/api/dependencies.py` - Memory service DI provider
+- `docker-compose.yaml` - Neo4j service configuration
+- `pyproject.toml` - Mem0 dependencies
 
 **Goal**: Persistent memory with semantic search using existing TEI + Qdrant.
 
@@ -520,7 +552,20 @@ class QueryEnrichmentService:
 
 ---
 
-## Phase 2: Heartbeat System
+## Phase 2: Heartbeat System ❌
+
+**Status:** ❌ NOT STARTED
+**Blockers:** None
+**Depends On:** Phase 1 (completed)
+**Estimated Effort:** 5-7 days
+
+**Implementation Plan:**
+- APScheduler integration for periodic checks
+- Active hours configuration (timezone-aware)
+- Gotify service wrapper for notifications
+- HEARTBEAT.md checklist loading
+- Session management for heartbeat queries
+- PostgreSQL persistence for heartbeat history
 
 **Goal**: Proactive awareness with periodic checks and Gotify notifications.
 
@@ -739,7 +784,20 @@ Otherwise, summarize what needs my attention.
 
 ---
 
-## Phase 3: Cron Jobs
+## Phase 3: Cron Jobs ❌
+
+**Status:** ❌ NOT STARTED
+**Blockers:** None
+**Depends On:** Phase 1 (completed)
+**Estimated Effort:** 4-6 days
+
+**Implementation Plan:**
+- Cron/At/Every schedule types with APScheduler
+- PostgreSQL models for jobs and run history
+- Session mode support (main vs isolated)
+- Gotify delivery toggle for notifications
+- CRUD endpoints for job management
+- Automatic job recovery on restart
 
 **Goal**: Scheduled tasks with PostgreSQL persistence and session modes.
 
@@ -937,7 +995,17 @@ class CronExecutor:
 
 ---
 
-## Phase 4: QMD (Query Markup Documents)
+## Phase 4: QMD (Query Markup Documents) ⏸️
+
+**Status:** ⏸️ BLOCKED
+**Blockers:** Memory system refactor pending - need to finalize Mem0 integration patterns before extending to QMD
+**Estimated Effort:** 3-5 days (after unblocked)
+
+**Notes:**
+- Waiting for Mem0 OSS patterns to stabilize
+- QMD will reuse same embedding service (TEI) and vector store (Qdrant)
+- Need to verify collection isolation strategy before implementing
+- Consider if Mem0 can handle document indexing natively
 
 **Goal**: Semantic search for markdown files using existing TEI + Qdrant.
 
@@ -1089,7 +1157,17 @@ class QMDService:
 
 ---
 
-## Phase 5: Session Search
+## Phase 5: Session Search ⏸️
+
+**Status:** ⏸️ BLOCKED
+**Blockers:** Same as Phase 4 - memory system refactor pending
+**Estimated Effort:** 4-6 days (after unblocked)
+
+**Notes:**
+- Blocked on Mem0 integration patterns
+- Will reuse TEI + Qdrant infrastructure
+- Need to finalize session log format and parsing strategy
+- Consider if Mem0 can index session logs directly
 
 **Goal**: Semantic search across Claude session logs.
 
@@ -1246,7 +1324,19 @@ class SessionSearchService:
 
 ---
 
-## Phase 6: Device Management API
+## Phase 6: Device Management API ❌
+
+**Status:** ❌ NOT STARTED
+**Blockers:** None
+**Estimated Effort:** 2-3 days
+
+**Implementation Plan:**
+- Device service wrapper for ~/memory/bank/ssh/latest.json
+- Inventory refresh trigger via homelab/inventory/ssh.sh
+- SSH command execution with validation
+- synapse-mcp stdio integration via .mcp-server-config.json
+- REST endpoints for device listing and operations
+- Security validations for command injection prevention
 
 **Goal**: API access to existing device inventory from memory bank + synapse-mcp.
 
@@ -1563,7 +1653,26 @@ async def get_journal_logs(
 
 ---
 
-## Phase 7: Web App
+## Phase 7: Web App 🔄
+
+**Status:** 🔄 NEEDS REFACTOR
+**Blockers:** Architectural decisions required
+**Estimated Effort:** 2-3 weeks (after decisions)
+
+**Decisions Needed:**
+1. **Framework Choice**: Next.js 15 vs alternative (Astro, SvelteKit, Remix)
+2. **State Management**: React Context vs Zustand vs Jotai
+3. **Auth Strategy**: Session-based vs API key only
+4. **Offline Strategy**: Service worker scope and cache policies
+5. **Component Library**: shadcn/ui confirmed or alternatives
+6. **SSE Client**: EventSource vs custom implementation
+7. **Mobile Strategy**: PWA only or native wrapper (Capacitor/Tauri)
+
+**Notes:**
+- Need to finalize API contract before starting frontend
+- Consider existing claude-agent-api patterns for consistency
+- Mobile-first is non-negotiable per requirements
+- Dark mode support required
 
 **Goal**: Mobile-first PWA for chat and configuration.
 
@@ -1724,3 +1833,40 @@ CREATE TRIGGER update_persona_config_updated_at
 | Skill compatibility | 100% AgentSkills spec |
 | Code reuse | 100% of cli-firecrawl and homelab |
 | OpenClaw feature coverage | ~90% |
+
+---
+
+## Next Steps
+
+**Priority Order:**
+
+1. **Phase 2: Heartbeat System** (Ready to start)
+   - No blockers, depends only on completed Phase 1
+   - 5-7 days estimated effort
+   - Provides immediate value with proactive monitoring
+
+2. **Phase 3: Cron Jobs** (Ready to start)
+   - No blockers, depends only on completed Phase 1
+   - 4-6 days estimated effort
+   - Can be developed in parallel with Phase 2
+
+3. **Phase 6: Device Management API** (Ready to start)
+   - No blockers, standalone implementation
+   - 2-3 days estimated effort
+   - Quick win, leverages existing homelab infrastructure
+
+4. **Unblock Phase 4 & 5** (Memory system decisions)
+   - Finalize Mem0 integration patterns
+   - Decide on collection isolation strategy
+   - Determine if Mem0 can handle QMD/session indexing natively
+
+5. **Phase 7: Web App** (Architectural decisions)
+   - Resolve framework and tooling choices
+   - Finalize API contract
+   - Can begin once Phases 2-3 are complete
+
+**Critical Path:**
+Phase 1 (✅) → Phase 2 (5-7d) → Phase 3 (4-6d) → Phase 4 (3-5d) → Phase 5 (4-6d) → Phase 6 (2-3d) → Phase 7 (2-3w)
+
+**Optimization:**
+Phases 2, 3, and 6 can be developed in parallel since they have no interdependencies. This could reduce the overall timeline from ~30 days to ~15 days if multiple developers are available.
