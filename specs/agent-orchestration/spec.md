@@ -1276,12 +1276,137 @@ DELETE /api/v1/skills/{id}               # Delete skill (database)
 ### Memory Endpoints (New)
 
 ```http
-GET    /api/v1/memory                    # List memories (get_all)
-POST   /api/v1/memory                    # Add memory (conversation or text)
-GET    /api/v1/memory/search             # Search memories (semantic + graph)
-PUT    /api/v1/memory/{id}               # Update memory
-DELETE /api/v1/memory/{id}               # Delete memory
-GET    /api/v1/memory/history            # Get operation history (SQLite)
+GET    /api/v1/memories                      # List all memories for user
+POST   /api/v1/memories                      # Add memory (from conversation)
+POST   /api/v1/memories/search               # Search memories (semantic)
+DELETE /api/v1/memories/{memory_id}          # Delete single memory
+DELETE /api/v1/memories                      # Delete ALL memories for user
+```
+
+#### POST /api/v1/memories
+
+Add a new memory by extracting from conversation text.
+
+**Request:**
+```json
+{
+  "messages": "User prefers technical explanations with code examples",
+  "metadata": {
+    "category": "preferences",
+    "source": "conversation"
+  },
+  "enable_graph": true
+}
+```
+
+**Response:** `201 Created`
+```json
+{
+  "memories": [
+    {
+      "id": "mem_abc123",
+      "memory": "User prefers technical explanations with code examples",
+      "hash": "sha256_hash",
+      "created_at": "2026-02-06T22:30:00Z",
+      "updated_at": "2026-02-06T22:30:00Z",
+      "user_id": "hashed_api_key",
+      "agent_id": "main",
+      "metadata": {
+        "category": "preferences",
+        "source": "conversation"
+      }
+    }
+  ],
+  "count": 1
+}
+```
+
+#### POST /api/v1/memories/search
+
+Search memories using semantic similarity with optional graph context.
+
+**Request:**
+```json
+{
+  "query": "What are the user's coding preferences?",
+  "limit": 5,
+  "enable_graph": true
+}
+```
+
+**Response:** `200 OK`
+```json
+{
+  "results": [
+    {
+      "id": "mem_abc123",
+      "memory": "User prefers technical explanations with code examples",
+      "score": 0.92,
+      "metadata": {
+        "category": "preferences",
+        "source": "conversation"
+      }
+    },
+    {
+      "id": "mem_def456",
+      "memory": "User works primarily with Python and TypeScript",
+      "score": 0.87,
+      "metadata": {
+        "category": "tech_stack"
+      }
+    }
+  ],
+  "count": 2
+}
+```
+
+#### GET /api/v1/memories
+
+List all memories for the authenticated user.
+
+**Response:** `200 OK`
+```json
+{
+  "memories": [
+    {
+      "id": "mem_abc123",
+      "memory": "User prefers technical explanations with code examples",
+      "hash": "sha256_hash",
+      "created_at": "2026-02-06T22:30:00Z",
+      "updated_at": "2026-02-06T22:30:00Z",
+      "user_id": "hashed_api_key",
+      "agent_id": "main",
+      "metadata": {
+        "category": "preferences"
+      }
+    }
+  ],
+  "count": 1
+}
+```
+
+#### DELETE /api/v1/memories/{memory_id}
+
+Delete a specific memory by ID.
+
+**Response:** `200 OK`
+```json
+{
+  "deleted": true,
+  "message": "Memory mem_abc123 deleted"
+}
+```
+
+#### DELETE /api/v1/memories
+
+Delete all memories for the authenticated user.
+
+**Response:** `200 OK`
+```json
+{
+  "deleted": true,
+  "message": "All memories deleted"
+}
 ```
 
 ### Heartbeat Endpoints (New)
