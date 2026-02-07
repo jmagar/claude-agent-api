@@ -218,6 +218,184 @@ class Memory:
    - Retention: 90 days for compliance, then archived/deleted
    - Query patterns for anomaly detection (excessive access, bulk exports)
 
+**Mem0 OSS vs Custom Implementation:**
+
+We chose Mem0 OSS over building a custom memory system. Here's why:
+
+| Aspect | Custom Implementation | Mem0 OSS |
+|--------|----------------------|----------|
+| **Vector search** | Qdrant client code (100+ lines) | Built-in, 1 config block |
+| **Graph memory** | Custom Neo4j entity extraction (500+ lines) | Automatic extraction with LLM |
+| **Multi-tenant** | Manual user_id filtering per query | Built-in scoping via `user_id` |
+| **LLM extraction** | Custom prompts + parsing logic (200+ lines) | Configurable LLM provider |
+| **Maintenance** | Update breaking changes in 3+ libraries | Single `pip install mem0ai` upgrade |
+| **Time to implement** | 2-3 weeks (vector + graph + multi-tenant) | 1 day (configuration only) |
+
+**Why we chose Mem0:**
+
+Mem0 provides:
+- **Proven entity extraction**: Production-tested LLM prompts for extracting entities and relationships
+- **Dual storage orchestration**: Automatic sync between Qdrant (vectors) and Neo4j (graph)
+- **Multi-store abstraction**: Single API for vector search + graph retrieval
+- **Configurable stack**: Swap LLM/embedder/vector store without code changes
+- **Community support**: Active development, bug fixes, new features
+
+**Trade-offs:**
+
+- **Extra dependency**: Adds `mem0ai` package (~5MB)
+- **LLM cost for extraction**: Entity extraction requires LLM API calls (mitigated by using cheap Gemini 3 Flash)
+- **Opinionated schema**: Memory format is Mem0's, not fully custom
+
+**Decision:** Mem0's time savings (2-3 weeks → 1 day) and maintenance reduction justify the trade-offs. We gain production-grade memory with minimal implementation effort.
+
+**Mem0 Configuration:**
+
+Complete configuration example using our multi-component stack:
+
+```python
+from mem0 import Memory
+import os
+
+config = {
+    # LLM Provider (for memory extraction)
+    "llm": {
+        "provider": "openai",
+        "config": {
+            "base_url": "https://cli-api.tootie.tv/v1",
+            "model": "gemini-3-flash-preview",
+            "api_key": os.environ.get("LLM_API_KEY", "")
+        }
+    },
+
+    # Embedder (TEI on remote host - Qwen/Qwen3-Embedding-0.6B)
+    "embedder": {
+        "provider": "openai",  # TEI exposes OpenAI-compatible API
+        "config": {
+            "model": "text-embedding-3-small",  # Dummy model name (TEI ignores this)
+            "openai_base_url": "http://100.74.16.82:52000/v1",
+            "embedding_dims": 1024,  # Qwen/Qwen3-Embedding-0.6B output dimension
+            "api_key": "not-needed"  # TEI doesn't require auth
+        }
+    },
+
+    # Vector Store (Qdrant)
+    "vector_store": {
+        "provider": "qdrant",
+        "config": {
+            "host": "localhost",
+            "port": 53333,
+            "collection_name": "mem0_memories",
+            "embedding_model_dims": 1024,  # Must match embedder
+            "distance": "cosine",
+            "on_disk": True
+        }
+    },
+
+    # Graph Store (Neo4j)
+    "graph_store": {
+        "provider": "neo4j",
+        "config": {
+            "url": "bolt://localhost:54687",
+            "username": "neo4j",
+            "password": "neo4jpassword",
+            "database": "neo4j"
+        }
+    },
+
+    "version": "v1.1"
+}
+
+# Initialize memory service
+memory = Memory.from_config(config)
+
+# Usage example
+memory.add(
+    messages="User prefers technical explanations",
+    user_id=api_key,  # Tenant isolation
+    agent_id="main",
+    metadata={"category": "preferences"}
+)
+
+results = memory.search(
+    query="What are the user's preferences?",
+    user_id=api_key,  # Scoped to tenant
+    agent_id="main"
+)
+```
+
+**Environment Variables:**
+
+```bash
+# LLM for entity extraction
+LLM_API_KEY=<cli-api-key>
+
+# External services (already configured)
+QDRANT_URL=http://localhost:53333
+TEI_URL=http://100.74.16.82:52000
+NEO4J_URL=bolt://localhost:54687
+NEO4J_USERNAME=neo4j
+NEO4J_PASSWORD=neo4jpassword
+```
+
+**Mem0 Performance Tuning:**
+
+Graph operations add latency (~50ms vector-only vs ~200ms with graph). Use the `enable_graph` parameter to control behavior:
+
+**Disable graph for high-frequency operations:**
+
+```python
+# Fast: Vector search only (~50ms)
+memory.add(
+    messages="System heartbeat at 2026-02-06 14:30",
+    user_id=api_key,
+    enable_graph=False  # Skip entity extraction
+)
+
+results = memory.search(
+    query="Recent system activity",
+    user_id=api_key,
+    enable_graph=False  # Skip graph retrieval
+)
+```
+
+**Enable graph for context-rich queries:**
+
+```python
+# Slower but richer: Vector + graph (~200ms)
+memory.add(
+    messages="User met Sarah at the Anthropic office in San Francisco",
+    user_id=api_key,
+    enable_graph=True  # Extract entities (Sarah, Anthropic, San Francisco)
+)
+
+results = memory.search(
+    query="Where does Sarah work?",
+    user_id=api_key,
+    enable_graph=True  # Include graph relationships
+)
+```
+
+**When to disable graph:**
+
+- Heartbeat checks (routine status, no relationships)
+- Real-time chat (low latency priority)
+- Batch operations (thousands of memories)
+- Simple fact storage (no entities to extract)
+
+**When to enable graph:**
+
+- Complex queries requiring context ("Who does X work with?")
+- Relationship-heavy conversations (people, places, companies)
+- User questions about past interactions
+- Building knowledge graphs from conversations
+
+**Latency impact:**
+
+- **Vector-only** (`enable_graph=False`): ~50ms per operation
+- **Vector + graph** (`enable_graph=True`): ~200ms per operation (4x slower)
+
+Default: `enable_graph=True` for maximum context. Override per-request for performance.
+
 ### 2. AgentSkills-Compatible Skills System
 
 **Current State: ✅ ALREADY IMPLEMENTED**
