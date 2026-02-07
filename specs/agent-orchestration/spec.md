@@ -107,70 +107,114 @@ A simplified, Claude-only personal AI assistant inspired by OpenClaw's capabilit
 - Remembers relationships, preferences, workflows
 
 **Our implementation:**
-- **Leverage existing infrastructure:**
-  - TEI (cli-firecrawl) for embedding generation
-  - Qdrant (cli-firecrawl) for vector storage and semantic search
-  - Memory bank (`~/memory/bank/`) for structured data
-- PostgreSQL for additional memory metadata
-- Redis for active session cache
-- Memory types: facts, preferences, relationships, workflows
+- **Mem0 OSS Integration**: Graph-enhanced memory with automatic entity extraction
+- **Multi-Component Architecture**:
+  - LLM: Gemini 3 Flash Preview (cli-api.tootie.tv) for memory extraction
+  - Embeddings: Qwen/Qwen3-Embedding-0.6B (1024-dim) via TEI at 100.74.16.82:52000
+  - Vector Store: Qdrant (localhost:53333) for semantic search
+  - Graph Store: Neo4j (localhost:54687) for relationships and entities
+  - History: SQLite (~/.mem0/history.db) for operation tracking
+- Memory bank (`~/memory/bank/`) for structured data snapshots
 - Persona configuration via YAML/JSON
+
+**Mem0 Architecture:**
+
+```
+Request →
+  mem0.search(user_id=api_key) → inject memories →
+  Claude response →
+  mem0.add(conversation, user_id=api_key)
+```
+
+**Memory Schema:**
 
 ```python
 class Memory:
     id: str
-    content: str
-    memory_type: Literal["fact", "preference", "relationship", "workflow"]
-    embedding: list[float]  # Generated via TEI, 384-dim (BAAI/bge-small-en-v1.5)
-    embedding_model: str  # e.g., "BAAI/bge-small-en-v1.5"
+    memory: str  # Memory content (text)
+    user_id: str  # API key for tenant isolation
+    agent_id: str  # Agent identifier (e.g., "main")
+    metadata: dict[str, str | int | float | bool]  # Custom metadata
     created_at: datetime
-    last_accessed: datetime
-    access_count: int
-    source: Literal["user", "inferred", "imported"]
+    updated_at: datetime
 ```
 
 **Embedding Storage:**
-- **Dimensionality**: 384 dimensions (BAAI/bge-small-en-v1.5 default)
-- **Storage Strategy**: Embeddings stored ONLY in Qdrant vector DB
-  - PostgreSQL stores memory metadata + reference to Qdrant point ID
-  - Reduces DB size: 384 floats × 4 bytes = 1.5KB per embedding
-  - 10K memories = ~15MB in Qdrant vs ~15MB + metadata in PostgreSQL
+- **Dimensionality**: 1024 dimensions (Qwen/Qwen3-Embedding-0.6B)
+- **Storage Strategy**: Dual storage with graph enhancement
+  - **Qdrant**: Vector embeddings for semantic search (1024 floats × 4 bytes = 4KB per embedding)
+  - **Neo4j**: Entity/relationship graph for contextual connections
+  - **SQLite**: Operation history and metadata (~/.mem0/history.db)
+  - 10K memories ≈ 40MB in Qdrant + graph relationships in Neo4j
 - **Compression**: Qdrant supports scalar/product quantization (8x reduction)
 - **Vector Search**: Sub-100ms for 1M+ vectors with HNSW indexing
+
+**Graph Memory Features:**
+- **Automatic Entity Extraction**: Mem0 extracts entities (people, places, things) and relationships from conversations using the configured LLM
+- **Dual Retrieval**: Vector similarity search returns semantically related memories plus graph-connected entities
+- **Contextual Enrichment**: Graph relationships provide additional context beyond vector similarity
+- **Performance Trade-off**: Graph operations add ~100-200ms latency per request
+- **Per-Request Toggle**: Disable graph with `enable_graph=False` for high-frequency operations
+
+**Graph Memory Example:**
+
+```python
+# User conversation: "I met Sarah at the Anthropic office in San Francisco"
+# Mem0 automatically extracts:
+# - Entities: Sarah (person), Anthropic (company), San Francisco (location)
+# - Relationships: "met_at" → links Sarah to Anthropic office
+#                  "located_in" → links office to San Francisco
+
+# Future query: "Where does Sarah work?"
+# Vector search finds: "met Sarah at Anthropic office"
+# Graph context adds: "Anthropic office located in San Francisco"
+# Combined result provides richer answer
+```
 
 **Memory Security & Privacy:**
 
 1. **Encryption at Rest:**
-   - PostgreSQL: Enable Transparent Data Encryption (TDE) via pgcrypto extension
    - Qdrant: Disk encryption via LUKS/dm-crypt at OS level
-   - Embedding vectors encrypted in Qdrant storage backend
+   - Neo4j: Disk-level encryption (LUKS/dm-crypt) or Neo4j Enterprise TDE
+   - SQLite: File-level encryption via SQLCipher (optional)
+   - Embedding vectors and graph data encrypted at storage layer
 
 2. **Data Retention & Garbage Collection:**
-   - Configurable TTL per memory type:
-     - Facts: 365 days (long-term knowledge)
-     - Preferences: 180 days (may change over time)
-     - Relationships: 730 days (stable over years)
-     - Workflows: 90 days (task-specific, short-lived)
-   - Background GC job runs daily, deletes expired memories from PostgreSQL + Qdrant
-   - Manual deletion cascade: PostgreSQL DELETE → trigger Qdrant point deletion
+   - Mem0 provides custom GC via API (no built-in TTL):
+     ```python
+     # Query, filter, and delete pattern
+     old_memories = memory.get_all(
+         user_id=api_key,
+         filters={"created_at": {"$lt": cutoff_date}}
+     )
+     for m in old_memories:
+         memory.delete(m["id"])
+     ```
+   - Deletion cascades across all stores (Qdrant + Neo4j + SQLite)
+   - Configurable retention policies per memory category (use metadata filters)
 
 3. **Access Control:**
-   - All memory reads/writes scoped to authenticated API key
-   - Redis/PostgreSQL memory keys: `memory:{api_key}:{memory_id}`
-   - Qdrant collections use API key as namespace filter (multi-tenant isolation)
-   - Cannot read/write other tenants' memories
+   - All memory operations scoped to `user_id` (mapped from API key)
+   - **Multi-Tenant Isolation**:
+     - Qdrant: Payload filters on user_id/agent_id at query time
+     - Neo4j: Entity/relationship nodes tagged with ownership metadata
+     - SQLite: Per-user filtering on all operations
+   - No cross-contamination: API keys cannot access other tenants' memories
+   - Agent scoping: Optional `agent_id` for multi-agent isolation within tenant
 
 4. **PII Detection & Handling:**
    - Pre-storage PII scan using regex patterns (SSN, credit card, email, phone)
-   - Flagged memories: `contains_pii: bool`, `pii_types: list[str]`
+   - Flagged memories: Store PII flags in metadata: `{"contains_pii": true, "pii_types": ["email", "phone"]}`
    - Redaction workflow:
      - Automatic: Replace detected PII with placeholders (`[EMAIL]`, `[PHONE]`)
      - Manual review: Flag for user confirmation before storage
    - Configurable PII handling mode: `block`, `redact`, `flag`, `allow`
 
 5. **Audit Logging:**
-   - All memory operations logged to PostgreSQL audit table:
-     - `memory_audit` table: api_key, memory_id, operation (create/read/update/delete), timestamp, ip_address
+   - Mem0's SQLite history database tracks all operations:
+     - `~/.mem0/history.db` contains: user_id, memory_id, operation (add/search/delete), timestamp
+   - Additional audit table in PostgreSQL for API-level tracking:
+     - `memory_audit` table: api_key, memory_id, operation, timestamp, ip_address
    - Retention: 90 days for compliance, then archived/deleted
    - Query patterns for anomaly detection (excessive access, bulk exports)
 
@@ -729,10 +773,12 @@ DELETE /api/v1/skills/{id}               # Delete skill (database)
 ### Memory Endpoints (New)
 
 ```http
-GET    /api/v1/memory                    # List memories
-POST   /api/v1/memory                    # Create memory
-GET    /api/v1/memory/search             # Search memories (semantic)
+GET    /api/v1/memory                    # List memories (get_all)
+POST   /api/v1/memory                    # Add memory (conversation or text)
+GET    /api/v1/memory/search             # Search memories (semantic + graph)
+PUT    /api/v1/memory/{id}               # Update memory
 DELETE /api/v1/memory/{id}               # Delete memory
+GET    /api/v1/memory/history            # Get operation history (SQLite)
 ```
 
 ### Heartbeat Endpoints (New)
@@ -804,10 +850,15 @@ PUT    /api/v1/persona                   # Update persona config
 
 ### Phase 1: Memory System Integration
 
-- Integrate with existing TEI + Qdrant (cli-firecrawl)
-- Memory service using existing embedding pipeline
-- Memory injection into prompts
-- Memory CRUD API endpoints
+- Integrate Mem0 OSS library with multi-store configuration
+- Configure LLM (Gemini 3 Flash Preview) for entity extraction
+- Configure embedder (Qwen/Qwen3-Embedding-0.6B via TEI at 100.74.16.82:52000)
+- Configure vector store (Qdrant at localhost:53333)
+- Configure graph store (Neo4j at localhost:54687)
+- Memory service wrapper for mem0.Memory API (add, search, get_all, update, delete)
+- Memory injection into prompts (search → inject → add flow)
+- Memory CRUD API endpoints with multi-tenant isolation (user_id scoping)
+- Graph memory toggle (enable_graph parameter)
 
 ### Phase 2: Heartbeat System
 
