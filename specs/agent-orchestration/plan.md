@@ -1653,57 +1653,445 @@ async def get_journal_logs(
 
 ---
 
-## Phase 7: Web App 🔄
+## Phase 7: Web App
 
-**Status:** 🔄 NEEDS REFACTOR
-**Blockers:** Architectural decisions required
-**Estimated Effort:** 2-3 weeks (after decisions)
+**Status:** ✅ READY (Architecture Defined)
+**Blockers:** None
+**Estimated Effort:** 2-3 weeks
 
-**Decisions Needed:**
-1. **Framework Choice**: Next.js 15 vs alternative (Astro, SvelteKit, Remix)
-2. **State Management**: React Context vs Zustand vs Jotai
-3. **Auth Strategy**: Session-based vs API key only
-4. **Offline Strategy**: Service worker scope and cache policies
-5. **Component Library**: shadcn/ui confirmed or alternatives
-6. **SSE Client**: EventSource vs custom implementation
-7. **Mobile Strategy**: PWA only or native wrapper (Capacitor/Tauri)
-
-**Notes:**
-- Need to finalize API contract before starting frontend
-- Consider existing claude-agent-api patterns for consistency
-- Mobile-first is non-negotiable per requirements
-- Dark mode support required
-
-**Goal**: Mobile-first PWA for chat and configuration.
+**Goal**: Mobile-first PWA for chat, memory management, heartbeat monitoring, and cron job scheduling.
 
 ### 7.1 Tech Stack
 
-- Next.js 15 with App Router
-- Tailwind CSS v4
-- shadcn/ui components
-- PWA with service worker
-- Gotify for push notifications (already self-hosted)
+| Category | Technology | Purpose |
+|----------|-----------|---------|
+| **Framework** | Next.js 15 | App Router, React Server Components |
+| **UI Library** | React 19 | Server Components, Suspense, Transitions |
+| **Styling** | TailwindCSS v4 | Utility-first CSS with modern features |
+| **Components** | shadcn/ui | Radix UI + Tailwind, accessible primitives |
+| **State Management** | React Query + Zustand | Server state + client state |
+| **Authentication** | NextAuth.js | API key-based auth with session management |
+| **Real-Time** | EventSource (SSE) | Streaming chat responses |
+| **Forms** | React Hook Form + Zod | Type-safe validation |
+| **Charts** | Recharts | Heartbeat metrics, cron job stats |
+| **Notifications** | Sonner | Toast notifications |
+| **PWA** | next-pwa | Service worker, offline support |
+| **Type Checking** | TypeScript strict | Zero `any` types |
+| **Testing** | Jest + Playwright | Unit, integration, E2E |
 
-### 7.2 Key Screens
+### 7.2 Architecture Decisions
 
-```text
-/                    # Chat interface
-/settings            # Persona, heartbeat, general config
-/settings/skills     # Skill management
-/settings/devices    # Device inventory (read from memory bank)
-/cron                # Cron job dashboard
-/memory              # Memory browser
-/history             # Conversation history
-/search              # QMD and session search
+#### State Management
+
+**Server State (React Query):**
+- API data fetching, caching, and synchronization
+- Automatic background refetching and stale-while-revalidate
+- Optimistic updates for mutations
+
+**Client State (Zustand):**
+- UI state (sidebar open/closed, theme, active chat)
+- Form state (draft messages, unsaved configs)
+- Ephemeral state (loading indicators, modals)
+
+**Session State (NextAuth):**
+- API key authentication
+- User session persistence
+- Automatic token refresh
+
+#### Routing Structure
+
+```tsx
+app/
+├── (auth)/
+│   ├── login/
+│   │   └── page.tsx              # API key input
+│   └── layout.tsx                # Auth layout (centered, minimal)
+├── (dashboard)/
+│   ├── layout.tsx                # Main layout (sidebar, header)
+│   ├── page.tsx                  # Chat interface (default route)
+│   ├── memory/
+│   │   ├── page.tsx              # Memory browser
+│   │   └── [id]/page.tsx         # Memory detail
+│   ├── heartbeat/
+│   │   ├── page.tsx              # Dashboard (metrics, history)
+│   │   └── settings/page.tsx     # Config (schedule, active hours)
+│   ├── cron/
+│   │   ├── page.tsx              # Job list
+│   │   ├── new/page.tsx          # Create job
+│   │   └── [id]/
+│   │       ├── page.tsx          # Job detail + runs
+│   │       └── edit/page.tsx     # Edit job
+│   ├── settings/
+│   │   ├── page.tsx              # General settings
+│   │   ├── persona/page.tsx      # Persona config
+│   │   ├── skills/page.tsx       # Skill management
+│   │   └── devices/page.tsx      # Device inventory
+│   └── history/
+│       ├── page.tsx              # Conversation history
+│       └── [sessionId]/page.tsx  # Session detail
+├── api/
+│   └── auth/
+│       └── [...nextauth]/route.ts # NextAuth handler
+└── layout.tsx                     # Root layout (providers, fonts)
 ```
 
-### 7.3 Implementation Notes
+#### Component Architecture
 
-- Use existing FastAPI endpoints
-- SSE for streaming responses (already implemented)
-- Mobile-first responsive design
-- Dark mode support
-- Offline capability via service worker
+**1. Chat Interface (`/`)**
+
+```tsx
+// app/(dashboard)/page.tsx
+<ChatLayout>
+  <ChatSidebar>                    {/* Collapsible on mobile */}
+    <ConversationList />           {/* Recent sessions */}
+    <NewChatButton />
+  </ChatSidebar>
+
+  <ChatMain>
+    <ChatHeader>                   {/* Sticky header */}
+      <SessionInfo />
+      <ChatActions />              {/* Clear, export, settings */}
+    </ChatHeader>
+
+    <MessageList>                  {/* Auto-scroll, virtualized */}
+      <MessageBubble />            {/* User/assistant messages */}
+      <StreamingMessage />         {/* SSE real-time updates */}
+      <MemoryInjectionIndicator /> {/* Show when memories used */}
+    </MessageList>
+
+    <ChatInput>                    {/* Fixed bottom */}
+      <TextArea />                 {/* Auto-resize, mobile keyboard */}
+      <AttachmentButton />         {/* File upload (future) */}
+      <SendButton />
+    </ChatInput>
+  </ChatMain>
+</ChatLayout>
+```
+
+**2. Memory Management (`/memory`)**
+
+```tsx
+// app/(dashboard)/memory/page.tsx
+<MemoryLayout>
+  <MemoryFilters>
+    <SearchBar />                  {/* Semantic search */}
+    <FilterByCategory />
+    <SortOptions />
+  </MemoryFilters>
+
+  <MemoryGrid>
+    <MemoryCard>
+      <MemoryContent />            {/* Snippet preview */}
+      <MemoryMetadata />           {/* Timestamp, category, score */}
+      <MemoryActions />            {/* View, edit, delete */}
+    </MemoryCard>
+  </MemoryGrid>
+
+  <MemoryDetail>                   {/* Sheet/modal on mobile */}
+    <MemoryFullContent />
+    <RelatedMemories />            {/* Graph relationships */}
+    <MemoryHistory />              {/* Edit history */}
+  </MemoryDetail>
+</MemoryLayout>
+```
+
+**3. Heartbeat Dashboard (`/heartbeat`)**
+
+```tsx
+// app/(dashboard)/heartbeat/page.tsx
+<HeartbeatDashboard>
+  <MetricsOverview>
+    <StatCard title="Uptime" />
+    <StatCard title="Last Run" />
+    <StatCard title="Success Rate" />
+  </MetricsOverview>
+
+  <ActivityChart>                  {/* Recharts line chart */}
+    <TimeSeriesData />             {/* Last 30 days */}
+    <InteractiveTooltip />
+  </ActivityChart>
+
+  <RecentRuns>
+    <RunCard>
+      <RunStatus />                {/* Success/failure badge */}
+      <RunTimestamp />
+      <RunMessage />               {/* Gotify payload */}
+    </RunCard>
+  </RecentRuns>
+
+  <HeartbeatSettings>              {/* Collapsible panel */}
+    <ScheduleEditor />             {/* Cron expression builder */}
+    <ActiveHoursToggle />
+    <SuppressUntilPicker />
+  </HeartbeatSettings>
+</HeartbeatDashboard>
+```
+
+**4. Cron Job Manager (`/cron`)**
+
+```tsx
+// app/(dashboard)/cron/page.tsx
+<CronLayout>
+  <CronToolbar>
+    <NewJobButton />
+    <BulkActions />                {/* Enable/disable multiple */}
+  </CronToolbar>
+
+  <CronJobList>
+    <CronJobCard>
+      <JobHeader>
+        <JobName />
+        <EnabledToggle />
+      </JobHeader>
+      <JobSchedule />              {/* Human-readable cron */}
+      <JobStats>
+        <NextRun />
+        <LastRun />
+        <SuccessRate />
+      </JobStats>
+      <JobActions />               {/* Edit, run now, delete */}
+    </CronJobCard>
+  </CronJobList>
+
+  <CronJobDetail>                  {/* Right panel or modal */}
+    <JobConfiguration />
+    <RunHistory>
+      <RunCard>
+        <RunOutput />              {/* Agent response */}
+        <RunDuration />
+        <RunError />               {/* If failed */}
+      </RunCard>
+    </RunHistory>
+  </CronJobDetail>
+</CronLayout>
+```
+
+#### Authentication Flow
+
+```tsx
+// 1. User enters API key on /login
+// 2. NextAuth validates key against FastAPI /api/v1/validate-key
+// 3. On success, create session with encrypted API key
+// 4. Redirect to / (chat interface)
+// 5. All API calls use session API key from server-side
+// 6. Client never sees raw API key (secure HTTP-only cookie)
+// 7. Session expires after 7 days of inactivity
+// 8. Auto-logout on API key revocation (detected via 401 response)
+```
+
+**Key Hook:**
+
+```tsx
+// hooks/useApiKey.ts
+export function useApiKey(): string {
+  const { data: session } = useSession()
+  if (!session?.apiKey) {
+    throw new Error('Not authenticated')
+  }
+  return session.apiKey
+}
+```
+
+#### Real-Time Updates
+
+**SSE for Chat Streaming:**
+
+```tsx
+// hooks/useStreamingChat.ts
+import { useEffect, useState } from 'react'
+
+export function useStreamingChat(sessionId: string) {
+  const [messages, setMessages] = useState<Message[]>([])
+  const [isStreaming, setIsStreaming] = useState(false)
+
+  const sendMessage = async (content: string) => {
+    setIsStreaming(true)
+    const apiKey = await getApiKey()
+
+    const eventSource = new EventSource(
+      `/api/v1/query/stream?session_id=${sessionId}&prompt=${encodeURIComponent(content)}`,
+      { headers: { 'X-API-Key': apiKey } }
+    )
+
+    eventSource.addEventListener('partial', (e) => {
+      const data = JSON.parse(e.data)
+      setMessages((prev) => appendPartial(prev, data.content))
+    })
+
+    eventSource.addEventListener('result', (e) => {
+      const data = JSON.parse(e.data)
+      setMessages((prev) => finalizeMessage(prev, data))
+      setIsStreaming(false)
+      eventSource.close()
+    })
+
+    eventSource.onerror = () => {
+      setIsStreaming(false)
+      eventSource.close()
+    }
+  }
+
+  return { messages, sendMessage, isStreaming }
+}
+```
+
+**WebSocket for Live Metrics (Future):**
+
+```tsx
+// For heartbeat/cron real-time status updates
+// Phase 1 uses polling with React Query (refetchInterval: 30000)
+// Phase 2 can migrate to WebSocket for sub-second updates
+```
+
+### 7.3 Mobile-First Design
+
+**Breakpoints:**
+
+| Breakpoint | Width | Usage |
+|------------|-------|-------|
+| `xs` | 0-639px | Mobile portrait |
+| `sm` | 640-767px | Mobile landscape |
+| `md` | 768-1023px | Tablet |
+| `lg` | 1024-1279px | Desktop |
+| `xl` | 1280+ | Large desktop |
+
+**Mobile Patterns:**
+
+```tsx
+// Responsive sidebar (drawer on mobile, fixed on desktop)
+<aside className="fixed inset-y-0 left-0 z-50 w-72 bg-background
+                   -translate-x-full transition-transform
+                   lg:translate-x-0 lg:static">
+  {/* Sidebar content */}
+</aside>
+
+// Mobile-first chat input
+<form className="sticky bottom-0 p-4 bg-background border-t">
+  <textarea className="w-full min-h-12 max-h-32 resize-none
+                       text-base leading-6 p-3
+                       md:text-sm md:leading-5" />
+</form>
+
+// Touch-friendly buttons (44px minimum)
+<button className="min-h-11 min-w-11 touch-manipulation">
+  <Icon className="h-6 w-6" />
+</button>
+```
+
+**Touch Targets:**
+- Minimum 44x44px for all interactive elements
+- 8px spacing between adjacent targets
+- Larger font sizes on mobile (16px base to prevent zoom)
+- Bottom-anchored primary actions (easier thumb reach)
+
+### 7.4 Testing Strategy
+
+**Unit Tests (Jest + React Testing Library):**
+- Component rendering and interaction
+- Hook behavior (useStreamingChat, useMemories)
+- State management (Zustand stores, React Query caching)
+- Form validation (Zod schemas)
+
+**Integration Tests (Playwright):**
+- API integration (mock FastAPI responses)
+- SSE streaming (simulated events)
+- Authentication flow (login → chat → logout)
+- Offline functionality (service worker interception)
+
+**E2E Tests (Playwright):**
+- Critical user journeys (send message, view memories, create cron job)
+- Mobile viewport (375x667, 414x896)
+- Accessibility (screen reader, keyboard navigation)
+
+**Accessibility Requirements:**
+- WCAG 2.1 Level AA compliance
+- Semantic HTML (proper heading hierarchy, landmarks)
+- ARIA labels for interactive elements
+- Keyboard navigation (tab order, focus management)
+- Color contrast ≥4.5:1 for text
+
+**Performance Targets:**
+- First Contentful Paint (FCP) < 1.5s
+- Largest Contentful Paint (LCP) < 2.5s
+- Time to Interactive (TTI) < 3.5s
+- Cumulative Layout Shift (CLS) < 0.1
+- Lighthouse score ≥90 (Performance, Accessibility, Best Practices, SEO)
+
+### 7.5 Progressive Web App
+
+**Service Worker (`public/sw.js`):**
+- Cache-first strategy for static assets (JS, CSS, fonts)
+- Network-first strategy for API calls
+- Offline fallback page for navigation requests
+- Background sync for failed message sends
+
+**Web App Manifest (`public/manifest.json`):**
+
+```json
+{
+  "name": "Agent Orchestration",
+  "short_name": "Agent",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ],
+  "theme_color": "#000000",
+  "background_color": "#ffffff",
+  "display": "standalone",
+  "start_url": "/",
+  "scope": "/"
+}
+```
+
+**Push Notifications (Gotify Integration):**
+- Request permission on first message send
+- Subscribe to Gotify WebSocket for push events
+- Display native notifications for heartbeat alerts
+- Badge count for unread messages
+
+### 7.6 Implementation Checklist
+
+**Phase 1: Foundation (Days 1-3)**
+- [ ] Project setup (Next.js, TypeScript, Tailwind)
+- [ ] NextAuth.js configuration
+- [ ] shadcn/ui component installation
+- [ ] Layout structure (sidebar, header, main)
+- [ ] Dark mode support
+
+**Phase 2: Chat Interface (Days 4-6)**
+- [ ] Chat UI (message list, input, sidebar)
+- [ ] SSE streaming integration
+- [ ] React Query setup for API calls
+- [ ] Message history persistence
+
+**Phase 3: Memory Management (Days 7-9)**
+- [ ] Memory browser (list, search, filter)
+- [ ] Memory detail view (full content, relationships)
+- [ ] Memory CRUD operations
+- [ ] Graph visualization (optional)
+
+**Phase 4: Heartbeat Dashboard (Days 10-12)**
+- [ ] Metrics overview (uptime, success rate)
+- [ ] Activity chart (Recharts integration)
+- [ ] Run history list
+- [ ] Settings editor (schedule, active hours)
+
+**Phase 5: Cron Job Manager (Days 13-15)**
+- [ ] Job list (enable/disable, stats)
+- [ ] Job creation form (cron builder)
+- [ ] Job detail (config, run history)
+- [ ] Run now action
+
+**Phase 6: PWA & Polish (Days 16-18)**
+- [ ] Service worker setup
+- [ ] Offline fallback page
+- [ ] Web app manifest
+- [ ] Gotify push notifications
+- [ ] Performance optimization
+- [ ] Accessibility audit
+- [ ] Mobile testing (real devices)
+
+**Estimated Effort:** 2-3 weeks (18 days with 1 developer)
 
 ---
 
