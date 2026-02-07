@@ -1717,6 +1717,135 @@ GET    /api/v1/persona                   # Get persona config
 PUT    /api/v1/persona                   # Update persona config
 ```
 
+**Storage Strategy:**
+
+Persona configuration uses **PostgreSQL as primary storage** with JSON file fallback for single-user deployments:
+
+- **Multi-User (Default)**: PostgreSQL database with API key scoping
+- **Single-User (Fallback)**: `~/.config/assistant/persona.json` when `DATABASE_URL` not set
+
+**Database Schema:**
+
+```sql
+-- Migration: xxx_add_persona_config.py
+CREATE TABLE persona_config (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    owner_api_key_hash VARCHAR(64) NOT NULL,
+    name VARCHAR(100) DEFAULT 'Assistant',
+    personality TEXT,
+    communication_style TEXT,
+    expertise_areas JSONB DEFAULT '[]'::jsonb,
+    proactivity VARCHAR(20) DEFAULT 'medium',
+    verbosity VARCHAR(20) DEFAULT 'balanced',
+    formality VARCHAR(20) DEFAULT 'balanced',
+    use_emoji BOOLEAN DEFAULT false,
+    custom_instructions TEXT,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Index for API key lookups
+CREATE INDEX idx_persona_config_api_key ON persona_config(owner_api_key_hash);
+
+-- Trigger for updated_at
+CREATE TRIGGER update_persona_config_updated_at
+    BEFORE UPDATE ON persona_config
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+```
+
+**Configuration Structure:**
+
+```json
+{
+  "name": "Jarvis",
+  "personality": "helpful, concise, proactive",
+  "communication_style": "professional but warm",
+  "expertise_areas": ["homelab", "automation", "development"],
+  "proactivity": "medium",
+  "verbosity": "balanced",
+  "formality": "balanced",
+  "use_emoji": false,
+  "custom_instructions": "Always prioritize security and modularity"
+}
+```
+
+**File-Based Mode (Single-User Deployments):**
+
+When `DATABASE_URL` is not configured, the service reads/writes to `~/.config/assistant/persona.json`. This mode is intended for personal/development use where multi-tenant isolation is not required.
+
+**Decision Logic:**
+
+```python
+# apps/api/services/persona_service.py
+from pathlib import Path
+import json
+
+class PersonaService:
+    """Persona configuration management with dual storage."""
+
+    def __init__(self, db_session: AsyncSession | None, config: Settings):
+        self.db = db_session
+        self.config = config
+        self.file_path = Path.home() / ".config" / "assistant" / "persona.json"
+
+    async def get_persona(self, api_key_hash: str) -> PersonaConfig:
+        """Get persona config from database or file."""
+        if self.db is not None:
+            # PostgreSQL mode (multi-user)
+            result = await self.db.execute(
+                select(PersonaConfigModel).where(
+                    PersonaConfigModel.owner_api_key_hash == api_key_hash
+                )
+            )
+            model = result.scalar_one_or_none()
+            if model:
+                return PersonaConfig.from_orm(model)
+            # Return defaults if not found
+            return PersonaConfig()
+        else:
+            # File mode (single-user)
+            if self.file_path.exists():
+                data = json.loads(self.file_path.read_text())
+                return PersonaConfig(**data)
+            return PersonaConfig()
+
+    async def update_persona(
+        self,
+        api_key_hash: str,
+        updates: PersonaUpdate,
+    ) -> PersonaConfig:
+        """Update persona config in database or file."""
+        if self.db is not None:
+            # PostgreSQL mode
+            result = await self.db.execute(
+                select(PersonaConfigModel).where(
+                    PersonaConfigModel.owner_api_key_hash == api_key_hash
+                )
+            )
+            model = result.scalar_one_or_none()
+            if not model:
+                # Create new record
+                model = PersonaConfigModel(owner_api_key_hash=api_key_hash)
+                self.db.add(model)
+
+            # Apply updates
+            for field, value in updates.dict(exclude_unset=True).items():
+                setattr(model, field, value)
+
+            await self.db.commit()
+            await self.db.refresh(model)
+            return PersonaConfig.from_orm(model)
+        else:
+            # File mode
+            current = await self.get_persona(api_key_hash)
+            updated = current.copy(update=updates.dict(exclude_unset=True))
+
+            self.file_path.parent.mkdir(parents=True, exist_ok=True)
+            self.file_path.write_text(updated.json(indent=2))
+            return updated
+```
+
 ## Implementation Phases
 
 ### Phase 1: Memory System Integration

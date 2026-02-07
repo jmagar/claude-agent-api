@@ -1537,23 +1537,35 @@ CREATE INDEX idx_heartbeat_runs_started ON heartbeat_runs(started_at);
 
 ### Migration 003: Persona Config
 
+**Storage implementation:** See [spec.md Persona Endpoints section](spec.md#persona-endpoints-new) for complete database schema, file-based fallback, and decision logic.
+
 ```sql
 -- alembic/versions/xxx_add_persona_config.py
 CREATE TABLE persona_config (
-    id VARCHAR PRIMARY KEY DEFAULT 'default',
-    name VARCHAR DEFAULT 'Assistant',
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    owner_api_key_hash VARCHAR(64) NOT NULL,
+    name VARCHAR(100) DEFAULT 'Assistant',
     personality TEXT,
     communication_style TEXT,
-    expertise_areas VARCHAR[],
-    proactivity VARCHAR DEFAULT 'medium',
-    verbosity VARCHAR DEFAULT 'balanced',
-    formality VARCHAR DEFAULT 'balanced',
+    expertise_areas JSONB DEFAULT '[]'::jsonb,
+    proactivity VARCHAR(20) DEFAULT 'medium',
+    verbosity VARCHAR(20) DEFAULT 'balanced',
+    formality VARCHAR(20) DEFAULT 'balanced',
+    use_emoji BOOLEAN DEFAULT false,
     custom_instructions TEXT,
+    created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
-INSERT INTO persona_config (id) VALUES ('default');
+CREATE INDEX idx_persona_config_api_key ON persona_config(owner_api_key_hash);
+
+CREATE TRIGGER update_persona_config_updated_at
+    BEFORE UPDATE ON persona_config
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
 ```
+
+**Note:** PostgreSQL is the primary storage mechanism with API key scoping. JSON file (`~/.config/assistant/persona.json`) is fallback for single-user deployments when `DATABASE_URL` is not configured.
 
 ---
 
