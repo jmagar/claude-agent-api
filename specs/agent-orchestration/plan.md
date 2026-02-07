@@ -662,6 +662,8 @@ class HeartbeatScheduler:
 
         return start <= current <= end
 
+    # Session management: See spec.md Heartbeat Session Management section for lifecycle and turn limits
+
     async def _load_checklist(self) -> str:
         """Load HEARTBEAT.md checklist."""
         path = Path(self.config.checklist_path).expanduser()

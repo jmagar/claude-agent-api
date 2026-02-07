@@ -557,6 +557,115 @@ scheduler.add_job(
 )
 ```
 
+### Heartbeat Session Management
+
+**Session mode options:**
+
+The heartbeat system supports two session modes:
+
+1. **Main session mode** (`session_mode: "main"`)
+2. **Isolated session mode** (`session_mode: "isolated"`)
+
+**Main session behavior:**
+
+- Uses a single persistent session (`session_id="heartbeat-main"`)
+- Context accumulates across all heartbeat executions
+- Enables learning from previous checks and alerts
+- Automatically resets after 50 conversation turns to prevent unbounded context growth
+- Best for: Situations where historical context improves decision-making
+
+**Isolated session behavior:**
+
+- Creates a fresh session for each heartbeat execution
+- No context carryover between runs
+- Prevents unbounded memory growth
+- Session is destroyed immediately after completion
+- Best for: Independent status checks without needing historical context
+
+**Default: `isolated`**
+
+The default session mode is `isolated` to prevent unbounded context growth in long-running deployments. This ensures predictable memory usage and prevents the main session from accumulating excessive history.
+
+**Configuration:**
+
+```python
+class HeartbeatConfig:
+    enabled: bool = True
+    interval_minutes: int = 30
+    session_mode: Literal["main", "isolated"] = "isolated"  # Session mode
+    active_hours: tuple[str, str] = ("08:00", "22:00")
+    timezone: str | None = None
+    checklist_path: str = "~/.config/assistant/HEARTBEAT.md"
+    notification_method: Literal["gotify", "none"] = "gotify"
+```
+
+**Session lifecycle (isolated mode):**
+
+```python
+async def _execute_heartbeat(self) -> HeartbeatResult:
+    """Execute heartbeat check with isolated session."""
+    # 1. Create fresh session
+    session_id = f"heartbeat-{uuid4()}"
+
+    # 2. Inject relevant memories (optional)
+    memories = await self.memory.search(
+        query="system status and alerts",
+        user_id=self.api_key,
+        limit=5
+    )
+    memory_context = "\n".join([m["memory"] for m in memories])
+
+    # 3. Execute query with memory context
+    prompt = f"""
+{memory_context}
+
+Time for your periodic check-in. Review this checklist:
+
+{checklist}
+
+If nothing needs attention, respond with: HEARTBEAT_OK
+Otherwise, summarize what needs my attention.
+"""
+
+    response = await self.query.execute(
+        QueryRequest(prompt=prompt, session_id=session_id)
+    )
+
+    # 4. Extract new memories from response (optional)
+    await self.memory.add(
+        messages=[
+            {"role": "user", "content": prompt},
+            {"role": "assistant", "content": response.content}
+        ],
+        user_id=self.api_key
+    )
+
+    # 5. Send notification if needed
+    if "HEARTBEAT_OK" not in response.content:
+        await self.gotify.send(
+            title="🫀 Heartbeat Alert",
+            message=response.content[:500],
+            priority=7
+        )
+
+    # 6. Session is automatically destroyed (isolated mode)
+    # No explicit cleanup needed - SDK handles session lifecycle
+
+    return HeartbeatResult(...)
+```
+
+**Main session turn limit:**
+
+When using `session_mode="main"`, the heartbeat service automatically resets the main session after 50 conversation turns to prevent unbounded context growth. This ensures long-running heartbeat deployments don't accumulate excessive history while still maintaining useful short-term context.
+
+```python
+# Automatic reset logic (main session mode)
+turn_count = await self.session.get_turn_count("heartbeat-main")
+if turn_count >= 50:
+    await self.session.reset("heartbeat-main")
+    logger.info("Reset heartbeat-main session (50 turn limit)")
+```
+
 ### 4. Cron Jobs (Scheduled Tasks)
 
 **What OpenClaw does:**
