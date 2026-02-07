@@ -2009,6 +2009,793 @@ class PersonaService:
 - Settings/config UI
 - Heartbeat/cron dashboard
 
+## Testing Requirements
+
+### Coverage Targets
+
+| Test Type | Target | Purpose |
+|-----------|--------|---------|
+| **Unit Tests** | ≥90% | Individual functions/classes in isolation |
+| **Integration Tests** | ≥80% | Multi-component interactions with real services |
+| **Contract Tests** | 100% | API endpoint compliance with OpenAPI spec |
+| **E2E Tests** | Critical paths only | User-facing workflows in staging environment |
+
+**Overall target**: ≥85% combined coverage across all test types.
+
+### Testing Pyramid
+
+```text
+           ┌─────────┐
+          ╱   E2E    ╲    ~5% (Critical user flows)
+         ╱ (Slow)     ╲
+        ┌─────────────┐
+       ╱ Integration   ╲  ~25% (Service boundaries)
+      ╱  (Medium)       ╲
+     ┌───────────────────┐
+    ╱      Unit Tests     ╲ ~70% (Business logic)
+   ╱      (Fast)           ╱
+  └─────────────────────┘
+```
+
+**Distribution rationale:**
+
+- **Unit tests (70%)**: Fast execution, comprehensive business logic coverage, isolated dependencies
+- **Integration tests (25%)**: Service boundaries, database operations, external APIs
+- **E2E tests (5%)**: Critical user workflows (heartbeat, cron execution, chat streaming)
+
+**Speed targets:**
+
+- Unit tests: <10s total execution
+- Integration tests: <60s total execution
+- E2E tests: <5min total execution
+
+### Test Isolation
+
+#### Unit Tests
+
+**Requirements:**
+- Mock ALL external dependencies (database, Redis, Claude SDK, TEI, Qdrant, Gotify)
+- No network calls (use mocked responses)
+- No file system I/O (use in-memory fixtures)
+- Fast execution (<100ms per test)
+- Independent of execution order
+
+**Example (mocking dependencies):**
+
+```python
+import pytest
+from unittest.mock import AsyncMock, MagicMock
+from apps.api.services.memory.service import MemoryService
+
+@pytest.fixture
+def mock_mem0():
+    """Mock Mem0 Memory client."""
+    mock = MagicMock()
+    mock.add = AsyncMock(return_value=[{
+        "id": "mem_123",
+        "memory": "User prefers Python",
+        "hash": "abc123"
+    }])
+    mock.search = AsyncMock(return_value=[{
+        "id": "mem_123",
+        "memory": "User prefers Python",
+        "score": 0.95
+    }])
+    return mock
+
+@pytest.fixture
+def memory_service(mock_mem0):
+    """MemoryService with mocked dependencies."""
+    return MemoryService(memory_client=mock_mem0)
+
+async def test_add_memory(memory_service, mock_mem0):
+    """Test adding a new memory."""
+    # Arrange
+    api_key = "test-key"
+    messages = "User prefers Python for backend development"
+
+    # Act
+    result = await memory_service.add_memory(
+        api_key=api_key,
+        messages=messages,
+        metadata={"category": "preferences"}
+    )
+
+    # Assert
+    assert result["count"] == 1
+    assert result["memories"][0]["memory"] == "User prefers Python"
+    mock_mem0.add.assert_called_once_with(
+        messages=messages,
+        user_id=api_key,
+        agent_id="main",
+        metadata={"category": "preferences"}
+    )
+```
+
+#### Integration Tests
+
+**Requirements:**
+- Use test database (PostgreSQL with schema migrations applied)
+- Use test Redis instance (separate from production)
+- Clean state before each test (transactions with rollback)
+- Use real service implementations where possible
+- FileLock for coordinating test database access across pytest-xdist workers
+
+**Example (test database with cleanup):**
+
+```python
+import pytest
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.orm import sessionmaker
+from apps.api.models import Base
+from apps.api.config import Settings
+
+@pytest.fixture(scope="session")
+async def test_db_engine():
+    """Create test database engine."""
+    settings = Settings(
+        DATABASE_URL="postgresql+asyncpg://test:test@localhost:54432/test_db"
+    )
+    engine = create_async_engine(
+        settings.DATABASE_URL,
+        echo=False,
+        pool_pre_ping=True
+    )
+
+    # Create all tables
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+    yield engine
+
+    # Drop all tables after tests
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+
+    await engine.dispose()
+
+@pytest.fixture
+async def db_session(test_db_engine):
+    """Provide clean database session per test."""
+    async_session = sessionmaker(
+        test_db_engine,
+        class_=AsyncSession,
+        expire_on_commit=False
+    )
+
+    async with async_session() as session:
+        async with session.begin():
+            yield session
+            # Rollback after test (clean state)
+            await session.rollback()
+
+async def test_create_cron_job(db_session):
+    """Test cron job creation with real database."""
+    from apps.api.models import CronJob
+    from datetime import datetime
+
+    # Arrange
+    job = CronJob(
+        id="job_123",
+        name="Daily backup",
+        schedule={"type": "cron", "expression": "0 2 * * *"},
+        session_mode="isolated",
+        message="Run backup script",
+        enabled=True
+    )
+
+    # Act
+    db_session.add(job)
+    await db_session.commit()
+
+    # Assert (query from database)
+    result = await db_session.execute(
+        select(CronJob).where(CronJob.id == "job_123")
+    )
+    saved_job = result.scalar_one()
+    assert saved_job.name == "Daily backup"
+    assert saved_job.enabled is True
+```
+
+**FileLock coordination (pytest-xdist):**
+
+```python
+# tests/conftest.py
+import pytest
+from filelock import FileLock
+
+@pytest.fixture(scope="session")
+def test_db_lock(tmp_path_factory):
+    """File lock for coordinating test database migrations."""
+    lock_file = tmp_path_factory.getbasetemp().parent / "test_db.lock"
+    return FileLock(str(lock_file))
+
+@pytest.fixture(scope="session")
+async def test_db_engine(test_db_lock):
+    """Create test database with migration coordination."""
+    # Acquire lock before migrations
+    with test_db_lock:
+        # Only one worker runs migrations
+        engine = create_async_engine(DATABASE_URL)
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+
+    yield engine
+
+    # Cleanup
+    await engine.dispose()
+```
+
+#### E2E Tests
+
+**Requirements:**
+- Run against staging environment (not production)
+- Use real database and services (no mocks)
+- Playwright for browser automation
+- Mark with `@pytest.mark.e2e` (excluded from default runs)
+- Slow execution acceptable (user-facing workflows)
+
+**Example (heartbeat execution E2E):**
+
+```python
+import pytest
+from playwright.async_api import async_playwright
+
+@pytest.mark.e2e
+async def test_heartbeat_execution_flow():
+    """E2E test: Heartbeat triggers and sends Gotify notification."""
+    async with async_playwright() as p:
+        browser = await p.chromium.launch()
+        page = await browser.new_page()
+
+        # Step 1: Login to web app
+        await page.goto("http://localhost:53000/login")
+        await page.fill("input[name=api_key]", "test-api-key")
+        await page.click("button[type=submit]")
+
+        # Step 2: Navigate to heartbeat config
+        await page.goto("http://localhost:53000/heartbeat")
+        await page.wait_for_selector("h1:has-text('Heartbeat')")
+
+        # Step 3: Trigger manual heartbeat
+        await page.click("button:has-text('Trigger Now')")
+
+        # Step 4: Wait for execution to complete
+        await page.wait_for_selector(
+            ".heartbeat-status:has-text('Completed')",
+            timeout=30000  # 30s timeout
+        )
+
+        # Step 5: Verify notification sent (check history)
+        await page.goto("http://localhost:53000/heartbeat/history")
+        latest_run = await page.query_selector(".run-item:first-child")
+        assert latest_run is not None
+
+        status = await latest_run.query_selector(".status")
+        assert await status.inner_text() == "Completed"
+
+        await browser.close()
+```
+
+### TDD Workflow
+
+All new features and bug fixes MUST follow Test-Driven Development:
+
+**Process:**
+
+1. **RED**: Write a failing test that describes the desired behavior
+2. **GREEN**: Write minimal code to make the test pass
+3. **REFACTOR**: Improve code quality while keeping tests green
+
+**Example (adding memory search limit parameter):**
+
+```python
+# Step 1: RED - Write failing test
+async def test_memory_search_with_limit(memory_service):
+    """Memory search should respect limit parameter."""
+    # Arrange
+    api_key = "test-key"
+    # Assume 10 memories exist
+    for i in range(10):
+        await memory_service.add_memory(
+            api_key=api_key,
+            messages=f"Memory {i}"
+        )
+
+    # Act
+    results = await memory_service.search_memories(
+        api_key=api_key,
+        query="Memory",
+        limit=3  # Request only 3 results
+    )
+
+    # Assert
+    assert len(results) == 3  # FAILS - limit not implemented yet
+
+# Step 2: GREEN - Make test pass
+class MemoryService:
+    async def search_memories(
+        self,
+        api_key: str,
+        query: str,
+        limit: int = 10,  # Add limit parameter with default
+    ) -> list[dict]:
+        """Search memories with limit."""
+        results = await self.memory_client.search(
+            query=query,
+            user_id=api_key,
+            limit=limit  # Pass limit to mem0
+        )
+        return results  # Test now passes
+
+# Step 3: REFACTOR - Improve implementation
+class MemoryService:
+    async def search_memories(
+        self,
+        api_key: str,
+        query: str,
+        limit: int = 10,
+    ) -> list[dict]:
+        """
+        Search memories using semantic similarity.
+
+        Args:
+            api_key: User API key for scoping
+            query: Search query text
+            limit: Maximum results to return (default: 10, max: 100)
+
+        Returns:
+            List of memory dictionaries with scores
+
+        Raises:
+            ValueError: If limit exceeds maximum
+        """
+        if limit > 100:
+            raise ValueError("Limit cannot exceed 100")
+
+        results = await self.memory_client.search(
+            query=query,
+            user_id=api_key,
+            limit=limit
+        )
+        return results
+```
+
+### Test Naming Convention
+
+**Pattern**: `test_<component>_<scenario>_<expected_outcome>`
+
+**Good examples:**
+
+```python
+# Unit tests
+test_memory_service_add_creates_embedding()
+test_heartbeat_scheduler_skips_outside_active_hours()
+test_cron_job_executor_retries_on_failure()
+test_session_sanitizer_redacts_api_keys()
+
+# Integration tests
+test_query_endpoint_injects_memories_from_qdrant()
+test_heartbeat_sends_gotify_notification()
+test_cron_job_creates_isolated_session()
+
+# E2E tests
+test_user_chat_with_streaming_response()
+test_heartbeat_execution_triggers_from_dashboard()
+```
+
+**Bad examples:**
+
+```python
+# Too vague
+test_memory()
+test_heartbeat()
+
+# Not descriptive
+test_service_1()
+test_edge_case()
+
+# Missing context
+test_search()
+test_failure()
+```
+
+### Mock Strategy
+
+**What to mock (in unit tests):**
+
+- External HTTP APIs (Claude SDK, TEI, Qdrant, Gotify)
+- Database sessions (use mocked AsyncSession)
+- File system operations (use in-memory buffers)
+- Time-dependent logic (freeze time with `freezegun`)
+- Random data generation (seed random for determinism)
+
+**What NOT to mock:**
+
+- Business logic functions (test the real implementation)
+- Pure functions with no side effects
+- In-memory data structures (lists, dicts, sets)
+- Pydantic models and schemas
+
+**Example (pytest fixture-based mocking):**
+
+```python
+import pytest
+from unittest.mock import AsyncMock, patch
+from datetime import datetime
+from freezegun import freeze_time
+
+@pytest.fixture
+def mock_claude_sdk():
+    """Mock Claude SDK client."""
+    with patch("apps.api.services.agent.service.ClaudeSDKClient") as mock:
+        instance = mock.return_value
+        instance.query = AsyncMock(return_value={
+            "content": "Response text",
+            "input_tokens": 100,
+            "output_tokens": 50
+        })
+        yield instance
+
+@pytest.fixture
+def mock_gotify_client():
+    """Mock Gotify notification client."""
+    with patch("apps.api.services.notifications.GotifyClient") as mock:
+        instance = mock.return_value
+        instance.send = AsyncMock(return_value={"id": 123, "priority": 5})
+        yield instance
+
+@freeze_time("2026-02-06 14:30:00")
+async def test_heartbeat_within_active_hours(mock_claude_sdk, mock_gotify_client):
+    """Heartbeat executes during active hours."""
+    from apps.api.services.heartbeat import HeartbeatService
+
+    # Arrange
+    config = HeartbeatConfig(
+        enabled=True,
+        active_hours=("08:00", "22:00"),  # 14:30 is within range
+        interval_minutes=30
+    )
+    service = HeartbeatService(
+        config=config,
+        claude_client=mock_claude_sdk,
+        gotify_client=mock_gotify_client
+    )
+
+    # Act
+    result = await service.execute_heartbeat()
+
+    # Assert
+    assert result.status == "completed"
+    mock_claude_sdk.query.assert_called_once()  # Heartbeat ran
+```
+
+### Continuous Integration
+
+**Pre-commit Hooks (`.pre-commit-config.yaml`):**
+
+```yaml
+repos:
+  - repo: local
+    hooks:
+      - id: pytest-unit
+        name: Run unit tests
+        entry: uv run pytest tests/unit -v
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: ruff-check
+        name: Ruff linter
+        entry: uv run ruff check .
+        language: system
+        types: [python]
+
+      - id: ty-check
+        name: Type checking
+        entry: uv run ty check
+        language: system
+        types: [python]
+```
+
+**CI Pipeline (GitHub Actions example):**
+
+```yaml
+name: Tests
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Run unit tests
+        run: uv run pytest tests/unit -v --cov=apps/api --cov-report=xml
+
+      - name: Run integration tests
+        run: uv run pytest tests/integration -v
+
+      - name: Check coverage threshold
+        run: |
+          uv run coverage report --fail-under=85
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./coverage.xml
+```
+
+**Coverage enforcement:**
+
+```toml
+# pyproject.toml
+[tool.coverage.run]
+source = ["apps/api"]
+omit = [
+    "*/tests/*",
+    "*/migrations/*",
+    "*/__init__.py",
+]
+
+[tool.coverage.report]
+fail_under = 85
+show_missing = true
+skip_covered = false
+```
+
+### Test Data Management
+
+**Fixtures for reusable test data:**
+
+```python
+# tests/conftest.py
+import pytest
+from datetime import datetime
+
+@pytest.fixture
+def sample_memory_data():
+    """Sample memory data for tests."""
+    return {
+        "id": "mem_abc123",
+        "memory": "User prefers Python for backend development",
+        "hash": "sha256_hash_value",
+        "created_at": datetime(2026, 2, 6, 14, 30),
+        "updated_at": datetime(2026, 2, 6, 14, 30),
+        "user_id": "hashed_api_key",
+        "agent_id": "main",
+        "metadata": {"category": "preferences"}
+    }
+
+@pytest.fixture
+def sample_cron_job():
+    """Sample cron job configuration."""
+    return {
+        "id": "job_daily_backup",
+        "name": "Daily Backup",
+        "schedule": {
+            "type": "cron",
+            "expression": "0 2 * * *"
+        },
+        "session_mode": "isolated",
+        "message": "Run daily backup script",
+        "enabled": True
+    }
+
+@pytest.fixture
+def sample_heartbeat_config():
+    """Sample heartbeat configuration."""
+    return HeartbeatConfig(
+        enabled=True,
+        interval_minutes=30,
+        active_hours=("08:00", "22:00"),
+        timezone="America/New_York",
+        checklist_path="~/.config/assistant/HEARTBEAT.md",
+        notification_method="gotify"
+    )
+```
+
+**Factory pattern for test objects:**
+
+```python
+# tests/factories.py
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Any
+
+@dataclass
+class MemoryFactory:
+    """Factory for creating test memory objects."""
+
+    @staticmethod
+    def create(
+        memory_id: str = "mem_test",
+        memory_text: str = "Test memory",
+        user_id: str = "test-user",
+        **kwargs: Any
+    ) -> dict:
+        """Create a memory dictionary with defaults."""
+        return {
+            "id": memory_id,
+            "memory": memory_text,
+            "hash": f"hash_{memory_id}",
+            "created_at": datetime.now(),
+            "updated_at": datetime.now(),
+            "user_id": user_id,
+            "agent_id": "main",
+            "metadata": kwargs.get("metadata", {})
+        }
+
+    @staticmethod
+    def create_batch(count: int, **kwargs: Any) -> list[dict]:
+        """Create multiple memories with incremental IDs."""
+        return [
+            MemoryFactory.create(
+                memory_id=f"mem_{i}",
+                memory_text=f"Test memory {i}",
+                **kwargs
+            )
+            for i in range(count)
+        ]
+
+# Usage in tests
+def test_memory_search_pagination():
+    """Test memory search with pagination."""
+    # Create 20 test memories
+    memories = MemoryFactory.create_batch(20, user_id="test-user")
+
+    # Test first page
+    page1 = memories[:10]
+    assert len(page1) == 10
+
+    # Test second page
+    page2 = memories[10:]
+    assert len(page2) == 10
+```
+
+### Performance Testing
+
+**Load testing with Locust:**
+
+```python
+# tests/performance/locustfile.py
+from locust import HttpUser, task, between
+
+class APIUser(HttpUser):
+    """Simulate API user load."""
+    wait_time = between(1, 3)  # Wait 1-3s between requests
+
+    def on_start(self):
+        """Setup: Set API key header."""
+        self.client.headers = {"X-API-Key": "test-key"}
+
+    @task(3)  # Weight: 3x more common than other tasks
+    def query_agent(self):
+        """POST /api/v1/query endpoint."""
+        self.client.post("/api/v1/query", json={
+            "prompt": "What is the weather today?",
+            "max_turns": 1
+        })
+
+    @task(1)
+    def search_memories(self):
+        """POST /api/v1/memories/search endpoint."""
+        self.client.post("/api/v1/memories/search", json={
+            "query": "user preferences",
+            "limit": 5
+        })
+
+    @task(1)
+    def list_sessions(self):
+        """GET /api/v1/sessions endpoint."""
+        self.client.get("/api/v1/sessions")
+
+# Run: locust -f tests/performance/locustfile.py --host=http://localhost:54000
+```
+
+**Benchmark tests with pytest-benchmark:**
+
+```python
+import pytest
+
+def test_memory_search_performance(benchmark, memory_service):
+    """Benchmark memory search latency."""
+    # Arrange
+    api_key = "test-key"
+    query = "user preferences"
+
+    # Act & Assert
+    result = benchmark(
+        memory_service.search_memories,
+        api_key=api_key,
+        query=query,
+        limit=10
+    )
+
+    # Verify performance target
+    assert benchmark.stats.median < 0.2  # <200ms median latency
+    assert len(result) <= 10
+```
+
+### Flaky Test Policy
+
+**Zero tolerance for flaky tests.**
+
+**Common causes:**
+
+1. **Race conditions**: Use proper async/await, avoid `time.sleep()` in tests
+2. **Non-deterministic data**: Seed random generators, freeze time with `freezegun`
+3. **External service dependencies**: Mock all external APIs in unit tests
+4. **Test interdependence**: Ensure tests clean up state, use transactions with rollback
+5. **Timing assumptions**: Use `wait_for` patterns instead of fixed sleeps
+
+**Example (fixing flaky test with wait_for):**
+
+```python
+# BAD: Flaky test with sleep
+async def test_heartbeat_notification_flaky():
+    """Flaky: Assumes 2s is enough for heartbeat execution."""
+    service.trigger_heartbeat()
+    await asyncio.sleep(2)  # Race condition!
+    assert notification_sent is True  # May fail if heartbeat takes >2s
+
+# GOOD: Reliable test with wait_for
+async def test_heartbeat_notification_reliable():
+    """Reliable: Wait for actual completion event."""
+    event = asyncio.Event()
+
+    async def wait_for_notification():
+        while not notification_sent:
+            await asyncio.sleep(0.1)  # Poll interval
+        event.set()
+
+    service.trigger_heartbeat()
+
+    # Wait up to 10s for notification
+    try:
+        await asyncio.wait_for(event.wait(), timeout=10)
+    except asyncio.TimeoutError:
+        pytest.fail("Notification not sent within 10s")
+
+    assert notification_sent is True  # Always reliable
+```
+
+**Detection and remediation:**
+
+```bash
+# Run tests 10 times to detect flakiness
+for i in {1..10}; do
+  uv run pytest tests/integration/test_heartbeat.py || echo "FAILED on run $i"
+done
+
+# If flaky, mark as such temporarily while fixing
+@pytest.mark.flaky(reruns=3, reruns_delay=1)
+def test_potentially_flaky():
+    ...
+```
+
+**Policy**: Flaky tests MUST be fixed or removed within 48 hours of detection. Do not accumulate flaky tests in the codebase.
+
 ## Success Metrics
 
 - **Simplicity**: Single `docker compose up` deployment
