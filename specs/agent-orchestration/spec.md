@@ -646,6 +646,37 @@ The homelab project already provides:
 - Hosts: clawd, shart, squirts, steamy-wsl, tootie, vivobook-wsl
 - Capabilities tracked per host
 
+#### Device Management: Memory Bank vs synapse-mcp
+
+Memory bank and synapse-mcp are **complementary tools** that serve different purposes in device management:
+
+**Decision Matrix:**
+
+| Use Case | Tool | Reason |
+|----------|------|--------|
+| Static device inventory | Memory bank | Historical snapshots, device capabilities, OS types |
+| Device capabilities lookup | Memory bank | Pre-indexed metadata (docker, systemd, etc.) |
+| Real-time container status | synapse-mcp Flux | Live Docker API queries across hosts |
+| Container logs with grep | synapse-mcp Flux | Stream logs with filtering |
+| Compose project management | synapse-mcp Flux | Up/down/restart/build operations |
+| ZFS pool health | synapse-mcp Scout | Real-time pool status and dataset info |
+| File transfers | synapse-mcp Scout | Beam tool for host-to-host transfers |
+| System resource monitoring | synapse-mcp Flux | Live CPU/memory/disk stats |
+| Command execution | synapse-mcp Scout | Allowlisted commands with safety |
+| Historical trends | Memory bank | Timestamped snapshots for trend analysis |
+
+**Rule of thumb:**
+
+- **Memory bank**: "What devices exist and what are their capabilities?"
+- **synapse-mcp**: "What is the current state and can you change it?"
+
+**Example workflow combining both tools:**
+
+1. Query memory bank: "Which hosts have Docker installed?"
+2. Use synapse-mcp Flux: "Get real-time container status on those hosts"
+3. Use synapse-mcp Scout: "Check ZFS pool health on storage hosts"
+4. Write to memory bank: "Update inventory snapshot with findings"
+
 ### 7. MCP Server Integration
 
 **Current State: ✅ ALREADY IMPLEMENTED**
