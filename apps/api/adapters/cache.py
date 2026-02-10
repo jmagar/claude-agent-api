@@ -285,7 +285,9 @@ class RedisCache:
             )
 
         # Log deprecation warning for unbounded patterns
-        if pattern.count(":") <= 1:
+        # A pattern is considered unbounded if it uses wildcards without specific IDs
+        is_unbounded = self._is_unbounded_pattern(pattern)
+        if is_unbounded:
             logger.warning(
                 "scan_keys_unbounded_pattern",
                 pattern=pattern,
@@ -324,6 +326,41 @@ class RedisCache:
                 break
 
         return all_keys[:max_keys]
+
+    def _is_unbounded_pattern(self, pattern: str) -> bool:
+        """Check if a Redis pattern is unbounded (matches many keys).
+
+        A pattern is unbounded if it doesn't contain specific identifiers (UUIDs,
+        API key hashes) and uses wildcards broadly.
+
+        Examples:
+            "session:*" -> True (unbounded, no specific ID)
+            "session:owner:*" -> True (unbounded, no specific owner hash)
+            "session:abc123...:*" -> False (scoped to specific ID)
+            "session:*:messages" -> True (wildcard in middle)
+            "prefix:with:colons:*" -> True (ends with wildcard, no specific ID)
+        """
+        import re
+
+        # Pattern ends with wildcard (very broad)
+        if pattern.endswith("*") or pattern.endswith("?"):
+            # Check if there's a UUID-like segment (scopes the pattern)
+            # UUID pattern: 8-4-4-4-12 hex digits
+            uuid_pattern = r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+            # SHA-256 hash pattern: 64 hex digits
+            hash_pattern = r"[0-9a-f]{64}"
+
+            if re.search(uuid_pattern, pattern) or re.search(hash_pattern, pattern):
+                return False  # Scoped to specific ID
+
+            return True  # Ends with wildcard but no specific ID
+
+        # Wildcard in the middle (matches many keys at multiple levels)
+        if "*" in pattern[:-1] or "?" in pattern[:-1]:
+            return True
+
+        # No wildcards at all (exact match)
+        return False
 
     async def clear(self) -> bool:
         """Clear all cached entries.

@@ -16,7 +16,7 @@ from httpx import ASGITransport, AsyncClient
 from alembic import command
 
 # Set test environment variables before importing app
-os.environ.setdefault("API_KEY", "test-api-key-12345")
+os.environ.setdefault("API_KEY", "test-api-key-12345")  # gitleaks:allow
 # Default to localhost for dev; override in containers via env vars.
 os.environ.setdefault(
     "DATABASE_URL", "postgresql+asyncpg://test:test@localhost:54432/test"
@@ -77,7 +77,7 @@ def test_api_key() -> str:
     Uses API_KEY from environment (set by CI or conftest defaults).
     Falls back to hardcoded value if not set.
     """
-    return os.environ.get("API_KEY", "test-api-key-12345")
+    return os.environ.get("API_KEY", "test-api-key-12345")  # gitleaks:allow
 
 
 @pytest.fixture

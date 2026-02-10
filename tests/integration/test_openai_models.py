@@ -7,7 +7,7 @@ from httpx import AsyncClient
 @pytest.mark.anyio
 async def test_list_models_returns_list(async_client: AsyncClient) -> None:
     """Test GET /v1/models returns a list response."""
-    headers = {"Authorization": "Bearer test-api-key-12345"}
+    headers = {"Authorization": "Bearer test-api-key-12345"}  # gitleaks:allow
     response = await async_client.get("/v1/models", headers=headers)
 
     assert response.status_code == 200
@@ -20,7 +20,7 @@ async def test_list_models_returns_list(async_client: AsyncClient) -> None:
 @pytest.mark.anyio
 async def test_list_models_has_openai_format(async_client: AsyncClient) -> None:
     """Test GET /v1/models response has correct OpenAI structure."""
-    headers = {"Authorization": "Bearer test-api-key-12345"}
+    headers = {"Authorization": "Bearer test-api-key-12345"}  # gitleaks:allow
     response = await async_client.get("/v1/models", headers=headers)
 
     assert response.status_code == 200
@@ -46,7 +46,7 @@ async def test_list_models_has_openai_format(async_client: AsyncClient) -> None:
 @pytest.mark.anyio
 async def test_get_model_by_id_returns_model(async_client: AsyncClient) -> None:
     """Test GET /v1/models/{model_id} returns specific model."""
-    headers = {"Authorization": "Bearer test-api-key-12345"}
+    headers = {"Authorization": "Bearer test-api-key-12345"}  # gitleaks:allow
 
     # First get list to find a valid model ID
     list_response = await async_client.get("/v1/models", headers=headers)
@@ -69,7 +69,7 @@ async def test_get_model_by_id_returns_model(async_client: AsyncClient) -> None:
 @pytest.mark.anyio
 async def test_get_invalid_model_returns_404(async_client: AsyncClient) -> None:
     """Test GET /v1/models/invalid returns 404."""
-    headers = {"Authorization": "Bearer test-api-key-12345"}
+    headers = {"Authorization": "Bearer test-api-key-12345"}  # gitleaks:allow
     response = await async_client.get("/v1/models/invalid-model-name", headers=headers)
 
     assert response.status_code == 404
@@ -78,7 +78,7 @@ async def test_get_invalid_model_returns_404(async_client: AsyncClient) -> None:
 @pytest.mark.anyio
 async def test_404_has_openai_error_format(async_client: AsyncClient) -> None:
     """Test 404 error response has OpenAI error format."""
-    headers = {"Authorization": "Bearer test-api-key-12345"}
+    headers = {"Authorization": "Bearer test-api-key-12345"}  # gitleaks:allow
     response = await async_client.get("/v1/models/invalid-model-name", headers=headers)
 
     assert response.status_code == 404

@@ -156,7 +156,14 @@ async def promote_session(
     # - Prevents timing attacks via secrets.compare_digest()
     # - Uses owner_api_key_hash column (added in migration 20260201_000006)
     # - Reject sessions with NULL hash (prevents bypass during migration)
-    if not session.owner_api_key_hash or not secrets.compare_digest(
+    # - Always perform constant-time comparison to avoid timing leaks
+
+    # Reject sessions without hash (prevents ownership bypass)
+    if not session.owner_api_key_hash:
+        raise SessionNotFoundError(session_id)
+
+    # Constant-time comparison (no short-circuit to avoid timing leak)
+    if not secrets.compare_digest(
         session.owner_api_key_hash, hash_api_key(_api_key)
     ):
         raise SessionNotFoundError(session_id)
@@ -216,7 +223,14 @@ async def update_session_tags(
     # - Prevents timing attacks via secrets.compare_digest()
     # - Uses owner_api_key_hash column (added in migration 20260201_000006)
     # - Reject sessions with NULL hash (prevents bypass during migration)
-    if not session.owner_api_key_hash or not secrets.compare_digest(
+    # - Always perform constant-time comparison to avoid timing leaks
+
+    # Reject sessions without hash (prevents ownership bypass)
+    if not session.owner_api_key_hash:
+        raise SessionNotFoundError(session_id)
+
+    # Constant-time comparison (no short-circuit to avoid timing leak)
+    if not secrets.compare_digest(
         session.owner_api_key_hash, hash_api_key(_api_key)
     ):
         raise SessionNotFoundError(session_id)

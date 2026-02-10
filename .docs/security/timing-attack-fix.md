@@ -38,15 +38,22 @@ def _enforce_owner(
 ) -> Session:
     """Enforce session ownership using constant-time comparison.
 
-    When current_api_key is None, access is allowed (backward compatibility).
-    When both keys exist, performs constant-time comparison.
+    Public sessions (owner_api_key is None) are accessible to all.
+    Private sessions require API key match with constant-time verification.
+
+    IMPORTANT: Always performs comparison (no short-circuits) to prevent
+    timing attacks that could leak session ownership information.
     """
+    # Allow access to public sessions (no owner)
+    if not session.owner_api_key:
+        return session
+
+    # Private sessions require API key
     # SECURITY: Use constant-time comparison to prevent timing attacks
-    if (
-        current_api_key
-        and session.owner_api_key
-        and not secrets.compare_digest(session.owner_api_key, current_api_key)
-    ):
+    # Even if current_api_key is None, we perform a dummy comparison
+    # to ensure consistent timing characteristics
+    comparison_key = current_api_key if current_api_key else ""
+    if not secrets.compare_digest(session.owner_api_key, comparison_key):
         raise SessionNotFoundError(session.id)
 
     return session
@@ -54,10 +61,11 @@ def _enforce_owner(
 
 ### Key Principles
 
-1. **Always compare**: Never short-circuit before comparison
-2. **Dummy values**: Compare against dummy when `owner_api_key` is None
-3. **Same exception**: Always raise `SessionNotFoundError` (not `PermissionDenied`) to prevent enumeration
-4. **Consistent flow**: Ensure code paths have similar execution time
+1. **Public vs Private Sessions**: Check if session is public (`owner_api_key` is None) first
+2. **Always compare**: Never short-circuit before comparison when session has an owner
+3. **Dummy values**: Use empty string as comparison_key when `current_api_key` is None (ensures constant-time even for unauthenticated requests)
+4. **Same exception**: Always raise `SessionNotFoundError` (not `PermissionDenied`) to prevent enumeration
+5. **Consistent flow**: Ensure code paths have similar execution time regardless of whether session exists or ownership matches
 
 ## Testing
 

@@ -131,38 +131,53 @@ class TestVerifyApiKey:
         environments with high load or virtualization overhead. Use
         @pytest.mark.timing or @pytest.mark.slow to exclude from default runs.
         """
+        import statistics
         import time
 
         api_key = "test-key-12345"
         hashed = hash_api_key(api_key)
 
-        # Compare timing for correct vs incorrect keys
-        # In a non-constant-time implementation, the first character
-        # mismatch would cause an early return (faster).
-        # With constant-time comparison, both should take similar time.
-
-        # Correct key (all characters match)
-        iterations = 1000
-        start = time.perf_counter()
-        for _ in range(iterations):
+        # Warmup phase to reduce JIT/cache effects
+        for _ in range(100):
             verify_api_key(api_key, hashed)
-        correct_time = time.perf_counter() - start
+            verify_api_key("WRONG-key-12345", hashed)
 
-        # Completely wrong key (first character different)
-        wrong_key = "WRONG-key-12345"
-        start = time.perf_counter()
-        for _ in range(iterations):
-            verify_api_key(wrong_key, hashed)
-        wrong_time = time.perf_counter() - start
+        # Run multiple rounds with higher iteration count to reduce noise
+        # Using 10000 iterations and 5 rounds with median reduces false positives
+        iterations = 10000
+        rounds = 5
+        correct_times: list[float] = []
+        wrong_times: list[float] = []
 
-        # Timing should be similar (within 100% variance due to system noise)
-        # In a vulnerable implementation, wrong_time would be significantly faster
-        # Note: This test is probabilistic and may have false positives on busy systems
-        time_ratio = max(correct_time, wrong_time) / min(correct_time, wrong_time)
-        assert time_ratio < 2.0, (
+        for _ in range(rounds):
+            # Correct key (all characters match)
+            start = time.perf_counter()
+            for _ in range(iterations):
+                verify_api_key(api_key, hashed)
+            correct_times.append(time.perf_counter() - start)
+
+            # Completely wrong key (first character different)
+            # In a non-constant-time implementation, this would be faster
+            wrong_key = "WRONG-key-12345"
+            start = time.perf_counter()
+            for _ in range(iterations):
+                verify_api_key(wrong_key, hashed)
+            wrong_times.append(time.perf_counter() - start)
+
+        # Use median to reduce impact of system noise and outliers
+        correct_median = statistics.median(correct_times)
+        wrong_median = statistics.median(wrong_times)
+
+        # Timing should be similar (within 50% variance)
+        # Tighter threshold with median and higher iterations reduces false positives
+        # In a vulnerable implementation, wrong_median would be significantly faster
+        time_ratio = max(correct_median, wrong_median) / min(correct_median, wrong_median)
+        assert time_ratio < 1.5, (
             f"Timing difference suggests non-constant-time comparison: "
-            f"correct={correct_time:.6f}s, wrong={wrong_time:.6f}s, "
-            f"ratio={time_ratio:.2f}"
+            f"correct_median={correct_median:.6f}s, wrong_median={wrong_median:.6f}s, "
+            f"ratio={time_ratio:.2f}, "
+            f"correct_times={[f'{t:.6f}' for t in correct_times]}, "
+            f"wrong_times={[f'{t:.6f}' for t in wrong_times]}"
         )
 
     def test_verify_api_key_handles_invalid_hash_format(self) -> None:
