@@ -187,7 +187,9 @@ class TestTimingAttackPrevention:
         )
 
         # Verify compare_digest was called (constant-time comparison)
-        assert mock_compare.call_count > 0, "Expected secrets.compare_digest to be called"
+        assert mock_compare.call_count > 0, (
+            "Expected secrets.compare_digest to be called"
+        )
 
         # Reset mock
         mock_compare.reset_mock()
@@ -200,7 +202,9 @@ class TestTimingAttackPrevention:
             )
 
         # Verify compare_digest was called even for wrong key
-        assert mock_compare.call_count > 0, "Expected secrets.compare_digest to be called for wrong key"
+        assert mock_compare.call_count > 0, (
+            "Expected secrets.compare_digest to be called for wrong key"
+        )
 
     @pytest.mark.anyio
     async def test_public_session_accessible_without_api_key(
@@ -415,7 +419,9 @@ class TestRoutesTimingAttackPrevention:
     constant-time comparisons to prevent timing side-channels.
     """
 
-    @pytest.mark.skip(reason="placeholder - requires FastAPI TestClient / integration test")
+    @pytest.mark.skip(
+        reason="placeholder - requires FastAPI TestClient / integration test"
+    )
     @pytest.mark.anyio
     async def test_promote_session_uses_constant_time_check(self) -> None:
         """Test that promote_session route uses constant-time comparison.
@@ -424,7 +430,9 @@ class TestRoutesTimingAttackPrevention:
         FastAPI TestClient to verify end-to-end timing attack prevention.
         """
 
-    @pytest.mark.skip(reason="placeholder - requires FastAPI TestClient / integration test")
+    @pytest.mark.skip(
+        reason="placeholder - requires FastAPI TestClient / integration test"
+    )
     @pytest.mark.anyio
     async def test_update_tags_uses_constant_time_check(self) -> None:
         """Test that update_tags route uses constant-time comparison.

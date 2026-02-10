@@ -1,12 +1,15 @@
 """Integration tests for query memory integration."""
-import pytest
+
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from apps.api.services.memory import MemoryService
-from apps.api.services.agent.query_executor import QueryExecutor
-from apps.api.services.agent.handlers import MessageHandler
+import pytest
+
 from apps.api.schemas.requests.query import QueryRequest
+from apps.api.services.agent.handlers import MessageHandler
+from apps.api.services.agent.query_executor import QueryExecutor
 from apps.api.services.agent.types import StreamContext
+from apps.api.services.memory import MemoryService
+from apps.api.utils.crypto import hash_api_key
 
 
 @pytest.fixture
@@ -41,7 +44,7 @@ async def test_query_executor_injects_memory_context(
     mock_client_instance.__aenter__ = AsyncMock(return_value=mock_client_instance)
     mock_client_instance.__aexit__ = AsyncMock(return_value=None)
 
-    with patch('claude_agent_sdk.ClaudeSDKClient', return_value=mock_client_instance):
+    with patch("claude_agent_sdk.ClaudeSDKClient", return_value=mock_client_instance):
         # Create QueryExecutor with MessageHandler
         message_handler = MessageHandler()
         executor = QueryExecutor(message_handler=message_handler)
@@ -65,10 +68,10 @@ async def test_query_executor_injects_memory_context(
         ):
             events.append(event)
 
-        # Verify memory context was retrieved
+        # Verify memory context was retrieved with hashed API key
         mock_memory_service.format_memory_context.assert_called_once_with(
             query="What do you know about me?",
-            user_id="test-key",
+            user_id=hash_api_key("test-key"),
         )
 
         # Verify SDK was called (query method should be called)
@@ -84,10 +87,7 @@ async def test_query_executor_extracts_memories_after_response(
     mock_message = MagicMock()
     mock_message.type = "assistant"
     mock_message.content = [
-        MagicMock(
-            type="text",
-            text="I understand you prefer technical explanations."
-        )
+        MagicMock(type="text", text="I understand you prefer technical explanations.")
     ]
 
     # Create a mock CommandsService
@@ -106,7 +106,7 @@ async def test_query_executor_extracts_memories_after_response(
     mock_client_instance.__aenter__ = AsyncMock(return_value=mock_client_instance)
     mock_client_instance.__aexit__ = AsyncMock(return_value=None)
 
-    with patch('claude_agent_sdk.ClaudeSDKClient', return_value=mock_client_instance):
+    with patch("claude_agent_sdk.ClaudeSDKClient", return_value=mock_client_instance):
         # Create QueryExecutor with MessageHandler
         message_handler = MessageHandler()
         executor = QueryExecutor(message_handler=message_handler)
@@ -138,7 +138,8 @@ async def test_query_executor_extracts_memories_after_response(
         messages = call_args.kwargs["messages"]
         assert "What do you know about me?" in messages
         assert "I understand you prefer technical explanations." in messages
-        assert call_args.kwargs["user_id"] == "test-key"
+        # Verify API key is hashed before passing to memory service
+        assert call_args.kwargs["user_id"] == hash_api_key("test-key")
 
 
 @pytest.mark.anyio
@@ -165,15 +166,14 @@ async def test_query_executor_handles_no_memories_found() -> None:
     mock_client_instance.__aenter__ = AsyncMock(return_value=mock_client_instance)
     mock_client_instance.__aexit__ = AsyncMock(return_value=None)
 
-    with patch('claude_agent_sdk.ClaudeSDKClient', return_value=mock_client_instance):
+    with patch("claude_agent_sdk.ClaudeSDKClient", return_value=mock_client_instance):
         # Create QueryExecutor with MessageHandler
         message_handler = MessageHandler()
         executor = QueryExecutor(message_handler=message_handler)
 
         # Create a simple request with existing system_prompt
         request = QueryRequest(
-            prompt="Hello",
-            system_prompt="You are a helpful assistant."
+            prompt="Hello", system_prompt="You are a helpful assistant."
         )
         ctx = StreamContext(
             session_id="test-session",

@@ -20,7 +20,7 @@ help:
 	@echo "Development:"
 	@echo "  make dev-api     - Start API server (with logging)"
 	@echo "  make dev         - Start API server in foreground (no logging)"
-	@echo "  make dev-stop    - Stop dev server"
+	@echo "  make dev-stop    - Stop dev server(s)"
 	@echo "  make dev-restart - Restart dev server"
 	@echo "  make logs        - Tail logs"
 	@echo "  make logs-api    - Tail API logs"
@@ -53,19 +53,12 @@ $(LOG_DIR):
 
 # Development servers
 dev:
+	@$(MAKE) dev-stop
 	uv run uvicorn apps.api.main:app --host 0.0.0.0 --port 54000 --reload --reload-dir apps
 
 dev-api: $(LOG_DIR)
 	@echo "$(CYAN)→ Starting API server$(RESET) (logs: $(API_LOG))"
-	@if [ -f $(LOG_DIR)/api.pid ]; then \
-		PID=$$(cat $(LOG_DIR)/api.pid); \
-		if ps -p $$PID > /dev/null 2>&1; then \
-			echo "  Stopping existing API server (PID: $$PID)..."; \
-			kill $$PID 2>/dev/null || true; \
-			sleep 1; \
-		fi; \
-		rm -f $(LOG_DIR)/api.pid; \
-	fi
+	@$(MAKE) dev-stop
 	@bash -c "nohup uv run uvicorn apps.api.main:app --host 0.0.0.0 --port 54000 --reload --reload-dir apps > $(API_LOG) 2>&1 & echo \$$! > $(LOG_DIR)/api.pid"
 	@echo "  Waiting for API to be ready..."
 	@count=0; \
@@ -81,6 +74,19 @@ dev-api: $(LOG_DIR)
 	exit 1
 
 dev-stop-api:
+	@if command -v lsof >/dev/null 2>&1; then \
+		PIDS=$$(lsof -ti tcp:54000 2>/dev/null); \
+		if [ -n "$$PIDS" ]; then \
+			for PID in $$PIDS; do \
+				CMD=$$(ps -p $$PID -o command= 2>/dev/null || true); \
+				echo "$$CMD" | grep -q "uvicorn apps.api.main:app" && { \
+					echo "  Stopping API server on port 54000 (PID: $$PID)..."; \
+					kill $$PID 2>/dev/null || true; \
+				}; \
+			done; \
+			sleep 1; \
+		fi; \
+	fi
 	@if [ -f $(LOG_DIR)/api.pid ]; then \
 		PID=$$(cat $(LOG_DIR)/api.pid); \
 		if ps -p $$PID > /dev/null 2>&1; then \

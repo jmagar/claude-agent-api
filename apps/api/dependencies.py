@@ -24,12 +24,17 @@ from apps.api.services.checkpoint import CheckpointService
 from apps.api.services.mcp_config_injector import McpConfigInjector
 from apps.api.services.mcp_config_loader import McpConfigLoader
 from apps.api.services.mcp_config_validator import ConfigValidator
+from apps.api.services.mcp_discovery import McpDiscoveryService
 from apps.api.services.mcp_server_configs import McpServerConfigService
+from apps.api.services.mcp_share import McpShareService
 from apps.api.services.memory import MemoryService
 from apps.api.services.query_enrichment import QueryEnrichmentService
 from apps.api.services.session import SessionService
 from apps.api.services.shutdown import ShutdownManager, get_shutdown_manager
 from apps.api.services.skills import SkillsService
+from apps.api.services.skills_crud import SkillCrudService
+from apps.api.services.slash_commands import SlashCommandService
+from apps.api.services.tool_presets import ToolPresetService
 
 # Global instances (initialized in lifespan)
 _async_engine: AsyncEngine | None = None

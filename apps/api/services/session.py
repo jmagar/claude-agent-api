@@ -15,6 +15,7 @@ See ADR-001 for architecture details.
 """
 
 import asyncio
+import random
 import secrets
 import time
 from collections.abc import Awaitable, Callable
@@ -167,8 +168,10 @@ class SessionService:
                 )
                 raise TimeoutError(f"Could not acquire lock for session {session_id}")
 
-            # Wait before retrying (exponential backoff)
-            await asyncio.sleep(retry_delay)
+            # Wait before retrying (exponential backoff with jitter)
+            # Add ±10% jitter to prevent thundering herd problem
+            jittered_delay = retry_delay * (1 + random.uniform(-0.1, 0.1))
+            await asyncio.sleep(jittered_delay)
             retry_delay = min(retry_delay * 2, max_retry_delay)
 
         try:

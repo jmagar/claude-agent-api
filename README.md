@@ -156,6 +156,32 @@ curl -X POST http://localhost:54000/api/v1/sessions/{session_id}/resume \
   -d '{"prompt": "Continue with the previous task"}'
 ```
 
+### Memory API Quickstart
+
+Add a memory first, then list and search.
+
+Canonical implementation reference:
+`docs/memory.md`
+
+```bash
+curl -X POST http://localhost:54000/api/v1/memories \
+  -H "X-API-Key: your-api-key-for-clients" \
+  -H "Content-Type: application/json" \
+  -d '{"messages": "User prefers programming in Python.", "metadata": {"source": "manual"}}'
+```
+
+```bash
+curl http://localhost:54000/api/v1/memories \
+  -H "X-API-Key: your-api-key-for-clients"
+```
+
+```bash
+curl -X POST http://localhost:54000/api/v1/memories/search \
+  -H "X-API-Key: your-api-key-for-clients" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "programming language preferences"}'
+```
+
 ## OpenAI API Compatibility
 
 The API provides **drop-in OpenAI compatibility** at the `/v1/*` endpoints, allowing you to use the OpenAI Python client with minimal changes.

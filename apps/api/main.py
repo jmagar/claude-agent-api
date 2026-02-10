@@ -90,6 +90,8 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
 
     Initializes and cleans up resources with graceful shutdown (T131).
     """
+    import os
+
     settings = get_settings()
 
     # Configure logging
@@ -103,6 +105,30 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Reset shutdown manager for fresh state
     reset_shutdown_manager()
+
+    # SECURITY NOTE: Mem0's OpenAI embedder requires OPENAI_API_KEY to be set,
+    # even when using HuggingFace embedder with TEI. This is a workaround for
+    # Mem0's validation logic which unconditionally checks for OpenAI credentials
+    # regardless of the actual embedder provider in use.
+    #
+    # The default value "not-needed" (from settings.tei_api_key) is a placeholder,
+    # NOT a real credential. TEI endpoints don't require authentication, but Mem0's
+    # OpenAI client wrapper validates this environment variable before allowing any
+    # embedder to be used.
+    #
+    # This is set once at startup (idempotent check) and does NOT expose any real
+    # credentials. It satisfies Mem0's validation without compromising security.
+    #
+    # TODO: Track upstream fix in Mem0 to remove OpenAI dependency requirement
+    # when using alternative embedder providers (HuggingFace, Cohere, etc.)
+    # See: https://github.com/mem0ai/mem0/issues/TBD (create issue if needed)
+    if not os.environ.get("OPENAI_API_KEY"):
+        os.environ["OPENAI_API_KEY"] = settings.tei_api_key
+        logger.debug(
+            "openai_api_key_set",
+            reason="mem0_huggingface_embedder_validation_workaround",
+            placeholder_value=settings.tei_api_key,
+        )
 
     # Initialize database
     await init_db(settings)

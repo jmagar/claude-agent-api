@@ -127,7 +127,7 @@ class TestSessionCreate:
             metadata=metadata,
         )
 
-        assert session.metadata_ == metadata
+        assert session.session_metadata == metadata
 
 
 class TestSessionGet:

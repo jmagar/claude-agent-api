@@ -2,7 +2,7 @@
 
 from collections.abc import AsyncGenerator
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, TypedDict
 from uuid import uuid4
 
 import structlog
@@ -24,14 +24,39 @@ from apps.api.services.agent.stream_orchestrator import StreamOrchestrator
 from apps.api.services.agent.stream_query_runner import StreamQueryRunner
 from apps.api.services.agent.types import QueryResponseDict, StreamContext
 from apps.api.services.webhook import WebhookService
+from apps.api.utils.introspection import supports_param
 
 if TYPE_CHECKING:
+    from apps.api.protocols import Cache
     from apps.api.schemas.requests.config import HooksConfigSchema
     from apps.api.schemas.requests.query import QueryRequest
-    from apps.api.services.checkpoint import Checkpoint
+    from apps.api.services.checkpoint import Checkpoint, CheckpointService
     from apps.api.services.commands import CommandsService
+    from apps.api.services.mcp_config_injector import McpConfigInjector
+    from apps.api.services.memory import MemoryService
 
 logger = structlog.get_logger(__name__)
+
+
+class _StreamRunnerKwargs(TypedDict, total=False):
+    """Keyword arguments for StreamQueryRunner.run().
+
+    Uses total=False to allow optional fields without type errors.
+    """
+
+    session_id_override: str
+    api_key: str
+    memory_service: "MemoryService | None"
+
+
+class _SingleRunnerKwargs(TypedDict, total=False):
+    """Keyword arguments for SingleQueryRunner.run().
+
+    Uses total=False to allow optional fields without type errors.
+    """
+
+    api_key: str
+    memory_service: "MemoryService | None"
 
 
 class AgentService:
@@ -47,6 +72,11 @@ class AgentService:
         session_control: SessionControl | None = None,
         checkpoint_manager: CheckpointManager | None = None,
         file_modification_tracker: FileModificationTracker | None = None,
+        cache: "Cache | None" = None,
+        checkpoint_service: "CheckpointService | None" = None,
+        memory_service: "MemoryService | None" = None,
+        mcp_config_injector: "McpConfigInjector | None" = None,
+        webhook_service: WebhookService | None = None,
     ) -> None:
         """Initialize agent service.
 
@@ -62,7 +92,26 @@ class AgentService:
             file_modification_tracker: Optional FileModificationTracker (created if not provided).
         """
         self._settings = get_settings()
-        self._config = config or AgentServiceConfig()
+        if config is None:
+            config = AgentServiceConfig(
+                cache=cache,
+                checkpoint_service=checkpoint_service,
+                memory_service=memory_service,
+                mcp_config_injector=mcp_config_injector,
+                webhook_service=webhook_service,
+            )
+        else:
+            if cache is not None and config.cache is None:
+                config.cache = cache
+            if checkpoint_service is not None and config.checkpoint_service is None:
+                config.checkpoint_service = checkpoint_service
+            if memory_service is not None and config.memory_service is None:
+                config.memory_service = memory_service
+            if mcp_config_injector is not None and config.mcp_config_injector is None:
+                config.mcp_config_injector = mcp_config_injector
+            if webhook_service is not None and config.webhook_service is None:
+                config.webhook_service = webhook_service
+        self._config = config
 
         # Extract config values for backward compatibility
         self._webhook_service = self._config.webhook_service or WebhookService()
@@ -72,7 +121,9 @@ class AgentService:
         self._memory_service = self._config.memory_service
 
         # Initialize core components
-        self._session_tracker = session_tracker or AgentSessionTracker(cache=self._cache)
+        self._session_tracker = session_tracker or AgentSessionTracker(
+            cache=self._cache
+        )
         self._message_handler = MessageHandler()
         self._hook_executor = HookExecutor(self._webhook_service)
         self._hook_facade = HookFacade(self._hook_executor)
@@ -218,12 +269,18 @@ class AgentService:
         )
         yield init_event
 
+        # Build kwargs with runtime parameter detection
+        stream_kwargs = _StreamRunnerKwargs(session_id_override=session_id)
+        if supports_param(self._stream_runner.run, "api_key"):
+            stream_kwargs["api_key"] = api_key
+        if supports_param(self._stream_runner.run, "memory_service"):
+            stream_kwargs["memory_service"] = self._memory_service
+
+        # Invoke runner with typed kwargs (no cast to Any needed)
         async for event in self._stream_runner.run(
             request,
             discovery.commands_service,
-            session_id_override=session_id,
-            memory_service=self._memory_service,
-            api_key=api_key,
+            **stream_kwargs,
         ):
             yield event
 
@@ -281,11 +338,19 @@ class AgentService:
 
         project_path = Path(request.cwd) if request.cwd else Path.cwd()
         discovery = CommandDiscovery(project_path=project_path)
+
+        # Build kwargs with runtime parameter detection
+        single_kwargs = _SingleRunnerKwargs()
+        if supports_param(self._single_query_runner.run, "api_key"):
+            single_kwargs["api_key"] = api_key
+        if supports_param(self._single_query_runner.run, "memory_service"):
+            single_kwargs["memory_service"] = self._memory_service
+
+        # Invoke runner with typed kwargs (no cast to Any needed)
         return await self._single_query_runner.run(
             request,
             discovery.commands_service,
-            memory_service=self._memory_service,
-            api_key=api_key,
+            **single_kwargs,
         )
 
     async def interrupt(self, session_id: str) -> bool:

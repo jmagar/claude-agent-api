@@ -18,8 +18,12 @@
 
 **Deployment Order:**
 1. Run Phase 1 migration (adds hash columns, hashes existing keys)
-2. Run Phase 3 migration (drops plaintext columns)
-3. Deploy Phase 3 code (uses only `owner_api_key_hash`)
+2. Verify hash consistency: `uv run python scripts/verify_hash_consistency.py`
+3. Deploy Phase 2 code (dual-column support, hash-based authentication)
+4. Run Phase 2 in production for at least 7 days to verify stability
+5. Verify hash consistency again before Phase 3
+6. Run Phase 3 migration (drops plaintext columns)
+7. Deploy Phase 3 code (uses only `owner_api_key_hash`)
 
 **WARNING:** This branch contains Phase 3 code which uses ONLY `owner_api_key_hash`. The plaintext `owner_api_key` column must be dropped (Phase 3 migration) before deploying this code, otherwise the application will fail to start due to missing column references.
 

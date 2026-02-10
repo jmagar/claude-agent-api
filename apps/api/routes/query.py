@@ -76,82 +76,130 @@ async def query_stream(
     # to resume a non-existent conversation!
 
     async def event_generator() -> AsyncGenerator[dict[str, str], None]:
-        """Generate SSE events with disconnect monitoring."""
+        """Generate SSE events with disconnect monitoring and backpressure control."""
         # Will be populated from init event
         session_id: str | None = query.session_id  # Only set if resuming
         is_error = False
         num_turns = 0
         total_cost_usd: float | None = None
-        try:
-            async for event in agent_service.query_stream(query, api_key):
-                event_type = event.get("event", "")
-                event_data = event.get("data", "{}")
 
-                # Track turns and errors from events
-                if event_type == "message":
-                    num_turns += 1
-                if event_type == "error":
-                    is_error = True
-                if event_type == "result":
-                    try:
-                        result_data = json.loads(event_data)
-                        if "turns" in result_data:
-                            num_turns = result_data["turns"]
-                        if "total_cost_usd" in result_data:
-                            total_cost_usd = result_data["total_cost_usd"]
-                    except json.JSONDecodeError:
-                        pass
+        # Bounded queue for backpressure control (prevents memory exhaustion)
+        event_queue: asyncio.Queue[dict[str, str] | None] = asyncio.Queue(maxsize=100)
+        producer_task: asyncio.Task[None] | None = None
 
-                # Extract session_id from init event for tracking
-                if session_id is None and event_type == "init":
-                    try:
-                        init_data = json.loads(event_data)
-                        session_id = init_data.get("session_id")
-                        if session_id:
-                            # Create session in our service
-                            model = init_data.get("model", "sonnet")
-                            await session_service.create_session(
-                                model=model,
-                                session_id=session_id,
-                                owner_api_key=api_key,
+        async def producer() -> None:
+            """Producer task: reads events from SDK and puts them in bounded queue."""
+            nonlocal session_id, is_error, num_turns, total_cost_usd
+            try:
+                async for event in agent_service.query_stream(query, api_key):
+                    event_type = event.get("event", "")
+                    event_data = event.get("data", "{}")
+
+                    # Track turns and errors from events
+                    if event_type == "message":
+                        num_turns += 1
+                    if event_type == "error":
+                        is_error = True
+                    if event_type == "result":
+                        try:
+                            result_data = json.loads(event_data)
+                            if "turns" in result_data:
+                                num_turns = result_data["turns"]
+                            if "total_cost_usd" in result_data:
+                                total_cost_usd = result_data["total_cost_usd"]
+                        except json.JSONDecodeError:
+                            pass
+
+                    # Extract session_id from init event for tracking
+                    if session_id is None and event_type == "init":
+                        try:
+                            init_data = json.loads(event_data)
+                            session_id = init_data.get("session_id")
+                            if session_id:
+                                # Create session in our service
+                                model = init_data.get("model", "sonnet")
+                                await session_service.create_session(
+                                    model=model,
+                                    session_id=session_id,
+                                    owner_api_key=api_key,
+                                )
+                        except json.JSONDecodeError as e:
+                            logger.error(
+                                "Failed to parse init event",
+                                error=str(e),
+                                event_data=event_data,
                             )
-                    except json.JSONDecodeError as e:
-                        logger.error(
-                            "Failed to parse init event",
-                            error=str(e),
-                            event_data=event_data,
-                        )
-                        yield {
-                            "event": "error",
-                            "data": json.dumps(
+                            await event_queue.put(
                                 {
-                                    "error": "Session initialization failed",
-                                    "details": "Invalid init event format",
+                                    "event": "error",
+                                    "data": json.dumps(
+                                        {
+                                            "error": "Session initialization failed",
+                                            "details": "Invalid init event format",
+                                        }
+                                    ),
                                 }
-                            ),
-                        }
-                        return
-                    except Exception as e:
-                        logger.error(
-                            "Failed to create session",
-                            error=str(e),
-                            session_id=session_id,
-                        )
-                        yield {
-                            "event": "error",
-                            "data": json.dumps(
-                                {"error": "Session creation failed", "details": str(e)}
-                            ),
-                        }
-                        return
+                            )
+                            return
+                        except Exception as e:
+                            logger.error(
+                                "Failed to create session",
+                                error=str(e),
+                                session_id=session_id,
+                            )
+                            await event_queue.put(
+                                {
+                                    "event": "error",
+                                    "data": json.dumps(
+                                        {
+                                            "error": "Session creation failed",
+                                            "details": str(e),
+                                        }
+                                    ),
+                                }
+                            )
+                            return
 
-                # Check for client disconnect
-                if await request.is_disconnected():
-                    # Interrupt the session if client disconnected
-                    if session_id:
-                        await agent_service.interrupt(session_id)
+                    # Check for client disconnect
+                    if await request.is_disconnected():
+                        # Interrupt the session if client disconnected
+                        if session_id:
+                            await agent_service.interrupt(session_id)
+                        break
+
+                    # Put event in queue (blocks if queue is full - backpressure!)
+                    await event_queue.put(event)
+
+            except asyncio.CancelledError:
+                # Producer cancelled (client disconnected or error)
+                if session_id:
+                    await agent_service.interrupt(session_id)
+                raise
+            except Exception as e:
+                # Unexpected error in producer
+                logger.error("Producer error in event stream", error=str(e))
+                await event_queue.put(
+                    {
+                        "event": "error",
+                        "data": json.dumps(
+                            {"error": "Stream error", "details": str(e)}
+                        ),
+                    }
+                )
+            finally:
+                # Signal end of stream with None sentinel
+                await event_queue.put(None)
+
+        try:
+            # Start producer task
+            producer_task = asyncio.create_task(producer())
+
+            # Consumer: yield events from queue until None sentinel
+            while True:
+                event = await event_queue.get()
+                if event is None:
+                    # Producer finished
                     break
-
                 yield event
 
         except asyncio.CancelledError:
@@ -160,6 +208,14 @@ async def query_stream(
                 await agent_service.interrupt(session_id)
             raise
         finally:
+            # Clean up producer task
+            if producer_task and not producer_task.done():
+                producer_task.cancel()
+                try:
+                    await producer_task
+                except asyncio.CancelledError:
+                    pass
+
             # Update session status when stream completes
             if session_id:
                 status: Literal["completed", "error"] = (

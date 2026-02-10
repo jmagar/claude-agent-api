@@ -438,12 +438,29 @@ class TestSessionListFiltering:
 class TestSessionListPagination:
     """Integration tests for session list pagination."""
 
+    @pytest.fixture
+    async def _clear_sessions(self) -> None:
+        """Ensure session table is empty before pagination tests."""
+        from sqlalchemy import delete
+
+        from apps.api.dependencies import get_db
+        from apps.api.models.session import Session
+
+        db_gen = get_db()
+        db_session = await anext(db_gen)
+        try:
+            await db_session.execute(delete(Session))
+            await db_session.commit()
+        finally:
+            await db_gen.aclose()
+
     @pytest.mark.integration
     @pytest.mark.anyio
     async def test_list_sessions_pagination_empty_results(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
+        _clear_sessions: None,
     ) -> None:
         """Test pagination returns empty results when filtering with non-existent tag."""
         # Use a deterministic filter that guarantees no results
@@ -466,6 +483,7 @@ class TestSessionListPagination:
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
+        _clear_sessions: None,
     ) -> None:
         """Test pagination correctly handles last page."""
         from uuid import uuid4
@@ -509,6 +527,7 @@ class TestSessionListPagination:
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
+        _clear_sessions: None,
     ) -> None:
         """Test pagination returns empty when requesting beyond last page."""
         from uuid import uuid4

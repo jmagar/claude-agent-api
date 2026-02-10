@@ -30,6 +30,45 @@ services:
       timeout: 5s
       retries: 5
 
+  neo4j:
+    image: neo4j:5-community
+    container_name: claude-agent-neo4j
+    environment:
+      NEO4J_AUTH: neo4j/neo4jpassword
+      NEO4J_PLUGINS: '["apoc"]'
+      NEO4J_server_memory_heap_initial__size: "512m"
+      NEO4J_server_memory_heap_max__size: "512m"
+      NEO4J_server_memory_pagecache_size: "512m"
+      NEO4J_dbms_logs_debug_level: "DEBUG"
+      NEO4J_apoc_export_file_enabled: "true"
+      NEO4J_apoc_import_file_enabled: "true"
+      NEO4J_apoc_import_file_use__neo4j__config: "true"
+      # Restrict APOC procedures to only those required by Mem0/langchain-neo4j/neo4j-graphrag:
+      # - apoc.create.*: Node/relationship creation (addLabels)
+      # - apoc.merge.*: Merge nodes/relationships (node, relationship)
+      # - apoc.meta.*: Schema metadata (data, graph)
+      # - apoc.schema.*: Schema inspection (nodes, properties.distinct)
+      # - apoc.refactor.*: Graph refactoring (merge)
+      # - apoc.any.*: Property access utilities (property)
+      NEO4J_dbms_security_procedures_unrestricted: "apoc.create.*,apoc.merge.*,apoc.meta.*,apoc.schema.*,apoc.refactor.*,apoc.any.*"
+    ports:
+      - "54687:7687" # Bolt protocol
+      - "54474:7474" # HTTP
+    volumes:
+      - claude_agent_neo4j_data:/data
+      - claude_agent_neo4j_logs:/logs
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget --no-verbose --tries=1 --spider http://localhost:7474 || exit 1",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 volumes:
   claude_agent_postgres_data:
   claude_agent_redis_data:
+  claude_agent_neo4j_data:
+  claude_agent_neo4j_logs:

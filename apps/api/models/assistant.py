@@ -55,8 +55,8 @@ class Assistant(Base):
         default=list,
         server_default="[]",
     )
-    metadata_: Mapped[dict[str, str] | None] = mapped_column(
-        "metadata",
+    assistant_metadata: Mapped[dict[str, str] | None] = mapped_column(
+        "assistant_metadata",
         JSONB,
         nullable=True,
         default=dict,

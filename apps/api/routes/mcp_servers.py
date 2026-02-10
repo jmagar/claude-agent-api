@@ -1,12 +1,16 @@
 """MCP server management and share endpoints with filesystem discovery."""
 
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import Any, cast
 
 from fastapi import APIRouter, Query
 
-from apps.api.dependencies import ApiKey, McpDiscoverySvc, McpServerConfigSvc, McpShareSvc
+from apps.api.dependencies import (
+    ApiKey,
+    McpDiscoverySvc,
+    McpServerConfigSvc,
+    McpShareSvc,
+)
 from apps.api.exceptions import APIError, McpShareNotFoundError
 from apps.api.schemas.requests.mcp_servers import (
     McpServerCreateRequest,

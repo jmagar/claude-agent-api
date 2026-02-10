@@ -10,6 +10,7 @@ import structlog
 from apps.api.exceptions import AgentError
 from apps.api.services.agent.options import OptionsBuilder
 from apps.api.services.agent.types import StreamContext
+from apps.api.utils.crypto import hash_api_key
 
 if TYPE_CHECKING:
     from apps.api.schemas.requests.query import QueryRequest
@@ -76,7 +77,12 @@ class QueryExecutor:
 
         try:
             async for event in self._execute_with_sdk(
-                request, ctx, commands_service, memory_service, api_key, assistant_responses
+                request,
+                ctx,
+                commands_service,
+                memory_service,
+                api_key,
+                assistant_responses,
             ):
                 yield event
         except ImportError:
@@ -295,13 +301,18 @@ class QueryExecutor:
             Modified request with memory context injected (immutable copy).
         """
         try:
+            # Hash API key before passing to memory service (CRITICAL: prevents plaintext exposure)
+            hashed_user_id = hash_api_key(api_key)
+
             memory_context = await memory_service.format_memory_context(
                 query=request.prompt,
-                user_id=api_key,
+                user_id=hashed_user_id,
             )
 
             # Enhance system prompt with memory context if memories found
             if memory_context:
+                if not isinstance(memory_context, str):
+                    memory_context = str(memory_context)
                 original_system_prompt = request.system_prompt or ""
                 enhanced_system_prompt = (
                     f"{original_system_prompt}\n\n{memory_context}".strip()
@@ -314,14 +325,16 @@ class QueryExecutor:
                 logger.debug(
                     "memory_context_injected",
                     session_id=session_id,
-                    user_id=api_key,
+                    user_id=hashed_user_id,
                     memory_count=memory_context.count("\n- "),
                 )
         except Exception as exc:
+            # Hash API key in error logs
+            hashed_user_id = hash_api_key(api_key)
             logger.warning(
                 "memory_injection_failed",
                 session_id=session_id,
-                user_id=api_key,
+                user_id=hashed_user_id,
                 error=str(exc),
             )
             # Continue without memory context
@@ -418,6 +431,9 @@ class QueryExecutor:
             session_id: Session ID for metadata.
         """
         try:
+            # Hash API key before passing to memory service (CRITICAL: prevents plaintext exposure)
+            hashed_user_id = hash_api_key(api_key)
+
             # Format conversation for memory extraction
             if assistant_responses:
                 assistant_text = " ".join(assistant_responses)
@@ -428,7 +444,7 @@ class QueryExecutor:
 
             await memory_service.add_memory(
                 messages=conversation,
-                user_id=api_key,
+                user_id=hashed_user_id,
                 metadata={
                     "session_id": session_id,
                     "source": "query",
@@ -437,14 +453,16 @@ class QueryExecutor:
             logger.debug(
                 "memory_extracted",
                 session_id=session_id,
-                user_id=api_key,
+                user_id=hashed_user_id,
                 has_response=bool(assistant_responses),
             )
         except Exception as exc:
+            # Hash API key in error logs
+            hashed_user_id = hash_api_key(api_key)
             logger.warning(
                 "memory_extraction_failed",
                 session_id=session_id,
-                user_id=api_key,
+                user_id=hashed_user_id,
                 error=str(exc),
             )
 

@@ -47,7 +47,7 @@ def sanitize_session_text(text: str, redact_patterns: list[str]) -> tuple[str, b
         r'Bearer\s+[a-zA-Z0-9\-\._~\+\/]+=*',  # Bearer tokens
         r'-----BEGIN\s+(?:RSA\s+)?PRIVATE\s+KEY-----[\s\S]+?-----END\s+(?:RSA\s+)?PRIVATE\s+KEY-----',  # SSH keys
         r'(?:password|passwd|pwd)[\s]*[:=][\s]*[^\s]+',  # Password assignments
-        r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b',  # Email addresses (PII)
+        r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b',  # Email addresses (PII)
         r'\b\d{3}-\d{2}-\d{4}\b',  # SSN (US)
         r'\b\d{16}\b',  # Credit card numbers
     ]
@@ -316,9 +316,9 @@ Authorization: Bearer <api_key>
 ```sql
 CREATE TABLE api_keys (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    key_hash VARCHAR(64) NOT NULL UNIQUE,  -- bcrypt hash
+    key_hash VARCHAR(64) NOT NULL UNIQUE,  -- SHA-256 hash
     owner_api_key VARCHAR(255) NOT NULL,   -- Plaintext, used for scoping
-    owner_api_key_hash VARCHAR(64) NOT NULL,  -- bcrypt hash for lookups
+    owner_api_key_hash VARCHAR(64) NOT NULL,  -- SHA-256 hash for lookups
     name VARCHAR(255),
     permissions JSONB DEFAULT '{}',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),

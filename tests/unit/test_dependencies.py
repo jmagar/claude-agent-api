@@ -237,7 +237,10 @@ class TestServiceDependencies:
 
         # Get service with mock cache
         mock_cache = Mock(spec=RedisCache)
-        service = await get_agent_service(cache=mock_cache)
+        mock_checkpoint_service = Mock(spec=CheckpointService)
+        service = await get_agent_service(
+            cache=mock_cache, checkpoint_service=mock_checkpoint_service
+        )
 
         assert isinstance(service, AgentService)
 
@@ -253,8 +256,13 @@ class TestServiceDependencies:
 
         # Get service (singleton is returned, cache arg doesn't matter)
         mock_cache = Mock(spec=RedisCache)
-        service1 = await get_agent_service(cache=mock_cache)
-        service2 = await get_agent_service(cache=mock_cache)
+        mock_checkpoint_service = Mock(spec=CheckpointService)
+        service1 = await get_agent_service(
+            cache=mock_cache, checkpoint_service=mock_checkpoint_service
+        )
+        service2 = await get_agent_service(
+            cache=mock_cache, checkpoint_service=mock_checkpoint_service
+        )
 
         assert service1 is singleton
         assert service2 is singleton
@@ -561,15 +569,22 @@ class TestDependencyCleanup:
 
         # Verify it's returned
         mock_cache = Mock(spec=RedisCache)
-        service = await get_agent_service(cache=mock_cache)
+        mock_checkpoint_service = Mock(spec=CheckpointService)
+        service = await get_agent_service(
+            cache=mock_cache, checkpoint_service=mock_checkpoint_service
+        )
         assert service is singleton
 
         # Clear singleton
         set_agent_service_singleton(None)
 
         # Verify new instances are created
-        service1 = await get_agent_service(cache=mock_cache)
-        service2 = await get_agent_service(cache=mock_cache)
+        service1 = await get_agent_service(
+            cache=mock_cache, checkpoint_service=mock_checkpoint_service
+        )
+        service2 = await get_agent_service(
+            cache=mock_cache, checkpoint_service=mock_checkpoint_service
+        )
         assert service1 is not singleton
         assert service2 is not singleton
         assert service1 is not service2

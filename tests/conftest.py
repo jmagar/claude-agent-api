@@ -201,36 +201,51 @@ def sample_session_id() -> str:
 
 
 @pytest.fixture
-async def mock_session_id(_async_client: AsyncClient, test_api_key: str) -> str:
-    """Create a mock session that exists in the system.
-
-    Creates a real session by making a query, then returns its ID.
-    """
+async def mock_session_id(
+    _async_client: AsyncClient,
+    test_api_key: str,
+) -> AsyncGenerator[str, None]:
+    """Create a mock session for testing."""
     from uuid import uuid4
 
     from apps.api.adapters.session_repo import SessionRepository
-    from apps.api.dependencies import get_cache, get_db
+    from apps.api.dependencies import get_cache, get_db, set_agent_service_singleton
+    from apps.api.services.agent import AgentService
     from apps.api.services.session import SessionService
 
+    # Create session in session service
     cache = await get_cache()
     db_gen = get_db()
     db_session = await anext(db_gen)
+    repo = SessionRepository(db_session)
+    service = SessionService(cache=cache, db_repo=repo)
+    session = await service.create_session(
+        model="sonnet",
+        session_id=str(uuid4()),
+        owner_api_key=test_api_key,
+    )
+
+    # Create agent service singleton with cache and register session as active
+    agent_service = AgentService(cache=cache)
+    # Register session as active in Redis (distributed)
+    await agent_service._register_active_session(session.id)
+    set_agent_service_singleton(agent_service)
+
     try:
-        repo = SessionRepository(db_session)
-        service = SessionService(cache=cache, db_repo=repo)
-        session = await service.create_session(
-            model="sonnet",
-            session_id=str(uuid4()),
-            owner_api_key=test_api_key,
-        )
-        return session.id
+        yield session.id
     finally:
         await db_gen.aclose()
+        # Cleanup: Unregister session to prevent interference with other tests
+        try:
+            await agent_service._unregister_active_session(session.id)
+        except Exception as e:
+            logger.debug("Failed to unregister active session: %s", str(e))
 
 
 @pytest.fixture
 async def mock_active_session_id(
     _async_client: AsyncClient,
+    test_api_key: str,
 ) -> AsyncGenerator[str, None]:
     """Create a mock active session that can be interrupted.
 
@@ -257,6 +272,7 @@ async def mock_active_session_id(
     session = await service.create_session(
         model="sonnet",
         session_id=str(uuid4()),
+        owner_api_key=test_api_key,
     )
 
     # Create agent service singleton with cache and register session as active
@@ -279,6 +295,7 @@ async def mock_active_session_id(
 @pytest.fixture
 async def mock_session_with_checkpoints(
     _async_client: AsyncClient,
+    test_api_key: str,
 ) -> str:
     """Create a mock session with checkpoints for testing.
 
@@ -299,7 +316,11 @@ async def mock_session_with_checkpoints(
 
     # Create session
     session_id = str(uuid4())
-    await service.create_session(model="sonnet", session_id=session_id)
+    await service.create_session(
+        model="sonnet",
+        session_id=session_id,
+        owner_api_key=test_api_key,
+    )
 
     # Add checkpoints directly to cache
     checkpoint_id = f"checkpoint-{uuid4().hex[:8]}"
@@ -348,6 +369,7 @@ async def mock_checkpoint_id(
 @pytest.fixture
 async def mock_checkpoint_from_other_session(
     _async_client: AsyncClient,
+    test_api_key: str,
 ) -> str:
     """Create a checkpoint that belongs to a different session.
 
@@ -368,7 +390,11 @@ async def mock_checkpoint_from_other_session(
 
     # Create another session
     other_session_id = str(uuid4())
-    await service.create_session(model="sonnet", session_id=other_session_id)
+    await service.create_session(
+        model="sonnet",
+        session_id=other_session_id,
+        owner_api_key=test_api_key,
+    )
 
     # Add checkpoint to that other session
     checkpoint_id = f"other-checkpoint-{uuid4().hex[:8]}"
@@ -384,12 +410,19 @@ async def mock_checkpoint_from_other_session(
     individual_key = f"checkpoint:{checkpoint_id}"
     await cache.set_json(individual_key, checkpoint_data, 3600)
 
-    # Store checkpoint in cache using checkpoints list key (for listing)
-    checkpoints_key = f"checkpoints:{other_session_id}"
-    await cache.set_json(checkpoints_key, {"checkpoints": [checkpoint_data]}, 3600)
-
     await db_gen.aclose()
     return checkpoint_id
+
+
+@pytest.fixture
+async def mock_tool_preset_request() -> dict[str, JsonValue]:
+    """Valid tool preset payload used by CRUD tests."""
+    return {
+        "name": "Example preset",
+        "description": "Basic tool preset for tests",
+        "allowed_tools": ["Bash", "Read"],
+        "disallowed_tools": [],
+    }
 
 
 # Import mock fixtures

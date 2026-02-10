@@ -103,4 +103,7 @@ package-lock.json
 tmp/
 temp/
 
+# Session logs (may contain sensitive data)
+.docs/
+
 .ralph-state.json

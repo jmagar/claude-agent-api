@@ -40,6 +40,14 @@ alembic/                     # Database migrations
 
 Do not set environment variable `ANTHROPIC_API_KEY`, we are logged in with our Claude Max subscription which we can use the Claude Agent SDK with. If you set that variable, then using our Claude Max subscription will NOT work.
 
+## Debug Mode & Swagger Docs
+
+Set `DEBUG=true` in `.env` to enable:
+- `/docs` - Swagger UI (OpenAPI interactive docs)
+- `/redoc` - ReDoc (alternative API docs)
+
+**Production**: Keep `DEBUG=false` to disable docs endpoints.
+
 ## Commands
 
 ```bash
@@ -69,12 +77,43 @@ uv run ruff format .
 uv run ty check
 ```
 
+## Makefile Shortcuts
+
+Convenient aliases for common workflows:
+
+```bash
+# Development
+make dev          # Start API in foreground (replaces uvicorn command)
+make dev-api      # Start API in background with logging
+make dev-restart  # Restart dev server
+make status       # Check server health
+
+# Testing
+make test-fast    # Unit + contract tests (fast, no SDK)
+make test-cov     # Tests with coverage report
+make check        # Lint + typecheck
+
+# Database
+make db-reset     # Full database reset (down, up, migrate)
+
+# Logs
+make logs-api     # Tail API logs
+```
+
+Run `make help` for all available commands.
+
 ## Code Style
 
 - **Protocols**: Use `typing.Protocol` for abstractions, implementations in `adapters/`
 - **Async**: All I/O operations use async/await
 - **Logging**: structlog with correlation IDs
 - **TDD**: RED-GREEN-REFACTOR for all features
+
+### Testing Gotchas
+
+- **pytest-asyncio disabled**: Tests use `anyio` instead to avoid event loop conflicts with FastAPI's BaseHTTPMiddleware (see pyproject.toml `-p no:asyncio` flag)
+- **Test isolation**: conftest.py uses FileLock for cross-platform test database migration coordination across pytest-xdist workers
+- **E2E tests**: Mark expensive tests with `@pytest.mark.e2e` - excluded from default runs
 
 ## Type Safety (STRICTLY ENFORCED)
 
@@ -502,12 +541,14 @@ apps/api/
 | Service | Port | Description |
 |---------|------|-------------|
 | API | 54000 | FastAPI server |
-| PostgreSQL | 54432 | Database |
-| Redis | 54379 | Cache/pub-sub |
-| Neo4j (Bolt) | 54687 | Graph database (Bolt protocol) |
-| Neo4j (HTTP) | 54474 | Graph database (HTTP interface) |
-| Qdrant | 53333 | Vector database (external) |
-| TEI | 52000 | Text Embeddings Inference (external: 100.74.16.82) |
+| PostgreSQL | 54432 | Database (docker-compose) |
+| Redis | 54379 | Cache/pub-sub (docker-compose) |
+| Neo4j (Bolt) | 54687 | Graph database (docker-compose) |
+| Neo4j (HTTP) | 54474 | Graph database HTTP (docker-compose) |
+| Qdrant | 53333 | Vector database ⚠️ **EXTERNAL** |
+| TEI | 52000 | Text Embeddings Inference ⚠️ **EXTERNAL** (100.74.16.82) |
+
+**Note**: Qdrant and TEI are external services (not managed by docker-compose). Verify connectivity before starting.
 
 ## Required Environment Variables
 

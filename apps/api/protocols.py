@@ -32,7 +32,7 @@ class MemorySearchResult(TypedDict):
 
 
 @runtime_checkable
-class SessionRepository(Protocol):
+class SessionRepositoryProtocol(Protocol):
     """Protocol for session persistence operations."""
 
     async def create(

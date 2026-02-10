@@ -199,7 +199,9 @@ class TestSessionServiceCacheHashing:
         # Verify all our sessions are in the result
         result_ids = {s.id for s in result.sessions}
         for session_id in session_ids:
-            assert session_id in result_ids, f"Session {session_id} should be in results"
+            assert session_id in result_ids, (
+                f"Session {session_id} should be in results"
+            )
 
         # Verify sessions have correct owner (check via hash, plaintext removed in Phase 3)
         api_key_hash = hash_api_key(api_key)

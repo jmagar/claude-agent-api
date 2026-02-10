@@ -69,7 +69,7 @@ class SessionRepository:
             model=model,
             working_directory=working_directory,
             parent_session_id=parent_session_id,
-            metadata_=metadata,
+            session_metadata=metadata,
             owner_api_key_hash=owner_api_key_hash,
         )
         self._db.add(session)
@@ -152,7 +152,7 @@ class SessionRepository:
         stmt = (
             sql_update(Session)
             .where(Session.id == session_id)
-            .values(metadata_=metadata, updated_at=datetime.now())
+            .values(session_metadata=metadata, updated_at=datetime.now())
             .returning(Session)
         )
 

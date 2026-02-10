@@ -8,6 +8,7 @@ and hash columns exist, rather than comparing plaintext to hash values.
 """
 
 import subprocess
+from pathlib import Path
 
 
 def test_script_exits_with_status_code() -> None:
@@ -68,8 +69,7 @@ def test_script_requires_database_url() -> None:
 
 def test_script_has_correct_docstring() -> None:
     """Test script has comprehensive docstring with usage instructions."""
-    with open("scripts/verify_hash_consistency.py") as f:
-        content = f.read()
+    content = Path("scripts/verify_hash_consistency.py").read_text()
 
     # Verify script has proper documentation
     assert '"""Hash Consistency Verification Script.' in content
@@ -80,11 +80,10 @@ def test_script_has_correct_docstring() -> None:
 
 def test_script_is_executable() -> None:
     """Test script has executable permissions."""
-    import os
     import stat
 
-    script_path = "scripts/verify_hash_consistency.py"
-    st = os.stat(script_path)
+    script_path = Path("scripts/verify_hash_consistency.py")
+    st = script_path.stat()
     is_executable = bool(st.st_mode & stat.S_IXUSR)
 
     assert is_executable, f"{script_path} should have executable permissions"
@@ -92,8 +91,7 @@ def test_script_is_executable() -> None:
 
 def test_script_checks_hash_column_existence() -> None:
     """Test script verifies hash columns exist after Phase 3."""
-    with open("scripts/verify_hash_consistency.py") as f:
-        content = f.read()
+    content = Path("scripts/verify_hash_consistency.py").read_text()
 
     # Verify script checks for hash column existence
     assert "owner_api_key_hash" in content

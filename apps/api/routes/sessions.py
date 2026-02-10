@@ -43,7 +43,7 @@ async def list_sessions(
 
     # Metadata filtering (JSONB queries are complex, filter in memory)
     def matches_metadata(session: Session) -> bool:
-        metadata = session.metadata_ or {}
+        metadata = session.session_metadata or {}
         session_mode = metadata.get("mode", "code")
         if mode and session_mode != mode:
             return False
@@ -149,15 +149,15 @@ async def promote_session(
 ) -> SessionWithMetaResponse:
     """Promote a brainstorm session to code mode."""
     session = await repo.get(UUID(session_id))
+    if not session:
+        raise SessionNotFoundError(session_id)
+
     # Phase 2 Migration: Compare hashed API keys for security
     # - Prevents timing attacks via secrets.compare_digest()
     # - Uses owner_api_key_hash column (added in migration 20260201_000006)
-    # - Plaintext owner_api_key column still exists for rollback (Phase 3 removal pending)
-    if not session or (
-        session.owner_api_key_hash
-        and not secrets.compare_digest(
-            session.owner_api_key_hash, hash_api_key(_api_key)
-        )
+    # - Reject sessions with NULL hash (prevents bypass during migration)
+    if not session.owner_api_key_hash or not secrets.compare_digest(
+        session.owner_api_key_hash, hash_api_key(_api_key)
     ):
         raise SessionNotFoundError(session_id)
 
@@ -209,15 +209,15 @@ async def update_session_tags(
             status_code=400,
         )
     session = await repo.get(UUID(session_id))
+    if not session:
+        raise SessionNotFoundError(session_id)
+
     # Phase 2 Migration: Compare hashed API keys for security
     # - Prevents timing attacks via secrets.compare_digest()
     # - Uses owner_api_key_hash column (added in migration 20260201_000006)
-    # - Plaintext owner_api_key column still exists for rollback (Phase 3 removal pending)
-    if not session or (
-        session.owner_api_key_hash
-        and not secrets.compare_digest(
-            session.owner_api_key_hash, hash_api_key(_api_key)
-        )
+    # - Reject sessions with NULL hash (prevents bypass during migration)
+    if not session.owner_api_key_hash or not secrets.compare_digest(
+        session.owner_api_key_hash, hash_api_key(_api_key)
     ):
         raise SessionNotFoundError(session_id)
 

@@ -6,13 +6,13 @@ Includes both existing protocols and new protocols for the DI refactor.
 
 import pytest
 
-from apps.api.protocols import SessionRepository
+from apps.api.protocols import SessionRepositoryProtocol
 
 
 def test_session_repository_protocol_is_protocol() -> None:
-    """Ensure SessionRepository is a typing.Protocol."""
-    # Check if SessionRepository is a Protocol by checking its _is_protocol attribute
-    assert getattr(SessionRepository, "_is_protocol", False) is True
+    """Ensure SessionRepositoryProtocol is a typing.Protocol."""
+    # Check if SessionRepositoryProtocol is a Protocol by checking its _is_protocol attribute
+    assert getattr(SessionRepositoryProtocol, "_is_protocol", False) is True
 
 
 class TestProtocolCompliance:

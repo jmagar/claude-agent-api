@@ -68,8 +68,8 @@ class Run(Base):
         default=list,
         server_default="[]",
     )
-    metadata_: Mapped[dict[str, str] | None] = mapped_column(
-        "metadata",
+    run_metadata: Mapped[dict[str, str] | None] = mapped_column(
+        "run_metadata",
         JSONB,
         nullable=True,
         default=dict,

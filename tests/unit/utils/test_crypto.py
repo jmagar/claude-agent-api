@@ -217,7 +217,7 @@ class TestSecurityProperties:
         # Allow range of 100-156 bits (39-61% of 256 bits) to account for variance
         assert 100 <= diff_bits <= 156, (
             f"Avalanche effect too weak: only {diff_bits}/256 bits differ "
-            f"({diff_bits/256*100:.1f}%)"
+            f"({diff_bits / 256 * 100:.1f}%)"
         )
 
     def test_irreversibility(self) -> None:

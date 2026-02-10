@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, get_type_hints
 
+import apps.api.schemas.openai.tools as openai_tools
+
 if TYPE_CHECKING:
     from apps.api.schemas.openai.tools import (
         OpenAIDeltaWithTools,
@@ -562,24 +564,18 @@ class TestOpenAIChoiceWithTools:
 
     def test_can_import_schema(self) -> None:
         """Schema can be imported from the module."""
-        from apps.api.schemas.openai.tools import OpenAIChoiceWithTools
-
-        assert OpenAIChoiceWithTools is not None
+        assert openai_tools.OpenAIChoiceWithTools is not None
 
     def test_has_required_fields(self) -> None:
         """Schema has all required fields with correct types."""
-        from apps.api.schemas.openai.tools import OpenAIChoiceWithTools
-
-        hints = get_type_hints(OpenAIChoiceWithTools)
+        hints = get_type_hints(openai_tools.OpenAIChoiceWithTools)
         assert "index" in hints
         assert "message" in hints
         assert "finish_reason" in hints
 
     def test_can_create_choice_with_stop_reason(self) -> None:
         """Can create choice with stop finish reason."""
-        from apps.api.schemas.openai.tools import OpenAIChoiceWithTools
-
-        choice: OpenAIChoiceWithTools = {
+        choice: openai_tools.OpenAIChoiceWithTools = {
             "index": 0,
             "message": {"role": "assistant", "content": "Hello!"},
             "finish_reason": "stop",
@@ -588,9 +584,7 @@ class TestOpenAIChoiceWithTools:
 
     def test_can_create_choice_with_tool_calls_reason(self) -> None:
         """Can create choice with tool_calls finish reason."""
-        from apps.api.schemas.openai.tools import OpenAIChoiceWithTools
-
-        choice: OpenAIChoiceWithTools = {
+        choice: openai_tools.OpenAIChoiceWithTools = {
             "index": 0,
             "message": {
                 "role": "assistant",
@@ -610,9 +604,7 @@ class TestOpenAIChoiceWithTools:
 
     def test_can_create_choice_with_length_reason(self) -> None:
         """Can create choice with length finish reason."""
-        from apps.api.schemas.openai.tools import OpenAIChoiceWithTools
-
-        choice: OpenAIChoiceWithTools = {
+        choice: openai_tools.OpenAIChoiceWithTools = {
             "index": 0,
             "message": {"role": "assistant", "content": "Truncated..."},
             "finish_reason": "length",
@@ -621,9 +613,7 @@ class TestOpenAIChoiceWithTools:
 
     def test_can_create_choice_with_error_reason(self) -> None:
         """Can create choice with error finish reason."""
-        from apps.api.schemas.openai.tools import OpenAIChoiceWithTools
-
-        choice: OpenAIChoiceWithTools = {
+        choice: openai_tools.OpenAIChoiceWithTools = {
             "index": 0,
             "message": {"role": "assistant", "content": None},
             "finish_reason": "error",
@@ -632,9 +622,7 @@ class TestOpenAIChoiceWithTools:
 
     def test_can_create_choice_with_null_finish_reason(self) -> None:
         """Can create choice with null finish reason."""
-        from apps.api.schemas.openai.tools import OpenAIChoiceWithTools
-
-        choice: OpenAIChoiceWithTools = {
+        choice: openai_tools.OpenAIChoiceWithTools = {
             "index": 0,
             "message": {"role": "assistant", "content": "In progress..."},
             "finish_reason": None,

@@ -35,7 +35,7 @@ def test_memory_add_request_defaults() -> None:
 def test_memory_add_request_missing_messages() -> None:
     """MemoryAddRequest should require messages field."""
     with pytest.raises(ValidationError) as exc_info:
-        MemoryAddRequest()  # type: ignore
+        MemoryAddRequest()
     assert "messages" in str(exc_info.value)
 
 

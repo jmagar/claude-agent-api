@@ -1,21 +1,30 @@
 """Memory management API routes."""
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, cast
+
 import structlog
 from fastapi import APIRouter, status
 
-from apps.api.dependencies import ApiKey, MemorySvc
+from apps.api.dependencies import ApiKey, MemorySvc  # noqa: TC001
 from apps.api.schemas.memory import (
     MemoryAddRequest,
     MemoryAddResponse,
     MemoryDeleteResponse,
     MemoryListResponse,
+    MemoryRecordDict,
     MemoryResult,
     MemorySearchRequest,
     MemorySearchResponse,
 )
+from apps.api.utils.crypto import hash_api_key
 
 logger = structlog.get_logger(__name__)
 router = APIRouter(prefix="/api/v1/memories", tags=["memories"])
+
+if TYPE_CHECKING:
+    from apps.api.types import JsonValue
 
 
 @router.post("/search", response_model=MemorySearchResponse)
@@ -28,21 +37,36 @@ async def search_memories(
 
     Args:
         request: Search parameters including query and limit.
-        api_key: API key from auth middleware (used as user_id for multi-tenant isolation).
+        api_key: API key from auth middleware (hashed for secure storage).
         memory_service: Injected memory service.
 
     Returns:
         Search results with memories and count.
     """
+    # Hash API key to prevent plaintext storage in Qdrant/Neo4j metadata
+    user_id = hash_api_key(api_key)
+
     results = await memory_service.search_memories(
         query=request.query,
-        user_id=api_key,
+        user_id=user_id,
         limit=request.limit,
         enable_graph=request.enable_graph,
     )
 
+    # Convert search results to MemoryResult models
     return MemorySearchResponse(
-        results=[MemoryResult(**r) for r in results],
+        results=[
+            MemoryResult(
+                id=str(r.get("id", "")),
+                memory=str(r.get("memory", "")),
+                score=float(r.get("score", 0.0)),
+                metadata=cast(
+                    "dict[str, str | int | float | bool | None]",
+                    r.get("metadata", {}),
+                ),
+            )
+            for r in results
+        ],
         count=len(results),
     )
 
@@ -57,20 +81,28 @@ async def add_memory(
 
     Args:
         request: Memory content and metadata.
-        api_key: API key from auth middleware (used as user_id for multi-tenant isolation).
+        api_key: API key from auth middleware (hashed for secure storage).
         memory_service: Injected memory service.
 
     Returns:
         Created memories with count.
     """
+    # Hash API key to prevent plaintext storage in Qdrant/Neo4j metadata
+    user_id = hash_api_key(api_key)
+
+    # Cast Any to JsonValue for service layer type safety
+    metadata = cast("dict[str, JsonValue] | None", request.metadata)
+
     results = await memory_service.add_memory(
         messages=request.messages,
-        user_id=api_key,
-        metadata=request.metadata,
+        user_id=user_id,
+        metadata=metadata,
         enable_graph=request.enable_graph,
     )
 
-    return MemoryAddResponse(memories=results, count=len(results))
+    return MemoryAddResponse(
+        memories=cast("list[MemoryRecordDict]", results), count=len(results)
+    )
 
 
 @router.get("", response_model=MemoryListResponse)
@@ -81,15 +113,20 @@ async def list_memories(
     """List all memories for the current user.
 
     Args:
-        api_key: API key from auth middleware (used as user_id for multi-tenant isolation).
+        api_key: API key from auth middleware (hashed for secure storage).
         memory_service: Injected memory service.
 
     Returns:
         All user memories with count.
     """
-    memories = await memory_service.get_all_memories(user_id=api_key)
+    # Hash API key to prevent plaintext storage in Qdrant/Neo4j metadata
+    user_id = hash_api_key(api_key)
 
-    return MemoryListResponse(memories=memories, count=len(memories))
+    memories = await memory_service.get_all_memories(user_id=user_id)
+
+    return MemoryListResponse(
+        memories=cast("list[MemoryRecordDict]", memories), count=len(memories)
+    )
 
 
 @router.delete("/{memory_id}", response_model=MemoryDeleteResponse)
@@ -102,13 +139,16 @@ async def delete_memory(
 
     Args:
         memory_id: Unique memory identifier.
-        api_key: API key from auth middleware (used as user_id for multi-tenant isolation).
+        api_key: API key from auth middleware (hashed for secure storage).
         memory_service: Injected memory service.
 
     Returns:
         Deletion confirmation.
     """
-    await memory_service.delete_memory(memory_id=memory_id, user_id=api_key)
+    # Hash API key to prevent plaintext storage in Qdrant/Neo4j metadata
+    user_id = hash_api_key(api_key)
+
+    await memory_service.delete_memory(memory_id=memory_id, user_id=user_id)
 
     return MemoryDeleteResponse(deleted=True, message=f"Memory {memory_id} deleted")
 
@@ -121,12 +161,15 @@ async def delete_all_memories(
     """Delete all memories for the current user.
 
     Args:
-        api_key: API key from auth middleware (used as user_id for multi-tenant isolation).
+        api_key: API key from auth middleware (hashed for secure storage).
         memory_service: Injected memory service.
 
     Returns:
         Deletion confirmation.
     """
-    await memory_service.delete_all_memories(user_id=api_key)
+    # Hash API key to prevent plaintext storage in Qdrant/Neo4j metadata
+    user_id = hash_api_key(api_key)
+
+    await memory_service.delete_all_memories(user_id=user_id)
 
     return MemoryDeleteResponse(deleted=True, message="All memories deleted")

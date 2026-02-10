@@ -1,17 +1,15 @@
 """Memory API request/response schemas."""
 
-from pydantic import BaseModel, Field
+from typing import NotRequired, Required, TypedDict
 
-# Note: Using object instead of recursive object for Pydantic compatibility
-# Pydantic cannot handle recursive type aliases in models (causes RecursionError)
-# The recursive object type is used in protocols and services for type safety
+from pydantic import BaseModel, Field
 
 
 class MemoryAddRequest(BaseModel):
     """Request to add a memory."""
 
     messages: str = Field(..., description="Content to extract memories from")
-    metadata: dict[str, object] | None = Field(
+    metadata: dict[str, str | int | float | bool | None] | None = Field(
         None, description="Optional metadata to attach to memories"
     )
     enable_graph: bool = Field(
@@ -33,7 +31,7 @@ class MemoryResult(BaseModel):
     id: str = Field(..., description="Unique memory identifier")
     memory: str = Field(..., description="Memory content text")
     score: float = Field(0.0, description="Relevance score (0.0-1.0)")
-    metadata: dict[str, object] = Field(
+    metadata: dict[str, str | int | float | bool | None] = Field(
         default_factory=dict, description="Associated metadata"
     )
 
@@ -45,17 +43,30 @@ class MemorySearchResponse(BaseModel):
     count: int
 
 
+class MemoryRecordDict(TypedDict):
+    """Memory record structure from Mem0."""
+
+    id: Required[str]
+    memory: Required[str]
+    hash: NotRequired[str]
+    created_at: NotRequired[str]
+    updated_at: NotRequired[str]
+    user_id: NotRequired[str]
+    agent_id: NotRequired[str]
+    metadata: NotRequired[dict[str, str | int | float | bool | None]]
+
+
 class MemoryAddResponse(BaseModel):
     """Response from adding memories."""
 
-    memories: list[dict[str, object]]
+    memories: list[MemoryRecordDict]
     count: int
 
 
 class MemoryListResponse(BaseModel):
     """Response from listing all memories."""
 
-    memories: list[dict[str, object]]
+    memories: list[MemoryRecordDict]
     count: int
 
 

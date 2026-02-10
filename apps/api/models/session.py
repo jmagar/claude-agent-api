@@ -64,8 +64,8 @@ class Session(Base):
         ForeignKey("sessions.id"),
         nullable=True,
     )
-    metadata_: Mapped[dict[str, object] | None] = mapped_column(
-        "metadata",
+    session_metadata: Mapped[dict[str, object] | None] = mapped_column(
+        "session_metadata",
         JSONB,
         nullable=True,
     )

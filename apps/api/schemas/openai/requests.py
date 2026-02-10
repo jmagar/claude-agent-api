@@ -1,6 +1,6 @@
 """OpenAI-compatible request Pydantic schemas."""
 
-from typing import Any, Literal
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -9,7 +9,7 @@ class OpenAIFunctionParametersModel(BaseModel):
     """JSON Schema for function parameters (Pydantic version for validation)."""
 
     type: Literal["object"] = "object"
-    properties: dict[str, dict[str, Any]] = Field(default_factory=dict)
+    properties: dict[str, dict[str, object]] = Field(default_factory=dict)
     required: list[str] = Field(default_factory=list)
     additionalProperties: bool = True
 

@@ -61,7 +61,9 @@ class TestSessionRepositoryHashing:
         assert session.owner_api_key_hash == hash_api_key(api_key)
 
     @pytest.mark.anyio
-    async def test_create_handles_null_owner_api_key(self, db_session: AsyncSession) -> None:
+    async def test_create_handles_null_owner_api_key(
+        self, db_session: AsyncSession
+    ) -> None:
         """SessionRepository.create() should handle NULL owner_api_key."""
         repository = SessionRepository(db_session)
         session_id = uuid4()

@@ -658,7 +658,7 @@ class AssistantService:
             description=db_assistant.description,
             instructions=db_assistant.instructions,
             tools=db_assistant.tools,
-            metadata=db_assistant.metadata_ or {},
+            metadata=db_assistant.assistant_metadata or {},
             owner_api_key_hash=db_assistant.owner_api_key_hash,
             temperature=db_assistant.temperature,
             top_p=db_assistant.top_p,

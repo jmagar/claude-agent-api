@@ -67,8 +67,9 @@ class Settings(BaseSettings):
         le=604800,
         description="MCP share token TTL in seconds",
     )
-    redis_max_connections: int = Field(
-        default=50, ge=5, le=200, description="Redis max connections"
+    redis_max_connections: int | None = Field(
+        default=None,
+        description="Redis max connections (defaults to max(db_pool_size + db_max_overflow, 50) if not set, must be 5-200 if explicitly set)",
     )
     redis_socket_connect_timeout: int = Field(
         default=5, ge=1, le=30, description="Redis socket connect timeout (seconds)"
@@ -153,6 +154,11 @@ class Settings(BaseSettings):
         default="http://100.74.16.82:52000",
         description="Text Embeddings Inference URL",
     )
+    # SECURITY NOTE: This is a placeholder value, NOT a real credential.
+    # Mem0's OpenAI embedder requires OPENAI_API_KEY to be set even when using
+    # HuggingFace embedder with TEI (which doesn't require authentication).
+    # The value "not-needed" satisfies Mem0's validation without exposing credentials.
+    # See apps/api/main.py lifespan() for usage details.
     tei_api_key: str = Field(
         default="not-needed",
         description="TEI API key (placeholder - TEI doesn't require auth but Mem0's OpenAI client needs a value)",
@@ -166,6 +172,32 @@ class Settings(BaseSettings):
         default=1024, ge=1, le=4096, description="Mem0 embedding dimensions"
     )
     mem0_agent_id: str = Field(default="main", description="Mem0 agent identifier")
+
+    @model_validator(mode="after")
+    def compute_redis_max_connections(self) -> "Settings":
+        """Compute redis_max_connections if not explicitly set.
+
+        Uses formula: max(db_pool_size + db_max_overflow, 50)
+        This ensures Redis pool scales with database pool size.
+
+        Returns:
+            Self with computed redis_max_connections
+
+        Raises:
+            ValueError: If explicitly set value is outside valid range [5, 200]
+        """
+        if self.redis_max_connections is None:
+            # Compute based on DB pool settings
+            computed = max(self.db_pool_size + self.db_max_overflow, 50)
+            # Clamp to valid range [5, 200]
+            self.redis_max_connections = max(5, min(computed, 200))
+        else:
+            # Validate explicitly set value
+            if not (5 <= self.redis_max_connections <= 200):
+                raise ValueError(
+                    f"redis_max_connections must be between 5 and 200, got {self.redis_max_connections}"
+                )
+        return self
 
     @model_validator(mode="after")
     def validate_cors_in_production(self) -> "Settings":
