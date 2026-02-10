@@ -4,12 +4,13 @@ from typing import NotRequired, Required, TypedDict
 
 from pydantic import BaseModel, Field
 
+from apps.api.types import JsonValue
 
 class MemoryAddRequest(BaseModel):
     """Request to add a memory."""
 
     messages: str = Field(..., description="Content to extract memories from")
-    metadata: dict[str, str | int | float | bool | None] | None = Field(
+    metadata: dict[str, object] | None = Field(
         None, description="Optional metadata to attach to memories"
     )
     enable_graph: bool = Field(
@@ -31,7 +32,7 @@ class MemoryResult(BaseModel):
     id: str = Field(..., description="Unique memory identifier")
     memory: str = Field(..., description="Memory content text")
     score: float = Field(0.0, description="Relevance score (0.0-1.0)")
-    metadata: dict[str, str | int | float | bool | None] = Field(
+    metadata: dict[str, object] = Field(
         default_factory=dict, description="Associated metadata"
     )
 
@@ -53,7 +54,7 @@ class MemoryRecordDict(TypedDict):
     updated_at: NotRequired[str]
     user_id: NotRequired[str]
     agent_id: NotRequired[str]
-    metadata: NotRequired[dict[str, str | int | float | bool | None]]
+    metadata: NotRequired[dict[str, object]]
 
 
 class MemoryAddResponse(BaseModel):

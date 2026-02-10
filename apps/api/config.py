@@ -151,7 +151,7 @@ class Settings(BaseSettings):
 
     # TEI Configuration
     tei_url: str = Field(
-        default="http://100.74.16.82:52000",
+        default="http://localhost:52000",
         description="Text Embeddings Inference URL",
     )
     # SECURITY NOTE: This is a placeholder value, NOT a real credential.

@@ -14,10 +14,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from apps.api.adapters.cache import RedisCache
 from apps.api.adapters.session_repo import SessionRepository
 from apps.api.dependencies import (
+    AppState,
     check_shutdown_state,
     close_cache,
     close_db,
     get_agent_service,
+    get_app_state,
     get_cache,
     get_checkpoint_service,
     get_db,
@@ -26,7 +28,7 @@ from apps.api.dependencies import (
     get_skills_service,
     init_cache,
     init_db,
-    set_agent_service_singleton,
+    reset_dependencies,
     verify_api_key,
 )
 from apps.api.exceptions import AuthenticationError, ServiceUnavailableError
@@ -42,81 +44,84 @@ class TestDatabaseDependencies:
 
     @pytest.mark.anyio
     async def test_init_db_creates_engine_and_session_maker(self) -> None:
-        """Test database initialization.
+        """Test database initialization (M-01, ARC-04).
 
-        GREEN: This test verifies init_db creates engine and session maker.
+        GREEN: This test verifies init_db creates engine and session maker on AppState.
         """
-        from apps.api import dependencies
         from apps.api.config import get_settings
 
-        # Clear existing state
-        dependencies._async_engine = None
-        dependencies._async_session_maker = None
-
+        # Create fresh state
+        state = AppState()
         settings = get_settings()
-        session_maker = await init_db(settings)
+        session_maker = await init_db(state, settings)
 
         assert session_maker is not None
-        assert dependencies._async_engine is not None
-        assert dependencies._async_session_maker is not None
+        assert state.engine is not None
+        assert state.session_maker is not None
 
         # Cleanup
-        await close_db()
+        await close_db(state)
 
     @pytest.mark.anyio
     async def test_get_db_returns_session(self) -> None:
-        """Test get_db dependency returns database session.
+        """Test get_db dependency returns database session (ARC-04).
 
-        GREEN: This test verifies get_db yields session.
+        GREEN: This test verifies get_db yields session from AppState.
         """
+        from unittest.mock import Mock
+
         from apps.api.config import get_settings
 
         # Initialize database
+        state = AppState()
         settings = get_settings()
-        await init_db(settings)
+        await init_db(state, settings)
+
+        # Mock request with app state
+        request = Mock(spec=Request)
+        request.app.state.app_state = state
 
         # Get session
-        session_gen = get_db()
+        session_gen = get_db(state)
         session = await anext(session_gen)
 
         assert isinstance(session, AsyncSession)
 
         # Cleanup
-        await close_db()
+        await session_gen.aclose()
+        await close_db(state)
 
     @pytest.mark.anyio
     async def test_get_db_raises_if_not_initialized(self) -> None:
-        """Test get_db raises when database not initialized.
+        """Test get_db raises when database not initialized (ARC-04).
 
         GREEN: This test verifies error handling for uninitialized database.
         """
-        from apps.api import dependencies
-
-        # Clear database state
-        dependencies._async_session_maker = None
+        # Empty state (no session maker)
+        state = AppState()
 
         with pytest.raises(RuntimeError, match="Database not initialized"):
-            session_gen = get_db()
+            session_gen = get_db(state)
             await anext(session_gen)
 
     @pytest.mark.anyio
     async def test_close_db_disposes_engine(self) -> None:
-        """Test close_db cleans up resources.
+        """Test close_db cleans up resources (ARC-04).
 
-        GREEN: This test verifies database cleanup.
+        GREEN: This test verifies database cleanup on AppState.
         """
-        from apps.api import dependencies
         from apps.api.config import get_settings
 
         # Initialize database
+        state = AppState()
         settings = get_settings()
-        await init_db(settings)
+        await init_db(state, settings)
 
         # Close database
-        await close_db()
+        await close_db(state)
 
-        assert dependencies._async_engine is None
-        assert dependencies._async_session_maker is None
+        assert state.engine is None
+        assert state.session_maker is None
 
 
 class TestCacheDependencies:
@@ -124,82 +129,76 @@ class TestCacheDependencies:
 
     @pytest.mark.anyio
     async def test_init_cache_creates_redis_instance(self) -> None:
-        """Test cache initialization.
+        """Test cache initialization (M-01, ARC-04).
 
-        GREEN: This test verifies init_cache creates Redis instance.
+        GREEN: This test verifies init_cache creates Redis instance on AppState.
         """
-        from apps.api import dependencies
         from apps.api.config import get_settings
 
-        # Clear existing state
-        if dependencies._redis_cache:
-            await dependencies._redis_cache.close()
-        dependencies._redis_cache = None
-
+        # Create fresh state
+        state = AppState()
         settings = get_settings()
-        cache = await init_cache(settings)
+        cache = await init_cache(state, settings)
 
         assert cache is not None
         assert isinstance(cache, RedisCache)
-        assert dependencies._redis_cache is cache
+        assert state.cache is cache
 
         # Cleanup
-        await close_cache()
+        await close_cache(state)
 
     @pytest.mark.anyio
     async def test_get_cache_returns_singleton(self) -> None:
-        """Test get_cache returns singleton instance.
+        """Test get_cache returns singleton instance (ARC-04).
 
-        GREEN: This test verifies singleton pattern.
+        GREEN: This test verifies singleton pattern via AppState.
         """
-        from apps.api import dependencies
         from apps.api.config import get_settings
 
         # Initialize cache
+        state = AppState()
         settings = get_settings()
-        await init_cache(settings)
+        await init_cache(state, settings)
 
         # Get cache multiple times
-        cache1 = await get_cache()
-        cache2 = await get_cache()
+        cache1 = await get_cache(state)
+        cache2 = await get_cache(state)
 
         assert cache1 is cache2
-        assert dependencies._redis_cache is cache1
+        assert state.cache is cache1
 
         # Cleanup
-        await close_cache()
+        await close_cache(state)
 
     @pytest.mark.anyio
     async def test_get_cache_raises_if_not_initialized(self) -> None:
-        """Test get_cache raises when cache not initialized.
+        """Test get_cache raises when cache not initialized (ARC-04).
 
         GREEN: This test verifies error handling for uninitialized cache.
         """
-        from apps.api import dependencies
-
-        # Clear cache state
-        dependencies._redis_cache = None
+        # Empty state (no cache)
+        state = AppState()
 
         with pytest.raises(RuntimeError, match="Cache not initialized"):
-            await get_cache()
+            await get_cache(state)
 
     @pytest.mark.anyio
     async def test_close_cache_cleans_up_connection(self) -> None:
-        """Test close_cache cleans up resources.
+        """Test close_cache cleans up resources (ARC-04).
 
-        GREEN: This test verifies cache cleanup.
+        GREEN: This test verifies cache cleanup on AppState.
         """
-        from apps.api import dependencies
         from apps.api.config import get_settings
 
         # Initialize cache
+        state = AppState()
         settings = get_settings()
-        await init_cache(settings)
+        await init_cache(state, settings)
 
         # Close cache
-        await close_cache()
+        await close_cache(state)
 
-        assert dependencies._redis_cache is None
+        assert state.cache is None
 
 
 class TestRepositoryDependencies:
@@ -226,49 +225,49 @@ class TestServiceDependencies:
 
     @pytest.mark.anyio
     async def test_get_agent_service_creates_instance(self) -> None:
-        """Test agent service creation.
+        """Test agent service creation (ARC-04, ARC-05).
 
-        GREEN: This test verifies get_agent_service creates instance.
+        GREEN: This test verifies get_agent_service creates instance from AppState.
         """
-        from apps.api import dependencies
-
-        # Clear singleton
-        dependencies._agent_service = None
+        # Create state without singleton
+        state = AppState()
 
         # Get service with mock cache
         mock_cache = Mock(spec=RedisCache)
         mock_checkpoint_service = Mock(spec=CheckpointService)
         service = await get_agent_service(
-            cache=mock_cache, checkpoint_service=mock_checkpoint_service
+            state=state, cache=mock_cache, checkpoint_service=mock_checkpoint_service
         )
 
         assert isinstance(service, AgentService)
 
     @pytest.mark.anyio
     async def test_get_agent_service_returns_singleton_if_set(self) -> None:
-        """Test agent service singleton for tests.
+        """Test agent service singleton for tests (M-01, M-13).
 
-        GREEN: This test verifies singleton pattern for tests.
+        GREEN: This test verifies singleton pattern via AppState for tests.
         """
-        # Create singleton
+        # Create state with singleton
+        state = AppState()
         singleton = AgentService()
-        set_agent_service_singleton(singleton)
+        state.agent_service = singleton
 
         # Get service (singleton is returned, cache arg doesn't matter)
         mock_cache = Mock(spec=RedisCache)
         mock_checkpoint_service = Mock(spec=CheckpointService)
         service1 = await get_agent_service(
-            cache=mock_cache, checkpoint_service=mock_checkpoint_service
+            state=state, cache=mock_cache, checkpoint_service=mock_checkpoint_service
         )
         service2 = await get_agent_service(
-            cache=mock_cache, checkpoint_service=mock_checkpoint_service
+            state=state, cache=mock_cache, checkpoint_service=mock_checkpoint_service
         )
 
         assert service1 is singleton
         assert service2 is singleton
 
-        # Clear singleton
-        set_agent_service_singleton(None)
+        # Clear singleton via reset_dependencies
+        reset_dependencies(state)
+        assert state.agent_service is None
 
     @pytest.mark.anyio
     async def test_get_session_service_creates_instance(self) -> None:
@@ -470,10 +469,11 @@ class TestDependencyIntegration:
 
         # Initialize
         settings = get_settings()
-        await init_db(settings)
+        app_state = AppState()
+        await init_db(app_state, settings)
 
         # Get session
-        session_gen = get_db()
+        session_gen = get_db(app_state)
         session = await anext(session_gen)
 
         # Get repository
@@ -485,7 +485,7 @@ class TestDependencyIntegration:
         # Cleanup
         with contextlib.suppress(StopAsyncIteration):
             await session_gen.aclose()
-        await close_db()
+        await close_db(app_state)
 
     @pytest.mark.anyio
     async def test_full_dependency_chain_from_cache_to_service(self) -> None:
@@ -496,17 +496,13 @@ class TestDependencyIntegration:
         from apps.api import dependencies
         from apps.api.config import get_settings
 
-        # Clear state
-        if dependencies._redis_cache:
-            await dependencies._redis_cache.close()
-        dependencies._redis_cache = None
-
-        # Initialize
+        # Initialize with fresh state
         settings = get_settings()
-        await init_cache(settings)
+        app_state = AppState()
+        await init_cache(app_state, settings)
 
         # Get cache
-        cache = await get_cache()
+        cache = await get_cache(app_state)
 
         # Get service
         mock_repo = Mock(spec=SessionRepository)
@@ -517,7 +513,7 @@ class TestDependencyIntegration:
         assert service._db_repo is mock_repo
 
         # Cleanup
-        await close_cache()
+        await close_cache(app_state)
 
 
 class TestDependencyCleanup:
@@ -529,17 +525,14 @@ class TestDependencyCleanup:
 
         GREEN: This test verifies safe double-close.
         """
-        from apps.api import dependencies
-
-        # Clear state
-        dependencies._async_engine = None
-        dependencies._async_session_maker = None
+        # Create state without initializing
+        app_state = AppState()
 
         # Close when already None should not raise
-        await close_db()
+        await close_db(app_state)
 
-        assert dependencies._async_engine is None
-        assert dependencies._async_session_maker is None
+        assert app_state.engine is None
+        assert app_state.session_maker is None
 
     @pytest.mark.anyio
     async def test_close_cache_safe_when_already_closed(self) -> None:
@@ -547,43 +540,42 @@ class TestDependencyCleanup:
 
         GREEN: This test verifies safe double-close.
         """
-        from apps.api import dependencies
-
-        # Clear state
-        dependencies._redis_cache = None
+        # Create state without initializing
+        app_state = AppState()
 
         # Close when already None should not raise
-        await close_cache()
+        await close_cache(app_state)
 
-        assert dependencies._redis_cache is None
+        assert app_state.cache is None
 
     @pytest.mark.anyio
     async def test_agent_service_singleton_can_be_cleared(self) -> None:
-        """Test agent service singleton can be cleared.
+        """Test agent service singleton can be cleared (M-13).
 
-        GREEN: This test verifies singleton lifecycle management.
+        GREEN: This test verifies singleton lifecycle management via reset_dependencies.
         """
-        # Set singleton
+        # Create state and set singleton
+        state = AppState()
         singleton = AgentService()
-        set_agent_service_singleton(singleton)
+        state.agent_service = singleton
 
         # Verify it's returned
         mock_cache = Mock(spec=RedisCache)
         mock_checkpoint_service = Mock(spec=CheckpointService)
         service = await get_agent_service(
-            cache=mock_cache, checkpoint_service=mock_checkpoint_service
+            state=state, cache=mock_cache, checkpoint_service=mock_checkpoint_service
         )
         assert service is singleton
 
-        # Clear singleton
-        set_agent_service_singleton(None)
+        # Clear singleton via reset_dependencies
+        reset_dependencies(state)
 
         # Verify new instances are created
         service1 = await get_agent_service(
-            cache=mock_cache, checkpoint_service=mock_checkpoint_service
+            state=state, cache=mock_cache, checkpoint_service=mock_checkpoint_service
         )
         service2 = await get_agent_service(
-            cache=mock_cache, checkpoint_service=mock_checkpoint_service
+            state=state, cache=mock_cache, checkpoint_service=mock_checkpoint_service
         )
         assert service1 is not singleton
         assert service2 is not singleton

@@ -3,7 +3,7 @@
 import secrets
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any, cast
+from typing import cast
 
 import structlog
 
@@ -87,6 +87,6 @@ class McpShareService:
             return None
         return McpSharePayload(
             name=str(payload.get("name", "")),
-            config=cast("dict[str, Any]", payload.get("config", {})),
+            config=cast("dict[str, object]", payload.get("config", {})),
             created_at=str(payload.get("created_at", "")),
         )

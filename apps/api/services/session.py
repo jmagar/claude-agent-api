@@ -68,6 +68,7 @@ class Session:
     total_cost_usd: float | None = None
     parent_session_id: str | None = None
     owner_api_key_hash: str | None = None
+    session_metadata: dict[str, object] | None = None
 
 
 @dataclass
@@ -592,6 +593,104 @@ class SessionService:
             key = self._cache_key(session_id)
             return await self._cache.exists(key)
         return False
+
+    async def promote_session(
+        self,
+        session_id: str,
+        project_id: str,
+        current_api_key: str,
+    ) -> Session | None:
+        """Promote a brainstorm session to code mode.
+
+        Args:
+            session_id: Session ID to promote.
+            project_id: Project ID to associate with the promoted session.
+            current_api_key: API key for ownership enforcement.
+
+        Returns:
+            Updated session or None if not found.
+
+        Raises:
+            SessionNotFoundError: If session not owned by current_api_key.
+        """
+        from uuid import UUID
+
+        # Get session with ownership check
+        session = await self.get_session(session_id, current_api_key=current_api_key)
+        if not session:
+            return None
+
+        # Update metadata to promote to code mode
+        metadata = dict(session.session_metadata or {})
+        metadata.update({"mode": "code", "project_id": project_id})
+
+        # Update in database
+        if self._db_repo:
+            updated = await self._db_repo.update_metadata(UUID(session_id), metadata)
+            if updated is None:
+                return None
+
+            # Update cache
+            await self._cache_session(self._map_db_to_service(updated))
+
+            logger.info(
+                "Session promoted to code mode",
+                session_id=session_id,
+                project_id=project_id,
+            )
+
+            return self._map_db_to_service(updated)
+
+        return None
+
+    async def update_tags(
+        self,
+        session_id: str,
+        tags: list[str],
+        current_api_key: str,
+    ) -> Session | None:
+        """Update session tags.
+
+        Args:
+            session_id: Session ID to update.
+            tags: New tags to set.
+            current_api_key: API key for ownership enforcement.
+
+        Returns:
+            Updated session or None if not found.
+
+        Raises:
+            SessionNotFoundError: If session not owned by current_api_key.
+        """
+        from uuid import UUID
+
+        # Get session with ownership check
+        session = await self.get_session(session_id, current_api_key=current_api_key)
+        if not session:
+            return None
+
+        # Update metadata with new tags
+        metadata = dict(session.session_metadata or {})
+        metadata["tags"] = tags
+
+        # Update in database
+        if self._db_repo:
+            updated = await self._db_repo.update_metadata(UUID(session_id), metadata)
+            if updated is None:
+                return None
+
+            # Update cache
+            await self._cache_session(self._map_db_to_service(updated))
+
+            logger.info(
+                "Session tags updated",
+                session_id=session_id,
+                tags=tags,
+            )
+
+            return self._map_db_to_service(updated)
+
+        return None
 
     async def _cache_session(self, session: Session) -> None:
         """Cache a session in Redis and update owner index.

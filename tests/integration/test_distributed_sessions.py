@@ -15,7 +15,9 @@ from apps.api.services.session import SessionService
 @pytest.mark.anyio
 async def test_active_session_registered_in_redis(async_client: AsyncClient) -> None:
     """Test that active sessions are tracked in Redis, not in-memory."""
-    cache = await get_cache()
+    app_state = async_client.app.state.app_state
+
+    cache = await get_cache(app_state)
     service = AgentService(cache=cache)
 
     session_id = str(uuid4())
@@ -39,7 +41,9 @@ async def test_interrupt_signal_propagates_across_instances(
     async_client: AsyncClient,
 ) -> None:
     """Test that interrupt signals propagate via Redis pub/sub."""
-    cache = await get_cache()
+    app_state = async_client.app.state.app_state
+
+    cache = await get_cache(app_state)
 
     # Create two service instances (simulating two API pods)
     service1 = AgentService(cache=cache)
@@ -70,9 +74,13 @@ async def test_session_fallback_to_database_when_cache_miss(
 ) -> None:
     """Test that sessions fall back to PostgreSQL when not in Redis cache."""
 
-    cache = await get_cache()
+    app_state = async_client.app.state.app_state
 
-    async for db_session in get_db():
+
+    cache = await get_cache(app_state)
+
+    app_state = async_client.app.state.app_state
+    async for db_session in get_db(app_state):
         repo = SessionRepository(db_session)
         service = SessionService(cache=cache, db_repo=repo)
 
@@ -111,9 +119,12 @@ async def test_session_create_writes_to_both_db_and_cache(
     """Test that creating a session writes to both PostgreSQL and Redis."""
     from apps.api.dependencies import get_db
 
-    cache = await get_cache()
+    app_state = async_client.app.state.app_state
 
-    async for db_session in get_db():
+
+    cache = await get_cache(app_state)
+
+    async for db_session in get_db(app_state):
         repo = SessionRepository(db_session)
         service = SessionService(cache=cache, db_repo=repo)
 
@@ -148,9 +159,12 @@ async def test_agent_service_uses_distributed_session_tracking(
     """Test that AgentService registers sessions in Redis during query execution."""
     from apps.api.dependencies import get_db
 
-    cache = await get_cache()
+    app_state = async_client.app.state.app_state
 
-    async for db_session in get_db():
+
+    cache = await get_cache(app_state)
+
+    async for db_session in get_db(app_state):
         repo = SessionRepository(db_session)
         SessionService(cache=cache, db_repo=repo)
         agent_service = AgentService(cache=cache)
@@ -183,9 +197,12 @@ async def test_multi_instance_session_lifecycle(async_client: AsyncClient) -> No
     """
     from apps.api.dependencies import get_db
 
-    cache = await get_cache()
+    app_state = async_client.app.state.app_state
 
-    async for db_session in get_db():
+
+    cache = await get_cache(app_state)
+
+    async for db_session in get_db(app_state):
         repo = SessionRepository(db_session)
 
         # Create two service instances (simulating two API pods behind load balancer)
@@ -241,9 +258,12 @@ async def test_session_survives_redis_restart(async_client: AsyncClient) -> None
     """Test that sessions survive Redis restart (via PostgreSQL fallback)."""
     from apps.api.dependencies import get_db
 
-    cache = await get_cache()
+    app_state = async_client.app.state.app_state
 
-    async for db_session in get_db():
+
+    cache = await get_cache(app_state)
+
+    async for db_session in get_db(app_state):
         repo = SessionRepository(db_session)
         service = SessionService(cache=cache, db_repo=repo)
 

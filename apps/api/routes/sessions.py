@@ -1,21 +1,17 @@
 """Session CRUD endpoints."""
 
-import secrets
-from typing import Literal, cast
-from uuid import UUID
 
 from fastapi import APIRouter, Query
 
-from apps.api.dependencies import ApiKey, SessionRepo, SessionSvc
-from apps.api.exceptions import APIError, SessionNotFoundError
-from apps.api.models.session import Session
-from apps.api.schemas.requests.sessions import PromoteRequest
+from apps.api.dependencies import ApiKey, SessionSvc
+from apps.api.exceptions import SessionNotFoundError
+from apps.api.schemas.requests.sessions import PromoteRequest, UpdateTagsRequest
 from apps.api.schemas.responses import (
     SessionResponse,
     SessionWithMetaListResponse,
     SessionWithMetaResponse,
 )
-from apps.api.utils.crypto import hash_api_key
+from apps.api.utils.response_helpers import map_session_with_metadata
 
 router = APIRouter(prefix="/sessions", tags=["Sessions"])
 
@@ -23,7 +19,7 @@ router = APIRouter(prefix="/sessions", tags=["Sessions"])
 @router.get("")
 async def list_sessions(
     _api_key: ApiKey,
-    repo: SessionRepo,
+    session_service: SessionSvc,
     mode: str | None = None,
     project_id: str | None = None,
     tags: list[str] | None = Query(default=None),
@@ -33,70 +29,27 @@ async def list_sessions(
 ) -> SessionWithMetaListResponse:
     """<summary>List sessions with metadata filtering.</summary>"""
 
-    # Security: filter by owner at DB level (public OR owned by this key)
-    sessions, _ = await repo.list_sessions(
-        owner_api_key=_api_key,
-        filter_by_owner_or_public=True,
-        limit=10000,
-        offset=0,
+    # Use service layer for business logic (includes ownership enforcement and filtering)
+    result = await session_service.list_sessions(
+        current_api_key=_api_key,
+        mode=mode,
+        project_id=project_id,
+        tags=tags,
+        search=search,
+        page=page,
+        page_size=page_size,
     )
-
-    # Metadata filtering (JSONB queries are complex, filter in memory)
-    def matches_metadata(session: Session) -> bool:
-        metadata = session.session_metadata or {}
-        session_mode = metadata.get("mode", "code")
-        if mode and session_mode != mode:
-            return False
-        if project_id and str(metadata.get("project_id")) != project_id:
-            return False
-        if tags:
-            session_tags = metadata.get("tags", [])
-            if not isinstance(session_tags, list) or not all(
-                tag in session_tags for tag in tags
-            ):
-                return False
-        if search:
-            title = str(metadata.get("title", "")).lower()
-            if search.lower() not in title:
-                return False
-        return True
-
-    filtered = [session for session in sessions if matches_metadata(session)]
-    start = (page - 1) * page_size
-    page_sessions = filtered[start : start + page_size]
+    sessions = result.sessions
+    total = result.total
 
     mapped = []
-    for s in page_sessions:
-        metadata = s.metadata_ or {}
-        session_mode = metadata.get("mode", "code")
-        mapped.append(
-            SessionWithMetaResponse(
-                id=str(s.id),
-                mode="brainstorm" if session_mode == "brainstorm" else "code",
-                status=cast("Literal['active', 'completed', 'error']", s.status),
-                project_id=str(metadata.get("project_id"))
-                if metadata.get("project_id")
-                else None,
-                title=str(metadata.get("title")) if metadata.get("title") else None,
-                created_at=s.created_at,
-                updated_at=s.updated_at,
-                total_turns=s.total_turns,
-                total_cost_usd=float(s.total_cost_usd)
-                if s.total_cost_usd is not None
-                else None,
-                parent_session_id=str(s.parent_session_id)
-                if s.parent_session_id
-                else None,
-                tags=cast("list[str] | None", metadata.get("tags"))
-                if isinstance(metadata.get("tags"), list)
-                else None,
-                metadata=metadata,
-            )
-        )
+    for s in sessions:
+        metadata = s.session_metadata or {}
+        mapped.append(map_session_with_metadata(s, metadata))
 
     return SessionWithMetaListResponse(
         sessions=mapped,
-        total=len(filtered),
+        total=total,
         page=page,
         page_size=page_size,
     )
@@ -145,121 +98,34 @@ async def promote_session(
     session_id: str,
     request: PromoteRequest,
     _api_key: ApiKey,
-    repo: SessionRepo,
+    session_service: SessionSvc,
 ) -> SessionWithMetaResponse:
     """Promote a brainstorm session to code mode."""
-    session = await repo.get(UUID(session_id))
-    if not session:
-        raise SessionNotFoundError(session_id)
-
-    # Phase 2 Migration: Compare hashed API keys for security
-    # - Prevents timing attacks via secrets.compare_digest()
-    # - Uses owner_api_key_hash column (added in migration 20260201_000006)
-    # - Reject sessions with NULL hash (prevents bypass during migration)
-    # - Always perform constant-time comparison to avoid timing leaks
-
-    # Reject sessions without hash (prevents ownership bypass)
-    if not session.owner_api_key_hash:
-        raise SessionNotFoundError(session_id)
-
-    # Constant-time comparison (no short-circuit to avoid timing leak)
-    if not secrets.compare_digest(
-        session.owner_api_key_hash, hash_api_key(_api_key)
-    ):
-        raise SessionNotFoundError(session_id)
-
-    metadata = dict(session.metadata_ or {})
-    metadata.update({"mode": "code", "project_id": request.project_id})
-
-    updated = await repo.update_metadata(UUID(session_id), metadata)
-    if updated is None:
-        raise SessionNotFoundError(session_id)
-
-    mode = metadata.get("mode", "code")
-    project_id = metadata.get("project_id")
-    tags = metadata.get("tags")
-    title = metadata.get("title")
-
-    return SessionWithMetaResponse(
-        id=str(updated.id),
-        mode="code" if mode != "brainstorm" else "brainstorm",
-        status=cast("Literal['active', 'completed', 'error']", updated.status),
-        project_id=str(project_id) if project_id else None,
-        title=str(title) if title else None,
-        created_at=updated.created_at,
-        updated_at=updated.updated_at,
-        total_turns=updated.total_turns,
-        total_cost_usd=float(updated.total_cost_usd)
-        if updated.total_cost_usd is not None
-        else None,
-        parent_session_id=str(updated.parent_session_id)
-        if updated.parent_session_id
-        else None,
-        tags=cast("list[str] | None", tags) if isinstance(tags, list) else None,
-        metadata=metadata,
+    updated = await session_service.promote_session(
+        session_id=session_id,
+        project_id=request.project_id,
+        current_api_key=_api_key,
     )
+    if not updated:
+        raise SessionNotFoundError(session_id)
+
+    return map_session_with_metadata(updated)
 
 
 @router.patch("/{session_id}/tags", response_model=SessionWithMetaResponse)
 async def update_session_tags(
     session_id: str,
-    request: dict[str, object],
+    request: UpdateTagsRequest,
     _api_key: ApiKey,
-    repo: SessionRepo,
+    session_service: SessionSvc,
 ) -> SessionWithMetaResponse:
-    """<summary>Update session tags.</summary>"""
-    tags = request.get("tags")
-    if not isinstance(tags, list):
-        raise APIError(
-            message="Tags must be a list",
-            code="VALIDATION_ERROR",
-            status_code=400,
-        )
-    session = await repo.get(UUID(session_id))
-    if not session:
-        raise SessionNotFoundError(session_id)
-
-    # Phase 2 Migration: Compare hashed API keys for security
-    # - Prevents timing attacks via secrets.compare_digest()
-    # - Uses owner_api_key_hash column (added in migration 20260201_000006)
-    # - Reject sessions with NULL hash (prevents bypass during migration)
-    # - Always perform constant-time comparison to avoid timing leaks
-
-    # Reject sessions without hash (prevents ownership bypass)
-    if not session.owner_api_key_hash:
-        raise SessionNotFoundError(session_id)
-
-    # Constant-time comparison (no short-circuit to avoid timing leak)
-    if not secrets.compare_digest(
-        session.owner_api_key_hash, hash_api_key(_api_key)
-    ):
-        raise SessionNotFoundError(session_id)
-
-    metadata = dict(session.metadata_ or {})
-    metadata["tags"] = tags
-
-    updated = await repo.update_metadata(UUID(session_id), metadata)
-    if updated is None:
-        raise SessionNotFoundError(session_id)
-
-    session_mode = metadata.get("mode", "code")
-    return SessionWithMetaResponse(
-        id=str(updated.id),
-        mode="brainstorm" if session_mode == "brainstorm" else "code",
-        status=cast("Literal['active', 'completed', 'error']", updated.status),
-        project_id=str(metadata.get("project_id"))
-        if metadata.get("project_id")
-        else None,
-        title=str(metadata.get("title")) if metadata.get("title") else None,
-        created_at=updated.created_at,
-        updated_at=updated.updated_at,
-        total_turns=updated.total_turns,
-        total_cost_usd=float(updated.total_cost_usd)
-        if updated.total_cost_usd is not None
-        else None,
-        parent_session_id=str(updated.parent_session_id)
-        if updated.parent_session_id
-        else None,
-        tags=cast("list[str] | None", tags),
-        metadata=metadata,
+    """Update session tags."""
+    updated = await session_service.update_tags(
+        session_id=session_id,
+        tags=request.tags,
+        current_api_key=_api_key,
     )
+    if not updated:
+        raise SessionNotFoundError(session_id)
+
+    return map_session_with_metadata(updated)

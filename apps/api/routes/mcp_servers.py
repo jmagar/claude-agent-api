@@ -1,7 +1,8 @@
 """MCP server management and share endpoints with filesystem discovery."""
 
+import structlog
 from datetime import UTC, datetime
-from typing import Any, cast
+from typing import cast
 
 from fastapi import APIRouter, Query
 
@@ -26,9 +27,27 @@ from apps.api.schemas.responses import (
     McpShareCreateResponse,
     McpSharePayloadResponse,
 )
+from apps.api.services.mcp_discovery import McpServerInfo
 from apps.api.services.mcp_server_configs import McpServerRecord
 
 router = APIRouter(prefix="/mcp-servers", tags=["MCP Servers"])
+logger = structlog.get_logger(__name__)
+
+# Sensitive key patterns for credential sanitization
+_SENSITIVE_ENV_PATTERNS = [
+    "api_key",
+    "apikey",
+    "secret",
+    "password",
+    "token",
+    "auth",
+    "credential",
+]
+_SENSITIVE_HEADER_PATTERNS = [
+    "auth",
+    "token",
+    "authorization",
+]
 
 
 def _parse_datetime(value: str | None) -> datetime:
@@ -37,22 +56,29 @@ def _parse_datetime(value: str | None) -> datetime:
         try:
             return datetime.fromisoformat(value)
         except ValueError:
-            pass
+            logger.warning(
+                "datetime_parse_failed",
+                value=value,
+                fallback="datetime.now(UTC)",
+            )
     return datetime.now(UTC)
 
 
 def _sanitize_mapping(
-    mapping: dict[str, Any],
+    mapping: dict[str, object],
     sensitive_keys: list[str],
-) -> dict[str, Any]:
-    """Redact values when keys match sensitive patterns."""
-    sanitized: dict[str, Any] = {}
+) -> dict[str, str]:
+    """Redact values when keys match sensitive patterns.
+
+    Returns dict[str, str] by converting all values to strings.
+    """
+    sanitized: dict[str, str] = {}
     for key, value in mapping.items():
         lower_key = key.lower()
         if any(pattern in lower_key for pattern in sensitive_keys):
             sanitized[key] = "***REDACTED***"
         else:
-            sanitized[key] = value
+            sanitized[key] = str(value) if value is not None else ""
     return sanitized
 
 
@@ -62,17 +88,58 @@ def sanitize_mcp_config(config: dict[str, object]) -> dict[str, object]:
 
     if isinstance(sanitized.get("env"), dict):
         sanitized["env"] = _sanitize_mapping(
-            cast("dict[str, Any]", sanitized["env"]),
-            ["api_key", "apikey", "secret", "password", "token", "auth", "credential"],
+            cast("dict[str, object]", sanitized["env"]),
+            _SENSITIVE_ENV_PATTERNS,
         )
 
     if isinstance(sanitized.get("headers"), dict):
         sanitized["headers"] = _sanitize_mapping(
-            cast("dict[str, Any]", sanitized["headers"]),
-            ["auth", "token"],
+            cast("dict[str, object]", sanitized["headers"]),
+            _SENSITIVE_HEADER_PATTERNS,
         )
 
     return sanitized
+
+
+def _map_filesystem_server(
+    name: str,
+    server: McpServerInfo,
+    id_prefix: str = "fs:",
+) -> McpServerConfigResponse:
+    """Map filesystem server discovery result to response.
+
+    Args:
+        name: Server name from filesystem config.
+        server: Server configuration dictionary.
+        id_prefix: Prefix for server ID (default: "fs:").
+
+    Returns:
+        McpServerConfigResponse with sanitized credentials.
+    """
+    # McpServerInfo.env and .headers are dict[str, str]
+    # Cast to dict[str, object] for _sanitize_mapping (str is a subtype of object)
+    sanitized_env = _sanitize_mapping(
+        cast("dict[str, object]", server.get("env", {})),
+        _SENSITIVE_ENV_PATTERNS,
+    )
+    sanitized_headers = _sanitize_mapping(
+        cast("dict[str, object]", server.get("headers", {})),
+        _SENSITIVE_HEADER_PATTERNS,
+    )
+
+    return McpServerConfigResponse(
+        id=f"{id_prefix}{name}",
+        name=name,
+        transport_type=cast("str", server.get("type", "stdio")),
+        command=server.get("command"),
+        args=cast("list[str]", server.get("args", [])),
+        url=server.get("url"),
+        headers=sanitized_headers,
+        env=sanitized_env,
+        enabled=True,
+        status="active",
+        source="filesystem",
+    )
 
 
 def _map_server(record: McpServerRecord) -> McpServerConfigResponse:
@@ -121,41 +188,7 @@ async def list_mcp_servers(
     if source != "database":
         fs_servers = mcp_discovery.discover_servers()
         for name, server in fs_servers.items():
-            # Redact sensitive data from filesystem servers
-            env = server.get("env", {})
-            headers = server.get("headers", {})
-            sanitized_env = _sanitize_mapping(
-                env,
-                [
-                    "api_key",
-                    "apikey",
-                    "secret",
-                    "password",
-                    "token",
-                    "auth",
-                    "credential",
-                ],
-            )
-            sanitized_headers = _sanitize_mapping(
-                headers,
-                ["auth", "token", "authorization"],
-            )
-
-            servers.append(
-                McpServerConfigResponse(
-                    id=f"fs:{name}",  # Prefix to distinguish from DB
-                    name=name,
-                    transport_type=server.get("type", "stdio"),
-                    command=server.get("command"),
-                    args=server.get("args", []),
-                    url=server.get("url"),
-                    headers=sanitized_headers,
-                    env=sanitized_env,
-                    enabled=True,
-                    status="active",
-                    source="filesystem",
-                )
-            )
+            servers.append(_map_filesystem_server(name, server))
 
     # Get database servers (unless filtering to filesystem only)
     # Filter by authenticated API key
@@ -213,39 +246,7 @@ async def get_mcp_server(
 
         if server_name in fs_servers:
             server = fs_servers[server_name]
-            # Redact sensitive data
-            env = server.get("env", {})
-            headers = server.get("headers", {})
-            sanitized_env = _sanitize_mapping(
-                env,
-                [
-                    "api_key",
-                    "apikey",
-                    "secret",
-                    "password",
-                    "token",
-                    "auth",
-                    "credential",
-                ],
-            )
-            sanitized_headers = _sanitize_mapping(
-                headers,
-                ["auth", "token", "authorization"],
-            )
-
-            return McpServerConfigResponse(
-                id=name,
-                name=server_name,
-                transport_type=server.get("type", "stdio"),
-                command=server.get("command"),
-                args=server.get("args", []),
-                url=server.get("url"),
-                headers=sanitized_headers,
-                env=sanitized_env,
-                enabled=True,
-                status="active",
-                source="filesystem",
-            )
+            return _map_filesystem_server(server_name, server, id_prefix=name.replace(server_name, ""))
 
         raise APIError(
             message="Filesystem MCP server not found",

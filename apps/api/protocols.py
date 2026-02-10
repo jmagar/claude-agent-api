@@ -1,6 +1,7 @@
 """Protocol interfaces for dependency injection."""
 
-from typing import TYPE_CHECKING, Protocol, TypedDict, runtime_checkable
+from collections.abc import AsyncGenerator
+from typing import TYPE_CHECKING, Literal, Protocol, TypedDict, runtime_checkable
 from uuid import UUID
 
 from apps.api.types import JsonValue
@@ -31,6 +32,104 @@ class MemorySearchResult(TypedDict):
     metadata: dict[str, JsonValue]
 
 
+class AgentRecord(TypedDict):
+    """Agent configuration record."""
+
+    id: str
+    name: str
+    description: str
+    prompt: str
+    tools: list[str] | None
+    model: str | None
+    created_at: str
+    updated_at: str | None
+    is_shared: bool | None
+    share_url: str | None
+    share_token: str | None
+
+
+class ProjectRecord(TypedDict):
+    """Project record."""
+
+    id: str
+    name: str
+    path: str
+    created_at: str
+    last_accessed_at: str | None
+    session_count: int | None
+    metadata: dict[str, JsonValue] | None
+
+
+class ToolPresetRecord(TypedDict):
+    """Tool preset record."""
+
+    id: str
+    name: str
+    description: str | None
+    allowed_tools: list[str]
+    disallowed_tools: list[str]
+    is_system: bool
+    created_at: str
+
+
+class SlashCommandRecord(TypedDict):
+    """Slash command record."""
+
+    id: str
+    name: str
+    description: str
+    content: str
+    enabled: bool
+    created_at: str
+    updated_at: str | None
+
+
+class SkillRecord(TypedDict):
+    """Skill record."""
+
+    id: str
+    name: str
+    description: str
+    content: str
+    enabled: bool
+    created_at: str
+    updated_at: str | None
+    is_shared: bool | None
+    share_url: str | None
+
+
+class McpServerRecord(TypedDict):
+    """MCP server configuration record."""
+
+    id: str
+    name: str
+    transport_type: str
+    command: str | None
+    args: list[str] | None
+    url: str | None
+    headers: dict[str, str] | None
+    env: dict[str, str] | None
+    enabled: bool
+    status: str
+    error: str | None
+    created_at: str
+    updated_at: str | None
+    metadata: dict[str, JsonValue] | None
+    resources: list[dict[str, JsonValue]] | None
+
+
+class McpServerInfo(TypedDict, total=False):
+    """MCP server configuration from filesystem discovery."""
+
+    name: str
+    type: str
+    command: str | None
+    args: list[str]
+    url: str | None
+    headers: dict[str, str]
+    env: dict[str, str]
+
+
 @runtime_checkable
 class SessionRepositoryProtocol(Protocol):
     """Protocol for session persistence operations."""
@@ -41,7 +140,7 @@ class SessionRepositoryProtocol(Protocol):
         model: str,
         working_directory: str | None = None,
         parent_session_id: UUID | None = None,
-        metadata: dict[str, object] | None = None,
+        metadata: dict[str, JsonValue] | None = None,
         owner_api_key: str | None = None,
     ) -> "Session":
         """Create a new session record.
@@ -119,7 +218,7 @@ class SessionRepositoryProtocol(Protocol):
         self,
         session_id: UUID,
         message_type: str,
-        content: dict[str, object],
+        content: dict[str, JsonValue],
     ) -> "SessionMessage":
         """Add a message to a session.
 
@@ -417,7 +516,7 @@ class AgentService(Protocol):
 
     async def query_stream(
         self, request: "QueryRequest", api_key: str = ""
-    ) -> "AsyncIterator[dict[str, str]]":
+    ) -> "AsyncGenerator[dict[str, str], None]":
         """Stream a query to the agent."""
         ...
 
@@ -425,6 +524,45 @@ class AgentService(Protocol):
         self, request: "QueryRequest", api_key: str = ""
     ) -> "QueryResponseDict":
         """Execute a query and return the full response."""
+        ...
+
+    async def submit_answer(self, session_id: str, answer: str) -> bool:
+        """Submit an answer to a pending question.
+
+        Args:
+            session_id: Session ID to submit answer to.
+            answer: User's answer to the question.
+
+        Returns:
+            True if answer was submitted successfully.
+        """
+        ...
+
+    async def interrupt(self, session_id: str) -> bool:
+        """Interrupt a running query.
+
+        Args:
+            session_id: Session ID to interrupt.
+
+        Returns:
+            True if interrupted successfully.
+        """
+        ...
+
+    async def update_permission_mode(
+        self,
+        session_id: str,
+        permission_mode: Literal["default", "acceptEdits", "plan", "bypassPermissions"],
+    ) -> bool:
+        """Update permission mode for an active session.
+
+        Args:
+            session_id: Session to update.
+            permission_mode: New permission mode.
+
+        Returns:
+            True if updated successfully.
+        """
         ...
 
 
@@ -436,7 +574,7 @@ class AgentClient(Protocol):
         self,
         prompt: str,
         session_id: str | None = None,
-        options: dict[str, object] | None = None,
+        options: dict[str, JsonValue] | None = None,
     ) -> "AsyncIterator[AgentMessage]":
         """Send a query to the agent.
 
@@ -594,7 +732,7 @@ class AgentConfigProtocol(Protocol):
     distinct from the AgentService protocol which handles orchestration.
     """
 
-    async def list_agents(self) -> list[object]:
+    async def list_agents(self) -> list[AgentRecord]:
         """List all agents.
 
         Returns:
@@ -609,7 +747,7 @@ class AgentConfigProtocol(Protocol):
         prompt: str,
         tools: list[str] | None,
         model: str | None,
-    ) -> object:
+    ) -> AgentRecord:
         """Create a new agent.
 
         Args:
@@ -624,7 +762,7 @@ class AgentConfigProtocol(Protocol):
         """
         ...
 
-    async def get_agent(self, agent_id: str) -> object | None:
+    async def get_agent(self, agent_id: str) -> AgentRecord | None:
         """Get agent by ID.
 
         Args:
@@ -643,7 +781,7 @@ class AgentConfigProtocol(Protocol):
         prompt: str,
         tools: list[str] | None,
         model: str | None,
-    ) -> object | None:
+    ) -> AgentRecord | None:
         """Update an agent.
 
         Args:
@@ -670,7 +808,7 @@ class AgentConfigProtocol(Protocol):
         """
         ...
 
-    async def share_agent(self, agent_id: str, share_url: str) -> object | None:
+    async def share_agent(self, agent_id: str, share_url: str) -> AgentRecord | None:
         """Mark agent as shared and generate token.
 
         Args:
@@ -687,7 +825,7 @@ class AgentConfigProtocol(Protocol):
 class ProjectProtocol(Protocol):
     """Protocol for project CRUD operations."""
 
-    async def list_projects(self) -> list[object]:
+    async def list_projects(self) -> list[ProjectRecord]:
         """List all projects.
 
         Returns:
@@ -699,8 +837,8 @@ class ProjectProtocol(Protocol):
         self,
         name: str,
         path: str | None,
-        metadata: dict[str, object] | None,
-    ) -> object | None:
+        metadata: dict[str, JsonValue] | None,
+    ) -> ProjectRecord | None:
         """Create a new project.
 
         Args:
@@ -713,7 +851,7 @@ class ProjectProtocol(Protocol):
         """
         ...
 
-    async def get_project(self, project_id: str) -> object | None:
+    async def get_project(self, project_id: str) -> ProjectRecord | None:
         """Get project by ID.
 
         Args:
@@ -728,8 +866,8 @@ class ProjectProtocol(Protocol):
         self,
         project_id: str,
         name: str | None,
-        metadata: dict[str, object] | None,
-    ) -> object | None:
+        metadata: dict[str, JsonValue] | None,
+    ) -> ProjectRecord | None:
         """Update a project.
 
         Args:
@@ -758,7 +896,7 @@ class ProjectProtocol(Protocol):
 class ToolPresetProtocol(Protocol):
     """Protocol for tool preset CRUD operations."""
 
-    async def list_presets(self) -> list[object]:
+    async def list_presets(self) -> list[ToolPresetRecord]:
         """List all tool presets.
 
         Returns:
@@ -773,7 +911,7 @@ class ToolPresetProtocol(Protocol):
         allowed_tools: list[str],
         disallowed_tools: list[str],
         is_system: bool = False,
-    ) -> object:
+    ) -> ToolPresetRecord:
         """Create a new tool preset.
 
         Args:
@@ -788,7 +926,7 @@ class ToolPresetProtocol(Protocol):
         """
         ...
 
-    async def get_preset(self, preset_id: str) -> object | None:
+    async def get_preset(self, preset_id: str) -> ToolPresetRecord | None:
         """Get tool preset by ID.
 
         Args:
@@ -806,7 +944,7 @@ class ToolPresetProtocol(Protocol):
         description: str | None,
         allowed_tools: list[str],
         disallowed_tools: list[str],
-    ) -> object | None:
+    ) -> ToolPresetRecord | None:
         """Update a tool preset.
 
         Args:
@@ -837,7 +975,7 @@ class ToolPresetProtocol(Protocol):
 class McpServerConfigProtocol(Protocol):
     """Protocol for MCP server configuration operations."""
 
-    async def list_servers_for_api_key(self, api_key: str) -> list[object]:
+    async def list_servers_for_api_key(self, api_key: str) -> list[McpServerRecord]:
         """List all MCP servers for a specific API key.
 
         Args:
@@ -848,7 +986,7 @@ class McpServerConfigProtocol(Protocol):
         """
         ...
 
-    async def get_server(self, api_key: str, name: str) -> object | None:
+    async def get_server(self, api_key: str, name: str) -> McpServerRecord | None:
         """Get MCP server config by name for an API key.
 
         Args:
@@ -864,8 +1002,8 @@ class McpServerConfigProtocol(Protocol):
         self,
         api_key: str,
         name: str,
-        config: dict[str, object],
-    ) -> object:
+        config: dict[str, JsonValue],
+    ) -> McpServerRecord:
         """Create a new MCP server config.
 
         Args:
@@ -882,7 +1020,7 @@ class McpServerConfigProtocol(Protocol):
         self,
         api_key: str,
         name: str,
-        config: dict[str, object],
+        config: dict[str, JsonValue],
     ) -> bool:
         """Update an MCP server config.
 
@@ -913,7 +1051,7 @@ class McpServerConfigProtocol(Protocol):
 class McpDiscoveryProtocol(Protocol):
     """Protocol for MCP server filesystem discovery."""
 
-    def discover_servers(self) -> dict[str, object]:
+    def discover_servers(self) -> dict[str, McpServerInfo]:
         """Discover MCP servers from filesystem configs.
 
         Returns:
@@ -923,7 +1061,7 @@ class McpDiscoveryProtocol(Protocol):
 
     def get_enabled_servers(
         self, disabled_servers: list[str] | None = None
-    ) -> dict[str, object]:
+    ) -> dict[str, McpServerInfo]:
         """Get enabled servers filtering out disabled ones.
 
         Args:
@@ -952,7 +1090,7 @@ class SkillsProtocol(Protocol):
 class SlashCommandProtocol(Protocol):
     """Protocol for slash command CRUD operations."""
 
-    async def list_commands(self) -> list[object]:
+    async def list_commands(self) -> list[SlashCommandRecord]:
         """List all slash commands.
 
         Returns:
@@ -966,7 +1104,7 @@ class SlashCommandProtocol(Protocol):
         description: str,
         content: str,
         enabled: bool,
-    ) -> object:
+    ) -> SlashCommandRecord:
         """Create a new slash command.
 
         Args:
@@ -980,7 +1118,7 @@ class SlashCommandProtocol(Protocol):
         """
         ...
 
-    async def get_command(self, command_id: str) -> object | None:
+    async def get_command(self, command_id: str) -> SlashCommandRecord | None:
         """Get slash command by ID.
 
         Args:
@@ -998,7 +1136,7 @@ class SlashCommandProtocol(Protocol):
         description: str,
         content: str,
         enabled: bool,
-    ) -> object | None:
+    ) -> SlashCommandRecord | None:
         """Update a slash command.
 
         Args:
@@ -1018,6 +1156,83 @@ class SlashCommandProtocol(Protocol):
 
         Args:
             command_id: Command identifier.
+
+        Returns:
+            True if deleted successfully.
+        """
+        ...
+
+
+@runtime_checkable
+class SkillCrudProtocol(Protocol):
+    """Protocol for skill CRUD operations."""
+
+    async def list_skills(self) -> list[SkillRecord]:
+        """List all skills.
+
+        Returns:
+            List of skill records.
+        """
+        ...
+
+    async def create_skill(
+        self,
+        name: str,
+        description: str,
+        content: str,
+        enabled: bool,
+    ) -> SkillRecord:
+        """Create a new skill.
+
+        Args:
+            name: Skill name.
+            description: Skill description.
+            content: Skill content.
+            enabled: Whether skill is enabled.
+
+        Returns:
+            Created skill record.
+        """
+        ...
+
+    async def get_skill(self, skill_id: str) -> SkillRecord | None:
+        """Get skill by ID.
+
+        Args:
+            skill_id: Skill identifier.
+
+        Returns:
+            Skill record or None if not found.
+        """
+        ...
+
+    async def update_skill(
+        self,
+        skill_id: str,
+        name: str,
+        description: str,
+        content: str,
+        enabled: bool,
+    ) -> SkillRecord | None:
+        """Update a skill.
+
+        Args:
+            skill_id: Skill identifier.
+            name: Updated name.
+            description: Updated description.
+            content: Updated content.
+            enabled: Updated enabled status.
+
+        Returns:
+            Updated skill record or None if not found.
+        """
+        ...
+
+    async def delete_skill(self, skill_id: str) -> bool:
+        """Delete a skill.
+
+        Args:
+            skill_id: Skill identifier.
 
         Returns:
             True if deleted successfully.

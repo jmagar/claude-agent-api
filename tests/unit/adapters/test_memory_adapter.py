@@ -188,8 +188,6 @@ async def test_mem0_adapter_search_omits_enable_graph_when_unsupported(
 @pytest.mark.anyio
 async def test_mem0_adapter_add(settings: Settings) -> None:
     """Mem0 adapter should add memories from conversation."""
-    from apps.api.utils.introspection import supports_param
-
     with patch("apps.api.adapters.memory.Memory") as mock_memory_class:
         mock_memory = MagicMock()
         mock_memory.add.return_value = [
@@ -212,9 +210,8 @@ async def test_mem0_adapter_add(settings: Settings) -> None:
             "user_id": "test-api-key",
             "agent_id": "main",
             "metadata": {"source": "conversation"},
+            "enable_graph": True,
         }
-        if supports_param(mock_memory.add, "enable_graph"):
-            expected["enable_graph"] = True
         mock_memory.add.assert_called_once_with(**expected)
 
 

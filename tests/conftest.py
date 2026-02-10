@@ -113,24 +113,22 @@ async def async_client(
     # Clear the settings cache to ensure test env vars are used
     get_settings.cache_clear()
 
-    # Clear the global cache instance to force re-initialization
-    from apps.api import dependencies
-
-    dependencies._redis_cache = None
-    dependencies._async_engine = None
-    dependencies._async_session_maker = None
-    dependencies._agent_service = None  # Clear agent service singleton
-    dependencies._memory_service = None  # Clear memory service singleton
+    # Clear state and initialize resources (M-01, M-13)
+    from apps.api.dependencies import AppState, reset_dependencies
 
     settings = get_settings()
 
+    # Create fresh app state
+    app_state = AppState()
+
     # Initialize resources
-    await init_db(settings)
-    await init_cache(settings)
+    await init_db(app_state, settings)
+    await init_cache(app_state, settings)
 
     # Create fresh app instance for this test to avoid event loop issues
     # with BaseHTTPMiddleware when reusing app across different event loops
     test_app = create_app()
+    test_app.state.app_state = app_state
 
     try:
         transport = ASGITransport(app=test_app)
@@ -142,11 +140,11 @@ async def async_client(
     finally:
         # Cleanup resources - cache first to avoid event loop issues
         try:
-            await close_cache()
+            await close_cache(app_state)
         except RuntimeError as e:
             logger.debug("Cache cleanup skipped: %s", str(e))
         try:
-            await close_db()
+            await close_db(app_state)
         except RuntimeError as e:
             logger.debug("Database cleanup skipped: %s", str(e))
 
@@ -209,37 +207,42 @@ async def mock_session_id(
     from uuid import uuid4
 
     from apps.api.adapters.session_repo import SessionRepository
-    from apps.api.dependencies import get_cache, get_db, set_agent_service_singleton
+    from apps.api.dependencies import AppState, get_app_state
     from apps.api.services.agent import AgentService
     from apps.api.services.session import SessionService
+    from fastapi import Request
+
+    # Get app state from test client (M-13)
+    request = Request(scope={"type": "http", "app": async_client._transport.app})  # type: ignore[arg-type]
+    app_state = get_app_state(request)
 
     # Create session in session service
-    cache = await get_cache()
-    db_gen = get_db()
-    db_session = await anext(db_gen)
-    repo = SessionRepository(db_session)
-    service = SessionService(cache=cache, db_repo=repo)
-    session = await service.create_session(
-        model="sonnet",
-        session_id=str(uuid4()),
-        owner_api_key=test_api_key,
-    )
+    assert app_state.cache is not None
+    assert app_state.session_maker is not None
+    cache = app_state.cache
+    async with app_state.session_maker() as db_session:
+        repo = SessionRepository(db_session)
+        service = SessionService(cache=cache, db_repo=repo)
+        session = await service.create_session(
+            model="sonnet",
+            session_id=str(uuid4()),
+            owner_api_key=test_api_key,
+        )
 
-    # Create agent service singleton with cache and register session as active
-    agent_service = AgentService(cache=cache)
-    # Register session as active in Redis (distributed)
-    await agent_service._register_active_session(session.id)
-    set_agent_service_singleton(agent_service)
+        # Create agent service singleton and register session as active
+        agent_service = AgentService(cache=cache)
+        # Register session as active in Redis (distributed)
+        await agent_service._register_active_session(session.id)
+        app_state.agent_service = agent_service
 
-    try:
-        yield session.id
-    finally:
-        await db_gen.aclose()
-        # Cleanup: Unregister session to prevent interference with other tests
         try:
-            await agent_service._unregister_active_session(session.id)
-        except Exception as e:
-            logger.debug("Failed to unregister active session: %s", str(e))
+            yield session.id
+        finally:
+            # Cleanup: Unregister session to prevent interference with other tests
+            try:
+                await agent_service._unregister_active_session(session.id)
+            except Exception as e:
+                logger.debug("Failed to unregister active session: %s", str(e))
 
 
 @pytest.fixture
@@ -255,36 +258,37 @@ async def mock_active_session_id(
     from uuid import uuid4
 
     from apps.api.adapters.session_repo import SessionRepository
-    from apps.api.dependencies import (
-        get_cache,
-        get_db,
-        set_agent_service_singleton,
-    )
+    from apps.api.dependencies import get_app_state
     from apps.api.services.agent import AgentService
     from apps.api.services.session import SessionService
+    from fastapi import Request
+
+    # Get app state from test client (M-13)
+    request = Request(scope={"type": "http", "app": _async_client._transport.app})  # type: ignore[arg-type]
+    app_state = get_app_state(request)
 
     # Create session in session service
-    cache = await get_cache()
-    db_gen = get_db()
-    db_session = await anext(db_gen)
-    repo = SessionRepository(db_session)
-    service = SessionService(cache=cache, db_repo=repo)
-    session = await service.create_session(
-        model="sonnet",
-        session_id=str(uuid4()),
-        owner_api_key=test_api_key,
-    )
+    assert app_state.cache is not None
+    assert app_state.session_maker is not None
+    cache = app_state.cache
+    async with app_state.session_maker() as db_session:
+        repo = SessionRepository(db_session)
+        service = SessionService(cache=cache, db_repo=repo)
+        session = await service.create_session(
+            model="sonnet",
+            session_id=str(uuid4()),
+            owner_api_key=test_api_key,
+        )
 
-    # Create agent service singleton with cache and register session as active
-    agent_service = AgentService(cache=cache)
-    # Register session as active in Redis (distributed)
-    await agent_service._register_active_session(session.id)
-    set_agent_service_singleton(agent_service)
+        # Create agent service singleton and register session as active
+        agent_service = AgentService(cache=cache)
+        # Register session as active in Redis (distributed)
+        await agent_service._register_active_session(session.id)
+        app_state.agent_service = agent_service
 
     try:
         yield session.id
     finally:
-        await db_gen.aclose()
         # Cleanup: Unregister session to prevent interference with other tests
         try:
             await agent_service._unregister_active_session(session.id)
@@ -308,8 +312,9 @@ async def mock_session_with_checkpoints(
     from apps.api.dependencies import get_cache, get_db
     from apps.api.services.session import SessionService
 
-    cache = await get_cache()
-    db_gen = get_db()
+    app_state = _async_client.app.state.app_state
+    cache = await get_cache(app_state)
+    db_gen = get_db(app_state)
     db_session = await anext(db_gen)
     repo = SessionRepository(db_session)
     service = SessionService(cache=cache, db_repo=repo)
@@ -352,7 +357,8 @@ async def mock_checkpoint_id(
     """Get the checkpoint ID from the mock session with checkpoints."""
     from apps.api.dependencies import get_cache
 
-    cache = await get_cache()
+    app_state = _async_client.app.state.app_state
+    cache = await get_cache(app_state)
     checkpoints_key = f"checkpoints:{mock_session_with_checkpoints}"
     data = await cache.get_json(checkpoints_key)
 
@@ -382,8 +388,9 @@ async def mock_checkpoint_from_other_session(
     from apps.api.dependencies import get_cache, get_db
     from apps.api.services.session import SessionService
 
-    cache = await get_cache()
-    db_gen = get_db()
+    app_state = _async_client.app.state.app_state
+    cache = await get_cache(app_state)
+    db_gen = get_db(app_state)
     db_session = await anext(db_gen)
     repo = SessionRepository(db_session)
     service = SessionService(cache=cache, db_repo=repo)

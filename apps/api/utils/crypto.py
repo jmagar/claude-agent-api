@@ -7,6 +7,7 @@ Security Features:
 - SHA-256 hashing (cryptographically secure)
 - Constant-time comparison (prevents timing attacks)
 - No plaintext storage (OWASP security best practice)
+- LRU cache for per-request deduplication (performance optimization)
 
 Note:
     SHA-256 is acceptable for API key hashing because:
@@ -18,12 +19,14 @@ Note:
 
 import hashlib
 import secrets
+from functools import lru_cache
 
 API_KEY_HASH_ALGORITHM = "sha256"
 
 
+@lru_cache(maxsize=128)
 def hash_api_key(api_key: str) -> str:
-    """Hash API key using SHA-256.
+    """Hash API key using SHA-256 with LRU caching.
 
     Args:
         api_key: Plaintext API key to hash.
@@ -34,6 +37,13 @@ def hash_api_key(api_key: str) -> str:
     Security:
         Uses SHA-256 for cryptographic hashing. Algorithm can be changed
         via API_KEY_HASH_ALGORITHM constant for future migrations.
+
+    Performance:
+        LRU cache (128 entries) prevents duplicate hashing within a request.
+        Cache is safe because:
+        - Hash is deterministic (same input → same output)
+        - API keys are unique per tenant
+        - Cache eviction prevents memory bloat
 
     Example:
         >>> hash_api_key("test-key-12345")

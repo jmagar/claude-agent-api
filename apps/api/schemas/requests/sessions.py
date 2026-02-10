@@ -122,3 +122,9 @@ class PromoteRequest(BaseModel):
     """Request to promote a brainstorm session to code mode."""
 
     project_id: str = Field(..., description="Project ID to associate with session")
+
+
+class UpdateTagsRequest(BaseModel):
+    """Request to update session tags."""
+
+    tags: list[str] = Field(..., description="List of tags to set for the session")

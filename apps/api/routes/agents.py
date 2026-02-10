@@ -20,7 +20,10 @@ async def list_agents(
     """<summary>List all agents.</summary>"""
     agents = await agent_service.list_agents()
     return AgentListResponse(
-        agents=[AgentDefinitionResponse(**a.__dict__) for a in agents]
+        agents=[
+            AgentDefinitionResponse.model_validate(a, from_attributes=True)
+            for a in agents
+        ]
     )
 
 
@@ -38,7 +41,7 @@ async def create_agent(
         tools=request.tools,
         model=request.model,
     )
-    return AgentDefinitionResponse(**agent.__dict__)
+    return AgentDefinitionResponse.model_validate(agent, from_attributes=True)
 
 
 @router.get("/{agent_id}", response_model=AgentDefinitionResponse)
@@ -55,7 +58,7 @@ async def get_agent(
             code="AGENT_NOT_FOUND",
             status_code=404,
         )
-    return AgentDefinitionResponse(**agent.__dict__)
+    return AgentDefinitionResponse.model_validate(agent, from_attributes=True)
 
 
 @router.put("/{agent_id}", response_model=AgentDefinitionResponse)
@@ -80,7 +83,7 @@ async def update_agent(
             code="AGENT_NOT_FOUND",
             status_code=404,
         )
-    return AgentDefinitionResponse(**agent.__dict__)
+    return AgentDefinitionResponse.model_validate(agent, from_attributes=True)
 
 
 @router.delete("/{agent_id}", status_code=204)

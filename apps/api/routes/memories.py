@@ -61,7 +61,7 @@ async def search_memories(
                 memory=str(r.get("memory", "")),
                 score=float(r.get("score", 0.0)),
                 metadata=cast(
-                    "dict[str, str | int | float | bool | None]",
+                    "dict[str, object]",
                     r.get("metadata", {}),
                 ),
             )

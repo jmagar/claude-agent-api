@@ -7,7 +7,7 @@ Provides validation for:
 """
 
 import copy
-from typing import Any, cast
+from typing import cast
 
 from apps.api.schemas.validators import (
     SHELL_METACHAR_PATTERN,
@@ -168,7 +168,7 @@ class ConfigValidator:
         """
         if isinstance(obj, dict):
             # Cast to mutable dict for type checker
-            mutable_dict = cast("dict[str, Any]", obj)
+            mutable_dict = cast("dict[str, object]", obj)
 
             for key, value in mutable_dict.items():
                 # Check if key matches sensitive pattern

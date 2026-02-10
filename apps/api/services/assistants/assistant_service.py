@@ -58,7 +58,12 @@ class DbAssistantDict(TypedDict):
 
 @runtime_checkable
 class DbAssistant(Protocol):
-    """Protocol for database assistant object returned from repository."""
+    """Protocol for database assistant object returned from repository.
+
+    Note: Uses metadata_ (trailing underscore) to avoid conflicts with Python's
+    metadata attribute. The actual database column is named assistant_metadata
+    following the {table_name}_metadata naming convention.
+    """
 
     id: str
     model: str
@@ -658,7 +663,7 @@ class AssistantService:
             description=db_assistant.description,
             instructions=db_assistant.instructions,
             tools=db_assistant.tools,
-            metadata=db_assistant.assistant_metadata or {},
+            metadata=db_assistant.metadata_ or {},
             owner_api_key_hash=db_assistant.owner_api_key_hash,
             temperature=db_assistant.temperature,
             top_p=db_assistant.top_p,

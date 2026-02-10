@@ -2,6 +2,7 @@
 
 import secrets
 from collections.abc import AsyncGenerator
+from dataclasses import dataclass, field
 from functools import lru_cache
 from typing import Annotated
 
@@ -19,6 +20,7 @@ from apps.api.adapters.session_repo import SessionRepository
 from apps.api.config import Settings, get_settings
 from apps.api.exceptions import AuthenticationError, ServiceUnavailableError
 from apps.api.protocols import AgentConfigProtocol, ProjectProtocol
+from apps.api.protocols import AgentService as AgentServiceProtocol
 from apps.api.services.agent import AgentService
 from apps.api.services.checkpoint import CheckpointService
 from apps.api.services.mcp_config_injector import McpConfigInjector
@@ -36,52 +38,90 @@ from apps.api.services.skills_crud import SkillCrudService
 from apps.api.services.slash_commands import SlashCommandService
 from apps.api.services.tool_presets import ToolPresetService
 
-# Global instances (initialized in lifespan)
-_async_engine: AsyncEngine | None = None
-_async_session_maker: async_sessionmaker[AsyncSession] | None = None
-_redis_cache: RedisCache | None = None
-_agent_service: AgentService | None = None  # Singleton for tests, None for per-request
-_memory_service: MemoryService | None = None  # Singleton for tests, None for cached
+
+@dataclass
+class AppState:
+    """Application state for dependency injection (ARC-04).
+
+    Stores all application-wide singletons on app.state instead of module-level
+    globals. This enables proper cleanup and test isolation (M-01, ARC-05).
+
+    Attributes:
+        engine: SQLAlchemy async engine for database connections.
+        session_maker: Factory for creating database sessions.
+        cache: Redis cache instance.
+        agent_service: Optional singleton for tests (None = per-request).
+        memory_service: Optional singleton for tests (None = cached).
+    """
+
+    engine: AsyncEngine | None = None
+    session_maker: async_sessionmaker[AsyncSession] | None = None
+    cache: RedisCache | None = None
+    agent_service: AgentService | None = None
+    memory_service: MemoryService | None = field(default=None)
 
 
-async def init_db(settings: Settings) -> async_sessionmaker[AsyncSession]:
-    """Initialize database engine and session maker.
+def get_app_state(request: Request) -> AppState:
+    """Get application state from request context.
 
     Args:
+        request: FastAPI request object.
+
+    Returns:
+        AppState instance from app.state.
+
+    Raises:
+        RuntimeError: If app state not initialized.
+    """
+    if not hasattr(request.app.state, "app_state"):
+        raise RuntimeError("App state not initialized")
+    return request.app.state.app_state
+
+
+async def init_db(
+    state: AppState,
+    settings: Settings,
+) -> async_sessionmaker[AsyncSession]:
+    """Initialize database engine and session maker (M-01, ARC-04).
+
+    Args:
+        state: Application state to store engine and session maker.
         settings: Application settings.
 
     Returns:
         Async session maker.
     """
-    global _async_engine, _async_session_maker
-
-    _async_engine = create_async_engine(
+    state.engine = create_async_engine(
         settings.database_url,
         pool_size=settings.db_pool_size,
         max_overflow=settings.db_max_overflow,
         echo=settings.debug,
     )
-    _async_session_maker = async_sessionmaker(
-        bind=_async_engine,
+    state.session_maker = async_sessionmaker(
+        bind=state.engine,
         class_=AsyncSession,
         expire_on_commit=False,
     )
-    return _async_session_maker
+    return state.session_maker
 
 
-async def close_db() -> None:
-    """Close database connections."""
-    global _async_engine, _async_session_maker
-    if _async_engine is not None:
-        await _async_engine.dispose()
-        _async_engine = None
-        _async_session_maker = None
-
-
-async def init_cache(settings: Settings) -> RedisCache:
-    """Initialize Redis cache with health check and retry.
+async def close_db(state: AppState) -> None:
+    """Close database connections.
 
     Args:
+        state: Application state containing engine to dispose.
+    """
+    if state.engine is not None:
+        await state.engine.dispose()
+        state.engine = None
+        state.session_maker = None
+
+
+async def init_cache(state: AppState, settings: Settings) -> RedisCache:
+    """Initialize Redis cache with health check and retry (M-01, ARC-04).
+
+    Args:
+        state: Application state to store cache instance.
         settings: Application settings.
 
     Returns:
@@ -97,9 +137,8 @@ async def init_cache(settings: Settings) -> RedisCache:
     from apps.api.adapters.cache import RedisCache
 
     logger = structlog.get_logger(__name__)
-    global _redis_cache
 
-    _redis_cache = await RedisCache.create(settings.redis_url)
+    state.cache = await RedisCache.create(settings.redis_url)
 
     # Health check with retry logic
     max_attempts = 10
@@ -108,13 +147,13 @@ async def init_cache(settings: Settings) -> RedisCache:
 
     for attempt in range(1, max_attempts + 1):
         try:
-            await _redis_cache.ping()
+            await state.cache.ping()
             logger.info(
                 "redis_health_check_passed",
                 attempt=attempt,
                 max_attempts=max_attempts,
             )
-            return _redis_cache
+            return state.cache
         except Exception as exc:
             last_error = exc
             if attempt < max_attempts:
@@ -143,16 +182,24 @@ async def init_cache(settings: Settings) -> RedisCache:
     )
 
 
-async def close_cache() -> None:
-    """Close cache connections."""
-    global _redis_cache
-    if _redis_cache:
-        await _redis_cache.close()
-        _redis_cache = None
+async def close_cache(state: AppState) -> None:
+    """Close cache connections.
+
+    Args:
+        state: Application state containing cache to close.
+    """
+    if state.cache:
+        await state.cache.close()
+        state.cache = None
 
 
-async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    """Get database session.
+async def get_db(
+    state: Annotated[AppState, Depends(get_app_state)],
+) -> AsyncGenerator[AsyncSession, None]:
+    """Get database session from app state (ARC-04).
+
+    Args:
+        state: Application state containing session maker.
 
     Yields:
         Async database session.
@@ -160,15 +207,20 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
     Raises:
         RuntimeError: If database not initialized.
     """
-    if _async_session_maker is None:
+    if state.session_maker is None:
         raise RuntimeError("Database not initialized")
 
-    async with _async_session_maker() as session:
+    async with state.session_maker() as session:
         yield session
 
 
-async def get_cache() -> RedisCache:
-    """Get Redis cache instance.
+async def get_cache(
+    state: Annotated[AppState, Depends(get_app_state)],
+) -> RedisCache:
+    """Get Redis cache instance from app state (ARC-04).
+
+    Args:
+        state: Application state containing cache.
 
     Returns:
         Redis cache instance.
@@ -176,9 +228,9 @@ async def get_cache() -> RedisCache:
     Raises:
         RuntimeError: If cache not initialized.
     """
-    if _redis_cache is None:
+    if state.cache is None:
         raise RuntimeError("Cache not initialized")
-    return _redis_cache
+    return state.cache
 
 
 async def get_session_repo(
@@ -243,18 +295,20 @@ async def get_checkpoint_service(
 
 
 async def get_agent_service(
+    state: Annotated[AppState, Depends(get_app_state)],
     cache: Annotated[RedisCache, Depends(get_cache)],
     checkpoint_service: Annotated[CheckpointService, Depends(get_checkpoint_service)],
 ) -> AgentService:
-    """Get agent service instance.
+    """Get agent service instance from app state (ARC-04, ARC-05).
 
     Creates a new instance per request to avoid sharing mutable
     request-scoped state (_active_sessions) across concurrent requests.
 
-    In tests, if a global singleton is set via set_agent_service_singleton(),
-    that instance is returned instead to allow test fixtures to share state.
+    In tests, if a singleton is set on app.state, that instance is returned
+    instead to allow test fixtures to share state (M-01).
 
     Args:
+        state: Application state containing optional singleton.
         cache: Redis cache from dependency injection.
         checkpoint_service: Checkpoint service from dependency injection.
 
@@ -265,12 +319,12 @@ async def get_agent_service(
     from apps.api.services.webhook import WebhookService
 
     # Use singleton if set (for tests)
-    if _agent_service is not None:
-        return _agent_service
+    if state.agent_service is not None:
+        return state.agent_service
 
     # Create MCP config injector
     loader = get_mcp_config_loader()
-    config_service = McpServerConfigService(cache=cache)
+    config_service = await get_mcp_server_config_service_provider(cache)
     validator = ConfigValidator()
     config_injector = McpConfigInjector(
         config_loader=loader,
@@ -279,7 +333,7 @@ async def get_agent_service(
     )
 
     # Get memory service
-    memory_service = get_memory_service()
+    memory_service = await get_memory_service(state=state)
 
     # Build config object
     config = AgentServiceConfig(
@@ -292,16 +346,6 @@ async def get_agent_service(
 
     # Otherwise create new instance per request with config
     return AgentService(config=config)
-
-
-def set_agent_service_singleton(service: AgentService | None) -> None:
-    """Set a global agent service singleton for tests.
-
-    Args:
-        service: AgentService instance to use as singleton, or None to disable.
-    """
-    global _agent_service
-    _agent_service = service
 
 
 async def get_session_service(
@@ -377,20 +421,36 @@ def get_mcp_config_loader() -> McpConfigLoader:
     return McpConfigLoader(project_path=project_path)
 
 
+async def get_mcp_server_config_service_provider(
+    cache: Annotated[RedisCache, Depends(get_cache)],
+) -> McpServerConfigService:
+    """Get MCP server config service.
+
+    Note: This is a separate provider from the one used in get_mcp_config_injector.
+    Routes that need direct access to MCP server configs should use this.
+
+    Args:
+        cache: Redis cache from dependency injection.
+
+    Returns:
+        McpServerConfigService instance.
+    """
+    return McpServerConfigService(cache=cache)
+
+
 async def get_mcp_config_injector(
     loader: Annotated[McpConfigLoader, Depends(get_mcp_config_loader)],
-    cache: Annotated[RedisCache, Depends(get_cache)],
+    config_service: Annotated[McpServerConfigService, Depends(get_mcp_server_config_service_provider)],
 ) -> McpConfigInjector:
     """Get MCP config injector instance.
 
     Args:
         loader: MCP config loader from dependency injection.
-        cache: Redis cache from dependency injection.
+        config_service: MCP server config service from dependency injection.
 
     Returns:
         McpConfigInjector instance with loader, config service, and validator.
     """
-    config_service = McpServerConfigService(cache=cache)
     validator = ConfigValidator()
     return McpConfigInjector(
         config_loader=loader,
@@ -399,28 +459,36 @@ async def get_mcp_config_injector(
     )
 
 
-@lru_cache
-def get_memory_service() -> MemoryService:
-    """Get cached memory service instance.
+async def get_memory_service(
+    state: Annotated[AppState, Depends(get_app_state)],
+) -> MemoryService:
+    """Get memory service instance from app state (M-02, ARC-05).
 
-    In tests, if a global singleton is set, that instance is returned instead
-    to allow test fixtures to inject mocks.
+    In tests, if a singleton is set on app.state, that instance is returned
+    instead to allow test fixtures to inject mocks.
 
-    Note: The Memory client is initialized once and reused (singleton).
+    Note: The Memory client is initialized once and cached on app.state.
     This is intentional - Mem0 Memory instances are stateless and can be
-    safely shared across requests. The lru_cache ensures only one instance
-    is created per process.
+    safely shared across requests. Caching on state avoids repeated initialization.
+
+    Args:
+        state: Application state containing optional singleton or cached instance.
 
     Returns:
         MemoryService instance with Mem0 adapter configured.
     """
     # Use singleton if set (for tests)
-    if _memory_service is not None:
-        return _memory_service
+    if state.memory_service is not None:
+        return state.memory_service
 
+    # Create and cache on first use
     settings = get_settings()
     adapter = Mem0MemoryAdapter(settings)
-    return MemoryService(adapter)
+    memory_service = MemoryService(adapter)
+
+    # Cache on state for subsequent requests
+    state.memory_service = memory_service
+    return memory_service
 
 
 # --- CRUD Service Providers (Phase 2: DI Refactor) ---
@@ -510,23 +578,6 @@ def get_mcp_discovery_service() -> "McpDiscoveryService":
     return McpDiscoveryService(project_path=Path.cwd())
 
 
-async def get_mcp_server_config_service_provider(
-    cache: Annotated[RedisCache, Depends(get_cache)],
-) -> McpServerConfigService:
-    """Get MCP server config service.
-
-    Note: This is a separate provider from the one used in get_mcp_config_injector.
-    Routes that need direct access to MCP server configs should use this.
-
-    Args:
-        cache: Redis cache from dependency injection.
-
-    Returns:
-        McpServerConfigService instance.
-    """
-    return McpServerConfigService(cache=cache)
-
-
 async def get_mcp_share_service(
     cache: Annotated[RedisCache, Depends(get_cache)],
 ) -> "McpShareService":
@@ -561,10 +612,10 @@ async def get_skills_crud_service(
 
 # Type aliases for dependency injection
 DbSession = Annotated[AsyncSession, Depends(get_db)]
-Cache = Annotated[RedisCache, Depends(get_cache)]
+CacheDep = Annotated[RedisCache, Depends(get_cache)]  # Named CacheDep to avoid collision with Cache protocol
 SessionRepo = Annotated[SessionRepository, Depends(get_session_repo)]
 ApiKey = Annotated[str, Depends(verify_api_key)]
-AgentSvc = Annotated[AgentService, Depends(get_agent_service)]
+AgentSvc = Annotated[AgentServiceProtocol, Depends(get_agent_service)]
 SessionSvc = Annotated[SessionService, Depends(get_session_service)]
 CheckpointSvc = Annotated[CheckpointService, Depends(get_checkpoint_service)]
 SkillsSvc = Annotated[SkillsService, Depends(get_skills_service)]
@@ -587,3 +638,19 @@ McpServerConfigSvc = Annotated[
 ]
 McpShareSvc = Annotated["McpShareService", Depends(get_mcp_share_service)]
 SkillCrudSvc = Annotated["SkillCrudService", Depends(get_skills_crud_service)]
+
+
+# --- Test Isolation (M-13) ---
+
+
+def reset_dependencies(state: AppState) -> None:
+    """Reset dependency singletons for test isolation (M-13).
+
+    Clears cached services on app.state to ensure fresh instances
+    between test cases. Use this instead of direct state manipulation.
+
+    Args:
+        state: Application state to reset.
+    """
+    state.agent_service = None
+    state.memory_service = None

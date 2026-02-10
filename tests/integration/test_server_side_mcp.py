@@ -96,7 +96,9 @@ class TestServerSideMcpIntegration:
         config_path.write_text(json.dumps(app_config), encoding="utf-8")
 
         # Create API-key-level override for the same server
-        cache = await get_cache()
+        app_state = async_client.app.state.app_state
+
+        cache = await get_cache(app_state)
         mcp_service = McpServerConfigService(cache)
 
         # Extract API key from auth headers
@@ -166,7 +168,9 @@ class TestServerSideMcpIntegration:
         config_path.write_text(json.dumps(app_config), encoding="utf-8")
 
         # Create API-key-level config
-        cache = await get_cache()
+        app_state = async_client.app.state.app_state
+
+        cache = await get_cache(app_state)
         mcp_service = McpServerConfigService(cache)
 
         api_key = auth_headers.get("X-API-Key", "")
@@ -241,7 +245,9 @@ class TestServerSideMcpIntegration:
         config_path.write_text(json.dumps(app_config), encoding="utf-8")
 
         # Create API-key-level config
-        cache = await get_cache()
+        app_state = async_client.app.state.app_state
+
+        cache = await get_cache(app_state)
         mcp_service = McpServerConfigService(cache)
 
         api_key = auth_headers.get("X-API-Key", "")
@@ -293,7 +299,10 @@ class TestServerSideMcpIntegration:
         from apps.api.dependencies import get_cache
         from apps.api.services.mcp_server_configs import McpServerConfigService
 
-        cache = await get_cache()
+        app_state = async_client.app.state.app_state
+
+
+        cache = await get_cache(app_state)
         mcp_service = McpServerConfigService(cache)
 
         # Create servers for first API key (from auth_headers)

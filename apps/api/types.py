@@ -247,7 +247,7 @@ class SessionData:
     total_turns: int
     total_cost_usd: float | None
     parent_session_id: UUID | None
-    metadata: dict[str, object] | None
+    metadata: dict[str, JsonValue] | None
 
 
 @dataclass
@@ -257,7 +257,7 @@ class MessageData:
     id: UUID
     session_id: UUID
     message_type: str
-    content: dict[str, object]
+    content: dict[str, JsonValue]
     created_at: datetime
 
 
@@ -277,4 +277,4 @@ class AgentMessage:
     """Agent message structure from SDK client."""
 
     type: str
-    data: dict[str, object]
+    data: dict[str, JsonValue]

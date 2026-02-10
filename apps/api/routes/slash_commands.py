@@ -25,7 +25,10 @@ async def list_slash_commands(
     service = slash_command_service
     commands = await service.list_commands()
     return SlashCommandListResponse(
-        commands=[SlashCommandDefinitionResponse(**c.__dict__) for c in commands]
+        commands=[
+            SlashCommandDefinitionResponse.model_validate(c, from_attributes=True)
+            for c in commands
+        ]
     )
 
 
@@ -43,7 +46,9 @@ async def create_slash_command(
         content=request.content,
         enabled=request.enabled,
     )
-    return SlashCommandDefinitionResponse(**command.__dict__)
+    return SlashCommandDefinitionResponse.model_validate(
+        command, from_attributes=True
+    )
 
 
 @router.get("/{command_id}", response_model=SlashCommandDefinitionResponse)
@@ -61,7 +66,9 @@ async def get_slash_command(
             code="SLASH_COMMAND_NOT_FOUND",
             status_code=404,
         )
-    return SlashCommandDefinitionResponse(**command.__dict__)
+    return SlashCommandDefinitionResponse.model_validate(
+        command, from_attributes=True
+    )
 
 
 @router.put("/{command_id}", response_model=SlashCommandDefinitionResponse)
@@ -86,7 +93,9 @@ async def update_slash_command(
             code="SLASH_COMMAND_NOT_FOUND",
             status_code=404,
         )
-    return SlashCommandDefinitionResponse(**command.__dict__)
+    return SlashCommandDefinitionResponse.model_validate(
+        command, from_attributes=True
+    )
 
 
 @router.delete("/{command_id}", status_code=204)

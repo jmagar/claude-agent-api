@@ -3,10 +3,14 @@
 import functools
 import inspect
 from collections.abc import Callable
+from typing import ParamSpec, TypeVar
+
+P = ParamSpec('P')
+R = TypeVar('R')
 
 
 @functools.lru_cache(maxsize=128)
-def supports_param(func: Callable[..., object], name: str) -> bool:
+def supports_param(func: Callable[P, R], name: str) -> bool:
     """Check if a callable supports a specific parameter name.
 
     Uses LRU cache to avoid repeated signature introspection for the same

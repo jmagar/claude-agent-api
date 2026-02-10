@@ -24,7 +24,6 @@ from apps.api.services.agent.stream_orchestrator import StreamOrchestrator
 from apps.api.services.agent.stream_query_runner import StreamQueryRunner
 from apps.api.services.agent.types import QueryResponseDict, StreamContext
 from apps.api.services.webhook import WebhookService
-from apps.api.utils.introspection import supports_param
 
 if TYPE_CHECKING:
     from apps.api.protocols import Cache
@@ -72,11 +71,7 @@ class AgentService:
         session_control: SessionControl | None = None,
         checkpoint_manager: CheckpointManager | None = None,
         file_modification_tracker: FileModificationTracker | None = None,
-        cache: "Cache | None" = None,
-        checkpoint_service: "CheckpointService | None" = None,
-        memory_service: "MemoryService | None" = None,
-        mcp_config_injector: "McpConfigInjector | None" = None,
-        webhook_service: WebhookService | None = None,
+        **deprecated_kwargs: object,
     ) -> None:
         """Initialize agent service.
 
@@ -90,28 +85,32 @@ class AgentService:
             session_control: Optional SessionControl (created if not provided).
             checkpoint_manager: Optional CheckpointManager (created if not provided).
             file_modification_tracker: Optional FileModificationTracker (created if not provided).
+            **deprecated_kwargs: Deprecated individual service parameters (cache, checkpoint_service, etc.).
+                                 Use config parameter instead. Support retained for backward compatibility.
         """
+        import warnings
+
         self._settings = get_settings()
-        if config is None:
-            config = AgentServiceConfig(
-                cache=cache,
-                checkpoint_service=checkpoint_service,
-                memory_service=memory_service,
-                mcp_config_injector=mcp_config_injector,
-                webhook_service=webhook_service,
+
+        # Handle deprecated kwargs by building config if needed
+        if deprecated_kwargs:
+            warnings.warn(
+                "Passing cache, checkpoint_service, memory_service, mcp_config_injector, "
+                "or webhook_service directly to AgentService is deprecated. "
+                "Use AgentServiceConfig instead.",
+                DeprecationWarning,
+                stacklevel=2,
             )
-        else:
-            if cache is not None and config.cache is None:
-                config.cache = cache
-            if checkpoint_service is not None and config.checkpoint_service is None:
-                config.checkpoint_service = checkpoint_service
-            if memory_service is not None and config.memory_service is None:
-                config.memory_service = memory_service
-            if mcp_config_injector is not None and config.mcp_config_injector is None:
-                config.mcp_config_injector = mcp_config_injector
-            if webhook_service is not None and config.webhook_service is None:
-                config.webhook_service = webhook_service
-        self._config = config
+            if config is None:
+                config = AgentServiceConfig(
+                    cache=deprecated_kwargs.get("cache"),  # type: ignore[arg-type]
+                    checkpoint_service=deprecated_kwargs.get("checkpoint_service"),  # type: ignore[arg-type]
+                    memory_service=deprecated_kwargs.get("memory_service"),  # type: ignore[arg-type]
+                    mcp_config_injector=deprecated_kwargs.get("mcp_config_injector"),  # type: ignore[arg-type]
+                    webhook_service=deprecated_kwargs.get("webhook_service"),  # type: ignore[arg-type]
+                )
+
+        self._config = config or AgentServiceConfig()
 
         # Extract config values for backward compatibility
         self._webhook_service = self._config.webhook_service or WebhookService()
@@ -269,14 +268,14 @@ class AgentService:
         )
         yield init_event
 
-        # Build kwargs with runtime parameter detection
-        stream_kwargs = _StreamRunnerKwargs(session_id_override=session_id)
-        if supports_param(self._stream_runner.run, "api_key"):
-            stream_kwargs["api_key"] = api_key
-        if supports_param(self._stream_runner.run, "memory_service"):
-            stream_kwargs["memory_service"] = self._memory_service
+        # Build kwargs for SDK runner (all params supported in SDK >= 0.1.19)
+        stream_kwargs = _StreamRunnerKwargs(
+            session_id_override=session_id,
+            api_key=api_key,
+            memory_service=self._memory_service,
+        )
 
-        # Invoke runner with typed kwargs (no cast to Any needed)
+        # Invoke runner with typed kwargs
         async for event in self._stream_runner.run(
             request,
             discovery.commands_service,
@@ -339,14 +338,13 @@ class AgentService:
         project_path = Path(request.cwd) if request.cwd else Path.cwd()
         discovery = CommandDiscovery(project_path=project_path)
 
-        # Build kwargs with runtime parameter detection
-        single_kwargs = _SingleRunnerKwargs()
-        if supports_param(self._single_query_runner.run, "api_key"):
-            single_kwargs["api_key"] = api_key
-        if supports_param(self._single_query_runner.run, "memory_service"):
-            single_kwargs["memory_service"] = self._memory_service
+        # Build kwargs for SDK runner (all params supported in SDK >= 0.1.19)
+        single_kwargs = _SingleRunnerKwargs(
+            api_key=api_key,
+            memory_service=self._memory_service,
+        )
 
-        # Invoke runner with typed kwargs (no cast to Any needed)
+        # Invoke runner with typed kwargs
         return await self._single_query_runner.run(
             request,
             discovery.commands_service,

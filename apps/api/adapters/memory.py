@@ -9,7 +9,6 @@ from mem0 import Memory
 from apps.api.config import Settings
 from apps.api.protocols import MemorySearchResult
 from apps.api.types import JsonValue
-from apps.api.utils.introspection import supports_param
 
 logger = structlog.get_logger(__name__)
 
@@ -143,11 +142,7 @@ class Mem0MemoryAdapter:
                 "user_id": user_id,
                 "agent_id": self._agent_id,
                 "limit": limit,
-                **(
-                    {"enable_graph": enable_graph}
-                    if supports_param(self._memory.search, "enable_graph")
-                    else {}
-                ),
+                "enable_graph": enable_graph,
             },
         )
         if isinstance(results, dict) and isinstance(results.get("results"), list):
@@ -212,11 +207,7 @@ class Mem0MemoryAdapter:
                 "user_id": user_id,
                 "agent_id": self._agent_id,
                 "metadata": metadata or {},
-                **(
-                    {"enable_graph": enable_graph}
-                    if supports_param(self._memory.add, "enable_graph")
-                    else {}
-                ),
+                "enable_graph": enable_graph,
             },
         )
         # Normalize response format (defensive against Mem0 API changes)

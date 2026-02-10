@@ -2,10 +2,11 @@
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any, cast
+from typing import cast
 from uuid import uuid4
 
 from apps.api.protocols import Cache
+from apps.api.types import JsonValue
 
 
 @dataclass
@@ -18,7 +19,7 @@ class ProjectRecord:
     created_at: str
     last_accessed_at: str | None
     session_count: int | None
-    metadata: dict[str, object] | None
+    metadata: dict[str, JsonValue] | None
 
 
 class ProjectService:
@@ -56,7 +57,7 @@ class ProjectService:
                     created_at=str(raw.get("created_at", "")),
                     last_accessed_at=cast("str | None", raw.get("last_accessed_at")),
                     session_count=cast("int | None", raw.get("session_count")),
-                    metadata=cast("dict[str, Any] | None", raw.get("metadata")),
+                    metadata=cast("dict[str, JsonValue] | None", raw.get("metadata")),
                 )
             )
 
@@ -66,7 +67,7 @@ class ProjectService:
         self,
         name: str,
         path: str | None,
-        metadata: dict[str, object] | None,
+        metadata: dict[str, JsonValue] | None,
     ) -> ProjectRecord | None:
         """<summary>Create a project if name/path are unique.</summary>"""
         existing = await self.list_projects()
@@ -103,14 +104,14 @@ class ProjectService:
             created_at=str(raw.get("created_at", "")),
             last_accessed_at=cast("str | None", raw.get("last_accessed_at")),
             session_count=cast("int | None", raw.get("session_count")),
-            metadata=cast("dict[str, Any] | None", raw.get("metadata")),
+            metadata=cast("dict[str, JsonValue] | None", raw.get("metadata")),
         )
 
     async def update_project(
         self,
         project_id: str,
         name: str | None,
-        metadata: dict[str, object] | None,
+        metadata: dict[str, JsonValue] | None,
     ) -> ProjectRecord | None:
         """<summary>Update a project.</summary>"""
         existing = await self.get_project(project_id)

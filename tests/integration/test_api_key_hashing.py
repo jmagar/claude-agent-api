@@ -25,7 +25,8 @@ async def db_session(_async_client: AsyncClient) -> AsyncGenerator[AsyncSession,
         Async database session.
     """
     # Get database session from dependencies
-    agen = get_db()
+    app_state = _async_client.app.state.app_state
+    agen = get_db(app_state)
     session = await anext(agen)
     try:
         yield session

@@ -93,3 +93,13 @@ def get_run_service() -> RunService:
         RunService for run CRUD operations.
     """
     return RunService()
+
+
+# Type aliases for dependency injection
+ModelMapperDep = Annotated[ModelMapper, Depends(get_model_mapper)]
+RequestTranslatorDep = Annotated[RequestTranslator, Depends(get_request_translator)]
+ResponseTranslatorDep = Annotated[ResponseTranslator, Depends(get_response_translator)]
+AssistantSvcDep = Annotated[AssistantService, Depends(get_assistant_service)]
+ThreadSvcDep = Annotated[ThreadService, Depends(get_thread_service)]
+MessageSvcDep = Annotated[MessageService, Depends(get_message_service)]
+RunSvcDep = Annotated[RunService, Depends(get_run_service)]

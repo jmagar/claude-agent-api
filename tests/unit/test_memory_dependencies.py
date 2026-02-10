@@ -1,49 +1,58 @@
-"""Tests for memory dependency injection."""
+"""Tests for memory dependency injection (M-02, ARC-05)."""
 
+import pytest
 from unittest.mock import MagicMock, patch
 
-from apps.api.dependencies import get_memory_service
+from apps.api.dependencies import AppState, get_memory_service, reset_dependencies
 from apps.api.services.memory import MemoryService
 
 
-def test_get_memory_service_returns_service() -> None:
-    """get_memory_service should return MemoryService instance."""
-    # Clear cache first to ensure clean state
-    get_memory_service.cache_clear()
+@pytest.mark.anyio
+async def test_get_memory_service_returns_service() -> None:
+    """get_memory_service should return MemoryService instance from AppState."""
+    # Create fresh state
+    state = AppState()
 
     with patch("apps.api.adapters.memory.Mem0MemoryAdapter") as mock_adapter_class:
         mock_adapter = MagicMock()
         mock_adapter_class.return_value = mock_adapter
 
-        service = get_memory_service()
+        service = await get_memory_service(state=state)
         assert isinstance(service, MemoryService)
 
-        # Cleanup lru_cache for next test
-        get_memory_service.cache_clear()
+
+@pytest.mark.anyio
+async def test_get_memory_service_is_singleton() -> None:
+    """get_memory_service should return same instance (singleton via AppState)."""
+    # Create fresh state (no singleton set)
+    state = AppState()
+
+    # First call creates and caches the service
+    service1 = await get_memory_service(state=state)
+    # Second call returns cached instance
+    service2 = await get_memory_service(state=state)
+    # Third call still returns same instance
+    service3 = await get_memory_service(state=state)
+
+    # Verify same instance returned (singleton behavior via state.memory_service)
+    assert service1 is service2
+    assert service2 is service3
+    assert isinstance(service1, MemoryService)
 
 
-def test_get_memory_service_is_singleton() -> None:
-    """get_memory_service should return same instance (singleton via lru_cache)."""
-    from apps.api import dependencies
+@pytest.mark.anyio
+async def test_get_memory_service_respects_test_singleton() -> None:
+    """get_memory_service should return test singleton if set (M-02, M-13)."""
+    # Create state with singleton
+    state = AppState()
+    mock_service = MagicMock(spec=MemoryService)
+    state.memory_service = mock_service
 
-    # Clear both cache and global singleton
-    get_memory_service.cache_clear()
-    original_singleton = dependencies._memory_service
-    dependencies._memory_service = None
+    # Should return singleton
+    service = await get_memory_service(state=state)
+    assert service is mock_service
 
-    try:
-        # First call creates and caches the service
-        service1 = get_memory_service()
-        # Second call returns cached instance
-        service2 = get_memory_service()
-        # Third call still returns same instance
-        service3 = get_memory_service()
-
-        # Verify same instance returned (singleton behavior guaranteed by lru_cache)
-        assert service1 is service2
-        assert service2 is service3
-        assert isinstance(service1, MemoryService)
-    finally:
-        # Restore original state
-        dependencies._memory_service = original_singleton
-        get_memory_service.cache_clear()
+    # Reset and verify fresh instance created
+    reset_dependencies(state)
+    service2 = await get_memory_service(state=state)
+    assert service2 is not mock_service

@@ -10,9 +10,11 @@ if TYPE_CHECKING:
 
 
 @pytest.fixture
-def mock_memory_service() -> AsyncMock:
-    """Create mock memory service and inject it as singleton."""
-    from apps.api import dependencies
+def mock_memory_service(async_client: "AsyncClient") -> AsyncMock:
+    """Create mock memory service and inject it as singleton (M-13)."""
+    from fastapi import Request
+
+    from apps.api.dependencies import get_app_state
 
     # Create mock
     mock = AsyncMock()
@@ -30,11 +32,10 @@ def mock_memory_service() -> AsyncMock:
         {"id": "mem_456", "memory": "User likes Python"},
     ]
 
-    # Clear lru_cache before setting singleton
-    dependencies.get_memory_service.cache_clear()
-
-    # Set as singleton (will be cleared by async_client fixture)
-    dependencies._memory_service = mock
+    # Get app state and set singleton
+    request = Request(scope={"type": "http", "app": async_client._transport.app})  # type: ignore[arg-type]
+    app_state = get_app_state(request)
+    app_state.memory_service = mock
 
     return mock
 

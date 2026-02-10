@@ -9,7 +9,7 @@ See: .docs/api-key-hashing-migration.md for full migration plan.
 """
 
 from collections.abc import Sequence
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import UUID
 
@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.exceptions.session import SessionNotFoundError
 from apps.api.models.session import Checkpoint, Session, SessionMessage
+from apps.api.types import JsonValue
 from apps.api.utils.crypto import hash_api_key
 
 
@@ -38,7 +39,7 @@ class SessionRepository:
         model: str,
         working_directory: str | None = None,
         parent_session_id: UUID | None = None,
-        metadata: dict[str, object] | None = None,
+        metadata: dict[str, JsonValue] | None = None,
         owner_api_key: str | None = None,
     ) -> Session:
         """Create a new session record.
@@ -111,7 +112,7 @@ class SessionRepository:
         from sqlalchemy import update as sql_update
 
         # Build update values
-        update_values: dict[str, object] = {"updated_at": datetime.now()}
+        update_values: dict[str, object] = {"updated_at": datetime.now(UTC)}
 
         if status is not None:
             update_values["status"] = status
@@ -136,7 +137,7 @@ class SessionRepository:
     async def update_metadata(
         self,
         session_id: UUID,
-        metadata: dict[str, object],
+        metadata: dict[str, JsonValue],
     ) -> Session | None:
         """Update session metadata.
 
@@ -152,7 +153,7 @@ class SessionRepository:
         stmt = (
             sql_update(Session)
             .where(Session.id == session_id)
-            .values(session_metadata=metadata, updated_at=datetime.now())
+            .values(session_metadata=metadata, updated_at=datetime.now(UTC))
             .returning(Session)
         )
 
@@ -168,6 +169,10 @@ class SessionRepository:
         offset: int = 0,
         *,
         filter_by_owner_or_public: bool = False,
+        mode: str | None = None,
+        project_id: str | None = None,
+        tags: list[str] | None = None,
+        search: str | None = None,
     ) -> tuple[Sequence[Session], int]:
         """List sessions with optional filtering.
 
@@ -179,11 +184,16 @@ class SessionRepository:
             filter_by_owner_or_public: If True, returns sessions where
                 owner_api_key is NULL (public) OR matches the provided key.
                 This is the secure multi-tenant filter.
+            mode: Filter by session mode (JSONB metadata.mode field).
+            project_id: Filter by project ID (JSONB metadata.project_id field).
+            tags: Filter by tags (JSONB metadata.tags array - must contain ALL tags).
+            search: Filter by title substring (JSONB metadata.title field).
 
         Returns:
             Tuple of session list and total count.
         """
-        from sqlalchemy import or_
+        from sqlalchemy import cast, or_
+        from sqlalchemy.dialects.postgresql import JSONB
 
         # Build query
         stmt = select(Session).order_by(Session.created_at.desc())
@@ -213,6 +223,45 @@ class SessionRepository:
                     Session.owner_api_key_hash == owner_api_key_hash
                 )
 
+        # JSONB metadata filtering (database-level instead of in-memory)
+        if mode:
+            # Filter by metadata.mode (string field)
+            stmt = stmt.where(
+                Session.session_metadata["mode"].astext == mode
+            )
+            count_stmt = count_stmt.where(
+                Session.session_metadata["mode"].astext == mode
+            )
+
+        if project_id:
+            # Filter by metadata.project_id (string field)
+            stmt = stmt.where(
+                Session.session_metadata["project_id"].astext == project_id
+            )
+            count_stmt = count_stmt.where(
+                Session.session_metadata["project_id"].astext == project_id
+            )
+
+        if tags:
+            # Filter by metadata.tags (array field - must contain ALL specified tags)
+            # PostgreSQL @> operator checks if left array contains all elements from right array
+            tags_jsonb = cast(tags, JSONB)
+            stmt = stmt.where(
+                Session.session_metadata["tags"].astext.op("@>")(tags_jsonb)
+            )
+            count_stmt = count_stmt.where(
+                Session.session_metadata["tags"].astext.op("@>")(tags_jsonb)
+            )
+
+        if search:
+            # Filter by metadata.title substring (case-insensitive)
+            stmt = stmt.where(
+                Session.session_metadata["title"].astext.ilike(f"%{search}%")
+            )
+            count_stmt = count_stmt.where(
+                Session.session_metadata["title"].astext.ilike(f"%{search}%")
+            )
+
         # Get total count
         count_result = await self._db.execute(count_stmt)
         total = count_result.scalar_one()
@@ -228,7 +277,7 @@ class SessionRepository:
         self,
         session_id: UUID,
         message_type: str,
-        content: dict[str, object],
+        content: dict[str, JsonValue],
     ) -> SessionMessage:
         """Add a message to a session.
 

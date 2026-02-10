@@ -23,7 +23,10 @@ async def list_tool_presets(
     presets = await service.list_presets()
 
     return ToolPresetListResponse(
-        presets=[ToolPresetResponse(**preset.__dict__) for preset in presets]
+        presets=[
+            ToolPresetResponse.model_validate(preset, from_attributes=True)
+            for preset in presets
+        ]
     )
 
 
@@ -46,7 +49,7 @@ async def create_tool_preset(
         disallowed_tools=disallowed_tools,
     )
 
-    return ToolPresetResponse(**preset.__dict__)
+    return ToolPresetResponse.model_validate(preset, from_attributes=True)
 
 
 @router.get("/{preset_id}", response_model=ToolPresetResponse)
@@ -61,7 +64,7 @@ async def get_tool_preset(
     if preset is None:
         raise ToolPresetNotFoundError(preset_id)
 
-    return ToolPresetResponse(**preset.__dict__)
+    return ToolPresetResponse.model_validate(preset, from_attributes=True)
 
 
 @router.put("/{preset_id}", response_model=ToolPresetResponse)
@@ -89,7 +92,7 @@ async def update_tool_preset(
     if preset is None:
         raise ToolPresetNotFoundError(preset_id)
 
-    return ToolPresetResponse(**preset.__dict__)
+    return ToolPresetResponse.model_validate(preset, from_attributes=True)
 
 
 @router.delete("/{preset_id}", status_code=204)

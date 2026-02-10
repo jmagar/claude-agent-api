@@ -21,7 +21,10 @@ async def list_projects(
     """<summary>List all projects.</summary>"""
     projects = await project_service.list_projects()
     return ProjectListResponse(
-        projects=[ProjectResponse(**p.__dict__) for p in projects], total=len(projects)
+        projects=[
+            ProjectResponse.model_validate(p, from_attributes=True) for p in projects
+        ],
+        total=len(projects),
     )
 
 
@@ -32,8 +35,11 @@ async def create_project(
     project_service: ProjectSvc,
 ) -> ProjectResponse:
     """<summary>Create a new project.</summary>"""
+    from typing import cast
+    from apps.api.types import JsonValue
+
     project = await project_service.create_project(
-        request.name, request.path, request.metadata
+        request.name, request.path, cast(dict[str, JsonValue] | None, request.metadata)
     )
     if project is None:
         raise APIError(
@@ -41,7 +47,7 @@ async def create_project(
             code="PROJECT_EXISTS",
             status_code=409,
         )
-    return ProjectResponse(**project.__dict__)
+    return ProjectResponse.model_validate(project, from_attributes=True)
 
 
 @router.get("/{project_id}", response_model=ProjectResponse)
@@ -58,7 +64,7 @@ async def get_project(
             code="PROJECT_NOT_FOUND",
             status_code=404,
         )
-    return ProjectResponse(**project.__dict__)
+    return ProjectResponse.model_validate(project, from_attributes=True)
 
 
 @router.patch("/{project_id}", response_model=ProjectResponse)
@@ -69,8 +75,11 @@ async def update_project(
     project_service: ProjectSvc,
 ) -> ProjectResponse:
     """<summary>Update a project.</summary>"""
+    from typing import cast
+    from apps.api.types import JsonValue
+
     project = await project_service.update_project(
-        project_id, request.name, request.metadata
+        project_id, request.name, cast(dict[str, JsonValue] | None, request.metadata)
     )
     if project is None:
         raise APIError(
@@ -78,7 +87,7 @@ async def update_project(
             code="PROJECT_NOT_FOUND",
             status_code=404,
         )
-    return ProjectResponse(**project.__dict__)
+    return ProjectResponse.model_validate(project, from_attributes=True)
 
 
 @router.delete("/{project_id}", status_code=204)

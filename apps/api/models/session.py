@@ -9,6 +9,8 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.sql.sqltypes import UUID as SQLAUUID
 
+from apps.api.types import JsonValue
+
 
 def _uuid_column() -> SQLAUUID[UUID]:
     """Create a properly-typed PostgreSQL UUID column for Python UUID objects.
@@ -64,7 +66,9 @@ class Session(Base):
         ForeignKey("sessions.id"),
         nullable=True,
     )
-    session_metadata: Mapped[dict[str, object] | None] = mapped_column(
+    # Metadata naming convention: {table_name}_metadata (session_metadata, assistant_metadata, run_metadata)
+    # This prevents column name collisions when joining tables and makes ownership explicit.
+    session_metadata: Mapped[dict[str, JsonValue] | None] = mapped_column(
         "session_metadata",
         JSONB,
         nullable=True,

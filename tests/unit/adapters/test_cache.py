@@ -33,7 +33,8 @@ async def cache(async_client: AsyncClient) -> AsyncGenerator[RedisCache, None]:
     """
     # async_client fixture ensures app and cache are initialized
     _ = async_client  # Mark as used to satisfy type checker
-    cache_instance = await get_cache()
+    app_state = async_client.app.state.app_state
+    cache_instance = await get_cache(app_state)
     yield cache_instance
 
 

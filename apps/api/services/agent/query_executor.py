@@ -3,7 +3,7 @@
 import asyncio
 from collections.abc import AsyncGenerator
 from enum import Enum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NoReturn
 
 import structlog
 
@@ -85,15 +85,16 @@ class QueryExecutor:
                 assistant_responses,
             ):
                 yield event
-        except ImportError:
-            # SDK not installed - emit mock response for development
-            logger.warning("Claude Agent SDK not installed, using mock response")
-            async for event in self.mock_response(request, ctx):
-                yield event
+        except ImportError as e:
+            # SDK not installed - fail hard, this is a deployment error
+            logger.error("Claude Agent SDK not installed")
+            raise RuntimeError(
+                "Claude Agent SDK is not installed. "
+                "Install it with: uv add claude-agent-sdk"
+            ) from e
         except Exception as e:
-            # Handle SDK-specific errors
-            async for event in self._handle_sdk_error(e, ctx):
-                yield event
+            # Handle SDK-specific errors (always raises, never returns)
+            await self._handle_sdk_error(e, ctx)
 
     async def _execute_with_sdk(
         self,
@@ -181,9 +182,11 @@ class QueryExecutor:
 
         # Extract memories after completion
         if memory_service and api_key:
-            await self._extract_memory(
+            error_event = await self._extract_memory(
                 request, assistant_responses, memory_service, api_key, ctx.session_id
             )
+            if error_event:
+                yield error_event
 
     async def _send_multimodal_query(
         self,
@@ -216,15 +219,12 @@ class QueryExecutor:
 
     async def _handle_sdk_error(
         self, error: Exception, ctx: StreamContext
-    ) -> AsyncGenerator[dict[str, str], None]:
+    ) -> NoReturn:
         """Handle SDK-specific errors with appropriate error messages.
 
         Args:
             error: The exception that was raised.
             ctx: Stream context to update error state.
-
-        Yields:
-            Nothing (always raises AgentError).
 
         Raises:
             AgentError: Translated error with user-friendly message.
@@ -279,9 +279,6 @@ class QueryExecutor:
         logger.error("SDK execution error", error=str(error))
         raise AgentError("Agent execution failed", original_error=str(error)) from error
 
-        # Make this a generator (unreachable but satisfies type checker)
-        yield {}  # pragma: no cover
-
     async def _inject_memory_context(
         self,
         request: "QueryRequest",
@@ -300,10 +297,10 @@ class QueryExecutor:
         Returns:
             Modified request with memory context injected (immutable copy).
         """
-        try:
-            # Hash API key before passing to memory service (CRITICAL: prevents plaintext exposure)
-            hashed_user_id = hash_api_key(api_key)
+        # Hash API key once before try block (prevents duplicate hashing in error path)
+        hashed_user_id = hash_api_key(api_key)
 
+        try:
             memory_context = await memory_service.format_memory_context(
                 query=request.prompt,
                 user_id=hashed_user_id,
@@ -329,8 +326,6 @@ class QueryExecutor:
                     memory_count=memory_context.count("\n- "),
                 )
         except Exception as exc:
-            # Hash API key in error logs
-            hashed_user_id = hash_api_key(api_key)
             logger.warning(
                 "memory_injection_failed",
                 session_id=session_id,
@@ -420,7 +415,7 @@ class QueryExecutor:
         memory_service: "MemoryService",
         api_key: str,
         session_id: str,
-    ) -> None:
+    ) -> dict[str, str] | None:
         """Extract and store memories from conversation.
 
         Args:
@@ -429,11 +424,14 @@ class QueryExecutor:
             memory_service: Memory service for storing memories.
             api_key: API key for multi-tenant isolation.
             session_id: Session ID for metadata.
-        """
-        try:
-            # Hash API key before passing to memory service (CRITICAL: prevents plaintext exposure)
-            hashed_user_id = hash_api_key(api_key)
 
+        Returns:
+            Error event dict if memory extraction fails, None otherwise.
+        """
+        # Hash API key once before try block (prevents duplicate hashing in error path)
+        hashed_user_id = hash_api_key(api_key)
+
+        try:
             # Format conversation for memory extraction
             if assistant_responses:
                 assistant_text = " ".join(assistant_responses)
@@ -456,14 +454,26 @@ class QueryExecutor:
                 user_id=hashed_user_id,
                 has_response=bool(assistant_responses),
             )
+            return None
         except Exception as exc:
-            # Hash API key in error logs
-            hashed_user_id = hash_api_key(api_key)
             logger.warning(
                 "memory_extraction_failed",
                 session_id=session_id,
                 user_id=hashed_user_id,
                 error=str(exc),
+            )
+            # Notify user of memory extraction failure
+            from apps.api.schemas.responses import ErrorEvent, ErrorEventData
+
+            error_event = ErrorEvent(
+                data=ErrorEventData(
+                    code="MEMORY_EXTRACTION_FAILED",
+                    message="Failed to save conversation to memory",
+                    details={"error": str(exc)},
+                )
+            )
+            return self._message_handler.format_sse(
+                error_event.event, error_event.data.model_dump()
             )
 
     async def mock_response(

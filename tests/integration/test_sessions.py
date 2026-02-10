@@ -240,7 +240,8 @@ class TestSessionListFiltering:
         from apps.api.dependencies import get_db
 
         # Create sessions with different modes
-        db_gen = get_db()
+        app_state = async_client.app.state.app_state
+        db_gen = get_db(app_state)
         db_session = await anext(db_gen)
         try:
             repo = SessionRepository(db_session)
@@ -297,7 +298,8 @@ class TestSessionListFiltering:
         project_a = "project-alpha"
         project_b = "project-beta"
 
-        db_gen = get_db()
+        app_state = async_client.app.state.app_state
+        db_gen = get_db(app_state)
         db_session = await anext(db_gen)
         try:
             repo = SessionRepository(db_session)
@@ -346,7 +348,8 @@ class TestSessionListFiltering:
         from apps.api.adapters.session_repo import SessionRepository
         from apps.api.dependencies import get_db
 
-        db_gen = get_db()
+        app_state = async_client.app.state.app_state
+        db_gen = get_db(app_state)
         db_session = await anext(db_gen)
         try:
             repo = SessionRepository(db_session)
@@ -398,7 +401,8 @@ class TestSessionListFiltering:
         from apps.api.adapters.session_repo import SessionRepository
         from apps.api.dependencies import get_db
 
-        db_gen = get_db()
+        app_state = async_client.app.state.app_state
+        db_gen = get_db(app_state)
         db_session = await anext(db_gen)
         try:
             repo = SessionRepository(db_session)
@@ -439,14 +443,15 @@ class TestSessionListPagination:
     """Integration tests for session list pagination."""
 
     @pytest.fixture
-    async def _clear_sessions(self) -> None:
+    async def _clear_sessions(self, async_client: AsyncClient) -> None:
         """Ensure session table is empty before pagination tests."""
         from sqlalchemy import delete
 
         from apps.api.dependencies import get_db
         from apps.api.models.session import Session
 
-        db_gen = get_db()
+        app_state = async_client.app.state.app_state
+        db_gen = get_db(app_state)
         db_session = await anext(db_gen)
         try:
             await db_session.execute(delete(Session))
@@ -491,7 +496,8 @@ class TestSessionListPagination:
         from apps.api.adapters.session_repo import SessionRepository
         from apps.api.dependencies import get_db
 
-        db_gen = get_db()
+        app_state = async_client.app.state.app_state
+        db_gen = get_db(app_state)
         db_session = await anext(db_gen)
         try:
             repo = SessionRepository(db_session)
@@ -535,7 +541,8 @@ class TestSessionListPagination:
         from apps.api.adapters.session_repo import SessionRepository
         from apps.api.dependencies import get_db
 
-        db_gen = get_db()
+        app_state = async_client.app.state.app_state
+        db_gen = get_db(app_state)
         db_session = await anext(db_gen)
         try:
             repo = SessionRepository(db_session)
@@ -581,7 +588,8 @@ class TestSessionUpdates:
         from apps.api.adapters.session_repo import SessionRepository
         from apps.api.dependencies import get_db
 
-        db_gen = get_db()
+        app_state = async_client.app.state.app_state
+        db_gen = get_db(app_state)
         db_session = await anext(db_gen)
         try:
             repo = SessionRepository(db_session)
@@ -622,7 +630,8 @@ class TestSessionUpdates:
         from apps.api.adapters.session_repo import SessionRepository
         from apps.api.dependencies import get_db
 
-        db_gen = get_db()
+        app_state = async_client.app.state.app_state
+        db_gen = get_db(app_state)
         db_session = await anext(db_gen)
         try:
             repo = SessionRepository(db_session)
@@ -662,7 +671,8 @@ class TestSessionUpdates:
         from apps.api.adapters.session_repo import SessionRepository
         from apps.api.dependencies import get_db
 
-        db_gen = get_db()
+        app_state = async_client.app.state.app_state
+        db_gen = get_db(app_state)
         db_session = await anext(db_gen)
         try:
             repo = SessionRepository(db_session)
@@ -709,7 +719,8 @@ class TestSessionPromotion:
         from apps.api.adapters.session_repo import SessionRepository
         from apps.api.dependencies import get_db
 
-        db_gen = get_db()
+        app_state = async_client.app.state.app_state
+        db_gen = get_db(app_state)
         db_session = await anext(db_gen)
         try:
             repo = SessionRepository(db_session)
@@ -752,7 +763,8 @@ class TestSessionPromotion:
         from apps.api.adapters.session_repo import SessionRepository
         from apps.api.dependencies import get_db
 
-        db_gen = get_db()
+        app_state = async_client.app.state.app_state
+        db_gen = get_db(app_state)
         db_session = await anext(db_gen)
         try:
             repo = SessionRepository(db_session)
@@ -793,7 +805,8 @@ class TestSessionPromotion:
         from apps.api.adapters.session_repo import SessionRepository
         from apps.api.dependencies import get_db
 
-        db_gen = get_db()
+        app_state = async_client.app.state.app_state
+        db_gen = get_db(app_state)
         db_session = await anext(db_gen)
         try:
             repo = SessionRepository(db_session)
