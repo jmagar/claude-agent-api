@@ -103,7 +103,10 @@ package-lock.json
 tmp/
 temp/
 
-# Session logs (may contain sensitive data)
+# Session logs and tool directories (may contain sensitive data)
 .docs/
+.1code/
+.full-review/
+.serena/
 
 .ralph-state.json
