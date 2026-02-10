@@ -4,7 +4,7 @@ import secrets
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
 from functools import lru_cache
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 
 from fastapi import Depends, Header, Request
 from sqlalchemy.ext.asyncio import (
@@ -14,29 +14,31 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-from apps.api.adapters.cache import RedisCache
-from apps.api.adapters.memory import Mem0MemoryAdapter
-from apps.api.adapters.session_repo import SessionRepository
 from apps.api.config import Settings, get_settings
 from apps.api.exceptions import AuthenticationError, ServiceUnavailableError
-from apps.api.protocols import AgentConfigProtocol, ProjectProtocol
-from apps.api.protocols import AgentService as AgentServiceProtocol
-from apps.api.services.agent import AgentService
-from apps.api.services.checkpoint import CheckpointService
-from apps.api.services.mcp_config_injector import McpConfigInjector
-from apps.api.services.mcp_config_loader import McpConfigLoader
-from apps.api.services.mcp_config_validator import ConfigValidator
-from apps.api.services.mcp_discovery import McpDiscoveryService
-from apps.api.services.mcp_server_configs import McpServerConfigService
-from apps.api.services.mcp_share import McpShareService
-from apps.api.services.memory import MemoryService
-from apps.api.services.query_enrichment import QueryEnrichmentService
-from apps.api.services.session import SessionService
-from apps.api.services.shutdown import ShutdownManager, get_shutdown_manager
-from apps.api.services.skills import SkillsService
-from apps.api.services.skills_crud import SkillCrudService
-from apps.api.services.slash_commands import SlashCommandService
-from apps.api.services.tool_presets import ToolPresetService
+
+if TYPE_CHECKING:
+    from apps.api.adapters.cache import RedisCache
+    from apps.api.adapters.memory import Mem0MemoryAdapter
+    from apps.api.adapters.session_repo import SessionRepository
+    from apps.api.protocols import AgentConfigProtocol, ProjectProtocol
+    from apps.api.protocols import AgentService as AgentServiceProtocol
+    from apps.api.services.agent import AgentService
+    from apps.api.services.checkpoint import CheckpointService
+    from apps.api.services.mcp_config_injector import McpConfigInjector
+    from apps.api.services.mcp_config_loader import McpConfigLoader
+    from apps.api.services.mcp_config_validator import ConfigValidator
+    from apps.api.services.mcp_discovery import McpDiscoveryService
+    from apps.api.services.mcp_server_configs import McpServerConfigService
+    from apps.api.services.mcp_share import McpShareService
+    from apps.api.services.memory import MemoryService
+    from apps.api.services.query_enrichment import QueryEnrichmentService
+    from apps.api.services.session import SessionService
+    from apps.api.services.shutdown import ShutdownManager
+    from apps.api.services.skills import SkillsService
+    from apps.api.services.skills_crud import SkillCrudService
+    from apps.api.services.slash_commands import SlashCommandService
+    from apps.api.services.tool_presets import ToolPresetService
 
 
 @dataclass
@@ -56,12 +58,12 @@ class AppState:
 
     engine: AsyncEngine | None = None
     session_maker: async_sessionmaker[AsyncSession] | None = None
-    cache: RedisCache | None = None
-    agent_service: AgentService | None = None
-    memory_service: MemoryService | None = field(default=None)
+    cache: "RedisCache | None" = None
+    agent_service: "AgentService | None" = None
+    memory_service: "MemoryService | None" = field(default=None)
 
 
-def get_app_state(request: Request) -> AppState:
+def get_app_state(request: Request) -> "AppState":
     """Get application state from request context.
 
     Args:
@@ -79,7 +81,7 @@ def get_app_state(request: Request) -> AppState:
 
 
 async def init_db(
-    state: AppState,
+    state: "AppState",
     settings: Settings,
 ) -> async_sessionmaker[AsyncSession]:
     """Initialize database engine and session maker (M-01, ARC-04).
@@ -105,7 +107,7 @@ async def init_db(
     return state.session_maker
 
 
-async def close_db(state: AppState) -> None:
+async def close_db(state: "AppState") -> None:
     """Close database connections.
 
     Args:
@@ -117,7 +119,7 @@ async def close_db(state: AppState) -> None:
         state.session_maker = None
 
 
-async def init_cache(state: AppState, settings: Settings) -> RedisCache:
+async def init_cache(state: "AppState", settings: Settings) -> "RedisCache":
     """Initialize Redis cache with health check and retry (M-01, ARC-04).
 
     Args:
@@ -182,7 +184,7 @@ async def init_cache(state: AppState, settings: Settings) -> RedisCache:
     )
 
 
-async def close_cache(state: AppState) -> None:
+async def close_cache(state: "AppState") -> None:
     """Close cache connections.
 
     Args:
@@ -194,7 +196,7 @@ async def close_cache(state: AppState) -> None:
 
 
 async def get_db(
-    state: Annotated[AppState, Depends(get_app_state)],
+    state: Annotated["AppState", Depends(get_app_state)],
 ) -> AsyncGenerator[AsyncSession, None]:
     """Get database session from app state (ARC-04).
 
@@ -215,8 +217,8 @@ async def get_db(
 
 
 async def get_cache(
-    state: Annotated[AppState, Depends(get_app_state)],
-) -> RedisCache:
+    state: Annotated["AppState", Depends(get_app_state)],
+) -> "RedisCache":
     """Get Redis cache instance from app state (ARC-04).
 
     Args:
@@ -235,7 +237,7 @@ async def get_cache(
 
 async def get_session_repo(
     db: Annotated[AsyncSession, Depends(get_db)],
-) -> SessionRepository:
+) -> "SessionRepository":
     """Get session repository.
 
     Args:
@@ -244,6 +246,8 @@ async def get_session_repo(
     Returns:
         Session repository instance.
     """
+    from apps.api.adapters.session_repo import SessionRepository
+
     return SessionRepository(db)
 
 
@@ -281,8 +285,8 @@ def verify_api_key(
 
 
 async def get_checkpoint_service(
-    cache: Annotated[RedisCache, Depends(get_cache)],
-) -> CheckpointService:
+    cache: Annotated["RedisCache", Depends(get_cache)],
+) -> "CheckpointService":
     """Get checkpoint service instance with injected cache.
 
     Args:
@@ -291,14 +295,16 @@ async def get_checkpoint_service(
     Returns:
         CheckpointService instance.
     """
+    from apps.api.services.checkpoint import CheckpointService
+
     return CheckpointService(cache=cache)
 
 
 async def get_agent_service(
-    state: Annotated[AppState, Depends(get_app_state)],
-    cache: Annotated[RedisCache, Depends(get_cache)],
-    checkpoint_service: Annotated[CheckpointService, Depends(get_checkpoint_service)],
-) -> AgentService:
+    state: Annotated["AppState", Depends(get_app_state)],
+    cache: Annotated["RedisCache", Depends(get_cache)],
+    checkpoint_service: Annotated["CheckpointService", Depends(get_checkpoint_service)],
+) -> "AgentService":
     """Get agent service instance from app state (ARC-04, ARC-05).
 
     Creates a new instance per request to avoid sharing mutable
@@ -315,7 +321,10 @@ async def get_agent_service(
     Returns:
         AgentService instance with cache, config injector, and memory service configured.
     """
+    from apps.api.services.agent import AgentService
     from apps.api.services.agent.config import AgentServiceConfig
+    from apps.api.services.mcp_config_injector import McpConfigInjector
+    from apps.api.services.mcp_config_validator import ConfigValidator
     from apps.api.services.webhook import WebhookService
 
     # Use singleton if set (for tests)
@@ -349,9 +358,9 @@ async def get_agent_service(
 
 
 async def get_session_service(
-    cache: Annotated[RedisCache, Depends(get_cache)],
-    db_repo: Annotated[SessionRepository, Depends(get_session_repo)],
-) -> SessionService:
+    cache: Annotated["RedisCache", Depends(get_cache)],
+    db_repo: Annotated["SessionRepository", Depends(get_session_repo)],
+) -> "SessionService":
     """Get session service instance with injected cache and DB repository.
 
     Args:
@@ -361,10 +370,12 @@ async def get_session_service(
     Returns:
         SessionService instance.
     """
+    from apps.api.services.session import SessionService
+
     return SessionService(cache=cache, db_repo=db_repo)
 
 
-def check_shutdown_state() -> ShutdownManager:
+def check_shutdown_state() -> "ShutdownManager":
     """Check if service is accepting new requests (T131).
 
     Returns:
@@ -373,6 +384,8 @@ def check_shutdown_state() -> ShutdownManager:
     Raises:
         ServiceUnavailableError: If shutdown is in progress.
     """
+    from apps.api.services.shutdown import get_shutdown_manager
+
     manager = get_shutdown_manager()
     if manager.is_shutting_down:
         raise ServiceUnavailableError(
@@ -382,13 +395,15 @@ def check_shutdown_state() -> ShutdownManager:
     return manager
 
 
-def get_skills_service() -> SkillsService:
+def get_skills_service() -> "SkillsService":
     """Get skills service instance.
 
     Returns:
         SkillsService instance configured with project path.
     """
     from pathlib import Path
+
+    from apps.api.services.skills import SkillsService
 
     # Use current working directory as project root
     project_path = Path.cwd()
@@ -403,12 +418,14 @@ def get_query_enrichment_service() -> "QueryEnrichmentService":
     """
     from pathlib import Path
 
+    from apps.api.services.query_enrichment import QueryEnrichmentService
+
     # Use current working directory as project root
     project_path = Path.cwd()
     return QueryEnrichmentService(project_path=project_path)
 
 
-def get_mcp_config_loader() -> McpConfigLoader:
+def get_mcp_config_loader() -> "McpConfigLoader":
     """Get MCP config loader instance.
 
     Returns:
@@ -416,14 +433,16 @@ def get_mcp_config_loader() -> McpConfigLoader:
     """
     from pathlib import Path
 
+    from apps.api.services.mcp_config_loader import McpConfigLoader
+
     # Use current working directory as project root
     project_path = Path.cwd()
     return McpConfigLoader(project_path=project_path)
 
 
 async def get_mcp_server_config_service_provider(
-    cache: Annotated[RedisCache, Depends(get_cache)],
-) -> McpServerConfigService:
+    cache: Annotated["RedisCache", Depends(get_cache)],
+) -> "McpServerConfigService":
     """Get MCP server config service.
 
     Note: This is a separate provider from the one used in get_mcp_config_injector.
@@ -435,13 +454,15 @@ async def get_mcp_server_config_service_provider(
     Returns:
         McpServerConfigService instance.
     """
+    from apps.api.services.mcp_server_configs import McpServerConfigService
+
     return McpServerConfigService(cache=cache)
 
 
 async def get_mcp_config_injector(
-    loader: Annotated[McpConfigLoader, Depends(get_mcp_config_loader)],
-    config_service: Annotated[McpServerConfigService, Depends(get_mcp_server_config_service_provider)],
-) -> McpConfigInjector:
+    loader: Annotated["McpConfigLoader", Depends(get_mcp_config_loader)],
+    config_service: Annotated["McpServerConfigService", Depends(get_mcp_server_config_service_provider)],
+) -> "McpConfigInjector":
     """Get MCP config injector instance.
 
     Args:
@@ -451,6 +472,9 @@ async def get_mcp_config_injector(
     Returns:
         McpConfigInjector instance with loader, config service, and validator.
     """
+    from apps.api.services.mcp_config_injector import McpConfigInjector
+    from apps.api.services.mcp_config_validator import ConfigValidator
+
     validator = ConfigValidator()
     return McpConfigInjector(
         config_loader=loader,
@@ -460,8 +484,8 @@ async def get_mcp_config_injector(
 
 
 async def get_memory_service(
-    state: Annotated[AppState, Depends(get_app_state)],
-) -> MemoryService:
+    state: Annotated["AppState", Depends(get_app_state)],
+) -> "MemoryService":
     """Get memory service instance from app state (M-02, ARC-05).
 
     In tests, if a singleton is set on app.state, that instance is returned
@@ -477,6 +501,9 @@ async def get_memory_service(
     Returns:
         MemoryService instance with Mem0 adapter configured.
     """
+    from apps.api.adapters.memory import Mem0MemoryAdapter
+    from apps.api.services.memory import MemoryService
+
     # Use singleton if set (for tests)
     if state.memory_service is not None:
         return state.memory_service
@@ -495,7 +522,7 @@ async def get_memory_service(
 
 
 async def get_agent_config_service(
-    cache: Annotated[RedisCache, Depends(get_cache)],
+    cache: Annotated["RedisCache", Depends(get_cache)],
 ) -> "AgentConfigProtocol":
     """Get agent CRUD service (for agents.py route).
 
@@ -516,8 +543,8 @@ async def get_agent_config_service(
 
 
 async def get_project_service(
-    cache: Annotated[RedisCache, Depends(get_cache)],
-) -> ProjectProtocol:
+    cache: Annotated["RedisCache", Depends(get_cache)],
+) -> "ProjectProtocol":
     """Get project CRUD service.
 
     Args:
@@ -534,7 +561,7 @@ async def get_project_service(
 
 
 async def get_tool_preset_service(
-    cache: Annotated[RedisCache, Depends(get_cache)],
+    cache: Annotated["RedisCache", Depends(get_cache)],
 ) -> "ToolPresetService":
     """Get tool preset CRUD service.
 
@@ -550,7 +577,7 @@ async def get_tool_preset_service(
 
 
 async def get_slash_command_service(
-    cache: Annotated[RedisCache, Depends(get_cache)],
+    cache: Annotated["RedisCache", Depends(get_cache)],
 ) -> "SlashCommandService":
     """Get slash command CRUD service.
 
@@ -579,7 +606,7 @@ def get_mcp_discovery_service() -> "McpDiscoveryService":
 
 
 async def get_mcp_share_service(
-    cache: Annotated[RedisCache, Depends(get_cache)],
+    cache: Annotated["RedisCache", Depends(get_cache)],
 ) -> "McpShareService":
     """Get MCP share service for share token management.
 
@@ -595,7 +622,7 @@ async def get_mcp_share_service(
 
 
 async def get_skills_crud_service(
-    cache: Annotated[RedisCache, Depends(get_cache)],
+    cache: Annotated["RedisCache", Depends(get_cache)],
 ) -> "SkillCrudService":
     """Get skills CRUD service for database operations.
 
@@ -612,29 +639,29 @@ async def get_skills_crud_service(
 
 # Type aliases for dependency injection
 DbSession = Annotated[AsyncSession, Depends(get_db)]
-CacheDep = Annotated[RedisCache, Depends(get_cache)]  # Named CacheDep to avoid collision with Cache protocol
-SessionRepo = Annotated[SessionRepository, Depends(get_session_repo)]
+CacheDep = Annotated["RedisCache", Depends(get_cache)]  # Named CacheDep to avoid collision with Cache protocol
+SessionRepo = Annotated["SessionRepository", Depends(get_session_repo)]
 ApiKey = Annotated[str, Depends(verify_api_key)]
-AgentSvc = Annotated[AgentServiceProtocol, Depends(get_agent_service)]
-SessionSvc = Annotated[SessionService, Depends(get_session_service)]
-CheckpointSvc = Annotated[CheckpointService, Depends(get_checkpoint_service)]
-SkillsSvc = Annotated[SkillsService, Depends(get_skills_service)]
-ShutdownState = Annotated[ShutdownManager, Depends(check_shutdown_state)]
+AgentSvc = Annotated["AgentServiceProtocol", Depends(get_agent_service)]
+SessionSvc = Annotated["SessionService", Depends(get_session_service)]
+CheckpointSvc = Annotated["CheckpointService", Depends(get_checkpoint_service)]
+SkillsSvc = Annotated["SkillsService", Depends(get_skills_service)]
+ShutdownState = Annotated["ShutdownManager", Depends(check_shutdown_state)]
 QueryEnrichment = Annotated[
-    QueryEnrichmentService, Depends(get_query_enrichment_service)
+    "QueryEnrichmentService", Depends(get_query_enrichment_service)
 ]
-McpConfigLdr = Annotated[McpConfigLoader, Depends(get_mcp_config_loader)]
-McpConfigInj = Annotated[McpConfigInjector, Depends(get_mcp_config_injector)]
-MemorySvc = Annotated[MemoryService, Depends(get_memory_service)]
+McpConfigLdr = Annotated["McpConfigLoader", Depends(get_mcp_config_loader)]
+McpConfigInj = Annotated["McpConfigInjector", Depends(get_mcp_config_injector)]
+MemorySvc = Annotated["MemoryService", Depends(get_memory_service)]
 
 # CRUD service type aliases (Phase 2: DI Refactor)
 AgentConfigSvc = Annotated["AgentConfigProtocol", Depends(get_agent_config_service)]
-ProjectSvc = Annotated[ProjectProtocol, Depends(get_project_service)]
+ProjectSvc = Annotated["ProjectProtocol", Depends(get_project_service)]
 ToolPresetSvc = Annotated["ToolPresetService", Depends(get_tool_preset_service)]
 SlashCommandSvc = Annotated["SlashCommandService", Depends(get_slash_command_service)]
 McpDiscoverySvc = Annotated["McpDiscoveryService", Depends(get_mcp_discovery_service)]
 McpServerConfigSvc = Annotated[
-    McpServerConfigService, Depends(get_mcp_server_config_service_provider)
+    "McpServerConfigService", Depends(get_mcp_server_config_service_provider)
 ]
 McpShareSvc = Annotated["McpShareService", Depends(get_mcp_share_service)]
 SkillCrudSvc = Annotated["SkillCrudService", Depends(get_skills_crud_service)]
@@ -643,7 +670,7 @@ SkillCrudSvc = Annotated["SkillCrudService", Depends(get_skills_crud_service)]
 # --- Test Isolation (M-13) ---
 
 
-def reset_dependencies(state: AppState) -> None:
+def reset_dependencies(state: "AppState") -> None:
     """Reset dependency singletons for test isolation (M-13).
 
     Clears cached services on app.state to ensure fresh instances

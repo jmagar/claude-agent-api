@@ -20,9 +20,11 @@ from typing import (
 )
 
 import structlog
+from sqlalchemy.exc import IntegrityError, OperationalError
 
 from apps.api.config import get_settings
 from apps.api.exceptions.assistant import AssistantNotFoundError
+from apps.api.exceptions.base import APIError
 from apps.api.models.assistant import generate_assistant_id
 from apps.api.types import JsonValue
 from apps.api.utils.crypto import hash_api_key
@@ -285,14 +287,43 @@ class AssistantService:
                     assistant_id=assistant_id,
                     model=model,
                 )
+            except IntegrityError as e:
+                logger.error(
+                    "assistant_already_exists",
+                    assistant_id=assistant_id,
+                    error_id="ERR_ASSISTANT_ALREADY_EXISTS",
+                    exc_info=True,
+                )
+                raise APIError(
+                    message="Assistant already exists",
+                    code="ALREADY_EXISTS",
+                    status_code=409,
+                ) from e
+            except OperationalError as e:
+                logger.error(
+                    "database_unavailable_during_assistant_create",
+                    assistant_id=assistant_id,
+                    error_id="ERR_DB_UNAVAILABLE",
+                    exc_info=True,
+                )
+                raise APIError(
+                    message="Database temporarily unavailable",
+                    code="DATABASE_UNAVAILABLE",
+                    status_code=503,
+                ) from e
             except Exception as e:
                 logger.error(
                     "Failed to create assistant in database",
                     assistant_id=assistant_id,
                     error=str(e),
+                    error_id="ERR_ASSISTANT_CREATE_FAILED",
                     exc_info=True,
                 )
-                raise
+                raise APIError(
+                    message="Failed to create assistant",
+                    code="INTERNAL_ERROR",
+                    status_code=500,
+                ) from e
 
         # Write to cache (best-effort)
         try:

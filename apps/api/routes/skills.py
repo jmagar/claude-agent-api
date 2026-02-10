@@ -2,6 +2,7 @@
 
 from datetime import datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, Query
 
@@ -9,7 +10,9 @@ from apps.api.dependencies import ApiKey, SkillCrudSvc, SkillsSvc
 from apps.api.exceptions import APIError
 from apps.api.schemas.requests.skills_crud import SkillCreateRequest, SkillUpdateRequest
 from apps.api.schemas.responses import SkillDefinitionResponse, SkillListResponse
-from apps.api.services.skills_crud import SkillRecord
+
+if TYPE_CHECKING:
+    from apps.api.services.skills_crud import SkillRecord
 
 
 def _parse_datetime(value: str | None) -> datetime | None:
@@ -161,7 +164,7 @@ async def get_skill(
         )
 
     # Otherwise, look up in database
-    db_skill: SkillRecord | None = await skills_crud.get_skill(skill_id)
+    db_skill: "SkillRecord | None" = await skills_crud.get_skill(skill_id)
     if db_skill is None:
         raise APIError(
             message="Skill not found",

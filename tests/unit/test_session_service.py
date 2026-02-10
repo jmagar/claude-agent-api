@@ -263,6 +263,7 @@ class FakeSessionModel:
     owner_api_key_hash: str | None
     created_at: datetime
     updated_at: datetime
+    session_metadata: dict[str, object] | None = None
 
 
 class TestSessionServiceListDbRepo:
@@ -335,6 +336,35 @@ class TestSessionServiceListDbRepo:
 
         assert result.sessions[0].status == "active"
         assert result.sessions[0].total_cost_usd == 0.0
+
+    @pytest.mark.anyio
+    async def test_list_sessions_forwards_metadata_filters_to_repo(self) -> None:
+        """Test owner-filtered DB list forwards metadata filter arguments."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        repo = MagicMock()
+        repo.list_sessions = AsyncMock(return_value=([], 0))
+
+        service = SessionService(cache=MockCache(), db_repo=repo)
+        await service.list_sessions(
+            current_api_key="owner-key",
+            mode="brainstorm",
+            project_id="project-123",
+            tags=["important", "feature-x"],
+            search="auth",
+            page=2,
+            page_size=25,
+        )
+
+        repo.list_sessions.assert_called_once_with(
+            owner_api_key="owner-key",
+            limit=25,
+            offset=25,
+            mode="brainstorm",
+            project_id="project-123",
+            tags=["important", "feature-x"],
+            search="auth",
+        )
 
 
 class TestSessionServiceUpdate:

@@ -25,8 +25,10 @@ from typing import TYPE_CHECKING, Literal, TypedDict, TypeVar
 from uuid import UUID, uuid4
 
 import structlog
+from sqlalchemy.exc import IntegrityError, OperationalError
 
 from apps.api.config import get_settings
+from apps.api.exceptions.base import APIError
 from apps.api.exceptions.session import SessionNotFoundError
 from apps.api.types import JsonValue
 from apps.api.utils.crypto import hash_api_key
@@ -53,6 +55,7 @@ class CachedSessionData(TypedDict):
     total_cost_usd: float | None
     parent_session_id: str | None
     owner_api_key_hash: str | None
+    session_metadata: dict[str, object] | None
 
 
 @dataclass
@@ -260,14 +263,43 @@ class SessionService:
                     model=model,
                     parent_session_id=parent_session_id,
                 )
+            except IntegrityError as e:
+                logger.error(
+                    "session_already_exists",
+                    session_id=session_id,
+                    error_id="ERR_SESSION_ALREADY_EXISTS",
+                    exc_info=True,
+                )
+                raise APIError(
+                    message="Session already exists",
+                    code="ALREADY_EXISTS",
+                    status_code=409,
+                ) from e
+            except OperationalError as e:
+                logger.error(
+                    "database_unavailable_during_session_create",
+                    session_id=session_id,
+                    error_id="ERR_DB_UNAVAILABLE",
+                    exc_info=True,
+                )
+                raise APIError(
+                    message="Database temporarily unavailable",
+                    code="DATABASE_UNAVAILABLE",
+                    status_code=503,
+                ) from e
             except Exception as e:
                 logger.error(
                     "Failed to create session in database",
                     session_id=session_id,
                     error=str(e),
+                    error_id="ERR_SESSION_CREATE_FAILED",
                     exc_info=True,
                 )
-                raise
+                raise APIError(
+                    message="Failed to create session",
+                    code="INTERNAL_ERROR",
+                    status_code=500,
+                ) from e
 
         # Write to Redis cache (best-effort)
         # TRANSACTION BOUNDARY NOTE: No distributed transaction between DB and Redis.
@@ -282,9 +314,29 @@ class SessionService:
                 session_id=session_id,
                 model=model,
             )
+        except (ConnectionError, TimeoutError) as e:
+            logger.error(
+                "redis_unavailable",
+                error_id="ERR_REDIS_UNAVAILABLE",
+                session_id=session_id,
+                error=str(e),
+                exc_info=True,
+            )
+            # Distributed sessions REQUIRE Redis - if cache is configured, it's a critical failure
+            if self._cache is not None:
+                raise APIError(
+                    message="Session caching failed. Distributed sessions require Redis.",
+                    code="CACHE_UNAVAILABLE",
+                    status_code=503,
+                ) from e
+            # Single-instance (no cache configured) can tolerate this branch never executing
+            logger.warning(
+                "continuing_without_cache",
+                mode="single-instance",
+                session_id=session_id,
+            )
         except Exception as e:
-            # Cache write failure is non-fatal - DB is source of truth
-            # Cache-aside pattern in get_session() will repopulate on next read
+            # Other cache errors (serialization, etc.) are logged but non-fatal
             logger.warning(
                 "Failed to cache session in Redis (continuing - cache-aside will recover)",
                 session_id=session_id,
@@ -361,20 +413,42 @@ class SessionService:
 
             return session
 
+        except OperationalError as e:
+            logger.error(
+                "database_operational_error",
+                error_id="ERR_DB_OPERATIONAL",
+                session_id=session_id,
+                error=str(e),
+                exc_info=True,
+            )
+            raise APIError(
+                message="Database temporarily unavailable",
+                code="DATABASE_UNAVAILABLE",
+                status_code=503,
+            ) from e
         except Exception as e:
             logger.error(
                 "Failed to retrieve session from database",
                 session_id=session_id,
                 error=str(e),
+                error_id="ERR_SESSION_GET_FAILED",
                 exc_info=True,
             )
-            return None
+            raise APIError(
+                message="Failed to retrieve session",
+                code="INTERNAL_ERROR",
+                status_code=500,
+            ) from e
 
     async def list_sessions(
         self,
         page: int = 1,
         page_size: int = 20,
         current_api_key: str | None = None,
+        mode: str | None = None,
+        project_id: str | None = None,
+        tags: list[str] | None = None,
+        search: str | None = None,
     ) -> SessionListResult:
         """List sessions with pagination using bulk cache reads or DB repository.
 
@@ -386,6 +460,10 @@ class SessionService:
             page_size: Number of sessions per page.
             current_api_key: API key for ownership filtering.
                            If provided, only returns sessions owned by this key.
+            mode: Filter by metadata mode.
+            project_id: Filter by metadata project_id.
+            tags: Filter by metadata tags (must contain all tags).
+            search: Case-insensitive metadata title search.
 
         Returns:
             Paginated session list.
@@ -397,6 +475,10 @@ class SessionService:
                 owner_api_key=current_api_key,
                 limit=page_size,
                 offset=offset,
+                mode=mode,
+                project_id=project_id,
+                tags=tags,
+                search=search,
             )
             # Convert DB models to service Session objects
             sessions = [self._map_db_to_service(s) for s in db_sessions]
@@ -453,11 +535,18 @@ class SessionService:
         # Sort by created_at descending
         cached_sessions.sort(key=lambda s: s.created_at, reverse=True)
 
+        # Apply metadata filters for cache-backed listing paths
+        filtered_sessions = [
+            s
+            for s in cached_sessions
+            if self._matches_metadata_filters(s, mode, project_id, tags, search)
+        ]
+
         # Calculate pagination
-        total = len(cached_sessions)
+        total = len(filtered_sessions)
         start = (page - 1) * page_size
         end = start + page_size
-        page_sessions = cached_sessions[start:end]
+        page_sessions = filtered_sessions[start:end]
 
         return SessionListResult(
             sessions=page_sessions,
@@ -562,8 +651,25 @@ class SessionService:
             elif self._db_repo:
                 try:
                     db_session = await self._db_repo.get(UUID(session_id))
-                except (TypeError, ValueError):
+                except ValueError as e:
+                    # Expected: malformed UUID string (e.g., user input)
+                    logger.debug(
+                        "invalid_uuid_format",
+                        session_id=session_id,
+                        error=str(e),
+                    )
                     db_session = None
+                except TypeError as e:
+                    # Unexpected: wrong type passed (programming bug)
+                    logger.error(
+                        "uuid_type_error",
+                        session_id=session_id,
+                        session_id_type=type(session_id).__name__,
+                        error=str(e),
+                        error_id="ERR_UUID_TYPE_ERROR",
+                        exc_info=True,
+                    )
+                    raise
                 if db_session:
                     owner_api_key_hash = db_session.owner_api_key_hash
 
@@ -620,8 +726,8 @@ class SessionService:
         if not session:
             return None
 
-        # Update metadata to promote to code mode
-        metadata = dict(session.session_metadata or {})
+        # Read metadata from DB source of truth to avoid overwriting existing fields
+        metadata = await self._get_session_metadata_for_update(session_id)
         metadata.update({"mode": "code", "project_id": project_id})
 
         # Update in database
@@ -669,8 +775,8 @@ class SessionService:
         if not session:
             return None
 
-        # Update metadata with new tags
-        metadata = dict(session.session_metadata or {})
+        # Read metadata from DB source of truth to avoid overwriting existing fields
+        metadata = await self._get_session_metadata_for_update(session_id)
         metadata["tags"] = tags
 
         # Update in database
@@ -712,6 +818,7 @@ class SessionService:
             "total_cost_usd": session.total_cost_usd,
             "parent_session_id": session.parent_session_id,
             "owner_api_key_hash": session.owner_api_key_hash,
+            "session_metadata": session.session_metadata,
         }
 
         await self._cache.set_json(key, data, self._ttl)
@@ -739,7 +846,24 @@ class SessionService:
         if not parsed:
             return None
 
-        return self._parse_cached_session(parsed)
+        session = self._parse_cached_session(parsed)
+
+        # If parsing failed (corrupted data), delete the corrupted entry
+        if session is None:
+            try:
+                await self._cache.delete(key)
+                logger.info(
+                    "deleted_corrupted_cache_entry",
+                    session_id=session_id,
+                )
+            except Exception as delete_err:
+                logger.warning(
+                    "failed_to_delete_corrupted_cache",
+                    session_id=session_id,
+                    error=str(delete_err),
+                )
+
+        return session
 
     def _parse_cached_session(
         self,
@@ -819,12 +943,21 @@ class SessionService:
                 total_cost_usd=total_cost_val,
                 parent_session_id=parent_id_val,
                 owner_api_key_hash=owner_hash_val,
+                session_metadata=(
+                    parsed.get("session_metadata")
+                    if isinstance(parsed.get("session_metadata"), dict)
+                    else None
+                ),
             )
         except (KeyError, ValueError, TypeError) as e:
-            logger.warning(
-                "Failed to parse cached session",
+            logger.error(
+                "cache_parse_failed",
                 error=str(e),
+                cache_data_sample=str(parsed)[:200],
+                error_id="ERR_CACHE_PARSE_FAILED",
             )
+            # Note: Cannot delete corrupted entry here as this is a sync method.
+            # Caller should handle deletion if needed.
             return None
 
     def _map_db_to_service(self, db_session: "SessionModel") -> Session:
@@ -866,7 +999,83 @@ class SessionService:
             owner_api_key_hash=db_session.owner_api_key_hash,
             created_at=db_session.created_at,
             updated_at=db_session.updated_at,
+            session_metadata=(
+                dict(db_session.session_metadata)
+                if db_session.session_metadata is not None
+                else None
+            ),
         )
+
+    def _matches_metadata_filters(
+        self,
+        session: Session,
+        mode: str | None,
+        project_id: str | None,
+        tags: list[str] | None,
+        search: str | None,
+    ) -> bool:
+        """Check whether a session matches metadata filter constraints."""
+        metadata = session.session_metadata or {}
+
+        if mode is not None and metadata.get("mode") != mode:
+            return False
+
+        if project_id is not None and metadata.get("project_id") != project_id:
+            return False
+
+        if tags:
+            metadata_tags_raw = metadata.get("tags")
+            metadata_tags = (
+                metadata_tags_raw
+                if isinstance(metadata_tags_raw, list)
+                and all(isinstance(tag, str) for tag in metadata_tags_raw)
+                else []
+            )
+            if not set(tags).issubset(set(metadata_tags)):
+                return False
+
+        if search:
+            title_raw = metadata.get("title")
+            title = title_raw if isinstance(title_raw, str) else ""
+            if search.lower() not in title.lower():
+                return False
+
+        return True
+
+    async def _get_session_metadata_for_update(
+        self,
+        session_id: str,
+    ) -> dict[str, object]:
+        """Fetch existing metadata from DB for safe metadata merge updates."""
+        if not self._db_repo:
+            return {}
+
+        try:
+            db_session = await self._db_repo.get(UUID(session_id))
+        except ValueError as e:
+            # Expected: malformed UUID string
+            logger.debug(
+                "invalid_uuid_format_in_metadata_fetch",
+                session_id=session_id,
+                error=str(e),
+            )
+            return {}
+        except TypeError as e:
+            # Unexpected: wrong type passed (programming bug)
+            logger.error(
+                "uuid_type_error_in_metadata_fetch",
+                session_id=session_id,
+                session_id_type=type(session_id).__name__,
+                error=str(e),
+                error_id="ERR_UUID_TYPE_ERROR",
+                exc_info=True,
+            )
+            raise
+
+        if db_session and db_session.session_metadata is not None:
+            return dict(db_session.session_metadata)
+
+        return {}
 
     def _enforce_owner(
         self,

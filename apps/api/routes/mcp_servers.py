@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from typing import cast
 
 from fastapi import APIRouter, Query
+from sqlalchemy.exc import IntegrityError, OperationalError
 
 from apps.api.dependencies import (
     ApiKey,
@@ -12,7 +13,7 @@ from apps.api.dependencies import (
     McpServerConfigSvc,
     McpShareSvc,
 )
-from apps.api.exceptions import APIError, McpShareNotFoundError
+from apps.api.exceptions import APIError, McpShareNotFoundError, ValidationError
 from apps.api.schemas.requests.mcp_servers import (
     McpServerCreateRequest,
     McpServerUpdateRequest,
@@ -51,17 +52,33 @@ _SENSITIVE_HEADER_PATTERNS = [
 
 
 def _parse_datetime(value: str | None) -> datetime:
-    """<summary>Parse ISO timestamps to datetime.</summary>"""
-    if value:
-        try:
-            return datetime.fromisoformat(value)
-        except ValueError:
-            logger.warning(
-                "datetime_parse_failed",
-                value=value,
-                fallback="datetime.now(UTC)",
-            )
-    return datetime.now(UTC)
+    """Parse ISO timestamps to datetime.
+
+    Args:
+        value: ISO format timestamp string or None.
+
+    Returns:
+        Parsed datetime or current time if value is None.
+
+    Raises:
+        ValidationError: If timestamp format is invalid (corrupted data).
+    """
+    if value is None:
+        return datetime.now(UTC)
+
+    try:
+        return datetime.fromisoformat(value)
+    except ValueError as e:
+        logger.error(
+            "datetime_parse_failed",
+            value=value,
+            error=str(e),
+            error_id="ERR_DATETIME_PARSE_FAILED",
+        )
+        raise ValidationError(
+            message=f"Invalid timestamp format: {value}",
+            field="timestamp",
+        ) from e
 
 
 def _sanitize_mapping(
@@ -193,9 +210,34 @@ async def list_mcp_servers(
     # Get database servers (unless filtering to filesystem only)
     # Filter by authenticated API key
     if source != "filesystem":
-        db_servers = await mcp_config.list_servers_for_api_key(api_key)
-        for s in db_servers:
-            servers.append(_map_server(s))
+        try:
+            db_servers = await mcp_config.list_servers_for_api_key(api_key)
+            for s in db_servers:
+                servers.append(_map_server(s))
+        except OperationalError as e:
+            logger.error(
+                "database_operational_error",
+                operation="list_servers",
+                error=str(e),
+                error_id="ERR_DB_OPERATIONAL",
+            )
+            raise APIError(
+                message="Database temporarily unavailable",
+                code="DATABASE_UNAVAILABLE",
+                status_code=503,
+            ) from e
+        except Exception as e:
+            logger.error(
+                "database_error",
+                operation="list_servers",
+                error=str(e),
+                error_id="ERR_DB_UNEXPECTED",
+            )
+            raise APIError(
+                message="Failed to retrieve MCP servers",
+                code="INTERNAL_ERROR",
+                status_code=500,
+            ) from e
 
     return McpServerListResponse(servers=servers)
 
@@ -211,20 +253,66 @@ async def create_mcp_server(
     Note: To add filesystem-based MCP servers, edit ~/.claude.json (global)
     or create .mcp.json / .claude/mcp.json in your project.
     Server is scoped to the authenticated API key.
+
+    Raises:
+        APIError: If server already exists, database error, or validation fails.
     """
-    server = await mcp_config.create_server_for_api_key(
-        api_key=api_key,
-        name=request.name,
-        transport_type=request.type,
-        config=request.config,
-    )
-    if server is None:
+    try:
+        server = await mcp_config.create_server_for_api_key(
+            api_key=api_key,
+            name=request.name,
+            transport_type=request.type,
+            config=request.config,
+        )
+        if server is None:
+            raise APIError(
+                message="MCP server with this name already exists",
+                code="MCP_SERVER_EXISTS",
+                status_code=409,
+            )
+        return _map_server(server)
+    except IntegrityError as e:
+        logger.error(
+            "database_integrity_error",
+            operation="create_server",
+            name=request.name,
+            error=str(e),
+            error_id="ERR_DB_INTEGRITY",
+        )
         raise APIError(
             message="MCP server with this name already exists",
             code="MCP_SERVER_EXISTS",
             status_code=409,
+        ) from e
+    except OperationalError as e:
+        logger.error(
+            "database_operational_error",
+            operation="create_server",
+            name=request.name,
+            error=str(e),
+            error_id="ERR_DB_OPERATIONAL",
         )
-    return _map_server(server)
+        raise APIError(
+            message="Database temporarily unavailable",
+            code="DATABASE_UNAVAILABLE",
+            status_code=503,
+        ) from e
+    except APIError:
+        # Re-raise our own errors
+        raise
+    except Exception as e:
+        logger.error(
+            "database_error",
+            operation="create_server",
+            name=request.name,
+            error=str(e),
+            error_id="ERR_DB_UNEXPECTED",
+        )
+        raise APIError(
+            message="Failed to create MCP server",
+            code="INTERNAL_ERROR",
+            status_code=500,
+        ) from e
 
 
 @router.get("/{name}", response_model=McpServerConfigResponse)
@@ -246,7 +334,7 @@ async def get_mcp_server(
 
         if server_name in fs_servers:
             server = fs_servers[server_name]
-            return _map_filesystem_server(server_name, server, id_prefix=name.replace(server_name, ""))
+            return _map_filesystem_server(server_name, server, id_prefix="fs:")
 
         raise APIError(
             message="Filesystem MCP server not found",
@@ -255,16 +343,46 @@ async def get_mcp_server(
         )
 
     # Otherwise, look up in database (scoped to API key)
-    db_server: McpServerRecord | None = await mcp_config.get_server_for_api_key(
-        api_key, name
-    )
-    if db_server is None:
-        raise APIError(
-            message="MCP server not found",
-            code="MCP_SERVER_NOT_FOUND",
-            status_code=404,
+    try:
+        db_server: McpServerRecord | None = await mcp_config.get_server_for_api_key(
+            api_key, name
         )
-    return _map_server(db_server)
+        if db_server is None:
+            raise APIError(
+                message="MCP server not found",
+                code="MCP_SERVER_NOT_FOUND",
+                status_code=404,
+            )
+        return _map_server(db_server)
+    except OperationalError as e:
+        logger.error(
+            "database_operational_error",
+            operation="get_server",
+            name=name,
+            error=str(e),
+            error_id="ERR_DB_OPERATIONAL",
+        )
+        raise APIError(
+            message="Database temporarily unavailable",
+            code="DATABASE_UNAVAILABLE",
+            status_code=503,
+        ) from e
+    except APIError:
+        # Re-raise our own errors (404)
+        raise
+    except Exception as e:
+        logger.error(
+            "database_error",
+            operation="get_server",
+            name=name,
+            error=str(e),
+            error_id="ERR_DB_UNEXPECTED",
+        )
+        raise APIError(
+            message="Failed to retrieve MCP server",
+            code="INTERNAL_ERROR",
+            status_code=500,
+        ) from e
 
 
 @router.put("/{name}", response_model=McpServerConfigResponse)
@@ -288,16 +406,46 @@ async def update_mcp_server(
             status_code=400,
         )
 
-    server = await mcp_config.update_server_for_api_key(
-        api_key, name, request.type, request.config
-    )
-    if server is None:
-        raise APIError(
-            message="MCP server not found",
-            code="MCP_SERVER_NOT_FOUND",
-            status_code=404,
+    try:
+        server = await mcp_config.update_server_for_api_key(
+            api_key, name, request.type, request.config
         )
-    return _map_server(server)
+        if server is None:
+            raise APIError(
+                message="MCP server not found",
+                code="MCP_SERVER_NOT_FOUND",
+                status_code=404,
+            )
+        return _map_server(server)
+    except OperationalError as e:
+        logger.error(
+            "database_operational_error",
+            operation="update_server",
+            name=name,
+            error=str(e),
+            error_id="ERR_DB_OPERATIONAL",
+        )
+        raise APIError(
+            message="Database temporarily unavailable",
+            code="DATABASE_UNAVAILABLE",
+            status_code=503,
+        ) from e
+    except APIError:
+        # Re-raise our own errors
+        raise
+    except Exception as e:
+        logger.error(
+            "database_error",
+            operation="update_server",
+            name=name,
+            error=str(e),
+            error_id="ERR_DB_UNEXPECTED",
+        )
+        raise APIError(
+            message="Failed to update MCP server",
+            code="INTERNAL_ERROR",
+            status_code=500,
+        ) from e
 
 
 @router.delete("/{name}", status_code=204)
@@ -320,13 +468,43 @@ async def delete_mcp_server(
             status_code=400,
         )
 
-    deleted = await mcp_config.delete_server_for_api_key(api_key, name)
-    if not deleted:
-        raise APIError(
-            message="MCP server not found",
-            code="MCP_SERVER_NOT_FOUND",
-            status_code=404,
+    try:
+        deleted = await mcp_config.delete_server_for_api_key(api_key, name)
+        if not deleted:
+            raise APIError(
+                message="MCP server not found",
+                code="MCP_SERVER_NOT_FOUND",
+                status_code=404,
+            )
+    except OperationalError as e:
+        logger.error(
+            "database_operational_error",
+            operation="delete_server",
+            name=name,
+            error=str(e),
+            error_id="ERR_DB_OPERATIONAL",
         )
+        raise APIError(
+            message="Database temporarily unavailable",
+            code="DATABASE_UNAVAILABLE",
+            status_code=503,
+        ) from e
+    except APIError:
+        # Re-raise our own errors
+        raise
+    except Exception as e:
+        logger.error(
+            "database_error",
+            operation="delete_server",
+            name=name,
+            error=str(e),
+            error_id="ERR_DB_UNEXPECTED",
+        )
+        raise APIError(
+            message="Failed to delete MCP server",
+            code="INTERNAL_ERROR",
+            status_code=500,
+        ) from e
 
 
 @router.get("/{name}/resources", response_model=McpResourceListResponse)
@@ -335,27 +513,61 @@ async def list_mcp_resources(
     api_key: ApiKey,
     mcp_config: McpServerConfigSvc,
 ) -> McpResourceListResponse:
-    """<summary>List MCP server resources (scoped to authenticated API key).</summary>"""
-    server = await mcp_config.get_server_for_api_key(api_key, name)
-    if server is None:
-        raise APIError(
-            message="MCP server not found",
-            code="MCP_SERVER_NOT_FOUND",
-            status_code=404,
-        )
+    """List MCP server resources (scoped to authenticated API key).
 
-    resources = server.resources or []
-    return McpResourceListResponse(
-        resources=[
-            McpResourceResponse(
-                uri=str(resource.get("uri", "")),
-                name=cast("str | None", resource.get("name")),
-                description=cast("str | None", resource.get("description")),
-                mimeType=cast("str | None", resource.get("mimeType")),
+    Raises:
+        APIError: If server not found or database error occurs.
+    """
+    try:
+        server = await mcp_config.get_server_for_api_key(api_key, name)
+        if server is None:
+            raise APIError(
+                message="MCP server not found",
+                code="MCP_SERVER_NOT_FOUND",
+                status_code=404,
             )
-            for resource in resources
-        ]
-    )
+
+        resources = server.resources or []
+        return McpResourceListResponse(
+            resources=[
+                McpResourceResponse(
+                    uri=str(resource.get("uri", "")),
+                    name=cast("str | None", resource.get("name")),
+                    description=cast("str | None", resource.get("description")),
+                    mimeType=cast("str | None", resource.get("mimeType")),
+                )
+                for resource in resources
+            ]
+        )
+    except OperationalError as e:
+        logger.error(
+            "database_operational_error",
+            operation="list_resources",
+            name=name,
+            error=str(e),
+            error_id="ERR_DB_OPERATIONAL",
+        )
+        raise APIError(
+            message="Database temporarily unavailable",
+            code="DATABASE_UNAVAILABLE",
+            status_code=503,
+        ) from e
+    except APIError:
+        # Re-raise our own errors
+        raise
+    except Exception as e:
+        logger.error(
+            "database_error",
+            operation="list_resources",
+            name=name,
+            error=str(e),
+            error_id="ERR_DB_UNEXPECTED",
+        )
+        raise APIError(
+            message="Failed to retrieve MCP server resources",
+            code="INTERNAL_ERROR",
+            status_code=500,
+        ) from e
 
 
 @router.get("/{name}/resources/{uri:path}", response_model=McpResourceContentResponse)
@@ -365,28 +577,64 @@ async def get_mcp_resource(
     api_key: ApiKey,
     mcp_config: McpServerConfigSvc,
 ) -> McpResourceContentResponse:
-    """<summary>Get MCP resource content (scoped to authenticated API key).</summary>"""
-    server = await mcp_config.get_server_for_api_key(api_key, name)
-    if server is None:
-        raise APIError(
-            message="MCP server not found",
-            code="MCP_SERVER_NOT_FOUND",
-            status_code=404,
-        )
+    """Get MCP resource content (scoped to authenticated API key).
 
-    for resource in server.resources or []:
-        if str(resource.get("uri")) == uri:
-            return McpResourceContentResponse(
-                uri=uri,
-                mimeType=cast("str | None", resource.get("mimeType")),
-                text=cast("str | None", resource.get("text")),
+    Raises:
+        APIError: If server or resource not found, or database error occurs.
+    """
+    try:
+        server = await mcp_config.get_server_for_api_key(api_key, name)
+        if server is None:
+            raise APIError(
+                message="MCP server not found",
+                code="MCP_SERVER_NOT_FOUND",
+                status_code=404,
             )
 
-    raise APIError(
-        message="Resource not found",
-        code="MCP_RESOURCE_NOT_FOUND",
-        status_code=404,
-    )
+        for resource in server.resources or []:
+            if str(resource.get("uri")) == uri:
+                return McpResourceContentResponse(
+                    uri=uri,
+                    mimeType=cast("str | None", resource.get("mimeType")),
+                    text=cast("str | None", resource.get("text")),
+                )
+
+        raise APIError(
+            message="Resource not found",
+            code="MCP_RESOURCE_NOT_FOUND",
+            status_code=404,
+        )
+    except OperationalError as e:
+        logger.error(
+            "database_operational_error",
+            operation="get_resource",
+            name=name,
+            uri=uri,
+            error=str(e),
+            error_id="ERR_DB_OPERATIONAL",
+        )
+        raise APIError(
+            message="Database temporarily unavailable",
+            code="DATABASE_UNAVAILABLE",
+            status_code=503,
+        ) from e
+    except APIError:
+        # Re-raise our own errors
+        raise
+    except Exception as e:
+        logger.error(
+            "database_error",
+            operation="get_resource",
+            name=name,
+            uri=uri,
+            error=str(e),
+            error_id="ERR_DB_UNEXPECTED",
+        )
+        raise APIError(
+            message="Failed to retrieve MCP resource",
+            code="INTERNAL_ERROR",
+            status_code=500,
+        ) from e
 
 
 @router.post("/{name}/share", response_model=McpShareCreateResponse)

@@ -432,5 +432,24 @@ async def mock_tool_preset_request() -> dict[str, JsonValue]:
     }
 
 
+@pytest.fixture
+def mock_cache() -> MagicMock:
+    """Mock cache for unit tests with async methods."""
+    from unittest.mock import AsyncMock
+
+    from apps.api.adapters.cache import RedisCache
+
+    cache = AsyncMock(spec=RedisCache)
+    # Set up common async methods
+    cache.get_json.return_value = None
+    cache.get_many_json.return_value = []
+    cache.set_json.return_value = True
+    cache.add_to_set.return_value = True
+    cache.remove_from_set.return_value = True
+    cache.delete.return_value = True
+    cache.set_members.return_value = set()
+    return cache
+
+
 # Import mock fixtures
 from tests.mocks.claude_sdk import mock_claude_sdk  # noqa: F401, E402

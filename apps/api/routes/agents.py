@@ -119,14 +119,9 @@ async def share_agent(
             code="AGENT_NOT_FOUND",
             status_code=404,
         )
-    if not hasattr(agent, "share_token") or not agent.share_token:
-        raise APIError(
-            message="Agent share token generation failed",
-            code="AGENT_SHARE_FAILED",
-            status_code=500,
-        )
 
-    # Type checker needs help here - protocol returns object but we know it has these attributes
-    share_url_value = cast("str", getattr(agent, "share_url", share_url) or share_url)
-    share_token_value = cast("str", agent.share_token)
-    return {"share_url": share_url_value, "share_token": share_token_value}
+    # Protocol guarantees share_token is non-None
+    return {
+        "share_url": agent.share_url or share_url,
+        "share_token": agent.share_token,
+    }

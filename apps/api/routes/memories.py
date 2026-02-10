@@ -27,6 +27,40 @@ if TYPE_CHECKING:
     from apps.api.types import JsonValue
 
 
+def _validate_memory_record(record: dict[str, JsonValue]) -> MemoryRecordDict:
+    """Validate and convert memory service response to MemoryRecordDict.
+
+    Args:
+        record: Raw memory record from service.
+
+    Returns:
+        Validated MemoryRecordDict with required fields.
+
+    Raises:
+        ValueError: If required fields are missing or invalid.
+    """
+    if not isinstance(record.get("id"), str):
+        raise ValueError("Memory record missing required 'id' field")
+    if not isinstance(record.get("memory"), str):
+        raise ValueError("Memory record missing required 'memory' field")
+
+    # Build result with required fields
+    result: MemoryRecordDict = {
+        "id": str(record["id"]),
+        "memory": str(record["memory"]),
+    }
+
+    # Add optional fields if present
+    if "hash" in record and isinstance(record["hash"], str):
+        result["hash"] = str(record["hash"])
+    if "created_at" in record and isinstance(record["created_at"], str):
+        result["created_at"] = str(record["created_at"])
+    if "updated_at" in record and isinstance(record["updated_at"], str):
+        result["updated_at"] = str(record["updated_at"])
+
+    return result
+
+
 @router.post("/search", response_model=MemorySearchResponse)
 async def search_memories(
     request: MemorySearchRequest,
@@ -100,8 +134,11 @@ async def add_memory(
         enable_graph=request.enable_graph,
     )
 
+    # Validate records before returning to ensure type safety
+    validated_results = [_validate_memory_record(record) for record in results]
+
     return MemoryAddResponse(
-        memories=cast("list[MemoryRecordDict]", results), count=len(results)
+        memories=validated_results, count=len(validated_results)
     )
 
 
@@ -124,8 +161,11 @@ async def list_memories(
 
     memories = await memory_service.get_all_memories(user_id=user_id)
 
+    # Validate records before returning to ensure type safety
+    validated_memories = [_validate_memory_record(record) for record in memories]
+
     return MemoryListResponse(
-        memories=cast("list[MemoryRecordDict]", memories), count=len(memories)
+        memories=validated_memories, count=len(validated_memories)
     )
 
 

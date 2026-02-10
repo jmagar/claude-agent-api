@@ -3,7 +3,8 @@
 from typing import Literal
 
 import structlog
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Request
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sse_starlette import EventSourceResponse
 
 from apps.api.dependencies import (
@@ -13,10 +14,12 @@ from apps.api.dependencies import (
     SessionSvc,
     ShutdownState,
 )
+from apps.api.exceptions import APIError
 from apps.api.routes.query_stream import QueryStreamEventGenerator
 from apps.api.schemas.requests.query import QueryRequest
 from apps.api.schemas.responses import SingleQueryResponse
 from apps.api.services.agent import QueryResponseDict
+from apps.api.utils.crypto import hash_api_key
 
 logger = structlog.get_logger(__name__)
 
@@ -130,17 +133,52 @@ async def query_single(
                 total_cost_usd=result.get("total_cost_usd"),
                 current_api_key=api_key,
             )
-        except Exception as e:
+        except OperationalError as e:
+            # Database connection/operational issues (retry-able)
             logger.error(
-                "Failed to persist session for single query",
+                "database_unavailable",
                 error=str(e),
                 session_id=result.get("session_id"),
+                api_key_hash=hash_api_key(api_key),
+                prompt_preview=query.prompt[:100] if query.prompt else None,
+                error_id="ERR_DB_OPERATIONAL",
+                exc_info=True,
             )
-            # Fail the request if session persistence fails - don't return
-            # a session_id that doesn't exist in the database
-            raise HTTPException(
+            raise APIError(
+                message="Database temporarily unavailable",
+                code="DATABASE_UNAVAILABLE",
+                status_code=503,
+            ) from e
+        except IntegrityError as e:
+            # Constraint violations (e.g., duplicate session_id)
+            logger.error(
+                "session_already_exists",
+                error=str(e),
+                session_id=result.get("session_id"),
+                api_key_hash=hash_api_key(api_key),
+                error_id="ERR_SESSION_DUPLICATE",
+            )
+            raise APIError(
+                message="Session already exists",
+                code="SESSION_ALREADY_EXISTS",
+                status_code=409,
+            ) from e
+        except Exception as e:
+            # Unexpected errors (programming bugs, unexpected states)
+            logger.error(
+                "session_creation_failed",
+                error=str(e),
+                error_type=type(e).__name__,
+                session_id=result.get("session_id"),
+                api_key_hash=hash_api_key(api_key),
+                prompt_preview=query.prompt[:100] if query.prompt else None,
+                error_id="ERR_SESSION_CREATE_FAILED",
+                exc_info=True,
+            )
+            raise APIError(
+                message="Failed to save session state",
+                code="SESSION_CREATION_FAILED",
                 status_code=500,
-                detail=f"Failed to persist session: {e!s}",
             ) from e
 
     return result

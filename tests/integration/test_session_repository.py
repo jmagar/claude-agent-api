@@ -25,13 +25,13 @@ async def db_session(_async_client: AsyncClient) -> AsyncGenerator[AsyncSession,
     """Get database session from initialized app.
 
     Args:
-        async_client: Initialized test client.
+        _async_client: Initialized test client.
 
     Yields:
         Async database session.
     """
     # Get database session from dependencies
-    app_state = async_client.app.state.app_state
+    app_state = _async_client.app.state.app_state
     agen = get_db(app_state)
     session = await anext(agen)
     try:
@@ -475,6 +475,21 @@ class TestSessionCheckpoints:
         assert checkpoint.session_id == session_id
         assert checkpoint.user_message_uuid == message_uuid
         assert checkpoint.files_modified == files
+
+    @pytest.mark.anyio
+    async def test_add_checkpoint_raises_for_nonexistent_session(
+        self,
+        repository: SessionRepository,
+    ) -> None:
+        """Test error handling when adding checkpoint to missing session."""
+        nonexistent_id = uuid4()
+
+        with pytest.raises(SessionNotFoundError):
+            await repository.add_checkpoint(
+                session_id=nonexistent_id,
+                user_message_uuid=str(uuid4()),
+                files_modified=["/tmp/file.py"],
+            )
 
     @pytest.mark.anyio
     async def test_get_checkpoints(

@@ -14,8 +14,10 @@ from decimal import Decimal
 from uuid import UUID
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from apps.api.exceptions.base import APIError
 from apps.api.exceptions.session import SessionNotFoundError
 from apps.api.models.session import Checkpoint, Session, SessionMessage
 from apps.api.types import JsonValue
@@ -247,10 +249,10 @@ class SessionRepository:
             # PostgreSQL @> operator checks if left array contains all elements from right array
             tags_jsonb = cast(tags, JSONB)
             stmt = stmt.where(
-                Session.session_metadata["tags"].astext.op("@>")(tags_jsonb)
+                Session.session_metadata["tags"].op("@>")(tags_jsonb)
             )
             count_stmt = count_stmt.where(
-                Session.session_metadata["tags"].astext.op("@>")(tags_jsonb)
+                Session.session_metadata["tags"].op("@>")(tags_jsonb)
             )
 
         if search:
@@ -306,9 +308,29 @@ class SessionRepository:
             await self._db.commit()
             await self._db.refresh(message)
             return message
-        except Exception:
+        except IntegrityError as e:
             await self._db.rollback()
+            raise APIError(
+                message="Message already exists or violates constraints",
+                code="ALREADY_EXISTS",
+                status_code=409,
+            ) from e
+        except OperationalError as e:
+            await self._db.rollback()
+            raise APIError(
+                message="Database temporarily unavailable",
+                code="DATABASE_UNAVAILABLE",
+                status_code=503,
+            ) from e
+        except SessionNotFoundError:
             raise
+        except Exception as e:
+            await self._db.rollback()
+            raise APIError(
+                message="Failed to add message",
+                code="INTERNAL_ERROR",
+                status_code=500,
+            ) from e
 
     async def get_messages(
         self,
@@ -368,9 +390,29 @@ class SessionRepository:
             await self._db.commit()
             await self._db.refresh(checkpoint)
             return checkpoint
-        except Exception:
+        except IntegrityError as e:
             await self._db.rollback()
+            raise APIError(
+                message="Checkpoint already exists or violates constraints",
+                code="ALREADY_EXISTS",
+                status_code=409,
+            ) from e
+        except OperationalError as e:
+            await self._db.rollback()
+            raise APIError(
+                message="Database temporarily unavailable",
+                code="DATABASE_UNAVAILABLE",
+                status_code=503,
+            ) from e
+        except SessionNotFoundError:
             raise
+        except Exception as e:
+            await self._db.rollback()
+            raise APIError(
+                message="Failed to add checkpoint",
+                code="INTERNAL_ERROR",
+                status_code=500,
+            ) from e
 
     async def get_checkpoints(self, session_id: UUID) -> Sequence[Checkpoint]:
         """Get checkpoints for a session.

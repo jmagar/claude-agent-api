@@ -15,6 +15,44 @@ class TestSDKErrorHandling:
     """Tests for SDK-specific error handling in AgentService."""
 
     @pytest.mark.anyio
+    async def test_sdk_import_error_handling(self) -> None:
+        """Test handling when Claude Agent SDK is not installed (ImportError)."""
+        from pathlib import Path
+
+        from apps.api.services.agent.types import StreamContext
+        from apps.api.services.commands import CommandsService
+
+        service = AgentService()
+        request = QueryRequest(prompt="test")
+        ctx = StreamContext(
+            session_id="test-session",
+            model="sonnet",
+            start_time=0.0,
+        )
+
+        # Mock the _execute_with_sdk method to raise ImportError
+        # This simulates the SDK not being installed when import happens
+        async def mock_execute_raises_import_error(*args: object, **kwargs: object) -> None:
+            raise ImportError("No module named 'claude_agent_sdk'")
+            yield  # type: ignore[unreachable]
+
+        with patch.object(
+            service._query_executor,
+            "_execute_with_sdk",
+            side_effect=mock_execute_raises_import_error,
+        ):
+            # Should raise AgentError with helpful message
+            with pytest.raises(AgentError) as exc_info:
+                commands_service = CommandsService(project_path=Path.cwd())
+                async for _ in service._execute_query(request, ctx, commands_service):
+                    pass
+
+            # Verify error message
+            error_msg = str(exc_info.value)
+            assert "Claude Agent SDK not installed" in error_msg
+            assert "uv add claude-agent-sdk" in error_msg
+
+    @pytest.mark.anyio
     async def test_cli_not_found_error_handling(self) -> None:
         """Test handling when Claude CLI is not installed."""
         from apps.api.services.agent.types import StreamContext

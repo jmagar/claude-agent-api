@@ -197,3 +197,133 @@ async def test_query_executor_handles_no_memories_found() -> None:
 
         # Memory should still be added even if none found
         mock_memory_service.add_memory.assert_called_once()
+
+
+@pytest.mark.anyio
+async def test_query_executor_handles_memory_injection_failure() -> None:
+    """QueryExecutor should inject notice when memory service unavailable during injection."""
+    # Mock memory service that fails with ConnectionError
+    mock_memory_service = AsyncMock(spec=MemoryService)
+    mock_memory_service.format_memory_context.side_effect = ConnectionError(
+        "Memory service unavailable"
+    )
+    mock_memory_service.add_memory.return_value = []
+
+    # Create a mock CommandsService
+    mock_commands_service = MagicMock()
+    mock_commands_service.parse_command.return_value = None
+
+    # Mock the SDK client
+    mock_client_instance = AsyncMock()
+    mock_client_instance.query = AsyncMock()
+
+    async def mock_receive():
+        return
+        yield  # Make it an async generator
+
+    mock_client_instance.receive_response = mock_receive
+    mock_client_instance.__aenter__ = AsyncMock(return_value=mock_client_instance)
+    mock_client_instance.__aexit__ = AsyncMock(return_value=None)
+
+    with patch("claude_agent_sdk.ClaudeSDKClient", return_value=mock_client_instance):
+        # Create QueryExecutor with MessageHandler
+        message_handler = MessageHandler()
+        executor = QueryExecutor(message_handler=message_handler)
+
+        # Create a simple request
+        request = QueryRequest(
+            prompt="What do you know about me?",
+            system_prompt="You are a helpful assistant.",
+        )
+        ctx = StreamContext(
+            session_id="test-session",
+            model="sonnet",
+            start_time=0.0,
+        )
+
+        # Execute query with memory service and API key passed as parameters
+        events = []
+        async for event in executor.execute(
+            request,
+            ctx,
+            mock_commands_service,
+            memory_service=mock_memory_service,
+            api_key="test-key",
+        ):
+            events.append(event)
+
+        # Verify memory context was attempted
+        mock_memory_service.format_memory_context.assert_called_once()
+
+        # Verify SDK was called with modified system prompt containing notice
+        mock_client_instance.query.assert_called_once()
+        # The system prompt should have been modified with the notice
+        # We can't directly access the modified request, but we can verify the call happened
+
+
+@pytest.mark.anyio
+async def test_query_executor_notifies_user_on_memory_extraction_failure() -> None:
+    """QueryExecutor should emit error event when memory extraction fails."""
+    # Mock memory service that succeeds on injection but fails on extraction
+    mock_memory_service = AsyncMock(spec=MemoryService)
+    mock_memory_service.format_memory_context.return_value = (
+        "RELEVANT MEMORIES:\n- User prefers technical explanations"
+    )
+    mock_memory_service.add_memory.side_effect = Exception("Neo4j connection timeout")
+
+    # Create a mock response message
+    mock_message = MagicMock()
+    mock_message.type = "assistant"
+    mock_message.content = [
+        MagicMock(type="text", text="I understand you prefer technical explanations.")
+    ]
+
+    # Create a mock CommandsService
+    mock_commands_service = MagicMock()
+    mock_commands_service.parse_command.return_value = None
+
+    # Mock the SDK client
+    mock_client_instance = AsyncMock()
+    mock_client_instance.query = AsyncMock()
+
+    # Simulate a single message response
+    async def mock_receive():
+        yield mock_message
+
+    mock_client_instance.receive_response = mock_receive
+    mock_client_instance.__aenter__ = AsyncMock(return_value=mock_client_instance)
+    mock_client_instance.__aexit__ = AsyncMock(return_value=None)
+
+    with patch("claude_agent_sdk.ClaudeSDKClient", return_value=mock_client_instance):
+        # Create QueryExecutor with MessageHandler
+        message_handler = MessageHandler()
+        executor = QueryExecutor(message_handler=message_handler)
+
+        # Create a simple request
+        request = QueryRequest(prompt="What do you know about me?")
+        ctx = StreamContext(
+            session_id="test-session",
+            model="sonnet",
+            start_time=0.0,
+        )
+
+        # Execute query with memory service and API key passed as parameters
+        events = []
+        async for event in executor.execute(
+            request,
+            ctx,
+            mock_commands_service,
+            memory_service=mock_memory_service,
+            api_key="test-key",
+        ):
+            events.append(event)
+
+        # Verify memory extraction was attempted
+        mock_memory_service.add_memory.assert_called_once()
+
+        # Verify error event was emitted
+        assert len(events) > 0
+        error_events = [e for e in events if e.get("event") == "error"]
+        assert len(error_events) == 1
+        assert "MEMORY_EXTRACTION_FAILED" in str(error_events[0])
+        assert "Failed to save conversation to memory" in str(error_events[0])

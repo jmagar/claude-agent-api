@@ -1,10 +1,12 @@
 """Session CRUD endpoints."""
 
 
+from uuid import UUID
+
 from fastapi import APIRouter, Query
 
 from apps.api.dependencies import ApiKey, SessionSvc
-from apps.api.exceptions import SessionNotFoundError
+from apps.api.exceptions import SessionNotFoundError, ValidationError
 from apps.api.schemas.requests.sessions import PromoteRequest, UpdateTagsRequest
 from apps.api.schemas.responses import (
     SessionResponse,
@@ -72,8 +74,18 @@ async def get_session(
         Session details.
 
     Raises:
+        ValidationError: If session_id is not a valid UUID.
         SessionNotFoundError: If session doesn't exist.
     """
+    # Validate UUID format
+    try:
+        UUID(session_id)
+    except ValueError as e:
+        raise ValidationError(
+            message=f"Invalid session ID format: {session_id}",
+            field="session_id",
+        ) from e
+
     session = await session_service.get_session(
         session_id,
         current_api_key=_api_key,
@@ -100,7 +112,21 @@ async def promote_session(
     _api_key: ApiKey,
     session_service: SessionSvc,
 ) -> SessionWithMetaResponse:
-    """Promote a brainstorm session to code mode."""
+    """Promote a brainstorm session to code mode.
+
+    Raises:
+        ValidationError: If session_id is not a valid UUID.
+        SessionNotFoundError: If session doesn't exist.
+    """
+    # Validate UUID format
+    try:
+        UUID(session_id)
+    except ValueError as e:
+        raise ValidationError(
+            message=f"Invalid session ID format: {session_id}",
+            field="session_id",
+        ) from e
+
     updated = await session_service.promote_session(
         session_id=session_id,
         project_id=request.project_id,
@@ -119,7 +145,21 @@ async def update_session_tags(
     _api_key: ApiKey,
     session_service: SessionSvc,
 ) -> SessionWithMetaResponse:
-    """Update session tags."""
+    """Update session tags.
+
+    Raises:
+        ValidationError: If session_id is not a valid UUID.
+        SessionNotFoundError: If session doesn't exist.
+    """
+    # Validate UUID format
+    try:
+        UUID(session_id)
+    except ValueError as e:
+        raise ValidationError(
+            message=f"Invalid session ID format: {session_id}",
+            field="session_id",
+        ) from e
+
     updated = await session_service.update_tags(
         session_id=session_id,
         tags=request.tags,

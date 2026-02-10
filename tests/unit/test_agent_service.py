@@ -19,6 +19,7 @@ from apps.api.services.agent.types import StreamContext
 
 if TYPE_CHECKING:
     from apps.api.services.agent.query_executor import QueryExecutor
+    from apps.api.services.agent.single_query_runner import SingleQueryRunner
     from apps.api.services.agent.stream_query_runner import StreamQueryRunner
 
 
@@ -791,6 +792,73 @@ class TestQueryStreamSessionIds:
         assert runner.last_request is not None
         assert runner.last_request.session_id is None
         assert runner.last_session_id == session_id
+
+    @pytest.mark.anyio
+    async def test_query_stream_skips_unsupported_optional_kwargs(
+        self,
+        tmp_path: pytest.TempPathFactory,
+    ) -> None:
+        """Ensure legacy stream runners work when optional kwargs are unsupported."""
+
+        class LegacyStreamRunner:
+            """Runner without api_key and memory_service parameters."""
+
+            async def run(
+                self,
+                request: QueryRequest,
+                commands_service: object,
+                session_id_override: str | None = None,
+            ) -> AsyncGenerator[dict[str, object], None]:
+                yield {
+                    "event": "done",
+                    "data": json.dumps(
+                        {
+                            "request_prompt": request.prompt,
+                            "session_id_override": session_id_override,
+                            "has_commands_service": commands_service is not None,
+                        }
+                    ),
+                }
+
+        service = AgentService(
+            stream_runner=cast("StreamQueryRunner", LegacyStreamRunner())
+        )
+        request = QueryRequest(prompt="Compat prompt", cwd=str(tmp_path))
+
+        events = [event async for event in service.query_stream(request, api_key="k")]
+        assert any(event["event"] == "done" for event in events)
+
+    @pytest.mark.anyio
+    async def test_query_single_skips_unsupported_optional_kwargs(
+        self,
+        tmp_path: pytest.TempPathFactory,
+    ) -> None:
+        """Ensure legacy single-query runners work without new kwargs."""
+
+        class LegacySingleRunner:
+            """Runner without api_key and memory_service parameters."""
+
+            async def run(
+                self,
+                request: QueryRequest,
+                commands_service: object,
+            ) -> dict[str, object]:
+                return {
+                    "session_id": request.session_id or "generated",
+                    "model": request.model or "sonnet",
+                    "content": [{"type": "text", "text": "ok"}],
+                    "usage": {"input_tokens": 0, "output_tokens": 0},
+                    "duration_ms": 1,
+                    "has_commands_service": commands_service is not None,
+                }
+
+        service = AgentService(
+            single_query_runner=cast("SingleQueryRunner", LegacySingleRunner())
+        )
+        request = QueryRequest(prompt="Compat prompt", cwd=str(tmp_path))
+
+        response = await service.query_single(request, api_key="k")
+        assert response["model"] == "sonnet"
 
     def test_stream_context_has_checkpoint_tracking_fields(self) -> None:
         """Test that StreamContext has fields for checkpoint tracking."""

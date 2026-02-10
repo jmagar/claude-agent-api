@@ -12,6 +12,7 @@ from fastapi import Request
 from apps.api.protocols import AgentService
 from apps.api.schemas.requests.query import QueryRequest
 from apps.api.services.session import SessionService
+from apps.api.utils.crypto import hash_api_key
 
 logger = structlog.get_logger(__name__)
 
@@ -89,7 +90,12 @@ class QueryStreamEventGenerator:
             logger.error(
                 "Failed to parse init event",
                 error=str(e),
+                error_type=type(e).__name__,
                 event_data=event_data,
+                session_id=self.session_id,
+                api_key_hash=hash_api_key(self.api_key),
+                prompt_preview=self.query.prompt[:100] if self.query.prompt else None,
+                error_id="ERR_INIT_PARSE_FAILED",
             )
             await self.event_queue.put(
                 {
@@ -97,17 +103,22 @@ class QueryStreamEventGenerator:
                     "data": json.dumps(
                         {
                             "error": "Session initialization failed",
-                            "details": "Invalid init event format",
+                            "message": "Invalid session initialization format",
                         }
                     ),
                 }
             )
-            raise
+            self.is_error = True
+            # Do NOT re-raise - error event already queued, prevents duplicate from _producer
         except Exception as e:
             logger.error(
                 "Failed to create session",
                 error=str(e),
+                error_type=type(e).__name__,
                 session_id=self.session_id,
+                api_key_hash=hash_api_key(self.api_key),
+                prompt_preview=self.query.prompt[:100] if self.query.prompt else None,
+                error_id="ERR_SESSION_CREATE_FAILED",
             )
             await self.event_queue.put(
                 {
@@ -115,12 +126,13 @@ class QueryStreamEventGenerator:
                     "data": json.dumps(
                         {
                             "error": "Session creation failed",
-                            "details": str(e),
+                            "message": "Unable to initialize session",
                         }
                     ),
                 }
             )
-            raise
+            self.is_error = True
+            # Do NOT re-raise - error event already queued, prevents duplicate from _producer
 
     def _track_event_metadata(self, event_type: str, event_data: str) -> None:
         """Track metadata from events (turns, cost, errors).
@@ -140,8 +152,16 @@ class QueryStreamEventGenerator:
                     self.num_turns = result_data["turns"]
                 if "total_cost_usd" in result_data:
                     self.total_cost_usd = result_data["total_cost_usd"]
-            except json.JSONDecodeError:
-                pass
+            except json.JSONDecodeError as e:
+                logger.error(
+                    "failed_to_parse_result_event",
+                    session_id=self.session_id,
+                    api_key_hash=hash_api_key(self.api_key),
+                    prompt_preview=self.query.prompt[:100] if self.query.prompt else None,
+                    error=str(e),
+                    event_data=event_data[:500],
+                    error_id="ERR_RESULT_PARSE_FAILED",
+                )
 
     async def _producer(self) -> None:
         """Producer task: reads events from SDK and queues them."""
@@ -174,12 +194,26 @@ class QueryStreamEventGenerator:
                 await self.agent_service.interrupt(self.session_id)
             raise
         except Exception as e:
-            # Unexpected error in producer
-            logger.error("Producer error in event stream", error=str(e))
+            # Unexpected error in producer - log full details server-side
+            logger.error(
+                "Producer error in event stream",
+                error=str(e),
+                error_type=type(e).__name__,
+                session_id=self.session_id,
+                api_key_hash=hash_api_key(self.api_key),
+                prompt_preview=self.query.prompt[:100] if self.query.prompt else None,
+                error_id="ERR_STREAM_PRODUCER_FAILED",
+            )
+            # Return generic error to client (prevent exception detail leakage)
             await self.event_queue.put(
                 {
                     "event": "error",
-                    "data": json.dumps({"error": "Stream error", "details": str(e)}),
+                    "data": json.dumps(
+                        {
+                            "error": "Internal stream error",
+                            "message": "An unexpected error occurred while processing the stream",
+                        }
+                    ),
                 }
             )
         finally:

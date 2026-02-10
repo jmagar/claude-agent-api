@@ -134,7 +134,7 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
         logger.debug(
             "openai_api_key_set",
             reason="mem0_huggingface_embedder_validation_workaround",
-            tei_key_configured="<set>" if settings.tei_api_key else "<unset>",
+            tei_api_key="<redacted>" if settings.tei_api_key else "<unset>",
         )
 
     # Initialize database

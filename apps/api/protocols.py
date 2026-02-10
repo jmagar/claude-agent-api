@@ -48,6 +48,18 @@ class AgentRecord(TypedDict):
     share_token: str | None
 
 
+@runtime_checkable
+class SharedAgent(Protocol):
+    """Protocol for an agent that has been shared with non-None share fields.
+
+    This protocol guarantees that share_token is non-None, eliminating the need
+    for runtime hasattr() checks in routes.
+    """
+
+    share_token: str
+    share_url: str | None
+
+
 class ProjectRecord(TypedDict):
     """Project record."""
 
@@ -808,7 +820,7 @@ class AgentConfigProtocol(Protocol):
         """
         ...
 
-    async def share_agent(self, agent_id: str, share_url: str) -> AgentRecord | None:
+    async def share_agent(self, agent_id: str, share_url: str) -> SharedAgent | None:
         """Mark agent as shared and generate token.
 
         Args:
@@ -816,7 +828,7 @@ class AgentConfigProtocol(Protocol):
             share_url: Shareable URL.
 
         Returns:
-            Updated agent record or None if not found.
+            SharedAgent with guaranteed share_token or None if not found.
         """
         ...
 
