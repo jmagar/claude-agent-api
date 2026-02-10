@@ -1,5 +1,6 @@
 """Integration tests for SDK error handling."""
 
+from collections.abc import AsyncGenerator
 from typing import Any, cast
 from unittest.mock import patch
 
@@ -32,9 +33,11 @@ class TestSDKErrorHandling:
 
         # Mock the _execute_with_sdk method to raise ImportError
         # This simulates the SDK not being installed when import happens
-        async def mock_execute_raises_import_error(*args: object, **kwargs: object) -> None:
+        async def mock_execute_raises_import_error(
+            *args: object, **kwargs: object
+        ) -> AsyncGenerator[dict[str, object], None]:
             raise ImportError("No module named 'claude_agent_sdk'")
-            yield  # type: ignore[unreachable]
+            yield  # This line is never reached but satisfies type checker
 
         with patch.object(
             service._query_executor,

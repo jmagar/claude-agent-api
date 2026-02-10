@@ -209,6 +209,10 @@ class SessionRepositoryProtocol(Protocol):
         offset: int = 0,
         *,
         filter_by_owner_or_public: bool = False,
+        mode: str | None = None,
+        project_id: str | None = None,
+        tags: list[str] | None = None,
+        search: str | None = None,
     ) -> tuple["Sequence[Session]", int]:
         """List sessions with optional filtering.
 
@@ -220,6 +224,10 @@ class SessionRepositoryProtocol(Protocol):
             filter_by_owner_or_public: If True, returns sessions where
                 owner_api_key is NULL (public) OR matches the provided key.
                 This is the secure multi-tenant filter.
+            mode: Filter by session mode (JSONB metadata.mode field).
+            project_id: Filter by project ID (JSONB metadata.project_id field).
+            tags: Filter by tags (JSONB metadata.tags array - must contain ALL tags).
+            search: Filter by title substring (JSONB metadata.title field).
 
         Returns:
             Tuple of session list and total count.

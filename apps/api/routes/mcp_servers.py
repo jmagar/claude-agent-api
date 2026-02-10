@@ -226,6 +226,9 @@ async def list_mcp_servers(
                 code="DATABASE_UNAVAILABLE",
                 status_code=503,
             ) from e
+        except APIError:
+            # Re-raise APIError (including ValidationError subclass) to preserve status codes
+            raise
         except Exception as e:
             logger.error(
                 "database_error",

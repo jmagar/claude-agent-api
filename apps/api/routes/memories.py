@@ -57,6 +57,12 @@ def _validate_memory_record(record: dict[str, JsonValue]) -> MemoryRecordDict:
         result["created_at"] = str(record["created_at"])
     if "updated_at" in record and isinstance(record["updated_at"], str):
         result["updated_at"] = str(record["updated_at"])
+    if "user_id" in record and isinstance(record["user_id"], str):
+        result["user_id"] = str(record["user_id"])
+    if "agent_id" in record and isinstance(record["agent_id"], str):
+        result["agent_id"] = str(record["agent_id"])
+    if "metadata" in record and isinstance(record["metadata"], dict):
+        result["metadata"] = record["metadata"]
 
     return result
 

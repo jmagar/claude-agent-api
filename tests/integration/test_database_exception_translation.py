@@ -284,7 +284,6 @@ def session_service_with_mocked_db():
 
     mock_repo = AsyncMock()
     service = SessionService(
-        settings=None,  # type: ignore
         cache=None,
         db_repo=mock_repo,
     )
@@ -298,7 +297,6 @@ def assistant_service_with_mocked_db():
 
     mock_repo = AsyncMock()
     service = AssistantService(
-        settings=None,  # type: ignore
         cache=None,
         db_repo=mock_repo,
     )

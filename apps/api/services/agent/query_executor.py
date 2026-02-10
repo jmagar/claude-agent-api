@@ -88,9 +88,13 @@ class QueryExecutor:
         except ImportError as e:
             # SDK not installed - fail hard, this is a deployment error
             logger.error("Claude Agent SDK not installed")
-            raise RuntimeError(
-                "Claude Agent SDK is not installed. "
-                "Install it with: uv add claude-agent-sdk"
+            from apps.api.exceptions import AgentError
+
+            ctx.is_error = True
+            raise AgentError(
+                "Claude Agent SDK not installed. "
+                "Install it with: uv add claude-agent-sdk",
+                original_error=str(e),
             ) from e
         except Exception as e:
             # Handle SDK-specific errors (always raises, never returns)

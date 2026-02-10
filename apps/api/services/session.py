@@ -950,10 +950,15 @@ class SessionService:
                 ),
             )
         except (KeyError, ValueError, TypeError) as e:
+            # Log only non-sensitive fields to prevent exposing user data
+            safe_fields = {
+                "session_id": parsed.get("session_id"),
+                "status": parsed.get("status"),
+            }
             logger.error(
                 "cache_parse_failed",
                 error=str(e),
-                cache_data_sample=str(parsed)[:200],
+                safe_fields=safe_fields,
                 error_id="ERR_CACHE_PARSE_FAILED",
             )
             # Note: Cannot delete corrupted entry here as this is a sync method.
