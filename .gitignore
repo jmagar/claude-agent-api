@@ -109,4 +109,7 @@ temp/
 .full-review/
 .serena/
 
+# Specs and planning documents (project-specific)
+specs/
+
 .ralph-state.json
