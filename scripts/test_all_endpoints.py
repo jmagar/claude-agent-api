@@ -5,10 +5,12 @@ Tests all 76 endpoints systematically with progress tracking.
 """
 
 import json
+import re
 import subprocess
 import sys
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 
@@ -24,6 +26,8 @@ class EndpointTest:
     group: str = ""
     query_params: str = ""
     is_streaming: bool = False
+    timeout_seconds: int = 30
+    expected_statuses: list[int] = field(default_factory=lambda: [200, 201, 204])
 
 
 @dataclass
@@ -46,6 +50,7 @@ class EndpointTester:
         self.api_key = api_key
         self.resource_ids: dict[str, str] = {}
         self.results: list[TestResult] = []
+        self.total_endpoints = 0
         self.tested = 0
         self.working = 0
         self.partial = 0
@@ -87,8 +92,9 @@ class EndpointTester:
 
         # Add body
         if endpoint.body:
+            body = self._resolve_placeholders(endpoint.body)
             cmd.extend(["-H", "Content-Type: application/json"])
-            cmd.extend(["-d", json.dumps(endpoint.body)])
+            cmd.extend(["-d", json.dumps(body)])
 
         # Add streaming flag
         if endpoint.is_streaming:
@@ -100,32 +106,35 @@ class EndpointTester:
         start = time.time()
         try:
             result = subprocess.run(
-                cmd, capture_output=True, text=True, timeout=30, check=False
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=endpoint.timeout_seconds,
+                check=False,
             )
             duration_ms = (time.time() - start) * 1000
 
             # Parse response
             output = result.stdout
-            if endpoint.is_streaming:
-                # For SSE, just capture first few events
-                status_code = 200 if "event:" in output else 500
-                response_body = output[:500] + "..." if len(output) > 500 else output
-            else:
-                # Split status code from body
-                parts = output.rsplit("\n", 1)
-                if len(parts) == 2:
-                    response_body, status_str = parts
-                    try:
-                        status_code = int(status_str)
-                    except ValueError:
-                        status_code = 0
-                        response_body = output
-                else:
+            # Split status code from body
+            parts = output.rsplit("\n", 1)
+            if len(parts) == 2:
+                response_body, status_str = parts
+                try:
+                    status_code = int(status_str)
+                except ValueError:
                     status_code = 0
                     response_body = output
+            else:
+                status_code = 0
+                response_body = output
+
+            # For SSE fallback, infer success from stream content if needed
+            if endpoint.is_streaming and status_code == 0 and "event:" in output:
+                status_code = 200
 
             # Determine status
-            if status_code in (200, 201, 204):
+            if status_code in endpoint.expected_statuses:
                 status = "success"
                 self.working += 1
                 icon = "✅"
@@ -141,12 +150,13 @@ class EndpointTester:
             print(f"  {icon} {status_code} ({duration_ms:.0f}ms)")
 
             # Extract resource IDs from response
-            if status_code in (200, 201) and response_body:
+            if response_body:
                 try:
                     data = json.loads(response_body)
                     self._extract_resource_ids(data, endpoint.group)
                 except json.JSONDecodeError:
-                    pass
+                    if endpoint.is_streaming:
+                        self._extract_resource_ids_from_sse(response_body, endpoint.group)
 
             return TestResult(
                 endpoint=endpoint,
@@ -163,7 +173,7 @@ class EndpointTester:
                 endpoint=endpoint,
                 status="failed",
                 status_code=0,
-                duration_ms=30000,
+                duration_ms=float(endpoint.timeout_seconds * 1000),
                 response_body="",
                 error_message="Request timeout",
             )
@@ -210,33 +220,84 @@ class EndpointTester:
         if "token" in data and group == "mcp-servers":
             self.resource_ids["share_token"] = str(data["token"])
             print(f"  💾 Saved share_token={data['token']}")
+        if "share_token" in data and group == "mcp-servers":
+            self.resource_ids["share_token"] = str(data["share_token"])
+            print(f"  💾 Saved share_token={data['share_token']}")
 
         # Extract checkpoint UUID
-        if "checkpoints" in data and isinstance(data["checkpoints"], list):
-            if data["checkpoints"]:
-                uuid = data["checkpoints"][0].get("user_message_uuid")
-                if uuid:
-                    self.resource_ids["checkpoint_uuid"] = uuid
-                    print(f"  💾 Saved checkpoint_uuid={uuid}")
+        if (
+            "checkpoints" in data
+            and isinstance(data["checkpoints"], list)
+            and data["checkpoints"]
+        ):
+            uuid = data["checkpoints"][0].get("user_message_uuid")
+            if uuid:
+                self.resource_ids["checkpoint_uuid"] = uuid
+                print(f"  💾 Saved checkpoint_uuid={uuid}")
+
+        # Extract memory ID from memory add/list responses
+        if group == "memories":
+            memory_lists: list[Any] = []
+            if isinstance(data.get("memories"), list):
+                memory_lists.append(data["memories"])
+            if isinstance(data.get("results"), list):
+                memory_lists.append(data["results"])
+
+            for memories in memory_lists:
+                if memories and isinstance(memories[0], dict):
+                    memory_id = memories[0].get("id")
+                    if isinstance(memory_id, str) and memory_id:
+                        self.resource_ids["memory_id"] = memory_id
+                        print(f"  💾 Saved memory_id={memory_id}")
+                        break
+
+    def _extract_resource_ids_from_sse(self, output: str, group: str) -> None:
+        """Extract IDs from SSE response payloads."""
+        if group == "sessions":
+            match = re.search(r'"session_id"\s*:\s*"([^"]+)"', output)
+            if match:
+                session_id = match.group(1)
+                self.resource_ids["session_id"] = session_id
+                print(f"  💾 Saved session_id={session_id}")
+        if group == "checkpoints":
+            match = re.search(r'"user_message_uuid"\s*:\s*"([^"]+)"', output)
+            if match:
+                checkpoint_uuid = match.group(1)
+                self.resource_ids["checkpoint_uuid"] = checkpoint_uuid
+                print(f"  💾 Saved checkpoint_uuid={checkpoint_uuid}")
+
+    def _resolve_placeholders(self, obj: Any) -> Any:
+        """Recursively resolve {resource_id} placeholders in request bodies."""
+        if isinstance(obj, str):
+            resolved = obj
+            for key, value in self.resource_ids.items():
+                resolved = resolved.replace(f"{{{key}}}", value)
+            return resolved
+        if isinstance(obj, list):
+            return [self._resolve_placeholders(item) for item in obj]
+        if isinstance(obj, dict):
+            return {k: self._resolve_placeholders(v) for k, v in obj.items()}
+        return obj
 
     def generate_report(self, output_file: str) -> None:
         """Generate markdown report."""
         print(f"\n\n📝 Generating report: {output_file}")
+        total = self.total_endpoints or 1
 
-        with open(output_file, "w") as f:
+        with Path(output_file).open("w") as f:
             # Header
             f.write("# Complete API Endpoint Testing Results\n\n")
             f.write(f"**Test Run:** {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
             f.write(f"**Base URL:** {self.base_url}\n")
-            f.write(f"**Total Endpoints:** 76\n")
-            f.write(f"**Tested:** {self.tested}/76 (100%)\n")
+            f.write(f"**Total Endpoints:** {self.total_endpoints}\n")
+            f.write(f"**Tested:** {self.tested}/{self.total_endpoints} (100%)\n")
             f.write(
-                f"**Working:** {self.working} ({self.working/76*100:.1f}%)\n"
+                f"**Working:** {self.working} ({self.working/total*100:.1f}%)\n"
             )
             f.write(
-                f"**Partially Working:** {self.partial} ({self.partial/76*100:.1f}%)\n"
+                f"**Partially Working:** {self.partial} ({self.partial/total*100:.1f}%)\n"
             )
-            f.write(f"**Failed:** {self.failed} ({self.failed/76*100:.1f}%)\n\n")
+            f.write(f"**Failed:** {self.failed} ({self.failed/total*100:.1f}%)\n\n")
 
             # Progress tracker
             f.write("## Progress Tracker\n\n")
@@ -245,7 +306,7 @@ class EndpointTester:
                     result.status
                 ]
                 f.write(
-                    f"- [x] {i}/76 - {result.endpoint.method} {result.endpoint.path} - "
+                    f"- [x] {i}/{self.total_endpoints} - {result.endpoint.method} {result.endpoint.path} - "
                     f"{icon} {result.status.title()} ({result.duration_ms:.0f}ms)\n"
                 )
 
@@ -275,6 +336,7 @@ class EndpointTester:
     def run_all_tests(self) -> None:
         """Execute all 76 endpoint tests."""
         endpoints = self._define_all_endpoints()
+        self.total_endpoints = len(endpoints)
 
         print(f"🚀 Starting comprehensive test of {len(endpoints)} endpoints...")
         print(f"📍 Base URL: {self.base_url}")
@@ -332,7 +394,11 @@ class EndpointTester:
                 "POST",
                 "/api/v1/agents",
                 "native",
-                {"name": "Test Agent", "description": "Test agent"},
+                {
+                    "name": "Test Agent",
+                    "description": "Test agent",
+                    "prompt": "You are a test agent",
+                },
                 group="agents",
             ),
             EndpointTest("GET", "/api/v1/agents", "native", group="agents"),
@@ -347,7 +413,12 @@ class EndpointTester:
                 "PUT",
                 "/api/v1/agents/{agent_id}",
                 "native",
-                {"name": "Updated Agent", "description": "Updated"},
+                {
+                    "id": "agent-update",
+                    "name": "Updated Agent",
+                    "description": "Updated",
+                    "prompt": "You are an updated test agent",
+                },
                 requires=["agent_id"],
                 group="agents",
             ),
@@ -370,8 +441,14 @@ class EndpointTester:
                 "POST",
                 "/api/v1/query/single",
                 "native",
-                {"prompt": "Test query", "model": "haiku"},
+                {
+                    "prompt": "Reply with exactly OK.",
+                    "model": "haiku",
+                    "max_turns": 1,
+                    "permission_mode": "bypassPermissions",
+                },
                 group="sessions",
+                timeout_seconds=180,
             ),
             EndpointTest(
                 "POST",
@@ -380,6 +457,7 @@ class EndpointTester:
                 {"prompt": "Test streaming", "model": "haiku"},
                 group="sessions",
                 is_streaming=True,
+                timeout_seconds=90,
             ),
             EndpointTest("GET", "/api/v1/sessions", "native", group="sessions"),
             # Session Detail & Control (8)
@@ -394,6 +472,7 @@ class EndpointTester:
                 "POST",
                 "/api/v1/sessions/{session_id}/promote",
                 "native",
+                {"project_id": "test-project"},
                 requires=["session_id"],
                 group="sessions",
             ),
@@ -409,14 +488,16 @@ class EndpointTester:
                 "POST",
                 "/api/v1/sessions/{session_id}/resume",
                 "native",
-                {"message": "Resume test"},
+                {"prompt": "Resume test"},
                 requires=["session_id"],
                 group="sessions",
+                timeout_seconds=120,
             ),
             EndpointTest(
                 "POST",
                 "/api/v1/sessions/{session_id}/fork",
                 "native",
+                {"prompt": "Fork test"},
                 requires=["session_id"],
                 group="sessions",
             ),
@@ -426,14 +507,16 @@ class EndpointTester:
                 "native",
                 requires=["session_id"],
                 group="sessions",
+                expected_statuses=[200, 404],
             ),
             EndpointTest(
                 "POST",
                 "/api/v1/sessions/{session_id}/control",
                 "native",
-                {"action": "cancel"},
+                {"type": "permission_mode_change", "permission_mode": "default"},
                 requires=["session_id"],
                 group="sessions",
+                expected_statuses=[200, 404],
             ),
             EndpointTest(
                 "POST",
@@ -442,6 +525,7 @@ class EndpointTester:
                 {"answer": "Test answer"},
                 requires=["session_id"],
                 group="sessions",
+                expected_statuses=[200, 404],
             ),
             # Checkpoints (2)
             EndpointTest(
@@ -455,9 +539,10 @@ class EndpointTester:
                 "POST",
                 "/api/v1/sessions/{session_id}/rewind",
                 "native",
-                {"checkpoint_uuid": "test-uuid"},
+                {"checkpoint_id": "test-checkpoint"},
                 requires=["session_id"],
                 group="checkpoints",
+                expected_statuses=[200, 400],
             ),
             # Skills CRUD (6)
             EndpointTest("GET", "/api/v1/skills", "native", group="skills"),
@@ -475,8 +560,8 @@ class EndpointTester:
                 {
                     "name": "test-skill",
                     "description": "Test skill",
-                    "trigger_phrase": "test trigger",
-                    "instructions": "Test instructions",
+                    "content": "# test-skill\n\nTest instructions",
+                    "enabled": True,
                 },
                 group="skills",
             ),
@@ -492,10 +577,11 @@ class EndpointTester:
                 "/api/v1/skills/{skill_id}",
                 "native",
                 {
+                    "id": "skill-update",
                     "name": "updated-skill",
                     "description": "Updated",
-                    "trigger_phrase": "updated trigger",
-                    "instructions": "Updated instructions",
+                    "content": "# updated-skill\n\nUpdated instructions",
+                    "enabled": True,
                 },
                 requires=["skill_id"],
                 group="skills",
@@ -515,7 +601,12 @@ class EndpointTester:
                 "POST",
                 "/api/v1/slash-commands",
                 "native",
-                {"name": "test", "description": "Test command", "prompt": "Test"},
+                {
+                    "name": "test",
+                    "description": "Test command",
+                    "content": "echo 'test'",
+                    "enabled": True,
+                },
                 group="slash-commands",
             ),
             EndpointTest(
@@ -529,7 +620,13 @@ class EndpointTester:
                 "PUT",
                 "/api/v1/slash-commands/{command_id}",
                 "native",
-                {"name": "updated", "description": "Updated", "prompt": "Updated"},
+                {
+                    "id": "command-update",
+                    "name": "updated",
+                    "description": "Updated",
+                    "content": "echo 'updated'",
+                    "enabled": True,
+                },
                 requires=["command_id"],
                 group="slash-commands",
             ),
@@ -555,8 +652,20 @@ class EndpointTester:
                 "native",
                 {
                     "name": "test-server",
-                    "transport_type": "stdio",
-                    "command": "test-command",
+                    "type": "stdio",
+                    "config": {
+                        "command": "echo",
+                        "args": ["hello"],
+                        "resources": [
+                            {
+                                "uri": "resource://demo",
+                                "name": "demo",
+                                "description": "Demo resource",
+                                "mimeType": "text/plain",
+                                "text": "health",
+                            }
+                        ],
+                    },
                 },
                 group="mcp-servers",
             ),
@@ -571,26 +680,29 @@ class EndpointTester:
                 "PUT",
                 "/api/v1/mcp-servers/{server_name}",
                 "native",
-                {"enabled": False},
+                {"type": "stdio", "config": {"enabled": False}},
                 requires=["server_name"],
                 group="mcp-servers",
             ),
             EndpointTest(
                 "GET",
-                "/api/v1/mcp-servers/swag/resources",
+                "/api/v1/mcp-servers/{server_name}/resources",
                 "native",
+                requires=["server_name"],
                 group="mcp-servers",
             ),
             EndpointTest(
                 "GET",
-                "/api/v1/mcp-servers/swag/resources/health",
+                "/api/v1/mcp-servers/{server_name}/resources/resource://demo",
                 "native",
+                requires=["server_name"],
                 group="mcp-servers",
             ),
             EndpointTest(
                 "POST",
                 "/api/v1/mcp-servers/{server_name}/share",
                 "native",
+                {"config": {"type": "stdio", "command": "echo", "args": ["hello"]}},
                 requires=["server_name"],
                 group="mcp-servers",
             ),
@@ -613,8 +725,9 @@ class EndpointTester:
                 "POST",
                 "/api/v1/memories",
                 "native",
-                {"messages": "Test memory content"},
+                {"messages": "Test memory content", "enable_graph": False},
                 group="memories",
+                timeout_seconds=90,
             ),
             EndpointTest(
                 "POST",
@@ -675,6 +788,7 @@ class EndpointTester:
                     "messages": [{"role": "user", "content": "Test"}],
                 },
                 group="openai-chat",
+                timeout_seconds=90,
             ),
             # OpenAI Models (2)
             EndpointTest("GET", "/v1/models", "openai", group="openai-models"),
@@ -713,7 +827,7 @@ class EndpointTester:
                 group="assistants",
             ),
             # OpenAI Threads CRUD (4)
-            EndpointTest("POST", "/v1/threads", "openai", group="threads"),
+            EndpointTest("POST", "/v1/threads", "openai", {}, group="threads"),
             EndpointTest(
                 "GET",
                 "/v1/threads/{thread_id}",

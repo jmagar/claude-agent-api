@@ -1,6 +1,5 @@
 """Agent management endpoints."""
 
-from typing import cast
 
 from fastapi import APIRouter, Request
 

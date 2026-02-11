@@ -3,7 +3,6 @@
 import secrets
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
-from functools import lru_cache
 from typing import TYPE_CHECKING, Annotated
 
 from fastapi import Depends, Header, Request
@@ -19,15 +18,20 @@ from apps.api.exceptions import AuthenticationError, ServiceUnavailableError
 
 if TYPE_CHECKING:
     from apps.api.adapters.cache import RedisCache
-    from apps.api.adapters.memory import Mem0MemoryAdapter
     from apps.api.adapters.session_repo import SessionRepository
     from apps.api.protocols import AgentConfigProtocol, ProjectProtocol
     from apps.api.protocols import AgentService as AgentServiceProtocol
     from apps.api.services.agent import AgentService
+    from apps.api.services.assistants import (
+        AssistantService,
+        MessageService,
+        RunService,
+        ThreadService,
+    )
     from apps.api.services.checkpoint import CheckpointService
+    from apps.api.services.health import CacheHealthService
     from apps.api.services.mcp_config_injector import McpConfigInjector
     from apps.api.services.mcp_config_loader import McpConfigLoader
-    from apps.api.services.mcp_config_validator import ConfigValidator
     from apps.api.services.mcp_discovery import McpDiscoveryService
     from apps.api.services.mcp_server_configs import McpServerConfigService
     from apps.api.services.mcp_share import McpShareService
@@ -637,6 +641,52 @@ async def get_skills_crud_service(
     return SkillCrudService(cache=cache)
 
 
+async def get_openai_assistant_service(
+    cache: Annotated["RedisCache", Depends(get_cache)],
+) -> "AssistantService":
+    """Get OpenAI assistant CRUD service."""
+    from apps.api.services.assistants import AssistantService
+
+    return AssistantService(cache=cache)
+
+
+async def get_openai_thread_service(
+    cache: Annotated["RedisCache", Depends(get_cache)],
+    session_service: Annotated["SessionService", Depends(get_session_service)],
+) -> "ThreadService":
+    """Get OpenAI thread service."""
+    from apps.api.services.assistants import ThreadService
+
+    return ThreadService(session_service=session_service, cache=cache)
+
+
+async def get_openai_message_service(
+    cache: Annotated["RedisCache", Depends(get_cache)],
+) -> "MessageService":
+    """Get OpenAI message service."""
+    from apps.api.services.assistants import MessageService
+
+    return MessageService(cache=cache)
+
+
+async def get_openai_run_service(
+    cache: Annotated["RedisCache", Depends(get_cache)],
+) -> "RunService":
+    """Get OpenAI run service."""
+    from apps.api.services.assistants import RunService
+
+    return RunService(cache=cache)
+
+
+async def get_cache_health_service(
+    cache: Annotated["RedisCache", Depends(get_cache)],
+) -> "CacheHealthService":
+    """Get cache health service wrapper."""
+    from apps.api.services.health import CacheHealthService
+
+    return CacheHealthService(cache=cache)
+
+
 # Type aliases for dependency injection
 DbSession = Annotated[AsyncSession, Depends(get_db)]
 CacheDep = Annotated["RedisCache", Depends(get_cache)]  # Named CacheDep to avoid collision with Cache protocol
@@ -665,6 +715,13 @@ McpServerConfigSvc = Annotated[
 ]
 McpShareSvc = Annotated["McpShareService", Depends(get_mcp_share_service)]
 SkillCrudSvc = Annotated["SkillCrudService", Depends(get_skills_crud_service)]
+OpenAIAssistantSvc = Annotated[
+    "AssistantService", Depends(get_openai_assistant_service)
+]
+OpenAIThreadSvc = Annotated["ThreadService", Depends(get_openai_thread_service)]
+OpenAIMessageSvc = Annotated["MessageService", Depends(get_openai_message_service)]
+OpenAIRunSvc = Annotated["RunService", Depends(get_openai_run_service)]
+CacheHealthSvc = Annotated["CacheHealthService", Depends(get_cache_health_service)]
 
 
 # --- Test Isolation (M-13) ---

@@ -135,6 +135,10 @@ class Settings(BaseSettings):
     llm_model: str = Field(
         default="gemini-3-flash-preview", description="LLM model for Mem0"
     )
+    llm_user_agent: str = Field(
+        default="claude-agent-api/mem0",
+        description="User-Agent header for Mem0 LLM requests",
+    )
 
     # Neo4j Configuration
     neo4j_url: str = Field(

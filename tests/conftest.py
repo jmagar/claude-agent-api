@@ -136,6 +136,8 @@ async def async_client(
             transport=transport,
             base_url="http://test",
         ) as client:
+            # Compatibility shim for tests that access async_client.app directly.
+            setattr(client, "app", test_app)
             yield client
     finally:
         # Cleanup resources - cache first to avoid event loop issues

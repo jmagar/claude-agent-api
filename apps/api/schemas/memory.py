@@ -4,7 +4,6 @@ from typing import NotRequired, Required, TypedDict
 
 from pydantic import BaseModel, Field
 
-from apps.api.types import JsonValue
 
 class MemoryAddRequest(BaseModel):
     """Request to add a memory."""

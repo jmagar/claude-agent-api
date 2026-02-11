@@ -2,7 +2,7 @@
 
 from collections.abc import AsyncGenerator
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal, TypedDict
+from typing import TYPE_CHECKING, Literal, TypedDict, cast
 from uuid import uuid4
 
 import structlog
@@ -103,11 +103,23 @@ class AgentService:
             )
             if config is None:
                 config = AgentServiceConfig(
-                    cache=deprecated_kwargs.get("cache"),  # type: ignore[arg-type]
-                    checkpoint_service=deprecated_kwargs.get("checkpoint_service"),  # type: ignore[arg-type]
-                    memory_service=deprecated_kwargs.get("memory_service"),  # type: ignore[arg-type]
-                    mcp_config_injector=deprecated_kwargs.get("mcp_config_injector"),  # type: ignore[arg-type]
-                    webhook_service=deprecated_kwargs.get("webhook_service"),  # type: ignore[arg-type]
+                    cache=cast("Cache | None", deprecated_kwargs.get("cache")),
+                    checkpoint_service=cast(
+                        "CheckpointService | None",
+                        deprecated_kwargs.get("checkpoint_service"),
+                    ),
+                    memory_service=cast(
+                        "MemoryService | None",
+                        deprecated_kwargs.get("memory_service"),
+                    ),
+                    mcp_config_injector=cast(
+                        "McpConfigInjector | None",
+                        deprecated_kwargs.get("mcp_config_injector"),
+                    ),
+                    webhook_service=cast(
+                        "WebhookService | None",
+                        deprecated_kwargs.get("webhook_service"),
+                    ),
                 )
 
         self._config = config or AgentServiceConfig()

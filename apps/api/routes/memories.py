@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from typing import TYPE_CHECKING, cast
 
 import structlog
@@ -39,15 +40,20 @@ def _validate_memory_record(record: dict[str, JsonValue]) -> MemoryRecordDict:
     Raises:
         ValueError: If required fields are missing or invalid.
     """
-    if not isinstance(record.get("id"), str):
-        raise ValueError("Memory record missing required 'id' field")
-    if not isinstance(record.get("memory"), str):
+    memory_value = record.get("memory")
+    if not isinstance(memory_value, str):
         raise ValueError("Memory record missing required 'memory' field")
+
+    record_id = record.get("id")
+    if isinstance(record_id, str) and record_id:
+        memory_id = record_id
+    else:
+        memory_id = f"mem_{hashlib.sha256(memory_value.encode()).hexdigest()[:12]}"
 
     # Build result with required fields
     result: MemoryRecordDict = {
-        "id": str(record["id"]),
-        "memory": str(record["memory"]),
+        "id": memory_id,
+        "memory": memory_value,
     }
 
     # Add optional fields if present
@@ -100,9 +106,10 @@ async def search_memories(
                 id=str(r.get("id", "")),
                 memory=str(r.get("memory", "")),
                 score=float(r.get("score", 0.0)),
-                metadata=cast(
-                    "dict[str, object]",
-                    r.get("metadata", {}),
+                metadata=(
+                    cast("dict[str, object]", r.get("metadata"))
+                    if isinstance(r.get("metadata"), dict)
+                    else {}
                 ),
             )
             for r in results

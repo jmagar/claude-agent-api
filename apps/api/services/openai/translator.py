@@ -2,7 +2,7 @@
 
 import time
 import uuid
-from typing import Literal
+from typing import Literal, cast
 
 import structlog
 
@@ -237,14 +237,21 @@ class RequestTranslator:
         # conversation turns. There's no reliable conversion between them.
 
         # Use provided permission_mode or default to "default" for OpenAI compatibility
-        final_permission_mode = permission_mode or "default"
+        final_permission_mode: Literal[
+            "default", "acceptEdits", "plan", "bypassPermissions"
+        ] = "default"
+        if permission_mode in ("default", "acceptEdits", "plan", "bypassPermissions"):
+            final_permission_mode = cast(
+                "Literal['default', 'acceptEdits', 'plan', 'bypassPermissions']",
+                permission_mode,
+            )
 
         query_request = QueryRequest(
             prompt=prompt,
             model=claude_model,
             system_prompt=system_prompt,
             user=request.user,  # SUPPORTED: User identifier for tracking
-            permission_mode=final_permission_mode,  # type: ignore[arg-type]
+            permission_mode=final_permission_mode,
             # setting_sources defaults to None - allows explicit mcp_servers without auto-loading
         )
 

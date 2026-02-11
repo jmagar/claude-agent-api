@@ -39,6 +39,21 @@ class AgentService:
         """<summary>Build cache key for an agent.</summary>"""
         return f"agent:{agent_id}"
 
+    def _parse_tools(
+        self,
+        raw_tools: object,
+    ) -> list[str] | None:
+        """Normalize cached tools payload to optional list[str]."""
+        if raw_tools is None:
+            return None
+        if not isinstance(raw_tools, list):
+            return None
+        tools: list[str] = []
+        for tool in raw_tools:
+            if isinstance(tool, str):
+                tools.append(tool)
+        return tools or None
+
     async def list_agents(self) -> list[AgentRecord]:
         """<summary>List all agents.</summary>"""
         ids = await self._cache.set_members(self._INDEX_KEY)
@@ -59,7 +74,7 @@ class AgentService:
                     name=str(raw.get("name", "")),
                     description=str(raw.get("description", "")),
                     prompt=str(raw.get("prompt", "")),
-                    tools=list(cast("list[str]", raw.get("tools", []))) or None,
+                    tools=self._parse_tools(raw.get("tools")),
                     model=cast("str | None", raw.get("model")),
                     created_at=str(raw.get("created_at", "")),
                     updated_at=cast("str | None", raw.get("updated_at")),
@@ -110,7 +125,7 @@ class AgentService:
             name=str(raw.get("name", "")),
             description=str(raw.get("description", "")),
             prompt=str(raw.get("prompt", "")),
-            tools=list(cast("list[str]", raw.get("tools", []))) or None,
+            tools=self._parse_tools(raw.get("tools")),
             model=cast("str | None", raw.get("model")),
             created_at=str(raw.get("created_at", "")),
             updated_at=cast("str | None", raw.get("updated_at")),

@@ -1,7 +1,7 @@
 """Mem0 memory adapter implementation."""
 
 import asyncio
-from typing import cast
+from typing import Any, cast
 
 import structlog
 from mem0 import Memory
@@ -50,9 +50,10 @@ def _patch_langchain_neo4j() -> None:
             token = None
         original_init(self, url, username, password, token, database, *args, **kwargs)
 
-    # Runtime monkey-patch (unavoidable type violations)
-    neo4j_graph.__init__ = _shim_init  # type: ignore[method-assign]
-    neo4j_graph._mem0_positional_shim = True  # type: ignore[attr-defined]
+    # Runtime monkey-patch (unavoidable for third-party compatibility).
+    neo4j_graph_any = cast(Any, neo4j_graph)  # noqa: TC006
+    neo4j_graph_any.__init__ = _shim_init
+    neo4j_graph_any._mem0_positional_shim = True
 
 
 class Mem0MemoryAdapter:
@@ -110,7 +111,39 @@ class Mem0MemoryAdapter:
         }
 
         self._memory = Memory.from_config(config)
+        vector_only_config = dict(config)
+        vector_only_config.pop("graph_store", None)
+        self._vector_memory = Memory.from_config(vector_only_config)
+        self._apply_user_agent_override()
         logger.info("mem0_client_initialized", config_version="v1.1")
+
+    def _apply_user_agent_override(self) -> None:
+        """Set explicit User-Agent on Mem0 OpenAI clients.
+
+        Some upstream gateways can block SDK-default user agents. Applying an
+        explicit service UA keeps Mem0 infer/graph requests routable.
+        """
+
+        def _set_client_user_agent(memory_client: object) -> None:
+            llm = getattr(memory_client, "llm", None)
+            client = getattr(llm, "client", None)
+            if client is not None and hasattr(client, "with_options"):
+                llm_any = cast("Any", llm)
+                llm_any.client = client.with_options(
+                    default_headers={"User-Agent": self._settings.llm_user_agent}
+                )
+
+            graph = getattr(memory_client, "graph", None)
+            graph_llm = getattr(graph, "llm", None)
+            graph_client = getattr(graph_llm, "client", None)
+            if graph_client is not None and hasattr(graph_client, "with_options"):
+                graph_llm_any = cast("Any", graph_llm)
+                graph_llm_any.client = graph_client.with_options(
+                    default_headers={"User-Agent": self._settings.llm_user_agent}
+                )
+
+        _set_client_user_agent(self._memory)
+        _set_client_user_agent(self._vector_memory)
 
     async def search(
         self,
@@ -138,15 +171,77 @@ class Mem0MemoryAdapter:
         # Note: enable_graph parameter accepted by API but not passed to Mem0
         # for compatibility with versions that don't support it.
         # Graph functionality controlled by Mem0 configuration instead.
-        results = await asyncio.to_thread(
-            self._memory.search,
-            **{
-                "query": query,
-                "user_id": user_id,
-                "agent_id": self._agent_id,
-                "limit": limit,
-            },
-        )
+        kwargs: dict[str, object] = {
+            "query": query,
+            "user_id": user_id,
+            "agent_id": self._agent_id,
+            "limit": limit,
+            "enable_graph": enable_graph,
+        }
+        kwargs_no_graph = dict(kwargs)
+        kwargs_no_graph.pop("enable_graph", None)
+        if not enable_graph:
+            try:
+                results = await asyncio.to_thread(self._vector_memory.search, **kwargs_no_graph)
+            except Exception as exc:
+                if exc.__class__.__name__ == "PermissionDeniedError":
+                    logger.warning(
+                        "mem0_search_permission_denied",
+                        user_id=user_id,
+                        error=str(exc),
+                    )
+                    return []
+                raise
+        else:
+            try:
+                results = await asyncio.to_thread(self._memory.search, **kwargs)
+            except TypeError as exc:
+                if "enable_graph" in str(exc):
+                    kwargs.pop("enable_graph", None)
+                    try:
+                        results = await asyncio.to_thread(self._memory.search, **kwargs)
+                    except Exception as retry_exc:
+                        if retry_exc.__class__.__name__ == "PermissionDeniedError":
+                            logger.warning(
+                                "mem0_search_permission_denied_graph_mode",
+                                user_id=user_id,
+                                error=str(retry_exc),
+                            )
+                            try:
+                                results = await asyncio.to_thread(
+                                    self._vector_memory.search, **kwargs_no_graph
+                                )
+                            except Exception:
+                                logger.warning(
+                                    "mem0_search_permission_denied",
+                                    user_id=user_id,
+                                    error=str(retry_exc),
+                                )
+                                return []
+                        else:
+                            raise
+                else:
+                    raise
+            except Exception as exc:
+                if exc.__class__.__name__ == "PermissionDeniedError":
+                    logger.warning(
+                        "mem0_search_permission_denied_graph_mode",
+                        user_id=user_id,
+                        error=str(exc),
+                    )
+                    try:
+                        results = await asyncio.to_thread(
+                            self._vector_memory.search, **kwargs_no_graph
+                        )
+                    except Exception:
+                        logger.warning(
+                            "mem0_search_permission_denied",
+                            user_id=user_id,
+                            error=str(exc),
+                        )
+                        return []
+                else:
+                    raise
         if isinstance(results, dict) and isinstance(results.get("results"), list):
             results = results["results"]
 
@@ -205,15 +300,81 @@ class Mem0MemoryAdapter:
         # Note: enable_graph parameter accepted by API but not passed to Mem0
         # for compatibility with versions that don't support it.
         # Graph functionality controlled by Mem0 configuration instead.
-        results = await asyncio.to_thread(
-            self._memory.add,
-            **{
-                "messages": messages,
-                "user_id": user_id,
-                "agent_id": self._agent_id,
-                "metadata": metadata or {},
-            },
-        )
+        kwargs: dict[str, object] = {
+            "messages": messages,
+            "user_id": user_id,
+            "agent_id": self._agent_id,
+            "metadata": metadata or {},
+            "enable_graph": enable_graph,
+        }
+        if not enable_graph:
+            # Skip LLM extraction path when graph is disabled to avoid unnecessary latency.
+            kwargs["infer"] = False
+        kwargs_no_graph = dict(kwargs)
+        kwargs_no_graph.pop("enable_graph", None)
+        kwargs_no_graph["infer"] = False
+        if not enable_graph:
+            try:
+                results = await asyncio.to_thread(self._vector_memory.add, **kwargs_no_graph)
+            except Exception as exc:
+                if exc.__class__.__name__ == "PermissionDeniedError":
+                    logger.warning(
+                        "mem0_add_permission_denied",
+                        user_id=user_id,
+                        error=str(exc),
+                    )
+                    return []
+                raise
+        else:
+            try:
+                results = await asyncio.to_thread(self._memory.add, **kwargs)
+            except TypeError as exc:
+                if "enable_graph" in str(exc):
+                    kwargs.pop("enable_graph", None)
+                    try:
+                        results = await asyncio.to_thread(self._memory.add, **kwargs)
+                    except Exception as retry_exc:
+                        if retry_exc.__class__.__name__ == "PermissionDeniedError":
+                            logger.warning(
+                                "mem0_add_permission_denied_graph_mode",
+                                user_id=user_id,
+                                error=str(retry_exc),
+                            )
+                            try:
+                                results = await asyncio.to_thread(
+                                    self._vector_memory.add, **kwargs_no_graph
+                                )
+                            except Exception:
+                                logger.warning(
+                                    "mem0_add_permission_denied",
+                                    user_id=user_id,
+                                    error=str(retry_exc),
+                                )
+                                return []
+                        else:
+                            raise
+                else:
+                    raise
+            except Exception as exc:
+                if exc.__class__.__name__ == "PermissionDeniedError":
+                    logger.warning(
+                        "mem0_add_permission_denied_graph_mode",
+                        user_id=user_id,
+                        error=str(exc),
+                    )
+                    try:
+                        results = await asyncio.to_thread(
+                            self._vector_memory.add, **kwargs_no_graph
+                        )
+                    except Exception:
+                        logger.warning(
+                            "mem0_add_permission_denied",
+                            user_id=user_id,
+                            error=str(exc),
+                        )
+                        return []
+                else:
+                    raise
         # Normalize response format (defensive against Mem0 API changes)
         if isinstance(results, dict):
             # Unwrap nested results
@@ -225,22 +386,30 @@ class Mem0MemoryAdapter:
         # Clean None values from dict responses
         if isinstance(results, list):
             cleaned: list[dict[str, JsonValue]] = []
-            for item in results:
+            for index, item in enumerate(results):
                 if isinstance(item, dict):
                     # Remove None values, cast dict values to JsonValue
                     cleaned_item: dict[str, JsonValue] = {}
                     for k, v in item.items():
                         if v is not None:
                             cleaned_item[cast("str", k)] = cast("JsonValue", v)
+                    if "memory" not in cleaned_item:
+                        for key in ("text", "content", "data"):
+                            raw_memory = cleaned_item.get(key)
+                            if isinstance(raw_memory, str):
+                                cleaned_item["memory"] = raw_memory
+                                break
+                    if "memory" in cleaned_item and "id" not in cleaned_item:
+                        cleaned_item["id"] = f"mem_{index}"
                     cleaned.append(cleaned_item)
                 elif isinstance(item, str):
                     # Handle string responses (convert to dict)
-                    cleaned.append({"memory": item})
+                    cleaned.append({"id": f"mem_{index}", "memory": item})
             return cleaned
 
         # Fallback for unexpected formats
         if isinstance(results, str):
-            return [{"memory": results}]
+            return [{"id": "mem_0", "memory": results}]
 
         return []
 

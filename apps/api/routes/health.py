@@ -2,13 +2,11 @@
 
 from typing import Literal
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 from pydantic import BaseModel
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from apps.api.adapters.cache import RedisCache
-from apps.api.dependencies import get_cache, get_db
+from apps.api.dependencies import CacheHealthSvc, DbSession
 
 router = APIRouter(tags=["Health"])
 
@@ -31,8 +29,8 @@ class HealthResponse(BaseModel):
 
 @router.get("/health", response_model=HealthResponse)
 async def health_check(
-    db: AsyncSession = Depends(get_db),
-    cache: RedisCache = Depends(get_cache),
+    db: DbSession,
+    cache_health: CacheHealthSvc,
 ) -> HealthResponse:
     """Check service health and dependencies.
 
@@ -63,7 +61,7 @@ async def health_check(
     # Check Redis
     try:
         start = time.perf_counter()
-        healthy = await cache.ping()
+        healthy = await cache_health.ping()
         latency = (time.perf_counter() - start) * 1000
         if healthy:
             dependencies["redis"] = DependencyStatus(

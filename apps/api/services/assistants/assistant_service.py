@@ -416,11 +416,44 @@ class AssistantService:
             Paginated assistant list.
         """
         if not self._db_repo:
+            if not self._cache:
+                return AssistantListResult(
+                    data=[],
+                    first_id=None,
+                    last_id=None,
+                    has_more=False,
+                )
+
+            # Fallback for deployments without assistant DB repository:
+            # list cached assistants by OpenAI assistant ID prefix.
+            keys = await self._cache.scan_keys("assistant:asst_*")
+            if not keys:
+                return AssistantListResult(
+                    data=[],
+                    first_id=None,
+                    last_id=None,
+                    has_more=False,
+                )
+
+            cached_rows = await self._cache.get_many_json(keys)
+            assistants: list[Assistant] = []
+            for parsed in cached_rows:
+                if not parsed:
+                    continue
+                assistant = self._parse_cached_assistant(parsed)
+                if assistant:
+                    assistants.append(assistant)
+
+            reverse = order == "desc"
+            assistants.sort(key=lambda a: a.created_at, reverse=reverse)
+            has_more = len(assistants) > limit
+            assistants = assistants[:limit]
+
             return AssistantListResult(
-                data=[],
-                first_id=None,
-                last_id=None,
-                has_more=False,
+                data=assistants,
+                first_id=assistants[0].id if assistants else None,
+                last_id=assistants[-1].id if assistants else None,
+                has_more=has_more,
             )
 
         try:

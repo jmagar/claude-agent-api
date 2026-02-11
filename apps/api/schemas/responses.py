@@ -1,11 +1,9 @@
 """Pydantic response models for API endpoints."""
 
 from datetime import datetime
-from typing import Literal
+from typing import Literal, Protocol, cast
 
 from pydantic import BaseModel, Field
-
-from apps.api.types import JsonValue
 
 
 class UsageSchema(BaseModel):
@@ -394,6 +392,16 @@ class SessionWithMetaResponse(BaseModel):
     model_usage: dict[str, object] | None = None
     metadata: dict[str, object] | None = None
 
+    class _SessionLike(Protocol):
+        id: object
+        status: object
+        created_at: datetime
+        updated_at: datetime
+        total_turns: object
+        total_cost_usd: object
+        parent_session_id: object
+        session_metadata: dict[str, object] | None
+
     @classmethod
     def from_session(
         cls,
@@ -409,22 +417,21 @@ class SessionWithMetaResponse(BaseModel):
         Returns:
             SessionWithMetaResponse instance.
         """
-        from typing import cast
-
+        session_obj = cast("SessionWithMetaResponse._SessionLike", session)
         # Extract metadata from session if not provided
         if metadata is None:
-            metadata = cast("dict[str, object]", getattr(session, "session_metadata", {}))
+            metadata = session_obj.session_metadata or {}
             if metadata is None:
                 metadata = {}
 
         # Extract session attributes
-        session_id = str(getattr(session, "id"))
-        status_raw = str(getattr(session, "status"))
-        created_at = cast("datetime", getattr(session, "created_at"))
-        updated_at = cast("datetime", getattr(session, "updated_at"))
-        total_turns = int(getattr(session, "total_turns", 0))
-        total_cost_raw = getattr(session, "total_cost_usd", None)
-        parent_id_raw = getattr(session, "parent_session_id", None)
+        session_id = str(session_obj.id)
+        status_raw = str(session_obj.status)
+        created_at = session_obj.created_at
+        updated_at = session_obj.updated_at
+        total_turns = int(getattr(session_obj, "total_turns", 0))
+        total_cost_raw = getattr(session_obj, "total_cost_usd", None)
+        parent_id_raw = getattr(session_obj, "parent_session_id", None)
 
         # Validate status
         status_val: Literal["active", "completed", "error"]

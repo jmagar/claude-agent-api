@@ -1,13 +1,12 @@
 """Protocol interfaces for dependency injection."""
 
-from collections.abc import AsyncGenerator
 from typing import TYPE_CHECKING, Literal, Protocol, TypedDict, runtime_checkable
 from uuid import UUID
 
 from apps.api.types import JsonValue
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterator, Sequence
+    from collections.abc import AsyncGenerator, AsyncIterator, Sequence
 
     from apps.api.models.session import Checkpoint, Session, SessionMessage
     from apps.api.schemas.openai.requests import ChatCompletionRequest
@@ -534,7 +533,7 @@ class ResponseTranslator(Protocol):
 class AgentService(Protocol):
     """Protocol for agent service used by routes."""
 
-    async def query_stream(
+    def query_stream(
         self, request: "QueryRequest", api_key: str = ""
     ) -> "AsyncGenerator[dict[str, str], None]":
         """Stream a query to the agent."""

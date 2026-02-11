@@ -14,14 +14,10 @@ Enables horizontal scaling by using Redis for shared state.
 See ADR-001 for architecture details.
 """
 
-import asyncio
-import random
 import secrets
-import time
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Literal, TypedDict, TypeVar
+from typing import TYPE_CHECKING, Literal, TypeVar
 from uuid import UUID, uuid4
 
 import structlog
@@ -30,6 +26,14 @@ from sqlalchemy.exc import IntegrityError, OperationalError
 from apps.api.config import get_settings
 from apps.api.exceptions.base import APIError
 from apps.api.exceptions.session import SessionNotFoundError
+from apps.api.services.session_cache_manager import SessionCacheManager
+from apps.api.services.session_lock_manager import SessionLockManager
+from apps.api.services.session_metadata_manager import SessionMetadataManager
+from apps.api.services.session_models import (
+    Session,
+    SessionListResult,
+    parse_session_status,
+)
 from apps.api.types import JsonValue
 from apps.api.utils.crypto import hash_api_key
 
@@ -43,53 +47,8 @@ if TYPE_CHECKING:
 logger = structlog.get_logger(__name__)
 
 
-class CachedSessionData(TypedDict):
-    """TypedDict for session data stored in Redis cache."""
-
-    id: str
-    model: str
-    status: Literal["active", "completed", "error"]
-    created_at: str  # ISO format
-    updated_at: str  # ISO format
-    total_turns: int
-    total_cost_usd: float | None
-    parent_session_id: str | None
-    owner_api_key_hash: str | None
-    session_metadata: dict[str, object] | None
-
-
-@dataclass
-class Session:
-    """Session data model."""
-
-    id: str
-    model: str
-    status: Literal["active", "completed", "error"]
-    created_at: datetime
-    updated_at: datetime
-    total_turns: int = 0
-    total_cost_usd: float | None = None
-    parent_session_id: str | None = None
-    owner_api_key_hash: str | None = None
-    session_metadata: dict[str, object] | None = None
-
-
-@dataclass
-class SessionListResult:
-    """Result of listing sessions."""
-
-    sessions: list[Session]
-    total: int
-    page: int
-    page_size: int
-
-
 class SessionService:
     """Service for managing agent sessions."""
-
-    # Lock retry configuration
-    _LOCK_INITIAL_RETRY_DELAY = 0.01  # Start with 10ms
-    _LOCK_MAX_RETRY_DELAY = 0.5  # Cap at 500ms
 
     def __init__(
         self,
@@ -107,10 +66,13 @@ class SessionService:
         self._db_repo = db_repo
         settings = get_settings()
         self._ttl = settings.redis_session_ttl
+        self._cache_manager = SessionCacheManager(cache=cache, ttl=self._ttl)
+        self._lock_manager = SessionLockManager(cache=cache)
+        self._metadata_manager = SessionMetadataManager(db_repo=db_repo)
 
     def _cache_key(self, session_id: str) -> str:
         """Generate cache key for a session."""
-        return f"session:{session_id}"
+        return self._cache_manager.cache_key(session_id)
 
     async def _with_session_lock(
         self,
@@ -137,67 +99,13 @@ class SessionService:
         Raises:
             TimeoutError: If lock cannot be acquired within acquire_timeout.
         """
-        if not self._cache:
-            # No cache = no distributed locking needed (single-instance mode)
-            return await func()
-
-        lock_key = f"session_lock:{session_id}"
-        lock_value = None
-        start_time = time.monotonic()
-
-        # Retry loop with exponential backoff
-        retry_delay = self._LOCK_INITIAL_RETRY_DELAY
-        max_retry_delay = self._LOCK_MAX_RETRY_DELAY
-
-        while True:
-            # Try to acquire lock
-            lock_value = await self._cache.acquire_lock(
-                lock_key,
-                ttl=lock_ttl,
-            )
-
-            if lock_value is not None:
-                # Lock acquired successfully
-                break
-
-            # Check if we've exceeded timeout
-            elapsed = time.monotonic() - start_time
-            if elapsed >= acquire_timeout:
-                logger.warning(
-                    "Failed to acquire session lock after timeout",
-                    session_id=session_id,
-                    operation=operation,
-                    timeout=acquire_timeout,
-                    elapsed=elapsed,
-                )
-                raise TimeoutError(f"Could not acquire lock for session {session_id}")
-
-            # Wait before retrying (exponential backoff with jitter)
-            # Add ±10% jitter to prevent thundering herd problem
-            jittered_delay = retry_delay * (1 + random.uniform(-0.1, 0.1))
-            await asyncio.sleep(jittered_delay)
-            retry_delay = min(retry_delay * 2, max_retry_delay)
-
-        try:
-            logger.debug(
-                "Acquired session lock",
-                session_id=session_id,
-                operation=operation,
-            )
-
-            # Execute operation while holding lock
-            result = await func()
-
-            return result
-
-        finally:
-            # Always release lock
-            await self._cache.release_lock(lock_key, lock_value)
-            logger.debug(
-                "Released session lock",
-                session_id=session_id,
-                operation=operation,
-            )
+        return await self._lock_manager.with_session_lock(
+            session_id=session_id,
+            operation=operation,
+            func=func,
+            acquire_timeout=acquire_timeout,
+            lock_ttl=lock_ttl,
+        )
 
     async def create_session(
         self,
@@ -426,6 +334,8 @@ class SessionService:
                 code="DATABASE_UNAVAILABLE",
                 status_code=503,
             ) from e
+        except SessionNotFoundError:
+            raise
         except Exception as e:
             logger.error(
                 "Failed to retrieve session from database",
@@ -493,22 +403,10 @@ class SessionService:
         cached_sessions: list[Session] = []
 
         if self._cache and current_api_key is not None:
-            # Phase 2: Use hashed API key for cache index
             owner_api_key_hash = hash_api_key(current_api_key)
-            owner_index_key = f"session:owner:{owner_api_key_hash}"
-            session_ids = await self._cache.set_members(owner_index_key)
-
-            # Bulk fetch session data
-            keys = [self._cache_key(session_id) for session_id in session_ids]
-            cached_rows = await self._cache.get_many_json(keys)
-
-            # Parse sessions
-            for parsed in cached_rows:
-                if not parsed:
-                    continue
-                session = self._parse_cached_session(parsed)
-                if session:
-                    cached_sessions.append(session)
+            cached_sessions = await self._cache_manager.list_sessions_for_owner(
+                owner_api_key_hash
+            )
 
         elif self._cache:
             # WARNING: Full cache scan path - should be avoided in production.
@@ -518,19 +416,7 @@ class SessionService:
                 "session_list_full_scan",
                 msg="Using full cache scan - consider adding owner filter for efficiency",
             )
-            pattern = "session:*"
-            all_keys = await self._cache.scan_keys(pattern, max_keys=1000)
-
-            # Bulk fetch all session data in one Redis roundtrip
-            cached_rows = await self._cache.get_many_json(all_keys)
-
-            # Parse each cached session
-            for _key, parsed in zip(all_keys, cached_rows, strict=True):
-                if not parsed:
-                    continue
-                session = self._parse_cached_session(parsed)
-                if session:
-                    cached_sessions.append(session)
+            cached_sessions = await self._cache_manager.list_all_sessions(max_keys=1000)
 
         # Sort by created_at descending
         cached_sessions.sort(key=lambda s: s.created_at, reverse=True)
@@ -673,13 +559,10 @@ class SessionService:
                 if db_session:
                     owner_api_key_hash = db_session.owner_api_key_hash
 
-            key = self._cache_key(session_id)
-            # Phase 3: Use hash directly for owner index
-            if owner_api_key_hash:
-                owner_index_key = f"session:owner:{owner_api_key_hash}"
-                await self._cache.remove_from_set(owner_index_key, session_id)
-
-            result = await self._cache.delete(key)
+            result = await self._cache_manager.delete_session(
+                session_id=session_id,
+                owner_api_key_hash=owner_api_key_hash,
+            )
             if result:
                 logger.info("Session deleted", session_id=session_id)
                 return True
@@ -695,10 +578,7 @@ class SessionService:
         Returns:
             True if session exists.
         """
-        if self._cache:
-            key = self._cache_key(session_id)
-            return await self._cache.exists(key)
-        return False
+        return await self._cache_manager.session_exists(session_id)
 
     async def promote_session(
         self,
@@ -804,29 +684,7 @@ class SessionService:
         Args:
             session: Session to cache.
         """
-        if not self._cache:
-            return
-
-        key = self._cache_key(session.id)
-        data: dict[str, JsonValue] = {
-            "id": session.id,
-            "model": session.model,
-            "status": session.status,
-            "created_at": session.created_at.isoformat(),
-            "updated_at": session.updated_at.isoformat(),
-            "total_turns": session.total_turns,
-            "total_cost_usd": session.total_cost_usd,
-            "parent_session_id": session.parent_session_id,
-            "owner_api_key_hash": session.owner_api_key_hash,
-            "session_metadata": session.session_metadata,
-        }
-
-        await self._cache.set_json(key, data, self._ttl)
-
-        # Phase 3: Maintain owner index using hash directly
-        if session.owner_api_key_hash:
-            owner_index_key = f"session:owner:{session.owner_api_key_hash}"
-            await self._cache.add_to_set(owner_index_key, session.id)
+        await self._cache_manager.cache_session(session)
 
     async def _get_cached_session(self, session_id: str) -> Session | None:
         """Get a session from cache.
@@ -837,33 +695,7 @@ class SessionService:
         Returns:
             Session if found in cache.
         """
-        if not self._cache:
-            return None
-
-        key = self._cache_key(session_id)
-        parsed = await self._cache.get_json(key)
-
-        if not parsed:
-            return None
-
-        session = self._parse_cached_session(parsed)
-
-        # If parsing failed (corrupted data), delete the corrupted entry
-        if session is None:
-            try:
-                await self._cache.delete(key)
-                logger.info(
-                    "deleted_corrupted_cache_entry",
-                    session_id=session_id,
-                )
-            except Exception as delete_err:
-                logger.warning(
-                    "failed_to_delete_corrupted_cache",
-                    session_id=session_id,
-                    error=str(delete_err),
-                )
-
-        return session
+        return await self._cache_manager.get_cached_session(session_id)
 
     def _parse_cached_session(
         self,
@@ -881,89 +713,7 @@ class SessionService:
             This extracts the parsing logic from _get_cached_session
             for reuse in list_sessions bulk operations.
         """
-        try:
-            # Extract values with proper type casting
-            session_id_val = str(parsed["id"])
-            model_val = str(parsed["model"])
-            status_raw = str(parsed["status"])
-            created_at_val = str(parsed["created_at"])
-            updated_at_val = str(parsed["updated_at"])
-
-            # Validate status is one of the allowed values
-            status_val: Literal["active", "completed", "error"]
-            if status_raw == "active":
-                status_val = "active"
-            elif status_raw == "completed":
-                status_val = "completed"
-            elif status_raw == "error":
-                status_val = "error"
-            else:
-                status_val = "active"  # Default to active for invalid values
-
-            # Get optional values with proper type handling
-            total_turns_raw = parsed.get("total_turns", 0)
-            if isinstance(total_turns_raw, int):
-                total_turns_val = total_turns_raw
-            elif isinstance(total_turns_raw, (str, float)):
-                total_turns_val = int(total_turns_raw)
-            else:
-                total_turns_val = 0
-
-            total_cost_raw = parsed.get("total_cost_usd")
-            if total_cost_raw is None:
-                total_cost_val = None
-            elif isinstance(total_cost_raw, (int, float, str)):
-                total_cost_val = float(total_cost_raw)
-            else:
-                total_cost_val = None
-
-            parent_id_raw = parsed.get("parent_session_id")
-            parent_id_val = str(parent_id_raw) if parent_id_raw is not None else None
-            # Phase 3: Only hash is stored
-            owner_hash_raw = parsed.get("owner_api_key_hash")
-            owner_hash_val = str(owner_hash_raw) if owner_hash_raw is not None else None
-
-            # Parse datetimes and normalize to naive (remove timezone info)
-            created_dt = datetime.fromisoformat(created_at_val)
-            updated_dt = datetime.fromisoformat(updated_at_val)
-
-            # Convert to naive if timezone-aware
-            if created_dt.tzinfo is not None:
-                created_dt = created_dt.replace(tzinfo=None)
-            if updated_dt.tzinfo is not None:
-                updated_dt = updated_dt.replace(tzinfo=None)
-
-            return Session(
-                id=session_id_val,
-                model=model_val,
-                status=status_val,
-                created_at=created_dt,
-                updated_at=updated_dt,
-                total_turns=total_turns_val,
-                total_cost_usd=total_cost_val,
-                parent_session_id=parent_id_val,
-                owner_api_key_hash=owner_hash_val,
-                session_metadata=(
-                    parsed.get("session_metadata")
-                    if isinstance(parsed.get("session_metadata"), dict)
-                    else None
-                ),
-            )
-        except (KeyError, ValueError, TypeError) as e:
-            # Log only non-sensitive fields to prevent exposing user data
-            safe_fields = {
-                "session_id": parsed.get("session_id"),
-                "status": parsed.get("status"),
-            }
-            logger.error(
-                "cache_parse_failed",
-                error=str(e),
-                safe_fields=safe_fields,
-                error_id="ERR_CACHE_PARSE_FAILED",
-            )
-            # Note: Cannot delete corrupted entry here as this is a sync method.
-            # Caller should handle deletion if needed.
-            return None
+        return self._cache_manager.parse_cached_session(parsed)
 
     def _map_db_to_service(self, db_session: "SessionModel") -> Session:
         """Map SQLAlchemy Session model to service Session dataclass.
@@ -976,15 +726,7 @@ class SessionService:
         """
         # Validate and cast status to Literal type
         status_raw = db_session.status
-        status_val: Literal["active", "completed", "error"]
-        if status_raw == "active":
-            status_val = "active"
-        elif status_raw == "completed":
-            status_val = "completed"
-        elif status_raw == "error":
-            status_val = "error"
-        else:
-            status_val = "active"  # Default to active for invalid values
+        status_val = parse_session_status(status_raw)
 
         return Session(
             id=str(db_session.id),
@@ -1050,37 +792,9 @@ class SessionService:
     async def _get_session_metadata_for_update(
         self,
         session_id: str,
-    ) -> dict[str, object]:
+    ) -> dict[str, JsonValue]:
         """Fetch existing metadata from DB for safe metadata merge updates."""
-        if not self._db_repo:
-            return {}
-
-        try:
-            db_session = await self._db_repo.get(UUID(session_id))
-        except ValueError as e:
-            # Expected: malformed UUID string
-            logger.debug(
-                "invalid_uuid_format_in_metadata_fetch",
-                session_id=session_id,
-                error=str(e),
-            )
-            return {}
-        except TypeError as e:
-            # Unexpected: wrong type passed (programming bug)
-            logger.error(
-                "uuid_type_error_in_metadata_fetch",
-                session_id=session_id,
-                session_id_type=type(session_id).__name__,
-                error=str(e),
-                error_id="ERR_UUID_TYPE_ERROR",
-                exc_info=True,
-            )
-            raise
-
-        if db_session and db_session.session_metadata is not None:
-            return dict(db_session.session_metadata)
-
-        return {}
+        return await self._metadata_manager.get_session_metadata_for_update(session_id)
 
     def _enforce_owner(
         self,

@@ -1,9 +1,9 @@
 """Query execution helpers for AgentService."""
 
 import asyncio
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, AsyncIterable
 from enum import Enum
-from typing import TYPE_CHECKING, NoReturn
+from typing import TYPE_CHECKING, NoReturn, Protocol, cast
 
 import structlog
 
@@ -33,6 +33,12 @@ class ContentType(str, Enum):
 
     TEXT = "text"
     IMAGE = "image"
+
+
+class _MultimodalQueryClient(Protocol):
+    """Protocol for SDK clients that support multimodal query content."""
+
+    async def query(self, content: AsyncIterable[dict[str, object]]) -> object: ...
 
 
 class QueryExecutor:
@@ -218,8 +224,8 @@ class QueryExecutor:
             for item in content:
                 yield item
 
-        # Type ignore needed because client is typed as object
-        await client.query(content_generator())  # type: ignore[attr-defined]
+        typed_client = cast("_MultimodalQueryClient", client)
+        await typed_client.query(content_generator())
 
     async def _handle_sdk_error(
         self, error: Exception, ctx: StreamContext
