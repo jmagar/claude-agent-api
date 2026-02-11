@@ -135,6 +135,9 @@ class Mem0MemoryAdapter:
         Returns:
             List of memory search results sorted by relevance score.
         """
+        # Note: enable_graph parameter accepted by API but not passed to Mem0
+        # for compatibility with versions that don't support it.
+        # Graph functionality controlled by Mem0 configuration instead.
         results = await asyncio.to_thread(
             self._memory.search,
             **{
@@ -142,7 +145,6 @@ class Mem0MemoryAdapter:
                 "user_id": user_id,
                 "agent_id": self._agent_id,
                 "limit": limit,
-                "enable_graph": enable_graph,
             },
         )
         if isinstance(results, dict) and isinstance(results.get("results"), list):
@@ -200,6 +202,9 @@ class Mem0MemoryAdapter:
         Returns:
             List of created memory records with IDs and content.
         """
+        # Note: enable_graph parameter accepted by API but not passed to Mem0
+        # for compatibility with versions that don't support it.
+        # Graph functionality controlled by Mem0 configuration instead.
         results = await asyncio.to_thread(
             self._memory.add,
             **{
@@ -207,7 +212,6 @@ class Mem0MemoryAdapter:
                 "user_id": user_id,
                 "agent_id": self._agent_id,
                 "metadata": metadata or {},
-                "enable_graph": enable_graph,
             },
         )
         # Normalize response format (defensive against Mem0 API changes)
