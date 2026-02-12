@@ -75,6 +75,10 @@ async def handle_database_errors(
             code="DATABASE_UNAVAILABLE",
             status_code=503,
         ) from e
+    except IntegrityError:
+        # Let IntegrityError pass through so caller can handle it
+        # (e.g., create_mcp_server needs to return 409 for duplicates)
+        raise
     except APIError:
         raise
     except Exception as e:

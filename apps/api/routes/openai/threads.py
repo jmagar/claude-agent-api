@@ -82,7 +82,7 @@ def _convert_message_to_response(message: object) -> OpenAIThreadMessage:
         if isinstance(block, dict):
             # Validate content block has required 'type' field before casting
             block_type = block.get("type")
-            if block_type in ("text", "image_file"):
+            if block_type in ("text", "image_file", "image_url"):
                 content.append(cast("OpenAIMessageContent", dict(block)))
 
     # Extract metadata
