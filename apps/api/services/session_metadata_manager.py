@@ -19,7 +19,9 @@ class SessionMetadataManager:
     def __init__(self, db_repo: "SessionRepositoryProtocol | None") -> None:
         self._db_repo = db_repo
 
-    async def get_session_metadata_for_update(self, session_id: str) -> dict[str, JsonValue]:
+    async def get_session_metadata_for_update(
+        self, session_id: str
+    ) -> dict[str, JsonValue]:
         """Fetch existing metadata payload from DB source-of-truth."""
         if self._db_repo is None:
             return {}

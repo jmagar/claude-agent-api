@@ -15,7 +15,9 @@ from pathlib import Path
 from typing import TypeAlias
 
 # Type alias for JSON values (recursive)
-JsonValue: TypeAlias = str | int | float | bool | None | list["JsonValue"] | dict[str, "JsonValue"]
+JsonValue: TypeAlias = (
+    str | int | float | bool | None | list["JsonValue"] | dict[str, "JsonValue"]
+)
 
 
 @dataclass
@@ -63,7 +65,9 @@ class EndpointTester:
     def test_endpoint(self, endpoint: EndpointTest) -> TestResult:
         """Test a single endpoint."""
         self.tested += 1
-        print(f"\n[{self.tested}/{self.total_endpoints}] Testing {endpoint.method} {endpoint.path}")
+        print(
+            f"\n[{self.tested}/{self.total_endpoints}] Testing {endpoint.method} {endpoint.path}"
+        )
 
         # Resolve dependencies
         path = endpoint.path
@@ -160,7 +164,9 @@ class EndpointTester:
                     self._extract_resource_ids(data, endpoint.group)
                 except json.JSONDecodeError:
                     if endpoint.is_streaming:
-                        self._extract_resource_ids_from_sse(response_body, endpoint.group)
+                        self._extract_resource_ids_from_sse(
+                            response_body, endpoint.group
+                        )
 
             return TestResult(
                 endpoint=endpoint,
@@ -296,19 +302,17 @@ class EndpointTester:
             f.write(f"**Total Endpoints:** {self.total_endpoints}\n")
             f.write(f"**Tested:** {self.tested}/{self.total_endpoints} (100%)\n")
             f.write(
-                f"**Working:** {self.working} ({self.working/total*100:.1f}%)\n"
+                f"**Working:** {self.working} ({self.working / total * 100:.1f}%)\n"
             )
             f.write(
-                f"**Partially Working:** {self.partial} ({self.partial/total*100:.1f}%)\n"
+                f"**Partially Working:** {self.partial} ({self.partial / total * 100:.1f}%)\n"
             )
-            f.write(f"**Failed:** {self.failed} ({self.failed/total*100:.1f}%)\n\n")
+            f.write(f"**Failed:** {self.failed} ({self.failed / total * 100:.1f}%)\n\n")
 
             # Progress tracker
             f.write("## Progress Tracker\n\n")
             for i, result in enumerate(self.results, 1):
-                icon = {"success": "✅", "partial": "⚠️", "failed": "❌"}[
-                    result.status
-                ]
+                icon = {"success": "✅", "partial": "⚠️", "failed": "❌"}[result.status]
                 f.write(
                     f"- [x] {i}/{self.total_endpoints} - {result.endpoint.method} {result.endpoint.path} - "
                     f"{icon} {result.status.title()} ({result.duration_ms:.0f}ms)\n"
@@ -750,9 +754,7 @@ class EndpointTester:
             ),
             EndpointTest("DELETE", "/api/v1/memories", "native", group="memories"),
             # Tool Presets CRUD (5)
-            EndpointTest(
-                "GET", "/api/v1/tool-presets", "native", group="tool-presets"
-            ),
+            EndpointTest("GET", "/api/v1/tool-presets", "native", group="tool-presets"),
             EndpointTest(
                 "POST",
                 "/api/v1/tool-presets",
@@ -796,9 +798,7 @@ class EndpointTester:
             ),
             # OpenAI Models (2)
             EndpointTest("GET", "/v1/models", "openai", group="openai-models"),
-            EndpointTest(
-                "GET", "/v1/models/gpt-4", "openai", group="openai-models"
-            ),
+            EndpointTest("GET", "/v1/models/gpt-4", "openai", group="openai-models"),
             # OpenAI Assistants CRUD (5)
             EndpointTest(
                 "POST",

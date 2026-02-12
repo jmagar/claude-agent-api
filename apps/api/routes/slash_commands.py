@@ -46,9 +46,7 @@ async def create_slash_command(
         content=request.content,
         enabled=request.enabled,
     )
-    return SlashCommandDefinitionResponse.model_validate(
-        command, from_attributes=True
-    )
+    return SlashCommandDefinitionResponse.model_validate(command, from_attributes=True)
 
 
 @router.get("/{command_id}", response_model=SlashCommandDefinitionResponse)
@@ -66,9 +64,7 @@ async def get_slash_command(
             code="SLASH_COMMAND_NOT_FOUND",
             status_code=404,
         )
-    return SlashCommandDefinitionResponse.model_validate(
-        command, from_attributes=True
-    )
+    return SlashCommandDefinitionResponse.model_validate(command, from_attributes=True)
 
 
 @router.put("/{command_id}", response_model=SlashCommandDefinitionResponse)
@@ -93,9 +89,7 @@ async def update_slash_command(
             code="SLASH_COMMAND_NOT_FOUND",
             status_code=404,
         )
-    return SlashCommandDefinitionResponse.model_validate(
-        command, from_attributes=True
-    )
+    return SlashCommandDefinitionResponse.model_validate(command, from_attributes=True)
 
 
 @router.delete("/{command_id}", status_code=204)

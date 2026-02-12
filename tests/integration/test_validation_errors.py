@@ -3,7 +3,7 @@
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.exc import OperationalError
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 
 class TestSessionUUIDValidation:
@@ -130,21 +130,17 @@ class TestDateTimeParsingValidation:
 
     @pytest.mark.integration
     @pytest.mark.anyio
-    async def test_none_timestamp_returns_now(
+    async def test_none_timestamp_returns_none(
         self,
         async_client: AsyncClient,
         auth_headers: dict[str, str],
     ) -> None:
-        """Test that None timestamp returns current time."""
+        """Test that None timestamp returns None."""
         from apps.api.routes.mcp_servers import _parse_datetime
-        from datetime import datetime, UTC
 
         result = _parse_datetime(None)
 
-        assert isinstance(result, datetime)
-        # Should be recent (within last 5 seconds)
-        now = datetime.now(UTC)
-        assert (now - result).total_seconds() < 5
+        assert result is None
 
     @pytest.mark.integration
     @pytest.mark.anyio

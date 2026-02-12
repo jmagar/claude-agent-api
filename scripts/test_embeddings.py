@@ -75,13 +75,19 @@ async def test_embeddings():
         embedding1 = await asyncio.to_thread(memory.embedding_model.embed, test_text)
         print(f"\nEmbedding with 1 arg:")
         print(f"  Type: {type(embedding1)}")
-        print(f"  Length: {len(embedding1) if embedding1 and hasattr(embedding1, '__len__') else 'None'}")
+        print(
+            f"  Length: {len(embedding1) if embedding1 and hasattr(embedding1, '__len__') else 'None'}"
+        )
 
         # Test with two arguments (like memory.add() does)
-        embedding2 = await asyncio.to_thread(memory.embedding_model.embed, test_text, "add")
+        embedding2 = await asyncio.to_thread(
+            memory.embedding_model.embed, test_text, "add"
+        )
         print(f"\nEmbedding with 2 args ('add'):")
         print(f"  Type: {type(embedding2)}")
-        print(f"  Length: {len(embedding2) if embedding2 and hasattr(embedding2, '__len__') else 'None'}")
+        print(
+            f"  Length: {len(embedding2) if embedding2 and hasattr(embedding2, '__len__') else 'None'}"
+        )
 
         # Now test the full memory.add() flow
         print("\n" + "=" * 60)
@@ -110,12 +116,16 @@ async def test_embeddings():
             if isinstance(result, dict):
                 print(f"  Results: {result}")
             else:
-                print(f"  Count: {len(result) if hasattr(result, '__len__') else 'N/A'}")
+                print(
+                    f"  Count: {len(result) if hasattr(result, '__len__') else 'N/A'}"
+                )
                 if result:
                     print(f"  First memory: {result[0]}")
 
         except Exception as add_error:
-            print(f"\nERROR during memory.add(): {type(add_error).__name__}: {add_error}")
+            print(
+                f"\nERROR during memory.add(): {type(add_error).__name__}: {add_error}"
+            )
             import traceback
 
             traceback.print_exc()

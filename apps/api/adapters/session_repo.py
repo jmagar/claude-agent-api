@@ -228,9 +228,7 @@ class SessionRepository:
         # JSONB metadata filtering (database-level instead of in-memory)
         if mode:
             # Filter by metadata.mode (string field)
-            stmt = stmt.where(
-                Session.session_metadata["mode"].astext == mode
-            )
+            stmt = stmt.where(Session.session_metadata["mode"].astext == mode)
             count_stmt = count_stmt.where(
                 Session.session_metadata["mode"].astext == mode
             )
@@ -248,9 +246,7 @@ class SessionRepository:
             # Filter by metadata.tags (array field - must contain ALL specified tags)
             # PostgreSQL @> operator checks if left array contains all elements from right array
             tags_jsonb = cast(tags, JSONB)
-            stmt = stmt.where(
-                Session.session_metadata["tags"].op("@>")(tags_jsonb)
-            )
+            stmt = stmt.where(Session.session_metadata["tags"].op("@>")(tags_jsonb))
             count_stmt = count_stmt.where(
                 Session.session_metadata["tags"].op("@>")(tags_jsonb)
             )

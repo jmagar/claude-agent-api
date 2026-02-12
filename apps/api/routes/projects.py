@@ -41,7 +41,9 @@ async def create_project(
 ) -> ProjectResponse:
     """<summary>Create a new project.</summary>"""
     project = await project_service.create_project(
-        request.name, request.path, cast("dict[str, JsonValue] | None", request.metadata)
+        request.name,
+        request.path,
+        cast("dict[str, JsonValue] | None", request.metadata),
     )
     if project is None:
         raise APIError(

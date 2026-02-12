@@ -19,7 +19,6 @@ from apps.api.dependencies import (
     close_cache,
     close_db,
     get_agent_service,
-    get_app_state,
     get_cache,
     get_checkpoint_service,
     get_db,
@@ -493,7 +492,6 @@ class TestDependencyIntegration:
 
         GREEN: This test verifies end-to-end dependency injection for services.
         """
-        from apps.api import dependencies
         from apps.api.config import get_settings
 
         # Initialize with fresh state

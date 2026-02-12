@@ -40,9 +40,8 @@ from apps.api.utils.session_utils import parse_session_status
 T = TypeVar("T")
 
 if TYPE_CHECKING:
-    from apps.api.adapters.session_repo import SessionRepository
     from apps.api.models.session import Session as SessionModel
-    from apps.api.protocols import Cache
+    from apps.api.protocols import Cache, SessionRepositoryProtocol
 
 logger = structlog.get_logger(__name__)
 
@@ -53,13 +52,13 @@ class SessionService:
     def __init__(
         self,
         cache: "Cache | None" = None,
-        db_repo: "SessionRepository | None" = None,
+        db_repo: "SessionRepositoryProtocol | None" = None,
     ) -> None:
         """Initialize session service.
 
         Args:
             cache: Cache instance implementing Cache protocol.
-            db_repo: Optional SessionRepository for PostgreSQL persistence.
+            db_repo: Optional session repository for PostgreSQL persistence.
                    Required for dual-write and database fallback functionality.
         """
         self._cache = cache

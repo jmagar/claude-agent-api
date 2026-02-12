@@ -1,6 +1,5 @@
 """Session CRUD endpoints."""
 
-
 from uuid import UUID
 
 from fastapi import APIRouter, Query

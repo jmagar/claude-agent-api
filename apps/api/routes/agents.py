@@ -1,6 +1,5 @@
 """Agent management endpoints."""
 
-
 from fastapi import APIRouter, Request
 
 from apps.api.dependencies import AgentConfigSvc, ApiKey

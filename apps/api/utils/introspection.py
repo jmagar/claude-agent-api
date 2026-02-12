@@ -5,8 +5,8 @@ import inspect
 from collections.abc import Callable
 from typing import ParamSpec, TypeVar
 
-P = ParamSpec('P')
-R = TypeVar('R')
+P = ParamSpec("P")
+R = TypeVar("R")
 
 
 @functools.lru_cache(maxsize=128)

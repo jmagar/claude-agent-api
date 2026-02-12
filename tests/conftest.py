@@ -114,7 +114,7 @@ async def async_client(
     get_settings.cache_clear()
 
     # Clear state and initialize resources (M-01, M-13)
-    from apps.api.dependencies import AppState, reset_dependencies
+    from apps.api.dependencies import AppState
 
     settings = get_settings()
 
@@ -209,7 +209,7 @@ async def mock_session_id(
     from uuid import uuid4
 
     from apps.api.adapters.session_repo import SessionRepository
-    from apps.api.dependencies import AppState, get_app_state
+    from apps.api.dependencies import get_app_state
     from apps.api.services.agent import AgentService
     from apps.api.services.session import SessionService
     from fastapi import Request

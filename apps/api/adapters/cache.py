@@ -346,7 +346,9 @@ class RedisCache:
         if pattern.endswith("*") or pattern.endswith("?"):
             # Check if there's a UUID-like segment (scopes the pattern)
             # UUID pattern: 8-4-4-4-12 hex digits
-            uuid_pattern = r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+            uuid_pattern = (
+                r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+            )
             # SHA-256 hash pattern: 64 hex digits
             hash_pattern = r"[0-9a-f]{64}"
 

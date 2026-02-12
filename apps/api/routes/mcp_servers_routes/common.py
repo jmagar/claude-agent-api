@@ -24,10 +24,10 @@ _SENSITIVE_ENV_PATTERNS = [
 _SENSITIVE_HEADER_PATTERNS = ["auth", "token", "authorization"]
 
 
-def parse_datetime(value: str | None) -> datetime:
+def parse_datetime(value: str | None) -> datetime | None:
     """Parse ISO timestamps to datetime with strict validation."""
     if value is None:
-        return datetime.now(UTC)
+        return None
 
     try:
         parsed = datetime.fromisoformat(value)
@@ -113,7 +113,28 @@ def map_filesystem_server(
 
 
 def map_server(record: McpServerRecord) -> McpServerConfigResponse:
-    """Map database server record to response."""
+    """Map database server record to response.
+
+    Sanitizes sensitive headers and environment variables to prevent credential leakage.
+    """
+    # Sanitize credentials before returning to client
+    sanitized_env = (
+        sanitize_mapping(
+            cast("dict[str, object]", record.env),
+            _SENSITIVE_ENV_PATTERNS,
+        )
+        if record.env
+        else {}
+    )
+    sanitized_headers = (
+        sanitize_mapping(
+            cast("dict[str, object]", record.headers),
+            _SENSITIVE_HEADER_PATTERNS,
+        )
+        if record.headers
+        else {}
+    )
+
     return McpServerConfigResponse(
         id=record.id,
         name=record.name,
@@ -121,8 +142,8 @@ def map_server(record: McpServerRecord) -> McpServerConfigResponse:
         command=record.command,
         args=record.args,
         url=record.url,
-        headers=record.headers,
-        env=record.env,
+        headers=sanitized_headers,
+        env=sanitized_env,
         enabled=record.enabled,
         status=record.status,
         error=record.error,

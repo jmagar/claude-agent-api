@@ -9,7 +9,6 @@ Tests for Phase 2 critical error handling fixes:
 
 import pytest
 from unittest.mock import AsyncMock, patch
-from uuid import UUID
 from sqlalchemy.exc import OperationalError
 
 from apps.api.services.session import SessionService
@@ -126,7 +125,9 @@ async def test_operational_error_raises_503(
     mock_cache_miss, mock_db_repo_operational_error
 ):
     """Database operational errors should raise 503 (not return None)."""
-    service = SessionService(cache=mock_cache_miss, db_repo=mock_db_repo_operational_error)
+    service = SessionService(
+        cache=mock_cache_miss, db_repo=mock_db_repo_operational_error
+    )
 
     # Use a valid UUID format
     test_session_id = "12345678-1234-5678-1234-567812345678"

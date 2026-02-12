@@ -714,8 +714,7 @@ curl -X POST http://localhost:54000/api/v1/memories/search \
   -H "Content-Type: application/json" \
   -d '{
     "query": "What are my coding preferences?",
-    "limit": 10,
-    "enable_graph": true
+    "limit": 10
   }'
 ```
 
@@ -730,8 +729,7 @@ curl -X POST http://localhost:54000/api/v1/memories \
     "metadata": {
       "category": "preferences",
       "topic": "coding-style"
-    },
-    "enable_graph": true
+    }
   }'
 ```
 
@@ -748,8 +746,7 @@ curl -X POST http://localhost:54000/api/v1/memories \
     ],
     "metadata": {
       "category": "preferences"
-    },
-    "enable_graph": true
+    }
   }'
 ```
 
@@ -1311,8 +1308,7 @@ curl -X POST http://localhost:54000/api/v1/memories \
   -H "Content-Type: application/json" \
   -d '{
     "messages": "User prefers TypeScript and uses React with hooks",
-    "metadata": {"category": "preferences"},
-    "enable_graph": true
+    "metadata": {"category": "preferences"}
   }'
 
 # 2. Query (memories automatically injected)

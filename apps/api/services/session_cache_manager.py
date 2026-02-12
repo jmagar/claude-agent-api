@@ -114,7 +114,9 @@ class SessionCacheManager:
                 sessions.append(session)
         return sessions
 
-    async def delete_session(self, session_id: str, owner_api_key_hash: str | None) -> bool:
+    async def delete_session(
+        self, session_id: str, owner_api_key_hash: str | None
+    ) -> bool:
         """Delete session cache entry and owner index membership."""
         if self._cache is None:
             return False

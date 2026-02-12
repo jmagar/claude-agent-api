@@ -13,7 +13,7 @@ class MemoryAddRequest(BaseModel):
         None, description="Optional metadata to attach to memories"
     )
     enable_graph: bool = Field(
-        True, description="Enable graph memory extraction (slower but richer)"
+        True, description="Enable graph-based entity/relationship extraction"
     )
 
 
@@ -22,7 +22,9 @@ class MemorySearchRequest(BaseModel):
 
     query: str = Field(..., description="Search query")
     limit: int = Field(10, ge=1, le=100, description="Maximum results to return")
-    enable_graph: bool = Field(True, description="Include graph context in search")
+    enable_graph: bool = Field(
+        True, description="Include graph relationships in search results"
+    )
 
 
 class MemoryResult(BaseModel):

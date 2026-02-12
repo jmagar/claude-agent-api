@@ -164,7 +164,7 @@ async def get_skill(
         )
 
     # Otherwise, look up in database
-    db_skill: SkillRecord | None = await skills_crud.get_skill(skill_id)
+    db_skill: "SkillRecord | None" = await skills_crud.get_skill(skill_id)
     if db_skill is None:
         raise APIError(
             message="Skill not found",

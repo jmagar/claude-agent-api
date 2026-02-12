@@ -101,11 +101,27 @@ class MessageHandler:
         subtype = getattr(message, "subtype", None)
         if subtype == "init":
             data = getattr(message, "data", {})
-            mcp_servers = data.get("mcp_servers", [])
+            # Type guard: ensure data is a dict before calling .get()
+            if not isinstance(data, dict):
+                logger.warning(
+                    "sdk_system_init_invalid_data_type",
+                    data_type=type(data).__name__,
+                )
+                return None
+            mcp_servers_raw = data.get("mcp_servers", [])
+
+            # Validate mcp_servers is a sequence (list, tuple, etc.)
+            if not isinstance(mcp_servers_raw, (list, tuple)):
+                logger.warning(
+                    "sdk_system_init_invalid_mcp_servers",
+                    mcp_servers_type=type(mcp_servers_raw).__name__,
+                )
+                mcp_servers_raw = []
+
             logger.info(
                 "sdk_system_init_message",
-                mcp_server_count=len(mcp_servers),
-                mcp_servers=mcp_servers,
+                mcp_server_count=len(mcp_servers_raw),
+                mcp_servers=mcp_servers_raw,
             )
         return None
 

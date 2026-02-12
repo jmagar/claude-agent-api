@@ -171,7 +171,9 @@ class TestVerifyApiKey:
         # Timing should be similar (within 50% variance)
         # Tighter threshold with median and higher iterations reduces false positives
         # In a vulnerable implementation, wrong_median would be significantly faster
-        time_ratio = max(correct_median, wrong_median) / min(correct_median, wrong_median)
+        time_ratio = max(correct_median, wrong_median) / min(
+            correct_median, wrong_median
+        )
         assert time_ratio < 1.5, (
             f"Timing difference suggests non-constant-time comparison: "
             f"correct_median={correct_median:.6f}s, wrong_median={wrong_median:.6f}s, "

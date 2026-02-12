@@ -296,6 +296,22 @@ class SessionRepositoryProtocol(Protocol):
         """
         ...
 
+    async def update_metadata(
+        self,
+        session_id: UUID,
+        metadata: dict[str, "JsonValue"],
+    ) -> "Session | None":
+        """Update session metadata.
+
+        Args:
+            session_id: Session identifier.
+            metadata: Metadata payload to store.
+
+        Returns:
+            Updated session or None if not found.
+        """
+        ...
+
 
 @runtime_checkable
 class Cache(Protocol):
@@ -485,6 +501,13 @@ class Cache(Protocol):
         """
         ...
 
+    async def close(self) -> None:
+        """Close cache connection and clean up resources.
+
+        Must be idempotent - safe to call multiple times.
+        """
+        ...
+
 
 @runtime_checkable
 class ModelMapper(Protocol):
@@ -647,7 +670,7 @@ class MemoryProtocol(Protocol):
             query: Search query string.
             user_id: User identifier for multi-tenant isolation.
             limit: Maximum results to return.
-            enable_graph: Include graph context in search.
+            enable_graph: Include graph relationships in search.
 
         Returns:
             List of memory search results.
@@ -667,7 +690,7 @@ class MemoryProtocol(Protocol):
             messages: Content to extract memories from.
             user_id: User identifier for multi-tenant isolation.
             metadata: Optional metadata to attach to memories.
-            enable_graph: Enable graph memory extraction.
+            enable_graph: Enable graph-based entity/relationship extraction.
 
         Returns:
             List of created memory records.

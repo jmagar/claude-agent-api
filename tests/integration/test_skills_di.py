@@ -2,7 +2,6 @@
 
 import inspect
 
-import pytest
 
 from apps.api.routes import skills
 

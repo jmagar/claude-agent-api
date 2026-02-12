@@ -437,12 +437,22 @@ class AssistantService:
 
             cached_rows = await self._cache.get_many_json(keys)
             assistants: list[Assistant] = []
+
+            # Hash the owner API key for filtering (multi-tenant isolation)
+            owner_hash = hash_api_key(owner_api_key) if owner_api_key else None
+
             for parsed in cached_rows:
                 if not parsed:
                     continue
                 assistant = self._parse_cached_assistant(parsed)
-                if assistant:
-                    assistants.append(assistant)
+                if not assistant:
+                    continue
+
+                # Filter by owner to prevent cross-tenant data leakage
+                if owner_hash and assistant.owner_api_key_hash != owner_hash:
+                    continue
+
+                assistants.append(assistant)
 
             reverse = order == "desc"
             assistants.sort(key=lambda a: a.created_at, reverse=reverse)
@@ -666,12 +676,6 @@ class AssistantService:
 
             created_at = datetime.fromisoformat(created_at_str)
             updated_at = datetime.fromisoformat(updated_at_str)
-
-            # Normalize to naive (remove timezone info)
-            if created_at.tzinfo is not None:
-                created_at = created_at.replace(tzinfo=None)
-            if updated_at.tzinfo is not None:
-                updated_at = updated_at.replace(tzinfo=None)
 
             # Extract tools and metadata with proper typing
             tools_raw = parsed.get("tools", [])

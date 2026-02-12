@@ -154,9 +154,7 @@ async def add_memory(
     # Validate records before returning to ensure type safety
     validated_results = [_validate_memory_record(record) for record in results]
 
-    return MemoryAddResponse(
-        memories=validated_results, count=len(validated_results)
-    )
+    return MemoryAddResponse(memories=validated_results, count=len(validated_results))
 
 
 @router.get("", response_model=MemoryListResponse)

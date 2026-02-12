@@ -980,8 +980,7 @@ Content-Type: application/json
 
 {
   "query": "What are my preferences?",
-  "limit": 10,
-  "enable_graph": true
+  "limit": 10
 }
 ```
 
@@ -1012,8 +1011,7 @@ Content-Type: application/json
   "messages": "User prefers concise responses",
   "metadata": {
     "category": "preferences"
-  },
-  "enable_graph": true
+  }
 }
 ```
 
@@ -1709,7 +1707,6 @@ Filesystem resources are read-only via API.
 Multi-tenant persistent memory with:
 - **Vector Search:** Qdrant (Qwen/Qwen3-Embedding-0.6B, 1024 dims)
 - **Graph Storage:** Neo4j for entity relationships
-- **Per-Request Toggle:** `enable_graph` parameter
 
 ### Graceful Shutdown
 

@@ -157,7 +157,9 @@ class QueryStreamEventGenerator:
                     "failed_to_parse_result_event",
                     session_id=self.session_id,
                     api_key_hash=hash_api_key(self.api_key),
-                    prompt_preview=self.query.prompt[:100] if self.query.prompt else None,
+                    prompt_preview=self.query.prompt[:100]
+                    if self.query.prompt
+                    else None,
                     error=str(e),
                     event_data=event_data[:500],
                     error_id="ERR_RESULT_PARSE_FAILED",
@@ -225,7 +227,9 @@ class QueryStreamEventGenerator:
         if not self.session_id:
             return
 
-        status: Literal["completed", "error"] = "error" if self.is_error else "completed"
+        status: Literal["completed", "error"] = (
+            "error" if self.is_error else "completed"
+        )
         await self.session_service.update_session(
             session_id=self.session_id,
             status=status,

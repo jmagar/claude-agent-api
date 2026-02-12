@@ -8,7 +8,6 @@ Create Date: 2026-02-07 03:49:03.347444+00:00
 
 from typing import Sequence, Union
 
-import sqlalchemy as sa
 
 from alembic import op
 

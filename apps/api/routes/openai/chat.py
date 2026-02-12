@@ -110,9 +110,13 @@ class NonStreamingChatHandler:
     agent_service: AgentService
     response_translator: ResponseTranslator
 
-    async def build_response(self, query_request: "QueryRequest") -> OpenAIChatCompletion:
+    async def build_response(
+        self, query_request: "QueryRequest"
+    ) -> OpenAIChatCompletion:
         """Execute single query and translate to OpenAI response shape."""
-        response_dict = await self.agent_service.query_single(query_request, self.api_key)
+        response_dict = await self.agent_service.query_single(
+            query_request, self.api_key
+        )
         response = SingleQueryResponse.model_validate(response_dict)
         return self.response_translator.translate(
             response,

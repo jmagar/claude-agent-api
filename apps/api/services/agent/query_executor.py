@@ -227,9 +227,7 @@ class QueryExecutor:
         typed_client = cast("_MultimodalQueryClient", client)
         await typed_client.query(content_generator())
 
-    async def _handle_sdk_error(
-        self, error: Exception, ctx: StreamContext
-    ) -> NoReturn:
+    async def _handle_sdk_error(self, error: Exception, ctx: StreamContext) -> NoReturn:
         """Handle SDK-specific errors with appropriate error messages.
 
         Args:
