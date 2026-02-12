@@ -286,9 +286,9 @@
 ## Test Artifacts
 
 - **Test Script:** `scripts/test_all_endpoints.py`
-- **Raw Report:** `/tmp/complete_endpoint_testing.md`
-- **Test Log:** `/tmp/test_run.log`
-- **This Report:** `ENDPOINT_TEST_REPORT.md`
+- **Raw Report:** `/tmp/complete_endpoint_testing.md` (generated at runtime, ephemeral)
+- **Test Log:** `/tmp/test_run.log` (generated at runtime, ephemeral)
+- **This Report:** `ENDPOINT_TEST_REPORT.md` (permanent record in repository)
 
 ---
 

@@ -5,13 +5,17 @@ Tests all 76 endpoints systematically with progress tracking.
 """
 
 import json
+import os
 import re
 import subprocess
 import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import TypeAlias
+
+# Type alias for JSON values (recursive)
+JsonValue: TypeAlias = str | int | float | bool | None | list["JsonValue"] | dict[str, "JsonValue"]
 
 
 @dataclass
@@ -21,7 +25,7 @@ class EndpointTest:
     method: str
     path: str
     auth_type: str  # "native" or "openai"
-    body: dict[str, Any] | None = None
+    body: dict[str, JsonValue] | None = None
     requires: list[str] = field(default_factory=list)
     group: str = ""
     query_params: str = ""
@@ -59,7 +63,7 @@ class EndpointTester:
     def test_endpoint(self, endpoint: EndpointTest) -> TestResult:
         """Test a single endpoint."""
         self.tested += 1
-        print(f"\n[{self.tested}/76] Testing {endpoint.method} {endpoint.path}")
+        print(f"\n[{self.tested}/{self.total_endpoints}] Testing {endpoint.method} {endpoint.path}")
 
         # Resolve dependencies
         path = endpoint.path
@@ -189,11 +193,8 @@ class EndpointTester:
                 error_message=str(e),
             )
 
-    def _extract_resource_ids(self, data: Any, group: str) -> None:
+    def _extract_resource_ids(self, data: dict[str, JsonValue], group: str) -> None:
         """Extract resource IDs from response."""
-        if not isinstance(data, dict):
-            return
-
         # Extract common ID fields
         id_mappings = {
             "projects": ("id", "project_id"),
@@ -225,23 +226,26 @@ class EndpointTester:
             print(f"  💾 Saved share_token={data['share_token']}")
 
         # Extract checkpoint UUID
+        checkpoints_raw = data.get("checkpoints")
         if (
-            "checkpoints" in data
-            and isinstance(data["checkpoints"], list)
-            and data["checkpoints"]
+            isinstance(checkpoints_raw, list)
+            and checkpoints_raw
+            and isinstance(checkpoints_raw[0], dict)
         ):
-            uuid = data["checkpoints"][0].get("user_message_uuid")
-            if uuid:
+            uuid = checkpoints_raw[0].get("user_message_uuid")
+            if isinstance(uuid, str):
                 self.resource_ids["checkpoint_uuid"] = uuid
                 print(f"  💾 Saved checkpoint_uuid={uuid}")
 
         # Extract memory ID from memory add/list responses
         if group == "memories":
-            memory_lists: list[Any] = []
-            if isinstance(data.get("memories"), list):
-                memory_lists.append(data["memories"])
-            if isinstance(data.get("results"), list):
-                memory_lists.append(data["results"])
+            memory_lists: list[list[JsonValue]] = []
+            memories_raw = data.get("memories")
+            if isinstance(memories_raw, list):
+                memory_lists.append(memories_raw)
+            results_raw = data.get("results")
+            if isinstance(results_raw, list):
+                memory_lists.append(results_raw)
 
             for memories in memory_lists:
                 if memories and isinstance(memories[0], dict):
@@ -266,7 +270,7 @@ class EndpointTester:
                 self.resource_ids["checkpoint_uuid"] = checkpoint_uuid
                 print(f"  💾 Saved checkpoint_uuid={checkpoint_uuid}")
 
-    def _resolve_placeholders(self, obj: Any) -> Any:
+    def _resolve_placeholders(self, obj: JsonValue) -> JsonValue:
         """Recursively resolve {resource_id} placeholders in request bodies."""
         if isinstance(obj, str):
             resolved = obj
@@ -916,8 +920,12 @@ class EndpointTester:
 
 def main():
     """Main entry point."""
-    base_url = "http://localhost:54000"
-    api_key = "your-api-key-for-clients"
+    base_url = os.getenv("API_BASE_URL", "http://localhost:54000")
+    api_key = os.getenv("API_KEY", "")
+    if not api_key:
+        print("❌ Error: API_KEY environment variable not set")
+        sys.exit(1)
+
     output_file = "/tmp/complete_endpoint_testing.md"
 
     tester = EndpointTester(base_url, api_key)

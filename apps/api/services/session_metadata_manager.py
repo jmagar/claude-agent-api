@@ -8,7 +8,7 @@ import structlog
 from apps.api.types import JsonValue
 
 if TYPE_CHECKING:
-    from apps.api.adapters.session_repo import SessionRepository
+    from apps.api.protocols import SessionRepositoryProtocol
 
 logger = structlog.get_logger(__name__)
 
@@ -16,7 +16,7 @@ logger = structlog.get_logger(__name__)
 class SessionMetadataManager:
     """Handles metadata lookups used by promote/tag update flows."""
 
-    def __init__(self, db_repo: "SessionRepository | None") -> None:
+    def __init__(self, db_repo: "SessionRepositoryProtocol | None") -> None:
         self._db_repo = db_repo
 
     async def get_session_metadata_for_update(self, session_id: str) -> dict[str, JsonValue]:

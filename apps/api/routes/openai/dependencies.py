@@ -63,7 +63,7 @@ def get_response_translator() -> ResponseTranslator:
     return ResponseTranslatorImpl()
 
 
-async def get_assistant_service(
+def get_assistant_service(
     service: OpenAIAssistantSvc,
 ) -> AssistantService:
     """Get AssistantService instance.
@@ -74,7 +74,7 @@ async def get_assistant_service(
     return service
 
 
-async def get_thread_service(
+def get_thread_service(
     service: OpenAIThreadSvc,
 ) -> ThreadService:
     """Get ThreadService instance.
@@ -85,7 +85,7 @@ async def get_thread_service(
     return service
 
 
-async def get_message_service(
+def get_message_service(
     service: OpenAIMessageSvc,
 ) -> MessageService:
     """Get MessageService instance.
@@ -96,7 +96,7 @@ async def get_message_service(
     return service
 
 
-async def get_run_service(
+def get_run_service(
     service: OpenAIRunSvc,
 ) -> RunService:
     """Get RunService instance.

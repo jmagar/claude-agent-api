@@ -65,5 +65,13 @@ class SessionLockManager:
             logger.debug("acquired_session_lock", session_id=session_id, operation=operation)
             return await func()
         finally:
-            await self._cache.release_lock(lock_key, lock_value)
-            logger.debug("released_session_lock", session_id=session_id, operation=operation)
+            try:
+                await self._cache.release_lock(lock_key, lock_value)
+                logger.debug("released_session_lock", session_id=session_id, operation=operation)
+            except Exception as release_error:
+                logger.error(
+                    "failed_to_release_session_lock",
+                    session_id=session_id,
+                    operation=operation,
+                    error=str(release_error),
+                )

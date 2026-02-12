@@ -32,10 +32,10 @@ from apps.api.services.session_metadata_manager import SessionMetadataManager
 from apps.api.services.session_models import (
     Session,
     SessionListResult,
-    parse_session_status,
 )
 from apps.api.types import JsonValue
 from apps.api.utils.crypto import hash_api_key
+from apps.api.utils.session_utils import parse_session_status
 
 T = TypeVar("T")
 

@@ -48,12 +48,3 @@ class SessionListResult:
     total: int
     page: int
     page_size: int
-
-
-def parse_session_status(status_raw: str) -> SessionStatus:
-    """Normalize potentially-invalid status values into a valid session status."""
-    if status_raw == "completed":
-        return "completed"
-    if status_raw == "error":
-        return "error"
-    return "active"

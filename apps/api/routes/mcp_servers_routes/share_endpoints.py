@@ -1,6 +1,6 @@
 """MCP server share-token endpoints."""
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Header
 
 from apps.api.dependencies import ApiKey, McpShareSvc
 from apps.api.exceptions import McpShareNotFoundError
@@ -33,16 +33,28 @@ async def create_mcp_share(
     )
 
 
-@router.get("/share/{token}", response_model=McpSharePayloadResponse)
+@router.get("/share", response_model=McpSharePayloadResponse)
 async def get_mcp_share(
-    token: str,
     _api_key: ApiKey,
     mcp_share: McpShareSvc,
+    x_share_token: str = Header(..., alias="X-Share-Token"),
 ) -> McpSharePayloadResponse:
-    """Resolve a share token to its persisted payload."""
-    payload = await mcp_share.get_share(token)
+    """Resolve a share token to its persisted payload.
+
+    Args:
+        _api_key: API key from auth middleware.
+        mcp_share: Injected MCP share service.
+        x_share_token: Share token from X-Share-Token header (avoids exposure in access logs).
+
+    Returns:
+        MCP share payload with configuration and metadata.
+
+    Raises:
+        McpShareNotFoundError: If share token not found.
+    """
+    payload = await mcp_share.get_share(x_share_token)
     if payload is None:
-        raise McpShareNotFoundError(token)
+        raise McpShareNotFoundError(x_share_token)
 
     return McpSharePayloadResponse(
         name=payload.name,

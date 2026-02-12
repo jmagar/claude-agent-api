@@ -86,30 +86,34 @@ async def test_session_control_requires_active_session(
     app_state = async_client.app.state.app_state
     assert app_state.cache is not None
     # Avoid lazy Mem0/Neo4j initialization for this semantic contract test.
-    app_state.agent_service = AgentService(cache=app_state.cache)
+    original_agent_service = app_state.agent_service
+    try:
+        app_state.agent_service = AgentService(cache=app_state.cache)
 
-    missing_session_id = str(uuid4())
+        missing_session_id = str(uuid4())
 
-    interrupt_response = await async_client.post(
-        f"/api/v1/sessions/{missing_session_id}/interrupt",
-        headers=auth_headers,
-    )
-    control_response = await async_client.post(
-        f"/api/v1/sessions/{missing_session_id}/control",
-        json={"type": "permission_mode_change", "permission_mode": "default"},
-        headers=auth_headers,
-    )
-    answer_response = await async_client.post(
-        f"/api/v1/sessions/{missing_session_id}/answer",
-        json={"answer": "Approved"},
-        headers=auth_headers,
-    )
+        interrupt_response = await async_client.post(
+            f"/api/v1/sessions/{missing_session_id}/interrupt",
+            headers=auth_headers,
+        )
+        control_response = await async_client.post(
+            f"/api/v1/sessions/{missing_session_id}/control",
+            json={"type": "permission_mode_change", "permission_mode": "default"},
+            headers=auth_headers,
+        )
+        answer_response = await async_client.post(
+            f"/api/v1/sessions/{missing_session_id}/answer",
+            json={"answer": "Approved"},
+            headers=auth_headers,
+        )
 
-    for response in (interrupt_response, control_response, answer_response):
-        assert response.status_code == 404
-        data = response.json()
-        assert data["error"]["code"] == "SESSION_NOT_FOUND"
-        assert data["error"]["details"]["session_id"] == missing_session_id
+        for response in (interrupt_response, control_response, answer_response):
+            assert response.status_code == 404
+            data = response.json()
+            assert data["error"]["code"] == "SESSION_NOT_FOUND"
+            assert data["error"]["details"]["session_id"] == missing_session_id
+    finally:
+        app_state.agent_service = original_agent_service
 
 
 @pytest.mark.integration
@@ -119,8 +123,6 @@ async def test_rewind_invalid_checkpoint_returns_domain_error(
     auth_headers: dict[str, str],
 ) -> None:
     """Rewind validates checkpoint ownership and returns domain-level error."""
-    from uuid import uuid4
-
     from apps.api.adapters.session_repo import SessionRepository
     from apps.api.services.session import SessionService
 

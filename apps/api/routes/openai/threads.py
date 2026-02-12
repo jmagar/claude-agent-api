@@ -80,7 +80,10 @@ def _convert_message_to_response(message: object) -> OpenAIThreadMessage:
     content: list[OpenAIMessageContent] = []
     for block in content_raw:
         if isinstance(block, dict):
-            content.append(cast("OpenAIMessageContent", dict(block)))
+            # Validate content block has required 'type' field before casting
+            block_type = block.get("type")
+            if block_type in ("text", "image_file"):
+                content.append(cast("OpenAIMessageContent", dict(block)))
 
     # Extract metadata
     metadata_raw = getattr(message, "metadata", {}) or {}

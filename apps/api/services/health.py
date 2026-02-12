@@ -3,13 +3,13 @@
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from apps.api.adapters.cache import RedisCache
+    from apps.api.protocols import Cache
 
 
 class CacheHealthService:
     """Service wrapper for cache health checks."""
 
-    def __init__(self, cache: "RedisCache") -> None:
+    def __init__(self, cache: "Cache") -> None:
         self._cache = cache
 
     async def ping(self) -> bool:

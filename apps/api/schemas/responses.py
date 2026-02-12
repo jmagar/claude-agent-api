@@ -1,9 +1,12 @@
 """Pydantic response models for API endpoints."""
 
+from collections.abc import Mapping
 from datetime import datetime
-from typing import Literal, Protocol, cast
+from typing import Literal
 
 from pydantic import BaseModel, Field
+
+from apps.api.utils.response_helpers import map_session_with_metadata
 
 
 class UsageSchema(BaseModel):
@@ -392,21 +395,11 @@ class SessionWithMetaResponse(BaseModel):
     model_usage: dict[str, object] | None = None
     metadata: dict[str, object] | None = None
 
-    class _SessionLike(Protocol):
-        id: object
-        status: object
-        created_at: datetime
-        updated_at: datetime
-        total_turns: object
-        total_cost_usd: object
-        parent_session_id: object
-        session_metadata: dict[str, object] | None
-
     @classmethod
     def from_session(
         cls,
         session: object,
-        metadata: dict[str, object] | None = None,
+        metadata: Mapping[str, object] | None = None,
     ) -> "SessionWithMetaResponse":
         """Create SessionWithMetaResponse from session object.
 
@@ -417,56 +410,8 @@ class SessionWithMetaResponse(BaseModel):
         Returns:
             SessionWithMetaResponse instance.
         """
-        session_obj = cast("SessionWithMetaResponse._SessionLike", session)
-        # Extract metadata from session if not provided
-        if metadata is None:
-            metadata = session_obj.session_metadata or {}
-            if metadata is None:
-                metadata = {}
-
-        # Extract session attributes
-        session_id = str(session_obj.id)
-        status_raw = str(session_obj.status)
-        created_at = session_obj.created_at
-        updated_at = session_obj.updated_at
-        total_turns = int(getattr(session_obj, "total_turns", 0))
-        total_cost_raw = getattr(session_obj, "total_cost_usd", None)
-        parent_id_raw = getattr(session_obj, "parent_session_id", None)
-
-        # Validate status
-        status_val: Literal["active", "completed", "error"]
-        if status_raw == "active":
-            status_val = "active"
-        elif status_raw == "completed":
-            status_val = "completed"
-        elif status_raw == "error":
-            status_val = "error"
-        else:
-            status_val = "active"
-
-        # Extract metadata fields
-        session_mode = metadata.get("mode", "code")
-        mode: Literal["brainstorm", "code"] = (
-            "brainstorm" if session_mode == "brainstorm" else "code"
-        )
-        project_id_raw = metadata.get("project_id")
-        title_raw = metadata.get("title")
-        tags_raw = metadata.get("tags")
-
-        return cls(
-            id=session_id,
-            mode=mode,
-            status=status_val,
-            project_id=str(project_id_raw) if project_id_raw else None,
-            title=str(title_raw) if title_raw else None,
-            created_at=created_at,
-            updated_at=updated_at,
-            total_turns=total_turns,
-            total_cost_usd=float(total_cost_raw) if total_cost_raw is not None else None,
-            parent_session_id=str(parent_id_raw) if parent_id_raw else None,
-            tags=cast("list[str] | None", tags_raw) if isinstance(tags_raw, list) else None,
-            metadata=metadata,
-        )
+        # Delegate to shared helper to eliminate duplication
+        return map_session_with_metadata(session, metadata)
 
 
 class SessionListResponse(BaseModel):

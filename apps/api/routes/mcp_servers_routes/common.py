@@ -30,7 +30,11 @@ def parse_datetime(value: str | None) -> datetime:
         return datetime.now(UTC)
 
     try:
-        return datetime.fromisoformat(value)
+        parsed = datetime.fromisoformat(value)
+        # Ensure timezone-aware datetime (add UTC if naive)
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=UTC)
+        return parsed
     except ValueError as e:
         logger.error(
             "datetime_parse_failed",

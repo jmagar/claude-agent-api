@@ -6,8 +6,9 @@ from typing import TYPE_CHECKING
 import structlog
 
 from apps.api.types import JsonValue
+from apps.api.utils.session_utils import parse_session_status
 
-from .session_models import Session, parse_session_status
+from .session_models import Session
 
 if TYPE_CHECKING:
     from apps.api.protocols import Cache
@@ -100,7 +101,9 @@ class SessionCacheManager:
             return []
 
         all_keys = await self._cache.scan_keys("session:*", max_keys=max_keys)
-        cached_rows = await self._cache.get_many_json(all_keys)
+        # Filter out session:owner:* index keys (they are sets, not session data)
+        session_keys = [k for k in all_keys if not k.startswith("session:owner:")]
+        cached_rows = await self._cache.get_many_json(session_keys)
 
         sessions: list[Session] = []
         for parsed in cached_rows:
@@ -138,10 +141,6 @@ class SessionCacheManager:
 
             created_dt = datetime.fromisoformat(created_at_text)
             updated_dt = datetime.fromisoformat(updated_at_text)
-            if created_dt.tzinfo is not None:
-                created_dt = created_dt.replace(tzinfo=None)
-            if updated_dt.tzinfo is not None:
-                updated_dt = updated_dt.replace(tzinfo=None)
 
             total_turns_raw = parsed.get("total_turns", 0)
             if isinstance(total_turns_raw, int):

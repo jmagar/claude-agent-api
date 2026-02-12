@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import time
 from typing import TYPE_CHECKING, cast
 
 import structlog
@@ -48,7 +49,10 @@ def _validate_memory_record(record: dict[str, JsonValue]) -> MemoryRecordDict:
     if isinstance(record_id, str) and record_id:
         memory_id = record_id
     else:
-        memory_id = f"mem_{hashlib.sha256(memory_value.encode()).hexdigest()[:12]}"
+        # Include timestamp in fallback ID to prevent collisions when same content is added multiple times
+        timestamp = str(int(time.time() * 1000000))  # microsecond precision
+        content_hash = hashlib.sha256(memory_value.encode()).hexdigest()[:12]
+        memory_id = f"mem_{content_hash}_{timestamp}"
 
     # Build result with required fields
     result: MemoryRecordDict = {

@@ -6,11 +6,12 @@ response models in a type-safe manner, replacing the **obj.__dict__ pattern.
 
 from collections.abc import Mapping
 from datetime import datetime
-from typing import Literal, Protocol, TypeVar, cast
+from typing import TYPE_CHECKING, Literal, Protocol, cast
 
-from apps.api.schemas.responses import SessionWithMetaResponse
+from apps.api.utils.session_utils import parse_session_status
 
-T = TypeVar("T")
+if TYPE_CHECKING:
+    from apps.api.schemas.responses import SessionWithMetaResponse
 
 
 class _SessionLike(Protocol):
@@ -27,7 +28,7 @@ class _SessionLike(Protocol):
 def map_session_with_metadata(
     session: object,
     metadata: Mapping[str, object] | None = None,
-) -> SessionWithMetaResponse:
+) -> "SessionWithMetaResponse":
     """Map session object with metadata to SessionWithMetaResponse.
 
     Args:
@@ -38,6 +39,9 @@ def map_session_with_metadata(
     Returns:
         SessionWithMetaResponse with properly typed fields.
     """
+    # Import locally to avoid circular import
+    from apps.api.schemas.responses import SessionWithMetaResponse
+
     # Extract metadata from session if not provided
     session_obj = cast("_SessionLike", session)
     if metadata is None:
@@ -55,15 +59,7 @@ def map_session_with_metadata(
     parent_id_raw = getattr(session_obj, "parent_session_id", None)
 
     # Validate status
-    status_val: Literal["active", "completed", "error"]
-    if status_raw == "active":
-        status_val = "active"
-    elif status_raw == "completed":
-        status_val = "completed"
-    elif status_raw == "error":
-        status_val = "error"
-    else:
-        status_val = "active"
+    status_val = parse_session_status(status_raw)
 
     # Extract metadata fields
     session_mode = metadata.get("mode", "code")
