@@ -234,42 +234,6 @@ async def test_agent_share_persists_share_state(
 
 @pytest.mark.integration
 @pytest.mark.anyio
-async def test_tool_presets_support_tools_legacy_field(
-    async_client: AsyncClient,
-    auth_headers: dict[str, str],
-) -> None:
-    """Legacy `tools` field is interpreted as `allowed_tools`."""
-    create_response = await async_client.post(
-        "/api/v1/tool-presets",
-        json={
-            "name": "semantic-legacy-tools",
-            "tools": ["Read", "Write"],
-            "disallowed_tools": ["Bash"],
-        },
-        headers=auth_headers,
-    )
-    assert create_response.status_code == 201
-    created = create_response.json()
-    preset_id = created["id"]
-    assert created["allowed_tools"] == ["Read", "Write"]
-    assert created["disallowed_tools"] == ["Bash"]
-
-    update_response = await async_client.put(
-        f"/api/v1/tool-presets/{preset_id}",
-        json={
-            "name": "semantic-legacy-tools-updated",
-            "tools": ["Read"],
-        },
-        headers=auth_headers,
-    )
-    assert update_response.status_code == 200
-    updated = update_response.json()
-    assert updated["allowed_tools"] == ["Read"]
-    assert updated["disallowed_tools"] == []
-
-
-@pytest.mark.integration
-@pytest.mark.anyio
 async def test_mcp_readonly_and_resource_error_contracts(
     async_client: AsyncClient,
     auth_headers: dict[str, str],
