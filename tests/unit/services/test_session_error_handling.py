@@ -7,13 +7,13 @@ Tests for Phase 2 critical error handling fixes:
 - Task #6: UUID parsing exception specificity
 """
 
-import pytest
 from unittest.mock import AsyncMock, patch
+
+import pytest
 from sqlalchemy.exc import OperationalError
 
-from apps.api.services.session import SessionService
 from apps.api.exceptions.base import APIError
-
+from apps.api.services.session import SessionService
 
 # ===== Task #3: Redis Failure Masking Tests =====
 

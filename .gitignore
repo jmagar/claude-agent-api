@@ -43,6 +43,7 @@ Thumbs.db
 coverage.xml
 coverage.json
 cov_summary.json
+ENDPOINT_TEST_REPORT.md
 
 # Logs
 *.log

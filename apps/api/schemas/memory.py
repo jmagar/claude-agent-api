@@ -1,4 +1,11 @@
-"""Memory API request/response schemas."""
+"""Memory API request/response schemas.
+
+Note on metadata types: Pydantic models and TypedDicts used by Pydantic models
+use ``dict[str, object]`` for metadata fields because Pydantic v2 cannot generate
+schemas for recursive type aliases (``JsonValue``). The protocol layer
+(``MemorySearchResult``) uses ``dict[str, JsonValue]`` for stricter type safety.
+Route-level casts bridge the two representations at the boundary.
+"""
 
 from typing import NotRequired, Required, TypedDict
 
@@ -20,7 +27,7 @@ class MemoryAddRequest(BaseModel):
 class MemorySearchRequest(BaseModel):
     """Request to search memories."""
 
-    query: str = Field(..., description="Search query")
+    query: str = Field(..., min_length=1, description="Search query (non-empty)")
     limit: int = Field(10, ge=1, le=100, description="Maximum results to return")
     enable_graph: bool = Field(
         True, description="Include graph relationships in search results"
@@ -46,7 +53,14 @@ class MemorySearchResponse(BaseModel):
 
 
 class MemoryRecordDict(TypedDict):
-    """Memory record structure from Mem0."""
+    """Memory record structure from Mem0.
+
+    Note: metadata uses ``dict[str, object]`` rather than ``dict[str, JsonValue]``
+    because this TypedDict is embedded in Pydantic models (MemoryAddResponse,
+    MemoryListResponse), and Pydantic v2 cannot generate schemas for recursive
+    type aliases. The ``object`` type is safe here because all values originate
+    from JSON-serializable Mem0 responses.
+    """
 
     id: Required[str]
     memory: Required[str]

@@ -134,7 +134,7 @@ async def seed_documentation():
 
     # Summary
     print("\n" + "=" * 60)
-    print(f"Seeding Complete!")
+    print("Seeding Complete!")
     print(f"  Success: {success_count}/{len(docs)} documents")
     print(f"  Total memories extracted: {total_memories}")
     print("=" * 60)

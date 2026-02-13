@@ -19,7 +19,7 @@ class TestNetworkErrors:
         # Create mock memory client that raises timeout
         mock_client = MagicMock()
         mock_client.search = AsyncMock(
-            side_effect=asyncio.TimeoutError("Connection timeout")
+            side_effect=TimeoutError("Connection timeout")
         )
 
         service = MemoryService(mock_client)
@@ -37,7 +37,7 @@ class TestNetworkErrors:
         """Test that add_memory handles network timeout gracefully."""
         # Create mock client that times out
         mock_client = MagicMock()
-        mock_client.add = AsyncMock(side_effect=asyncio.TimeoutError("Neo4j timeout"))
+        mock_client.add = AsyncMock(side_effect=TimeoutError("Neo4j timeout"))
 
         service = MemoryService(mock_client)
 

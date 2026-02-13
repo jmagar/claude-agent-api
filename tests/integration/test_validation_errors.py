@@ -1,9 +1,10 @@
 """Integration tests for validation error handling (Phase 2 fixes)."""
 
+from unittest.mock import patch
+
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.exc import OperationalError
-from unittest.mock import patch
 
 
 class TestSessionUUIDValidation:
@@ -117,8 +118,8 @@ class TestDateTimeParsingValidation:
         auth_headers: dict[str, str],
     ) -> None:
         """Test that corrupted timestamps in database raise validation error."""
-        from apps.api.routes.mcp_servers import _parse_datetime
         from apps.api.exceptions import ValidationError
+        from apps.api.routes.mcp_servers import _parse_datetime
 
         # Invalid ISO format should raise ValidationError
         with pytest.raises(ValidationError) as exc_info:
@@ -150,8 +151,9 @@ class TestDateTimeParsingValidation:
         auth_headers: dict[str, str],
     ) -> None:
         """Test that valid ISO timestamps are parsed correctly."""
-        from apps.api.routes.mcp_servers import _parse_datetime
         from datetime import datetime
+
+        from apps.api.routes.mcp_servers import _parse_datetime
 
         result = _parse_datetime("2024-01-15T10:30:00")
 

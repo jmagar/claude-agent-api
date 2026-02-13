@@ -52,8 +52,8 @@ def _patch_langchain_neo4j() -> None:
 
     # Runtime monkey-patch (unavoidable for third-party compatibility).
     # Using setattr() to avoid type checker violations (no Any import needed).
-    setattr(neo4j_graph, "__init__", _shim_init)
-    setattr(neo4j_graph, "_mem0_positional_shim", True)
+    neo4j_graph.__init__ = _shim_init
+    neo4j_graph._mem0_positional_shim = True
 
 
 class Mem0MemoryAdapter:
@@ -132,7 +132,7 @@ class Mem0MemoryAdapter:
                 new_client = client.with_options(
                     default_headers={"User-Agent": self._settings.llm_user_agent}
                 )
-                setattr(llm, "client", new_client)
+                llm.client = new_client
 
             graph = getattr(memory_client, "graph", None)
             graph_llm = getattr(graph, "llm", None)
@@ -142,7 +142,7 @@ class Mem0MemoryAdapter:
                 new_graph_client = graph_client.with_options(
                     default_headers={"User-Agent": self._settings.llm_user_agent}
                 )
-                setattr(graph_llm, "client", new_graph_client)
+                graph_llm.client = new_graph_client
 
         _set_client_user_agent(self._memory)
         _set_client_user_agent(self._vector_memory)
@@ -191,8 +191,19 @@ class Mem0MemoryAdapter:
                 )
                 return []
             raise
-        if isinstance(results, dict) and isinstance(results.get("results"), list):
-            results = results["results"]
+
+        # Extract relations from graph-enabled search before unwrapping results
+        relations: list[dict[str, str]] = []
+        if isinstance(results, dict):
+            raw_relations = results.get("relations")
+            if isinstance(raw_relations, list):
+                for rel in raw_relations:
+                    if isinstance(rel, dict):
+                        relations.append(
+                            {str(k): str(v) for k, v in rel.items()}
+                        )
+            if isinstance(results.get("results"), list):
+                results = results["results"]
 
         normalized: list[MemorySearchResult] = []
         for index, result in enumerate(results):
@@ -212,6 +223,24 @@ class Mem0MemoryAdapter:
                 memory_id = f"mem_{index}"
                 score = 0.0
                 metadata = {}
+
+            # Ensure metadata is a dict before adding graph context
+            if not isinstance(metadata, dict):
+                metadata = {}
+
+            # Inject graph context into metadata when graph is explicitly enabled
+            # and relations were returned. This makes graph state explicit rather
+            # than requiring callers to infer it from None/empty results.
+            if enable_graph:
+                metadata_copy = dict(metadata)
+                metadata_copy["_graph_enabled"] = True
+                if relations:
+                    metadata_copy["_graph_relations"] = relations
+                metadata = metadata_copy
+            else:
+                metadata_copy = dict(metadata)
+                metadata_copy["_graph_enabled"] = False
+                metadata = metadata_copy
 
             normalized.append(
                 MemorySearchResult(

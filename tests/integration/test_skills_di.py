@@ -2,7 +2,6 @@
 
 import inspect
 
-
 from apps.api.routes import skills
 
 

@@ -363,6 +363,18 @@ class Cache(Protocol):
         """
         ...
 
+    async def expire(self, key: str, ttl: int) -> bool:
+        """Set expiration on a key.
+
+        Args:
+            key: Cache key.
+            ttl: Time to live in seconds.
+
+        Returns:
+            True if expiration was set.
+        """
+        ...
+
     async def add_to_set(self, key: str, value: str) -> bool:
         """Add value to a set.
 

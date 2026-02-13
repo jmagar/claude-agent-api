@@ -50,6 +50,8 @@ def map_session_with_metadata(
             metadata = {}
 
     # Extract session attributes
+    # Note: Protocol declares fields as object, but we know runtime types
+    # Use getattr with defaults for type checker compatibility
     session_id = str(session_obj.id)
     status_raw = str(session_obj.status)
     created_at = session_obj.created_at

@@ -449,7 +449,8 @@ class AssistantService:
                     continue
 
                 # Filter by owner to prevent cross-tenant data leakage
-                if owner_hash and assistant.owner_api_key_hash != owner_hash:
+                # Public assistants (owner_api_key_hash=None) are visible to all tenants
+                if owner_hash and assistant.owner_api_key_hash is not None and assistant.owner_api_key_hash != owner_hash:
                     continue
 
                 assistants.append(assistant)

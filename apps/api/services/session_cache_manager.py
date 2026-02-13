@@ -28,7 +28,13 @@ class SessionCacheManager:
         return f"session:{session_id}"
 
     async def cache_session(self, session: Session) -> None:
-        """Write session payload and owner index entries to cache."""
+        """Write session payload and owner index entries to cache.
+
+        Both the session data key and the owner index set receive TTLs
+        matching ``self._ttl`` so stale entries are automatically evicted.
+        The owner index TTL is refreshed on every write, keeping it alive
+        as long as sessions are actively cached.
+        """
         if self._cache is None:
             return
 
@@ -50,6 +56,8 @@ class SessionCacheManager:
         if session.owner_api_key_hash:
             owner_index_key = f"session:owner:{session.owner_api_key_hash}"
             await self._cache.add_to_set(owner_index_key, session.id)
+            # Keep owner index alive as long as the newest session entry
+            await self._cache.expire(owner_index_key, self._ttl)
 
     async def get_cached_session(self, session_id: str) -> Session | None:
         """Read and parse a session from cache, deleting corrupt payloads."""

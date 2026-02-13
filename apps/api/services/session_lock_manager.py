@@ -78,4 +78,5 @@ class SessionLockManager:
                     session_id=session_id,
                     operation=operation,
                     error=str(release_error),
+                    exc_info=True,
                 )

@@ -18,7 +18,7 @@ async def test_embeddings():
 
     settings = get_settings()
 
-    print(f"\nConfiguration:")
+    print("\nConfiguration:")
     print(f"  TEI URL: {settings.tei_url}")
     print(f"  Embedding dims: {settings.mem0_embedding_dims}")
 
@@ -73,7 +73,7 @@ async def test_embeddings():
 
         # Test with single argument
         embedding1 = await asyncio.to_thread(memory.embedding_model.embed, test_text)
-        print(f"\nEmbedding with 1 arg:")
+        print("\nEmbedding with 1 arg:")
         print(f"  Type: {type(embedding1)}")
         print(
             f"  Length: {len(embedding1) if embedding1 and hasattr(embedding1, '__len__') else 'None'}"
@@ -83,7 +83,7 @@ async def test_embeddings():
         embedding2 = await asyncio.to_thread(
             memory.embedding_model.embed, test_text, "add"
         )
-        print(f"\nEmbedding with 2 args ('add'):")
+        print("\nEmbedding with 2 args ('add'):")
         print(f"  Type: {type(embedding2)}")
         print(
             f"  Length: {len(embedding2) if embedding2 and hasattr(embedding2, '__len__') else 'None'}"
@@ -111,7 +111,7 @@ async def test_embeddings():
                 agent_id="main",
             )
 
-            print(f"\nAdd Result:")
+            print("\nAdd Result:")
             print(f"  Type: {type(result)}")
             if isinstance(result, dict):
                 print(f"  Results: {result}")

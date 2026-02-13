@@ -6,7 +6,6 @@ import functools
 from collections.abc import Callable
 from typing import ParamSpec, TypeVar
 
-
 from apps.api.utils.introspection import supports_param
 
 P = ParamSpec("P")

@@ -4,8 +4,9 @@ This module tests that all DI provider functions exist and work correctly.
 Phase 2 of the DI refactor plan.
 """
 
-import pytest
 from unittest.mock import AsyncMock
+
+import pytest
 
 from apps.api.adapters.cache import RedisCache
 

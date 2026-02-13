@@ -72,7 +72,7 @@ def _validate_memory_record(record: dict[str, JsonValue]) -> MemoryRecordDict:
     if "agent_id" in record and isinstance(record["agent_id"], str):
         result["agent_id"] = str(record["agent_id"])
     if "metadata" in record and isinstance(record["metadata"], dict):
-        result["metadata"] = record["metadata"]
+        result["metadata"] = cast("dict[str, object]", record["metadata"])
 
     return result
 
@@ -141,7 +141,7 @@ async def add_memory(
     # Hash API key to prevent plaintext storage in Qdrant/Neo4j metadata
     user_id = hash_api_key(api_key)
 
-    # Cast Any to JsonValue for service layer type safety
+    # Cast Pydantic dict[str, object] to JsonValue for service layer type safety
     metadata = cast("dict[str, JsonValue] | None", request.metadata)
 
     results = await memory_service.add_memory(

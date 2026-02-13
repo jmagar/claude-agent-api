@@ -137,7 +137,7 @@ async def async_client(
             base_url="http://test",
         ) as client:
             # Compatibility shim for tests that access async_client.app directly.
-            setattr(client, "app", test_app)
+            client.app = test_app
             yield client
     finally:
         # Cleanup resources - cache first to avoid event loop issues
@@ -208,11 +208,12 @@ async def mock_session_id(
     """Create a mock session for testing."""
     from uuid import uuid4
 
+    from fastapi import Request
+
     from apps.api.adapters.session_repo import SessionRepository
     from apps.api.dependencies import get_app_state
     from apps.api.services.agent import AgentService
     from apps.api.services.session import SessionService
-    from fastapi import Request
 
     # Get app state from test client (M-13)
     request = Request(scope={"type": "http", "app": async_client._transport.app})  # type: ignore[arg-type]
@@ -259,11 +260,12 @@ async def mock_active_session_id(
     """
     from uuid import uuid4
 
+    from fastapi import Request
+
     from apps.api.adapters.session_repo import SessionRepository
     from apps.api.dependencies import get_app_state
     from apps.api.services.agent import AgentService
     from apps.api.services.session import SessionService
-    from fastapi import Request
 
     # Get app state from test client (M-13)
     request = Request(scope={"type": "http", "app": _async_client._transport.app})  # type: ignore[arg-type]

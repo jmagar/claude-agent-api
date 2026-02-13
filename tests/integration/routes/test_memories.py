@@ -117,6 +117,43 @@ async def test_delete_memory(
 
 
 @pytest.mark.anyio
+async def test_search_memories_rejects_empty_query(
+    async_client: "AsyncClient",
+    auth_headers: dict[str, str],
+    mock_memory_service: AsyncMock,
+) -> None:
+    """POST /api/v1/memories/search should reject empty query with 422."""
+    response = await async_client.post(
+        "/api/v1/memories/search",
+        json={"query": "", "limit": 10},
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 422
+    # Verify the service was never called with empty query
+    mock_memory_service.search_memories.assert_not_called()
+
+
+@pytest.mark.anyio
+async def test_search_memories_with_graph_disabled(
+    async_client: "AsyncClient",
+    auth_headers: dict[str, str],
+    mock_memory_service: AsyncMock,
+) -> None:
+    """POST /api/v1/memories/search should pass enable_graph=False to service."""
+    response = await async_client.post(
+        "/api/v1/memories/search",
+        json={"query": "user preferences", "limit": 5, "enable_graph": False},
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 200
+    mock_memory_service.search_memories.assert_called_once()
+    call_kwargs = mock_memory_service.search_memories.call_args.kwargs
+    assert call_kwargs["enable_graph"] is False
+
+
+@pytest.mark.anyio
 async def test_delete_all_memories(
     async_client: "AsyncClient",
     auth_headers: dict[str, str],

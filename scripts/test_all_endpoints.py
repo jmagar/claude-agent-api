@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
 Comprehensive API endpoint testing script.
-Tests all 76 endpoints systematically with progress tracking.
+Tests all endpoints systematically with progress tracking.
+Endpoint count is determined dynamically from _define_all_endpoints().
 """
 
 import json
@@ -92,11 +93,13 @@ class EndpointTester:
         url = f"{self.base_url}{path}"
         cmd = ["curl", "-s", "-w", "\\n%{http_code}", "-X", endpoint.method]
 
-        # Add auth header
+        # Auth header passed via stdin (--config -) to avoid exposing
+        # API key in process arguments visible via `ps aux`
         if endpoint.auth_type == "native":
-            cmd.extend(["-H", f"X-API-Key: {self.api_key}"])
+            auth_config = f'header = "X-API-Key: {self.api_key}"'
         else:  # openai
-            cmd.extend(["-H", f"Authorization: Bearer {self.api_key}"])
+            auth_config = f'header = "Authorization: Bearer {self.api_key}"'
+        cmd.extend(["--config", "-"])
 
         # Add body
         if endpoint.body:
@@ -119,6 +122,7 @@ class EndpointTester:
                 text=True,
                 timeout=endpoint.timeout_seconds,
                 check=False,
+                input=auth_config,
             )
             duration_ms = (time.time() - start) * 1000
 
@@ -137,8 +141,14 @@ class EndpointTester:
                 status_code = 0
                 response_body = output
 
-            # For SSE fallback, infer success from stream content if needed
-            if endpoint.is_streaming and status_code == 0 and "event:" in output:
+            # SSE fallback: when curl streams with -N, status code parsing
+            # can fail (status_code == 0). Validate the output actually
+            # contains SSE protocol markers before inferring success.
+            if (
+                endpoint.is_streaming
+                and status_code == 0
+                and self._is_valid_sse_output(output)
+            ):
                 status_code = 200
 
             # Determine status
@@ -276,6 +286,24 @@ class EndpointTester:
                 self.resource_ids["checkpoint_uuid"] = checkpoint_uuid
                 print(f"  💾 Saved checkpoint_uuid={checkpoint_uuid}")
 
+    @staticmethod
+    def _is_valid_sse_output(output: str) -> bool:
+        """Check whether output contains valid SSE protocol markers.
+
+        SSE streams use a specific line-based protocol (RFC 8895). A valid
+        stream must contain at least one recognized field prefix from the set:
+        ``data:``, ``event:``, ``id:``, or ``retry:``.
+
+        To reduce false positives (e.g. a JSON error response that happens to
+        contain the substring "event:"), we require *at least two* distinct
+        SSE field lines, which is the minimum for any real event (typically
+        ``event:`` + ``data:``).
+        """
+        # SSE field prefixes per the spec (must appear at line start)
+        sse_field_pattern = re.compile(r"^(?:data|event|id|retry):", re.MULTILINE)
+        matches = sse_field_pattern.findall(output)
+        return len(matches) >= 2
+
     def _resolve_placeholders(self, obj: JsonValue) -> JsonValue:
         """Recursively resolve {resource_id} placeholders in request bodies."""
         if isinstance(obj, str):
@@ -342,7 +370,7 @@ class EndpointTester:
         print(f"✅ Report saved to {output_file}")
 
     def run_all_tests(self) -> None:
-        """Execute all 76 endpoint tests."""
+        """Execute all endpoint tests."""
         endpoints = self._define_all_endpoints()
         self.total_endpoints = len(endpoints)
 
@@ -361,7 +389,7 @@ class EndpointTester:
         print("=" * 60)
 
     def _define_all_endpoints(self) -> list[EndpointTest]:
-        """Define all 76 endpoints."""
+        """Define all endpoint test cases."""
         return [
             # Root & Health (2)
             EndpointTest("GET", "/", "native", group="root"),

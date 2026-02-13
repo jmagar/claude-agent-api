@@ -1,7 +1,8 @@
 """Tests for memory dependency injection (M-02, ARC-05)."""
 
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from apps.api.dependencies import AppState, get_memory_service, reset_dependencies
 from apps.api.services.memory import MemoryService
