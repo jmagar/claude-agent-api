@@ -75,3 +75,30 @@ async def test_projects_cross_tenant_isolation(
     assert response.status_code == 404
     data = response.json()
     assert data["error"]["code"] == "PROJECT_NOT_FOUND"
+
+
+@pytest.mark.integration
+@pytest.mark.anyio
+async def test_memories_cross_tenant_isolation(
+    async_client: AsyncClient,
+    auth_headers: dict[str, str],
+    second_auth_headers: dict[str, str],
+    mock_memory_other_tenant: dict[str, str],
+) -> None:
+    """API key A cannot search API key B's memories."""
+    # ARRANGE
+    memory_content = mock_memory_other_tenant["content"]
+
+    # ACT - Tenant A searches for Tenant B's memory
+    response = await async_client.post(
+        "/api/v1/memories/search",
+        json={"query": memory_content},
+        headers=auth_headers,  # Tenant A (user_id derived from header)
+    )
+
+    # ASSERT - No results (scoped to Tenant A)
+    assert response.status_code == 200
+    data = response.json()
+    # Verify Tenant B's memory is not in results
+    memory_ids = [m["id"] for m in data["results"]]
+    assert mock_memory_other_tenant["id"] not in memory_ids

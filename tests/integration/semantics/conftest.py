@@ -150,3 +150,45 @@ async def mock_project_other_tenant(
         "session_count": project.session_count,
         "metadata": project.metadata,
     }
+
+
+@pytest.fixture
+async def mock_memory_other_tenant(
+    async_client: AsyncClient,
+    second_auth_headers: dict[str, str],
+) -> dict[str, str]:
+    """Create memory owned by second tenant for isolation tests."""
+    from fastapi import Request
+
+    from apps.api.dependencies import get_app_state, get_memory_service
+    from apps.api.utils.crypto import hash_api_key
+
+    # Get app state from test client
+    request = Request(scope={"type": "http", "app": async_client._transport.app})  # type: ignore[arg-type]
+    app_state = get_app_state(request)
+
+    # Get memory service from DI (singleton pattern)
+    service = await get_memory_service(app_state)
+
+    # Create memory for second tenant
+    memory_content = f"Isolation test memory {uuid4().hex[:8]}"
+    user_id = hash_api_key(second_auth_headers["X-API-Key"])
+
+    results = await service.add_memory(
+        messages=memory_content,
+        user_id=user_id,
+        metadata=None,
+        enable_graph=False,
+    )
+
+    assert len(results) > 0, "Memory creation failed"
+
+    # Type narrowing: validate fields before accessing
+    first_result = results[0]
+    memory_id = first_result["id"]
+    memory_text = first_result["memory"]
+
+    assert isinstance(memory_id, str), "Memory ID must be a string"
+    assert isinstance(memory_text, str), "Memory text must be a string"
+
+    return {"id": memory_id, "content": memory_text}
