@@ -107,3 +107,46 @@ async def mock_session_other_tenant(
             owner_api_key=second_auth_headers["X-API-Key"],
         )
         return session.id
+
+
+@pytest.fixture
+async def mock_project_other_tenant(
+    async_client: AsyncClient,
+    second_auth_headers: dict[str, str],
+) -> dict[str, object]:
+    """Create project owned by second tenant for isolation tests.
+
+    NOTE: Projects do not yet support multi-tenant isolation (no owner_api_key).
+    This fixture creates a project via service layer to prepare for future isolation.
+    When multi-tenant support is added, the test will validate 404 behavior.
+    """
+    from fastapi import Request
+
+    from apps.api.dependencies import get_app_state
+    from apps.api.services.projects import ProjectService
+
+    # Get app state from test client
+    request = Request(scope={"type": "http", "app": async_client._transport.app})  # type: ignore[arg-type]
+    app_state = get_app_state(request)
+
+    assert app_state.cache is not None, "Cache must be initialized"
+
+    # Create project for second tenant
+    suffix = uuid4().hex[:8]
+    name = f"isolation-project-{suffix}"
+    path = f"/tmp/isolation-project-{suffix}"
+
+    service = ProjectService(cache=app_state.cache)
+    project = await service.create_project(name=name, path=path, metadata=None)
+
+    assert project is not None, "Project creation failed"
+
+    return {
+        "id": project.id,
+        "name": project.name,
+        "path": project.path,
+        "created_at": project.created_at,
+        "last_accessed_at": project.last_accessed_at,
+        "session_count": project.session_count,
+        "metadata": project.metadata,
+    }
