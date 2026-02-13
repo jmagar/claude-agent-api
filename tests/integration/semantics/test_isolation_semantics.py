@@ -41,6 +41,59 @@ async def test_sessions_cross_tenant_isolation(
 
 @pytest.mark.integration
 @pytest.mark.anyio
+async def test_session_operations_cross_tenant(
+    async_client: AsyncClient,
+    auth_headers: dict[str, str],
+    second_auth_headers: dict[str, str],
+    mock_session_other_tenant: str,
+) -> None:
+    """API key A cannot resume/fork/interrupt API key B's session (returns 404).
+
+    Validates that session modification operations enforce multi-tenant isolation.
+    All cross-tenant operations return 404 (not 403) to prevent enumeration.
+    """
+    # ARRANGE
+    session_id = mock_session_other_tenant  # Owned by tenant B
+
+    # ACT - Tenant A tries resume operation
+    resume_response = await async_client.post(
+        f"/api/v1/sessions/{session_id}/resume",
+        json={"prompt": "test prompt"},
+        headers=auth_headers,  # Tenant A
+    )
+
+    # ACT - Tenant A tries fork operation
+    fork_response = await async_client.post(
+        f"/api/v1/sessions/{session_id}/fork",
+        json={"prompt": "test fork prompt"},
+        headers=auth_headers,  # Tenant A
+    )
+
+    # ACT - Tenant A tries interrupt operation
+    interrupt_response = await async_client.post(
+        f"/api/v1/sessions/{session_id}/interrupt",
+        headers=auth_headers,  # Tenant A
+    )
+
+    # ASSERT - All operations return 404 with SESSION_NOT_FOUND
+    assert resume_response.status_code == 404
+    resume_data = resume_response.json()
+    assert "error" in resume_data
+    assert resume_data["error"]["code"] == "SESSION_NOT_FOUND"
+
+    assert fork_response.status_code == 404
+    fork_data = fork_response.json()
+    assert "error" in fork_data
+    assert fork_data["error"]["code"] == "SESSION_NOT_FOUND"
+
+    assert interrupt_response.status_code == 404
+    interrupt_data = interrupt_response.json()
+    assert "error" in interrupt_data
+    assert interrupt_data["error"]["code"] == "SESSION_NOT_FOUND"
+
+
+@pytest.mark.integration
+@pytest.mark.anyio
 @pytest.mark.xfail(
     reason="Projects lack multi-tenant isolation (no owner_api_key tracking). "
     "Test documents expected behavior for future implementation."
