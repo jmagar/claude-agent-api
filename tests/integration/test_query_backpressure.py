@@ -55,8 +55,6 @@ class TestQueueBackpressure:
         )
 
         # Start producer and consumer
-        producer_started = asyncio.Event()
-        producer_blocked = asyncio.Event()
         events_consumed = 0
 
         async def slow_consumer():

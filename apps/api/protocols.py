@@ -312,6 +312,17 @@ class SessionRepositoryProtocol(Protocol):
         """
         ...
 
+    async def delete_session(self, session_id: UUID) -> bool:
+        """Delete a session and all related data.
+
+        Args:
+            session_id: Session identifier.
+
+        Returns:
+            True if deleted, False if not found.
+        """
+        ...
+
 
 @runtime_checkable
 class Cache(Protocol):

@@ -30,7 +30,7 @@ For each record with `owner_api_key` NOT NULL:
 **Usage:**
 ```bash
 # Set DATABASE_URL environment variable
-export DATABASE_URL="postgresql://user:pass@localhost:54432/dbname"
+export DATABASE_URL="postgresql://user:pass@100.120.242.29:54432/dbname"
 
 # Run verification
 uv run python scripts/verify_hash_consistency.py

@@ -86,22 +86,3 @@ def map_session_with_metadata(
         tags=cast("list[str] | None", tags_raw) if isinstance(tags_raw, list) else None,
         metadata=dict(metadata),
     )
-
-
-def validate_status_literal(
-    status_raw: str,
-) -> Literal["active", "completed", "error"]:
-    """Validate and convert status string to literal type.
-
-    Args:
-        status_raw: Raw status string from database or cache.
-
-    Returns:
-        Validated status literal (defaults to "active" for invalid values).
-    """
-    status_map: dict[str, Literal["active", "completed", "error"]] = {
-        "active": "active",
-        "completed": "completed",
-        "error": "error",
-    }
-    return status_map.get(status_raw, "active")

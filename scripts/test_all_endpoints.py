@@ -948,7 +948,7 @@ class EndpointTester:
 
 def main():
     """Main entry point."""
-    base_url = os.getenv("API_BASE_URL", "http://localhost:54000")
+    base_url = os.getenv("API_BASE_URL", "http://100.120.242.29:54000")
     api_key = os.getenv("API_KEY", "")
     if not api_key:
         print("❌ Error: API_KEY environment variable not set")

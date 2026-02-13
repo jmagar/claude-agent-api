@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import functools
-from collections.abc import Callable
-from typing import ParamSpec, TypeVar
+from typing import TYPE_CHECKING, ParamSpec, TypeVar
 
 from apps.api.utils.introspection import supports_param
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 P = ParamSpec("P")
 R = TypeVar("R")
@@ -125,7 +127,7 @@ class TestSupportsParam:
         import inspect
 
         try:
-            sig = inspect.signature(len)
+            inspect.signature(len)
             # If we can get a signature, supports_param should not crash
             # (even if it returns False for missing param names)
             assert supports_param(len, "nonexistent") is False

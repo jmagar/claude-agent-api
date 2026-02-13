@@ -69,10 +69,6 @@ class SessionService:
         self._lock_manager = SessionLockManager(cache=cache)
         self._metadata_manager = SessionMetadataManager(db_repo=db_repo)
 
-    def _cache_key(self, session_id: str) -> str:
-        """Generate cache key for a session."""
-        return self._cache_manager.cache_key(session_id)
-
     async def _with_session_lock(
         self,
         session_id: str,
@@ -563,6 +559,14 @@ class SessionService:
                 owner_api_key_hash=owner_api_key_hash,
             )
             if result:
+                # Delete from database as well to prevent zombie sessions
+                # (cache-aside pattern would re-cache from DB on next access)
+                if self._db_repo:
+                    try:
+                        await self._db_repo.delete_session(UUID(session_id))
+                    except (ValueError, TypeError):
+                        # UUID parsing already handled above; DB delete is best-effort
+                        pass
                 logger.info("Session deleted", session_id=session_id)
                 return True
 
@@ -695,24 +699,6 @@ class SessionService:
             Session if found in cache.
         """
         return await self._cache_manager.get_cached_session(session_id)
-
-    def _parse_cached_session(
-        self,
-        parsed: dict[str, JsonValue],
-    ) -> Session | None:
-        """Parse cached session data into Session object.
-
-        Args:
-            parsed: Parsed JSON dict from cache.
-
-        Returns:
-            Session object or None if parsing fails.
-
-        Note:
-            This extracts the parsing logic from _get_cached_session
-            for reuse in list_sessions bulk operations.
-        """
-        return self._cache_manager.parse_cached_session(parsed)
 
     def _map_db_to_service(self, db_session: "SessionModel") -> Session:
         """Map SQLAlchemy Session model to service Session dataclass.

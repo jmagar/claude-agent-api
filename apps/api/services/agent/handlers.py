@@ -357,11 +357,27 @@ class MessageHandler:
                     name=name,
                 )
             else:
+                obj_type_value = getattr(content_block, "type", "text")
+                if isinstance(obj_type_value, str) and obj_type_value in (
+                    "text",
+                    "thinking",
+                    "tool_use",
+                    "tool_result",
+                ):
+                    obj_block_type = cast(
+                        "Literal['text', 'thinking', 'tool_use', 'tool_result']",
+                        obj_type_value,
+                    )
+                else:
+                    obj_block_type = "text"
+                obj_text = getattr(content_block, "text", None)
+                obj_id = getattr(content_block, "id", None)
+                obj_name = getattr(content_block, "name", None)
                 block_schema = ContentBlockSchema(
-                    type=getattr(content_block, "type", "text"),
-                    text=getattr(content_block, "text", None),
-                    id=getattr(content_block, "id", None),
-                    name=getattr(content_block, "name", None),
+                    type=obj_block_type,
+                    text=obj_text if isinstance(obj_text, str) else None,
+                    id=obj_id if isinstance(obj_id, str) else None,
+                    name=obj_name if isinstance(obj_name, str) else None,
                 )
 
         partial_start_event = PartialMessageEvent(
