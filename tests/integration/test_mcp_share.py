@@ -36,9 +36,11 @@ async def test_mcp_share_roundtrip(
 
     token = create_data["share_token"]
 
+    # Use header-based authentication instead of URL path to avoid exposure in access logs
+    share_headers = {**auth_headers, "X-Share-Token": token}
     get_response = await async_client.get(
-        f"/api/v1/mcp-servers/share/{token}",
-        headers=auth_headers,
+        "/api/v1/mcp-servers/share",
+        headers=share_headers,
     )
 
     assert get_response.status_code == 200
@@ -56,9 +58,27 @@ async def test_mcp_share_missing_token(
     auth_headers: dict[str, str],
 ) -> None:
     """Unknown tokens return a 404 error."""
+    share_headers = {**auth_headers, "X-Share-Token": "not-found"}
     response = await async_client.get(
-        "/api/v1/mcp-servers/share/not-found",
-        headers=auth_headers,
+        "/api/v1/mcp-servers/share",
+        headers=share_headers,
     )
 
     assert response.status_code == 404
+
+
+@pytest.mark.integration
+@pytest.mark.anyio
+async def test_mcp_share_missing_header(
+    async_client: AsyncClient,
+    auth_headers: dict[str, str],
+) -> None:
+    """Missing X-Share-Token header returns a 422 validation error."""
+    response = await async_client.get(
+        "/api/v1/mcp-servers/share",
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 422
+    data = response.json()
+    assert "X-Share-Token" in str(data)

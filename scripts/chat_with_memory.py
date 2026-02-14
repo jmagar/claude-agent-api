@@ -114,17 +114,16 @@ class MemoryChat:
         if memories:
             print(f"   Found {len(memories)} relevant memories:")
             for i, mem in enumerate(memories[:3], 1):  # Show top 3
-                preview = mem.get('memory', '')[:60]
+                preview = mem.get("memory", "")[:60]
                 print(f"   {i}. {preview}... (score: {mem.get('score', 0):.3f})")
         else:
             print("   No relevant memories found.")
 
         # Build prompt with memory context
         if memories:
-            memory_context = "\n".join([
-                f"- {mem.get('memory', '')}"
-                for mem in memories[:5]
-            ])
+            memory_context = "\n".join(
+                [f"- {mem.get('memory', '')}" for mem in memories[:5]]
+            )
             system_prompt = f"You are a helpful assistant. Here's what you know about the user:\n\n{memory_context}\n\nUse this context naturally in your responses."
         else:
             system_prompt = "You are a helpful assistant."
@@ -168,7 +167,9 @@ class MemoryChat:
 
         # Store this conversation as memory
         print("💾 Saving to memory...")
-        conversation = f"User said: {user_input}\nAssistant responded: {response_text_for_memory}"
+        conversation = (
+            f"User said: {user_input}\nAssistant responded: {response_text_for_memory}"
+        )
         await self.add_memory(conversation)
         print("   ✓ Saved!\n")
 

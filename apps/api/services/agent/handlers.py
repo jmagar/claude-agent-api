@@ -1,7 +1,9 @@
 """Message handlers for Agent SDK responses."""
 
+from __future__ import annotations
+
 import json
-from typing import TYPE_CHECKING, Literal, cast
+from typing import TYPE_CHECKING, Callable, Literal, cast  # noqa: UP035
 
 import structlog
 
@@ -39,8 +41,32 @@ class MessageHandler:
     - Formatting partial/streaming messages
     """
 
+    def __init__(self) -> None:
+        self._message_handlers: dict[
+            str, Callable[[object, StreamContext], dict[str, str] | None]
+        ] = {
+            "SystemMessage": self._handle_system_message,
+            "UserMessage": self._handle_user_message,
+            "AssistantMessage": self._handle_assistant_message,
+            "ResultMessage": self._handle_result_passthrough,
+        }
+        self._partial_handlers: dict[
+            str, Callable[[object, StreamContext], dict[str, str]]
+        ] = {
+            "ContentBlockStart": self._handle_partial_start,
+            "ContentBlockDelta": self._handle_partial_delta,
+            "ContentBlockStop": self._handle_partial_stop,
+        }
+        self._stream_partial_handlers: dict[
+            str, Callable[[object, StreamContext], dict[str, str]]
+        ] = {
+            "content_block_start": self._handle_partial_start,
+            "content_block_delta": self._handle_partial_delta,
+            "content_block_stop": self._handle_partial_stop,
+        }
+
     def map_sdk_message(
-        self, message: object, ctx: "StreamContext"
+        self, message: object, ctx: StreamContext
     ) -> dict[str, str] | None:
         """Map SDK message to SSE event dict.
 
@@ -52,58 +78,79 @@ class MessageHandler:
             SSE event dict with 'event' and 'data' keys, or None.
         """
         msg_type = type(message).__name__
+        base_handler = self._message_handlers.get(msg_type)
+        if base_handler is not None:
+            return base_handler(message, ctx)
 
-        if msg_type == "SystemMessage":
-            # Log SystemMessage for debugging MCP server connections
-            subtype = getattr(message, "subtype", None)
-            if subtype == "init":
-                data = getattr(message, "data", {})
-                mcp_servers = data.get("mcp_servers", [])
-                logger.info(
-                    "sdk_system_init_message",
-                    mcp_server_count=len(mcp_servers),
-                    mcp_servers=mcp_servers,
-                )
+        if not ctx.include_partial_messages:
             return None
 
-        if msg_type == "UserMessage":
-            return self._handle_user_message(message, ctx)
+        if msg_type == "StreamEvent":
+            return self._handle_stream_event_partial(message, ctx)
 
-        if msg_type == "AssistantMessage":
-            return self._handle_assistant_message(message, ctx)
-
-        if msg_type == "ResultMessage":
-            self._handle_result_message(message, ctx)
-            return None
-
-        # T118: Handle partial/streaming messages when include_partial_messages is enabled
-        if msg_type == "StreamEvent" and ctx.include_partial_messages:
-            # StreamEvent.event is a dict[str, object] containing raw Anthropic API stream event
-            event_data = getattr(message, "event", None)
-            if event_data and isinstance(event_data, dict):
-                event_type = event_data.get("type")
-                if event_type == "content_block_start":
-                    return self._handle_partial_start(event_data, ctx)
-                elif event_type == "content_block_delta":
-                    return self._handle_partial_delta(event_data, ctx)
-                elif event_type == "content_block_stop":
-                    return self._handle_partial_stop(event_data, ctx)
-            # Ignore StreamEvents without partial content data or other event types
-            return None
-
-        if msg_type == "ContentBlockStart" and ctx.include_partial_messages:
-            return self._handle_partial_start(message, ctx)
-
-        if msg_type == "ContentBlockDelta" and ctx.include_partial_messages:
-            return self._handle_partial_delta(message, ctx)
-
-        if msg_type == "ContentBlockStop" and ctx.include_partial_messages:
-            return self._handle_partial_stop(message, ctx)
+        partial_handler = self._partial_handlers.get(msg_type)
+        if partial_handler is not None:
+            return partial_handler(message, ctx)
 
         return None
 
+    def _handle_system_message(
+        self, message: object, _ctx: StreamContext
+    ) -> dict[str, str] | None:
+        """Log and ignore SDK system messages."""
+        subtype = getattr(message, "subtype", None)
+        if subtype == "init":
+            data = getattr(message, "data", {})
+            # Type guard: ensure data is a dict before calling .get()
+            if not isinstance(data, dict):
+                logger.warning(
+                    "sdk_system_init_invalid_data_type",
+                    data_type=type(data).__name__,
+                )
+                return None
+            mcp_servers_raw = data.get("mcp_servers", [])
+
+            # Validate mcp_servers is a sequence (list, tuple, etc.)
+            if not isinstance(mcp_servers_raw, (list, tuple)):
+                logger.warning(
+                    "sdk_system_init_invalid_mcp_servers",
+                    mcp_servers_type=type(mcp_servers_raw).__name__,
+                )
+                mcp_servers_raw = []
+
+            logger.info(
+                "sdk_system_init_message",
+                mcp_server_count=len(mcp_servers_raw),
+                mcp_servers=mcp_servers_raw,
+            )
+        return None
+
+    def _handle_result_passthrough(
+        self, message: object, ctx: StreamContext
+    ) -> dict[str, str] | None:
+        """Update context for result messages without emitting SSE."""
+        self._handle_result_message(message, ctx)
+        return None
+
+    def _handle_stream_event_partial(
+        self, message: object, ctx: StreamContext
+    ) -> dict[str, str] | None:
+        """Dispatch partial stream event payloads to handlers by subtype."""
+        event_data = getattr(message, "event", None)
+        if not isinstance(event_data, dict):
+            return None
+
+        event_type = event_data.get("type")
+        if not isinstance(event_type, str):
+            return None
+
+        handler = self._stream_partial_handlers.get(event_type)
+        if handler is None:
+            return None
+        return handler(event_data, ctx)
+
     def _handle_user_message(
-        self, message: object, ctx: "StreamContext"
+        self, message: object, ctx: StreamContext
     ) -> dict[str, str]:
         """Handle UserMessage from SDK.
 
@@ -131,7 +178,7 @@ class MessageHandler:
         return self.format_sse(event.event, event.data.model_dump())
 
     def _handle_assistant_message(
-        self, message: object, ctx: "StreamContext"
+        self, message: object, ctx: StreamContext
     ) -> dict[str, str]:
         """Handle AssistantMessage from SDK.
 
@@ -165,7 +212,7 @@ class MessageHandler:
         return self.format_sse(event.event, event.data.model_dump())
 
     def _check_special_tool_uses(
-        self, content_blocks: list[ContentBlockSchema], ctx: "StreamContext"
+        self, content_blocks: list[ContentBlockSchema], ctx: StreamContext
     ) -> dict[str, str] | None:
         """Check for special tool uses and return event if found.
 
@@ -199,7 +246,7 @@ class MessageHandler:
                     )
         return None
 
-    def _handle_result_message(self, message: object, ctx: "StreamContext") -> None:
+    def _handle_result_message(self, message: object, ctx: StreamContext) -> None:
         """Handle ResultMessage from SDK.
 
         Updates context with result data. Does not emit an event.
@@ -259,7 +306,7 @@ class MessageHandler:
                 ctx.is_error = True
 
     def _handle_partial_start(
-        self, message: object, _ctx: "StreamContext"
+        self, message: object, _ctx: StreamContext
     ) -> dict[str, str]:
         """Handle ContentBlockStart for partial message streaming.
 
@@ -310,11 +357,27 @@ class MessageHandler:
                     name=name,
                 )
             else:
+                obj_type_value = getattr(content_block, "type", "text")
+                if isinstance(obj_type_value, str) and obj_type_value in (
+                    "text",
+                    "thinking",
+                    "tool_use",
+                    "tool_result",
+                ):
+                    obj_block_type = cast(
+                        "Literal['text', 'thinking', 'tool_use', 'tool_result']",
+                        obj_type_value,
+                    )
+                else:
+                    obj_block_type = "text"
+                obj_text = getattr(content_block, "text", None)
+                obj_id = getattr(content_block, "id", None)
+                obj_name = getattr(content_block, "name", None)
                 block_schema = ContentBlockSchema(
-                    type=getattr(content_block, "type", "text"),
-                    text=getattr(content_block, "text", None),
-                    id=getattr(content_block, "id", None),
-                    name=getattr(content_block, "name", None),
+                    type=obj_block_type,
+                    text=obj_text if isinstance(obj_text, str) else None,
+                    id=obj_id if isinstance(obj_id, str) else None,
+                    name=obj_name if isinstance(obj_name, str) else None,
                 )
 
         partial_start_event = PartialMessageEvent(
@@ -329,7 +392,7 @@ class MessageHandler:
         )
 
     def _handle_partial_delta(
-        self, message: object, _ctx: "StreamContext"
+        self, message: object, _ctx: StreamContext
     ) -> dict[str, str]:
         """Handle ContentBlockDelta for partial message streaming.
 
@@ -426,7 +489,7 @@ class MessageHandler:
         )
 
     def _handle_partial_stop(
-        self, message: object, _ctx: "StreamContext"
+        self, message: object, _ctx: StreamContext
     ) -> dict[str, str]:
         """Handle ContentBlockStop for partial message streaming.
 
@@ -456,7 +519,7 @@ class MessageHandler:
         )
 
     def track_file_modifications(
-        self, content_blocks: list[ContentBlockSchema], ctx: "StreamContext"
+        self, content_blocks: list[ContentBlockSchema], ctx: StreamContext
     ) -> None:
         """Track file modifications from tool_use blocks (T104).
 

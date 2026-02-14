@@ -5,12 +5,10 @@ Tests verify that critical error scenarios are handled correctly:
 - JSON parsing failures in result events
 """
 
-import json
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 import pytest
 from httpx import AsyncClient
-from httpx_sse import aconnect_sse
 from sqlalchemy.exc import IntegrityError, OperationalError
 
 

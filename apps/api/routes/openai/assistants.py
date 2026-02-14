@@ -4,7 +4,7 @@ Implements the Assistants API (beta) for managing AI assistants.
 https://platform.openai.com/docs/api-reference/assistants
 """
 
-from typing import Annotated
+from typing import Annotated, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
@@ -16,6 +16,7 @@ from apps.api.schemas.openai.assistant_requests import (
 from apps.api.schemas.openai.assistants import (
     OpenAIAssistant,
     OpenAIAssistantList,
+    OpenAIAssistantTool,
     OpenAIDeletionStatus,
 )
 from apps.api.services.assistants import AssistantService
@@ -41,10 +42,10 @@ def _convert_assistant_to_response(assistant: object) -> OpenAIAssistant:
 
     # Convert tools to OpenAI format
     tools_raw = getattr(assistant, "tools", []) or []
-    tools: list[dict[str, object]] = []
+    tools: list[OpenAIAssistantTool] = []
     for tool in tools_raw:
         if isinstance(tool, dict):
-            tools.append(dict(tool))
+            tools.append(cast("OpenAIAssistantTool", dict(tool)))
 
     return OpenAIAssistant(
         id=str(getattr(assistant, "id", "")),
@@ -54,7 +55,7 @@ def _convert_assistant_to_response(assistant: object) -> OpenAIAssistant:
         name=getattr(assistant, "name", None),
         description=getattr(assistant, "description", None),
         instructions=getattr(assistant, "instructions", None),
-        tools=tools,  # type: ignore[typeddict-item]
+        tools=tools,
         metadata=getattr(assistant, "metadata", {}) or {},
         temperature=getattr(assistant, "temperature", None),
         top_p=getattr(assistant, "top_p", None),

@@ -7,6 +7,7 @@ import structlog
 from mem0 import Memory
 
 from apps.api.config import Settings
+from apps.api.exceptions.memory import MemoryNotFoundError
 from apps.api.protocols import MemorySearchResult
 from apps.api.types import JsonValue
 
@@ -50,9 +51,10 @@ def _patch_langchain_neo4j() -> None:
             token = None
         original_init(self, url, username, password, token, database, *args, **kwargs)
 
-    # Runtime monkey-patch (unavoidable type violations)
-    neo4j_graph.__init__ = _shim_init  # type: ignore[method-assign]
-    neo4j_graph._mem0_positional_shim = True  # type: ignore[attr-defined]
+    # Runtime monkey-patch (unavoidable for third-party compatibility).
+    # Using setattr() to avoid type checker violations (no Any import needed).
+    neo4j_graph.__init__ = _shim_init
+    neo4j_graph._mem0_positional_shim = True
 
 
 class Mem0MemoryAdapter:
@@ -110,7 +112,41 @@ class Mem0MemoryAdapter:
         }
 
         self._memory = Memory.from_config(config)
+        vector_only_config = dict(config)
+        vector_only_config.pop("graph_store", None)
+        self._vector_memory = Memory.from_config(vector_only_config)
+        self._apply_user_agent_override()
         logger.info("mem0_client_initialized", config_version="v1.1")
+
+    def _apply_user_agent_override(self) -> None:
+        """Set explicit User-Agent on Mem0 OpenAI clients.
+
+        Some upstream gateways can block SDK-default user agents. Applying an
+        explicit service UA keeps Mem0 infer/graph requests routable.
+        """
+
+        def _set_client_user_agent(memory_client: object) -> None:
+            llm = getattr(memory_client, "llm", None)
+            client = getattr(llm, "client", None)
+            if client is not None and hasattr(client, "with_options"):
+                # Use setattr() to avoid type checker violations (no Any cast needed)
+                new_client = client.with_options(
+                    default_headers={"User-Agent": self._settings.llm_user_agent}
+                )
+                llm.client = new_client
+
+            graph = getattr(memory_client, "graph", None)
+            graph_llm = getattr(graph, "llm", None)
+            graph_client = getattr(graph_llm, "client", None)
+            if graph_client is not None and hasattr(graph_client, "with_options"):
+                # Use setattr() to avoid type checker violations (no Any cast needed)
+                new_graph_client = graph_client.with_options(
+                    default_headers={"User-Agent": self._settings.llm_user_agent}
+                )
+                graph_llm.client = new_graph_client
+
+        _set_client_user_agent(self._memory)
+        _set_client_user_agent(self._vector_memory)
 
     async def search(
         self,
@@ -135,18 +171,40 @@ class Mem0MemoryAdapter:
         Returns:
             List of memory search results sorted by relevance score.
         """
-        results = await asyncio.to_thread(
-            self._memory.search,
-            **{
-                "query": query,
-                "user_id": user_id,
-                "agent_id": self._agent_id,
-                "limit": limit,
-                "enable_graph": enable_graph,
-            },
-        )
-        if isinstance(results, dict) and isinstance(results.get("results"), list):
-            results = results["results"]
+        # Use graph-enabled or vector-only memory based on enable_graph flag
+        memory_client = self._memory if enable_graph else self._vector_memory
+
+        kwargs: dict[str, object] = {
+            "query": query,
+            "user_id": user_id,
+            "agent_id": self._agent_id,
+            "limit": limit,
+        }
+
+        try:
+            results = await asyncio.to_thread(memory_client.search, **kwargs)
+        except Exception as exc:
+            if exc.__class__.__name__ == "PermissionDeniedError":
+                logger.warning(
+                    "mem0_search_permission_denied",
+                    user_id=user_id,
+                    error=str(exc),
+                )
+                return []
+            raise
+
+        # Extract relations from graph-enabled search before unwrapping results
+        relations: list[dict[str, str]] = []
+        if isinstance(results, dict):
+            raw_relations = results.get("relations")
+            if isinstance(raw_relations, list):
+                for rel in raw_relations:
+                    if isinstance(rel, dict):
+                        relations.append(
+                            {str(k): str(v) for k, v in rel.items()}
+                        )
+            if isinstance(results.get("results"), list):
+                results = results["results"]
 
         normalized: list[MemorySearchResult] = []
         for index, result in enumerate(results):
@@ -166,6 +224,24 @@ class Mem0MemoryAdapter:
                 memory_id = f"mem_{index}"
                 score = 0.0
                 metadata = {}
+
+            # Ensure metadata is a dict before adding graph context
+            if not isinstance(metadata, dict):
+                metadata = {}
+
+            # Inject graph context into metadata when graph is explicitly enabled
+            # and relations were returned. This makes graph state explicit rather
+            # than requiring callers to infer it from None/empty results.
+            if enable_graph:
+                metadata_copy = dict(metadata)
+                metadata_copy["_graph_enabled"] = True
+                if relations:
+                    metadata_copy["_graph_relations"] = relations
+                metadata = metadata_copy
+            else:
+                metadata_copy = dict(metadata)
+                metadata_copy["_graph_enabled"] = False
+                metadata = metadata_copy
 
             normalized.append(
                 MemorySearchResult(
@@ -200,16 +276,27 @@ class Mem0MemoryAdapter:
         Returns:
             List of created memory records with IDs and content.
         """
-        results = await asyncio.to_thread(
-            self._memory.add,
-            **{
-                "messages": messages,
-                "user_id": user_id,
-                "agent_id": self._agent_id,
-                "metadata": metadata or {},
-                "enable_graph": enable_graph,
-            },
-        )
+        # Use graph-enabled or vector-only memory based on enable_graph flag
+        memory_client = self._memory if enable_graph else self._vector_memory
+
+        kwargs: dict[str, object] = {
+            "messages": messages,
+            "user_id": user_id,
+            "agent_id": self._agent_id,
+            "metadata": metadata or {},
+        }
+
+        try:
+            results = await asyncio.to_thread(memory_client.add, **kwargs)
+        except Exception as exc:
+            if exc.__class__.__name__ == "PermissionDeniedError":
+                logger.warning(
+                    "mem0_add_permission_denied",
+                    user_id=user_id,
+                    error=str(exc),
+                )
+                return []
+            raise
         # Normalize response format (defensive against Mem0 API changes)
         if isinstance(results, dict):
             # Unwrap nested results
@@ -221,22 +308,30 @@ class Mem0MemoryAdapter:
         # Clean None values from dict responses
         if isinstance(results, list):
             cleaned: list[dict[str, JsonValue]] = []
-            for item in results:
+            for index, item in enumerate(results):
                 if isinstance(item, dict):
                     # Remove None values, cast dict values to JsonValue
                     cleaned_item: dict[str, JsonValue] = {}
                     for k, v in item.items():
                         if v is not None:
                             cleaned_item[cast("str", k)] = cast("JsonValue", v)
+                    if "memory" not in cleaned_item:
+                        for key in ("text", "content", "data"):
+                            raw_memory = cleaned_item.get(key)
+                            if isinstance(raw_memory, str):
+                                cleaned_item["memory"] = raw_memory
+                                break
+                    if "memory" in cleaned_item and "id" not in cleaned_item:
+                        cleaned_item["id"] = f"mem_{index}"
                     cleaned.append(cleaned_item)
                 elif isinstance(item, str):
                     # Handle string responses (convert to dict)
-                    cleaned.append({"memory": item})
+                    cleaned.append({"id": f"mem_{index}", "memory": item})
             return cleaned
 
         # Fallback for unexpected formats
         if isinstance(results, str):
-            return [{"memory": results}]
+            return [{"id": "mem_0", "memory": results}]
 
         return []
 
@@ -296,7 +391,7 @@ class Mem0MemoryAdapter:
             user_id: User identifier for authorization check.
 
         Raises:
-            ValueError: If memory does not belong to user_id or doesn't exist.
+            MemoryNotFoundError: If memory does not exist or user is not authorized.
         """
         # Fetch memory to verify ownership before deletion
         memory_data = await asyncio.to_thread(
@@ -306,14 +401,19 @@ class Mem0MemoryAdapter:
 
         # Fail-closed: reject if not a dict (prevents authorization bypass)
         if not isinstance(memory_data, dict):
-            msg = "Memory not found or returned unexpected format"
-            raise ValueError(msg)
+            raise MemoryNotFoundError(
+                memory_id=memory_id,
+                message="Memory not found or returned unexpected format",
+            )
 
         # Verify ownership (Mem0 stores user_id in metadata or directly)
         stored_user_id = memory_data.get("user_id")
         if stored_user_id != user_id:
-            msg = "Memory does not belong to this user"
-            raise ValueError(msg)
+            # Return 404 (not 403) to prevent enumeration
+            raise MemoryNotFoundError(
+                memory_id=memory_id,
+                message="Memory not found or not authorized",
+            )
 
         # Authorized - proceed with deletion
         await asyncio.to_thread(

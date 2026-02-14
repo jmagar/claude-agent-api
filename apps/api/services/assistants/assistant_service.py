@@ -416,11 +416,55 @@ class AssistantService:
             Paginated assistant list.
         """
         if not self._db_repo:
+            if not self._cache:
+                return AssistantListResult(
+                    data=[],
+                    first_id=None,
+                    last_id=None,
+                    has_more=False,
+                )
+
+            # Fallback for deployments without assistant DB repository:
+            # list cached assistants by OpenAI assistant ID prefix.
+            keys = await self._cache.scan_keys("assistant:asst_*")
+            if not keys:
+                return AssistantListResult(
+                    data=[],
+                    first_id=None,
+                    last_id=None,
+                    has_more=False,
+                )
+
+            cached_rows = await self._cache.get_many_json(keys)
+            assistants: list[Assistant] = []
+
+            # Hash the owner API key for filtering (multi-tenant isolation)
+            owner_hash = hash_api_key(owner_api_key) if owner_api_key else None
+
+            for parsed in cached_rows:
+                if not parsed:
+                    continue
+                assistant = self._parse_cached_assistant(parsed)
+                if not assistant:
+                    continue
+
+                # Filter by owner to prevent cross-tenant data leakage
+                # Public assistants (owner_api_key_hash=None) are visible to all tenants
+                if owner_hash and assistant.owner_api_key_hash is not None and assistant.owner_api_key_hash != owner_hash:
+                    continue
+
+                assistants.append(assistant)
+
+            reverse = order == "desc"
+            assistants.sort(key=lambda a: a.created_at, reverse=reverse)
+            has_more = len(assistants) > limit
+            assistants = assistants[:limit]
+
             return AssistantListResult(
-                data=[],
-                first_id=None,
-                last_id=None,
-                has_more=False,
+                data=assistants,
+                first_id=assistants[0].id if assistants else None,
+                last_id=assistants[-1].id if assistants else None,
+                has_more=has_more,
             )
 
         try:
@@ -633,12 +677,6 @@ class AssistantService:
 
             created_at = datetime.fromisoformat(created_at_str)
             updated_at = datetime.fromisoformat(updated_at_str)
-
-            # Normalize to naive (remove timezone info)
-            if created_at.tzinfo is not None:
-                created_at = created_at.replace(tzinfo=None)
-            if updated_at.tzinfo is not None:
-                updated_at = updated_at.replace(tzinfo=None)
 
             # Extract tools and metadata with proper typing
             tools_raw = parsed.get("tools", [])

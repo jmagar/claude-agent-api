@@ -4,8 +4,6 @@ This module tests that all protocol abstractions exist and are properly defined.
 Includes both existing protocols and new protocols for the DI refactor.
 """
 
-import pytest
-
 from apps.api.protocols import SessionRepositoryProtocol
 
 

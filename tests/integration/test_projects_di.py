@@ -19,9 +19,9 @@ async def test_list_projects_uses_di_signature() -> None:
     assert "project_service" in params, "Missing project_service DI parameter"
 
     # Should NOT have cache: Cache parameter (old anti-pattern)
-    assert (
-        "cache" not in params
-    ), "Route still has cache parameter (should use project_service)"
+    assert "cache" not in params, (
+        "Route still has cache parameter (should use project_service)"
+    )
 
     # Verify type annotation is ProjectSvc
     project_service_param = params["project_service"]
@@ -40,9 +40,9 @@ async def test_create_project_uses_di_signature() -> None:
     params = sig.parameters
 
     assert "project_service" in params, "Missing project_service DI parameter"
-    assert (
-        "cache" not in params
-    ), "Route still has cache parameter (should use project_service)"
+    assert "cache" not in params, (
+        "Route still has cache parameter (should use project_service)"
+    )
 
 
 @pytest.mark.integration
@@ -55,9 +55,9 @@ async def test_get_project_uses_di_signature() -> None:
     params = sig.parameters
 
     assert "project_service" in params, "Missing project_service DI parameter"
-    assert (
-        "cache" not in params
-    ), "Route still has cache parameter (should use project_service)"
+    assert "cache" not in params, (
+        "Route still has cache parameter (should use project_service)"
+    )
 
 
 @pytest.mark.integration
@@ -70,9 +70,9 @@ async def test_update_project_uses_di_signature() -> None:
     params = sig.parameters
 
     assert "project_service" in params, "Missing project_service DI parameter"
-    assert (
-        "cache" not in params
-    ), "Route still has cache parameter (should use project_service)"
+    assert "cache" not in params, (
+        "Route still has cache parameter (should use project_service)"
+    )
 
 
 @pytest.mark.integration
@@ -85,6 +85,6 @@ async def test_delete_project_uses_di_signature() -> None:
     params = sig.parameters
 
     assert "project_service" in params, "Missing project_service DI parameter"
-    assert (
-        "cache" not in params
-    ), "Route still has cache parameter (should use project_service)"
+    assert "cache" not in params, (
+        "Route still has cache parameter (should use project_service)"
+    )

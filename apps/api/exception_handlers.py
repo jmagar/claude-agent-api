@@ -327,7 +327,9 @@ def register_exception_handlers(app, settings: Settings) -> None:
     """
     app.add_exception_handler(APIError, api_error_handler)
     app.add_exception_handler(RequestValidationError, request_validation_error_handler)
-    app.add_exception_handler(PydanticValidationError, pydantic_validation_error_handler)
+    app.add_exception_handler(
+        PydanticValidationError, pydantic_validation_error_handler
+    )
     app.add_exception_handler(TimeoutError, create_timeout_handler(settings))
     app.add_exception_handler(Exception, create_general_exception_handler(settings))
     app.add_exception_handler(HTTPException, http_exception_handler)

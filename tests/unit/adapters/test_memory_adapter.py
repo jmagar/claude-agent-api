@@ -97,7 +97,6 @@ async def test_mem0_adapter_search(settings: Settings) -> None:
             query="What are user preferences?",
             user_id="test-api-key",
             limit=10,
-            enable_graph=True,
         )
 
 
@@ -114,7 +113,6 @@ async def test_mem0_adapter_search_handles_string_results(settings: Settings) ->
             query="What are user preferences?",
             user_id="test-api-key",
             limit=10,
-            enable_graph=True,
         )
 
         assert len(results) == 1
@@ -139,7 +137,6 @@ async def test_mem0_adapter_search_unwraps_results(settings: Settings) -> None:
             query="graph memory",
             user_id="test-api-key",
             limit=5,
-            enable_graph=True,
         )
 
         assert len(results) == 1
@@ -149,40 +146,54 @@ async def test_mem0_adapter_search_unwraps_results(settings: Settings) -> None:
 
 
 @pytest.mark.anyio
-async def test_mem0_adapter_search_omits_enable_graph_when_unsupported(
+async def test_mem0_adapter_search_uses_dual_memory_approach(
     settings: Settings,
 ) -> None:
-    """Adapter should avoid enable_graph when mem0 doesn't support it."""
+    """Adapter should use graph-enabled or vector-only memory based on enable_graph flag."""
 
     class DummyMemory:
-        def __init__(self) -> None:
-            self.kwargs: dict[str, object] | None = None
+        def __init__(self, name: str) -> None:
+            self.name = name
+            self.search_called = False
 
         def search(
             self, query: str, user_id: str, agent_id: str, limit: int
         ) -> list[dict[str, object]]:
-            self.kwargs = {
-                "query": query,
-                "user_id": user_id,
-                "agent_id": agent_id,
-                "limit": limit,
-            }
+            self.search_called = True
             return []
 
     with patch("apps.api.adapters.memory.Memory") as mock_memory_class:
-        dummy = DummyMemory()
-        mock_memory_class.from_config.return_value = dummy
+        dummy_graph = DummyMemory("graph")
+        dummy_vector = DummyMemory("vector")
+
+        # Return graph-enabled first, then vector-only
+        mock_memory_class.from_config.side_effect = [dummy_graph, dummy_vector]
 
         adapter = Mem0MemoryAdapter(settings)
+
+        # Test with enable_graph=True (default) - should use graph-enabled memory
         await adapter.search(
             query="What are user preferences?",
             user_id="test-api-key",
             limit=10,
             enable_graph=True,
         )
+        assert dummy_graph.search_called
+        assert not dummy_vector.search_called
 
-        assert dummy.kwargs is not None
-        assert "enable_graph" not in dummy.kwargs
+        # Reset
+        dummy_graph.search_called = False
+        dummy_vector.search_called = False
+
+        # Test with enable_graph=False - should use vector-only memory
+        await adapter.search(
+            query="What are user preferences?",
+            user_id="test-api-key",
+            limit=10,
+            enable_graph=False,
+        )
+        assert not dummy_graph.search_called
+        assert dummy_vector.search_called
 
 
 @pytest.mark.anyio
@@ -200,7 +211,6 @@ async def test_mem0_adapter_add(settings: Settings) -> None:
             messages="I really enjoy coding in Python",
             user_id="test-api-key",
             metadata={"source": "conversation"},
-            enable_graph=True,
         )
 
         assert len(results) == 1
@@ -210,7 +220,6 @@ async def test_mem0_adapter_add(settings: Settings) -> None:
             "user_id": "test-api-key",
             "agent_id": "main",
             "metadata": {"source": "conversation"},
-            "enable_graph": True,
         }
         mock_memory.add.assert_called_once_with(**expected)
 
@@ -231,7 +240,6 @@ async def test_mem0_adapter_add_handles_wrapped_response(settings: Settings) -> 
         results = await adapter.add(
             messages="Test conversation",
             user_id="test-api-key",
-            enable_graph=False,
         )
 
         assert len(results) == 1
@@ -255,7 +263,6 @@ async def test_mem0_adapter_add_handles_results_key(settings: Settings) -> None:
         results = await adapter.add(
             messages="Graph conversation",
             user_id="test-api-key",
-            enable_graph=True,
         )
 
         assert len(results) == 1

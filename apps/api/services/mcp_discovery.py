@@ -189,8 +189,13 @@ class McpDiscoveryService:
                 config = cast("dict[str, Any]", raw_config)
 
                 server_type_raw = config.get("type", "stdio")
-                server_type = str(server_type_raw) if server_type_raw else "stdio"
-                if server_type not in ("stdio", "sse", "http"):
+                server_type_str = str(server_type_raw) if server_type_raw else "stdio"
+                if server_type_str in ("stdio", "sse", "http"):
+                    server_type = cast(
+                        "Literal['stdio', 'sse', 'http']",
+                        server_type_str,
+                    )
+                else:
                     server_type = "stdio"
 
                 command_raw = config.get("command")
@@ -220,7 +225,7 @@ class McpDiscoveryService:
 
                 server: McpServerInfo = {
                     "name": name,
-                    "type": server_type,  # type: ignore[typeddict-item]
+                    "type": server_type,
                     "command": command,
                     "args": args,
                     "url": url,

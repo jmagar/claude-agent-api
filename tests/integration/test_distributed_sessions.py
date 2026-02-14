@@ -76,7 +76,6 @@ async def test_session_fallback_to_database_when_cache_miss(
 
     app_state = async_client.app.state.app_state
 
-
     cache = await get_cache(app_state)
 
     app_state = async_client.app.state.app_state
@@ -121,7 +120,6 @@ async def test_session_create_writes_to_both_db_and_cache(
 
     app_state = async_client.app.state.app_state
 
-
     cache = await get_cache(app_state)
 
     async for db_session in get_db(app_state):
@@ -161,7 +159,6 @@ async def test_agent_service_uses_distributed_session_tracking(
 
     app_state = async_client.app.state.app_state
 
-
     cache = await get_cache(app_state)
 
     async for db_session in get_db(app_state):
@@ -198,7 +195,6 @@ async def test_multi_instance_session_lifecycle(async_client: AsyncClient) -> No
     from apps.api.dependencies import get_db
 
     app_state = async_client.app.state.app_state
-
 
     cache = await get_cache(app_state)
 
@@ -259,7 +255,6 @@ async def test_session_survives_redis_restart(async_client: AsyncClient) -> None
     from apps.api.dependencies import get_db
 
     app_state = async_client.app.state.app_state
-
 
     cache = await get_cache(app_state)
 

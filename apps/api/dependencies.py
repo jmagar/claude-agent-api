@@ -3,7 +3,6 @@
 import secrets
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
-from functools import lru_cache
 from typing import TYPE_CHECKING, Annotated
 
 from fastapi import Depends, Header, Request
@@ -18,16 +17,24 @@ from apps.api.config import Settings, get_settings
 from apps.api.exceptions import AuthenticationError, ServiceUnavailableError
 
 if TYPE_CHECKING:
-    from apps.api.adapters.cache import RedisCache
-    from apps.api.adapters.memory import Mem0MemoryAdapter
-    from apps.api.adapters.session_repo import SessionRepository
-    from apps.api.protocols import AgentConfigProtocol, ProjectProtocol
+    from apps.api.protocols import (
+        AgentConfigProtocol,
+        Cache,
+        ProjectProtocol,
+        SessionRepositoryProtocol,
+    )
     from apps.api.protocols import AgentService as AgentServiceProtocol
     from apps.api.services.agent import AgentService
+    from apps.api.services.assistants import (
+        AssistantService,
+        MessageService,
+        RunService,
+        ThreadService,
+    )
     from apps.api.services.checkpoint import CheckpointService
+    from apps.api.services.health import CacheHealthService
     from apps.api.services.mcp_config_injector import McpConfigInjector
     from apps.api.services.mcp_config_loader import McpConfigLoader
-    from apps.api.services.mcp_config_validator import ConfigValidator
     from apps.api.services.mcp_discovery import McpDiscoveryService
     from apps.api.services.mcp_server_configs import McpServerConfigService
     from apps.api.services.mcp_share import McpShareService
@@ -58,7 +65,7 @@ class AppState:
 
     engine: AsyncEngine | None = None
     session_maker: async_sessionmaker[AsyncSession] | None = None
-    cache: "RedisCache | None" = None
+    cache: "Cache | None" = None
     agent_service: "AgentService | None" = None
     memory_service: "MemoryService | None" = field(default=None)
 
@@ -119,7 +126,7 @@ async def close_db(state: "AppState") -> None:
         state.session_maker = None
 
 
-async def init_cache(state: "AppState", settings: Settings) -> "RedisCache":
+async def init_cache(state: "AppState", settings: Settings) -> "Cache":
     """Initialize Redis cache with health check and retry (M-01, ARC-04).
 
     Args:
@@ -136,11 +143,12 @@ async def init_cache(state: "AppState", settings: Settings) -> "RedisCache":
 
     import structlog
 
-    from apps.api.adapters.cache import RedisCache
+    # Import concrete class for runtime instantiation
+    from apps.api.adapters.cache import RedisCache as RedisCacheImpl
 
     logger = structlog.get_logger(__name__)
 
-    state.cache = await RedisCache.create(settings.redis_url)
+    state.cache = await RedisCacheImpl.create(settings.redis_url)
 
     # Health check with retry logic
     max_attempts = 10
@@ -218,7 +226,7 @@ async def get_db(
 
 async def get_cache(
     state: Annotated["AppState", Depends(get_app_state)],
-) -> "RedisCache":
+) -> "Cache":
     """Get Redis cache instance from app state (ARC-04).
 
     Args:
@@ -237,7 +245,7 @@ async def get_cache(
 
 async def get_session_repo(
     db: Annotated[AsyncSession, Depends(get_db)],
-) -> "SessionRepository":
+) -> "SessionRepositoryProtocol":
     """Get session repository.
 
     Args:
@@ -285,7 +293,7 @@ def verify_api_key(
 
 
 async def get_checkpoint_service(
-    cache: Annotated["RedisCache", Depends(get_cache)],
+    cache: Annotated["Cache", Depends(get_cache)],
 ) -> "CheckpointService":
     """Get checkpoint service instance with injected cache.
 
@@ -302,7 +310,7 @@ async def get_checkpoint_service(
 
 async def get_agent_service(
     state: Annotated["AppState", Depends(get_app_state)],
-    cache: Annotated["RedisCache", Depends(get_cache)],
+    cache: Annotated["Cache", Depends(get_cache)],
     checkpoint_service: Annotated["CheckpointService", Depends(get_checkpoint_service)],
 ) -> "AgentService":
     """Get agent service instance from app state (ARC-04, ARC-05).
@@ -358,8 +366,8 @@ async def get_agent_service(
 
 
 async def get_session_service(
-    cache: Annotated["RedisCache", Depends(get_cache)],
-    db_repo: Annotated["SessionRepository", Depends(get_session_repo)],
+    cache: Annotated["Cache", Depends(get_cache)],
+    db_repo: Annotated["SessionRepositoryProtocol", Depends(get_session_repo)],
 ) -> "SessionService":
     """Get session service instance with injected cache and DB repository.
 
@@ -441,7 +449,7 @@ def get_mcp_config_loader() -> "McpConfigLoader":
 
 
 async def get_mcp_server_config_service_provider(
-    cache: Annotated["RedisCache", Depends(get_cache)],
+    cache: Annotated["Cache", Depends(get_cache)],
 ) -> "McpServerConfigService":
     """Get MCP server config service.
 
@@ -461,7 +469,9 @@ async def get_mcp_server_config_service_provider(
 
 async def get_mcp_config_injector(
     loader: Annotated["McpConfigLoader", Depends(get_mcp_config_loader)],
-    config_service: Annotated["McpServerConfigService", Depends(get_mcp_server_config_service_provider)],
+    config_service: Annotated[
+        "McpServerConfigService", Depends(get_mcp_server_config_service_provider)
+    ],
 ) -> "McpConfigInjector":
     """Get MCP config injector instance.
 
@@ -522,7 +532,7 @@ async def get_memory_service(
 
 
 async def get_agent_config_service(
-    cache: Annotated["RedisCache", Depends(get_cache)],
+    cache: Annotated["Cache", Depends(get_cache)],
 ) -> "AgentConfigProtocol":
     """Get agent CRUD service (for agents.py route).
 
@@ -543,7 +553,7 @@ async def get_agent_config_service(
 
 
 async def get_project_service(
-    cache: Annotated["RedisCache", Depends(get_cache)],
+    cache: Annotated["Cache", Depends(get_cache)],
 ) -> "ProjectProtocol":
     """Get project CRUD service.
 
@@ -561,7 +571,7 @@ async def get_project_service(
 
 
 async def get_tool_preset_service(
-    cache: Annotated["RedisCache", Depends(get_cache)],
+    cache: Annotated["Cache", Depends(get_cache)],
 ) -> "ToolPresetService":
     """Get tool preset CRUD service.
 
@@ -577,7 +587,7 @@ async def get_tool_preset_service(
 
 
 async def get_slash_command_service(
-    cache: Annotated["RedisCache", Depends(get_cache)],
+    cache: Annotated["Cache", Depends(get_cache)],
 ) -> "SlashCommandService":
     """Get slash command CRUD service.
 
@@ -606,7 +616,7 @@ def get_mcp_discovery_service() -> "McpDiscoveryService":
 
 
 async def get_mcp_share_service(
-    cache: Annotated["RedisCache", Depends(get_cache)],
+    cache: Annotated["Cache", Depends(get_cache)],
 ) -> "McpShareService":
     """Get MCP share service for share token management.
 
@@ -622,7 +632,7 @@ async def get_mcp_share_service(
 
 
 async def get_skills_crud_service(
-    cache: Annotated["RedisCache", Depends(get_cache)],
+    cache: Annotated["Cache", Depends(get_cache)],
 ) -> "SkillCrudService":
     """Get skills CRUD service for database operations.
 
@@ -637,10 +647,56 @@ async def get_skills_crud_service(
     return SkillCrudService(cache=cache)
 
 
+async def get_openai_assistant_service(
+    cache: Annotated["Cache", Depends(get_cache)],
+) -> "AssistantService":
+    """Get OpenAI assistant CRUD service."""
+    from apps.api.services.assistants import AssistantService
+
+    return AssistantService(cache=cache)
+
+
+async def get_openai_thread_service(
+    cache: Annotated["Cache", Depends(get_cache)],
+    session_service: Annotated["SessionService", Depends(get_session_service)],
+) -> "ThreadService":
+    """Get OpenAI thread service."""
+    from apps.api.services.assistants import ThreadService
+
+    return ThreadService(session_service=session_service, cache=cache)
+
+
+async def get_openai_message_service(
+    cache: Annotated["Cache", Depends(get_cache)],
+) -> "MessageService":
+    """Get OpenAI message service."""
+    from apps.api.services.assistants import MessageService
+
+    return MessageService(cache=cache)
+
+
+async def get_openai_run_service(
+    cache: Annotated["Cache", Depends(get_cache)],
+) -> "RunService":
+    """Get OpenAI run service."""
+    from apps.api.services.assistants import RunService
+
+    return RunService(cache=cache)
+
+
+async def get_cache_health_service(
+    cache: Annotated["Cache", Depends(get_cache)],
+) -> "CacheHealthService":
+    """Get cache health service wrapper."""
+    from apps.api.services.health import CacheHealthService
+
+    return CacheHealthService(cache=cache)
+
+
 # Type aliases for dependency injection
 DbSession = Annotated[AsyncSession, Depends(get_db)]
-CacheDep = Annotated["RedisCache", Depends(get_cache)]  # Named CacheDep to avoid collision with Cache protocol
-SessionRepo = Annotated["SessionRepository", Depends(get_session_repo)]
+CacheDep = Annotated["Cache", Depends(get_cache)]
+SessionRepo = Annotated["SessionRepositoryProtocol", Depends(get_session_repo)]
 ApiKey = Annotated[str, Depends(verify_api_key)]
 AgentSvc = Annotated["AgentServiceProtocol", Depends(get_agent_service)]
 SessionSvc = Annotated["SessionService", Depends(get_session_service)]
@@ -665,6 +721,13 @@ McpServerConfigSvc = Annotated[
 ]
 McpShareSvc = Annotated["McpShareService", Depends(get_mcp_share_service)]
 SkillCrudSvc = Annotated["SkillCrudService", Depends(get_skills_crud_service)]
+OpenAIAssistantSvc = Annotated[
+    "AssistantService", Depends(get_openai_assistant_service)
+]
+OpenAIThreadSvc = Annotated["ThreadService", Depends(get_openai_thread_service)]
+OpenAIMessageSvc = Annotated["MessageService", Depends(get_openai_message_service)]
+OpenAIRunSvc = Annotated["RunService", Depends(get_openai_run_service)]
+CacheHealthSvc = Annotated["CacheHealthService", Depends(get_cache_health_service)]
 
 
 # --- Test Isolation (M-13) ---

@@ -1,5 +1,7 @@
 """Project management endpoints."""
 
+from typing import TYPE_CHECKING, cast
+
 from fastapi import APIRouter
 
 from apps.api.dependencies import ApiKey, ProjectSvc
@@ -9,6 +11,9 @@ from apps.api.schemas.requests.projects import (
     ProjectUpdateRequest,
 )
 from apps.api.schemas.responses import ProjectListResponse, ProjectResponse
+
+if TYPE_CHECKING:
+    from apps.api.types import JsonValue
 
 router = APIRouter(prefix="/projects", tags=["Projects"])
 
@@ -35,11 +40,10 @@ async def create_project(
     project_service: ProjectSvc,
 ) -> ProjectResponse:
     """<summary>Create a new project.</summary>"""
-    from typing import cast
-    from apps.api.types import JsonValue
-
     project = await project_service.create_project(
-        request.name, request.path, cast(dict[str, JsonValue] | None, request.metadata)
+        request.name,
+        request.path,
+        cast("dict[str, JsonValue] | None", request.metadata),
     )
     if project is None:
         raise APIError(
@@ -75,11 +79,8 @@ async def update_project(
     project_service: ProjectSvc,
 ) -> ProjectResponse:
     """<summary>Update a project.</summary>"""
-    from typing import cast
-    from apps.api.types import JsonValue
-
     project = await project_service.update_project(
-        project_id, request.name, cast(dict[str, JsonValue] | None, request.metadata)
+        project_id, request.name, cast("dict[str, JsonValue] | None", request.metadata)
     )
     if project is None:
         raise APIError(

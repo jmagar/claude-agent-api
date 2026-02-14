@@ -2,8 +2,6 @@
 
 import inspect
 
-import pytest
-
 from apps.api.routes import mcp_servers
 
 

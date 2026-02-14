@@ -6,10 +6,9 @@ Tests verify error handling logic in QueryStreamEventGenerator:
 """
 
 import json
-from unittest.mock import AsyncMock, MagicMock, call, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-import structlog
 
 from apps.api.routes.query_stream import QueryStreamEventGenerator
 from apps.api.schemas.requests.query import QueryRequest
@@ -64,7 +63,9 @@ class TestQueryStreamEventGenerator:
             assert "error" in kwargs
             assert "Expecting value" in kwargs["error"]  # JSON decode error message
             assert "event_data" in kwargs
-            assert kwargs["event_data"] == malformed_json[:500]  # Truncated to 500 chars
+            assert (
+                kwargs["event_data"] == malformed_json[:500]
+            )  # Truncated to 500 chars
             assert "error_id" in kwargs
             assert kwargs["error_id"] == "ERR_RESULT_PARSE_FAILED"
 

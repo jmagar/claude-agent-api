@@ -2,6 +2,7 @@
 
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from typing import Protocol, cast
 
 import structlog
 from fastapi import FastAPI
@@ -43,6 +44,23 @@ logger = structlog.get_logger(__name__)
 
 # Minimum supported SDK version - update when new SDK features are required
 MIN_SDK_VERSION = "0.1.19"
+
+
+class _AddMiddlewareCallable(Protocol):
+    """Protocol for FastAPI add_middleware method."""
+
+    def __call__(
+        self,
+        middleware_class: type[object],
+        **options: object,
+    ) -> None:
+        """Add middleware to the application.
+
+        Args:
+            middleware_class: Middleware class to add.
+            **options: Middleware configuration options.
+        """
+        ...
 
 
 def verify_sdk_version() -> None:
@@ -180,18 +198,18 @@ def create_app() -> FastAPI:
     )
 
     # Add middleware (order matters - first added is last executed)
-    # Reverse order so auth runs first, then correlation, then logging, then CORS
-    # Note: type: ignore comments are needed due to Starlette's middleware typing
-    # using ParamSpec which ty cannot fully resolve for BaseHTTPMiddleware subclasses
-    app.add_middleware(ApiKeyAuthMiddleware)  # type: ignore[invalid-argument-type]
-    app.add_middleware(BearerAuthMiddleware)  # type: ignore[invalid-argument-type]
-    app.add_middleware(CorrelationIdMiddleware)  # type: ignore[invalid-argument-type]
-    app.add_middleware(
-        RequestLoggingMiddleware,  # type: ignore[invalid-argument-type]
+    # Reverse order so auth runs first, then correlation, then logging, then CORS.
+    # Cast to protocol to satisfy type checker (FastAPI's stubs use ParamSpec which is incompatible).
+    add_middleware = cast("_AddMiddlewareCallable", app.add_middleware)
+    add_middleware(ApiKeyAuthMiddleware)
+    add_middleware(BearerAuthMiddleware)
+    add_middleware(CorrelationIdMiddleware)
+    add_middleware(
+        RequestLoggingMiddleware,
         skip_paths=["/health", "/"],
     )
-    app.add_middleware(
-        CORSMiddleware,  # type: ignore[invalid-argument-type]
+    add_middleware(
+        CORSMiddleware,
         allow_origins=settings.cors_origins,
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],

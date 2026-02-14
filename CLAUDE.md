@@ -524,15 +524,20 @@ apps/api/
 
 ## Specs
 
-- [Feature Spec](specs/001-claude-agent-api/spec.md)
-- [Implementation Plan](specs/001-claude-agent-api/plan.md)
-- [API Contract](specs/001-claude-agent-api/contracts/openapi.yaml)
-- [OpenAI Feature Spec](specs/openai-api/spec.md)
-- [OpenAI Implementation Plan](specs/openai-api/plan.md)
-- [OpenAI Architectural Decisions](specs/openai-api/decisions.md)
-- [Server-Side MCP Spec](specs/server-side-mcp/spec.md)
-- [Server-Side MCP Requirements](specs/server-side-mcp/requirements.md)
-- [Server-Side MCP Design](specs/server-side-mcp/design.md)
+**Core API Specs** (reference when working on native `/api/v1/*` endpoints):
+- [Feature Spec](specs/001-claude-agent-api/spec.md) - Overall feature requirements and acceptance criteria
+- [Implementation Plan](specs/001-claude-agent-api/plan.md) - Phased implementation strategy
+- [API Contract](specs/001-claude-agent-api/contracts/openapi.yaml) - OpenAPI schema (source of truth for endpoints)
+
+**OpenAI Compatibility** (reference when working on `/v1/*` endpoints):
+- [OpenAI Feature Spec](specs/openai-api/spec.md) - OpenAI API compatibility requirements
+- [OpenAI Implementation Plan](specs/openai-api/plan.md) - Translation layer implementation approach
+- [OpenAI Architectural Decisions](specs/openai-api/decisions.md) - Key design decisions and trade-offs
+
+**MCP Configuration System** (reference when working on MCP server features):
+- [Server-Side MCP Spec](specs/server-side-mcp/spec.md) - Three-tier configuration system overview
+- [Server-Side MCP Requirements](specs/server-side-mcp/requirements.md) - Security, validation, and isolation requirements
+- [Server-Side MCP Design](specs/server-side-mcp/design.md) - Loader, injector, and validator architecture
 
 <!-- MANUAL ADDITIONS START -->
 
@@ -573,6 +578,32 @@ TEI_URL=http://100.74.16.82:52000
 - Use `ClaudeSDKClient` (not `query()`) for sessions, hooks, and checkpointing
 - SDK requires Claude Code CLI installed: `npm install -g @anthropic-ai/claude-code`
 - File checkpointing needs `CLAUDE_CODE_ENABLE_SDK_FILE_CHECKPOINTING=1` env var
+
+## Common Pitfalls
+
+**Session Management:**
+- **Session Cleanup**: `ClaudeSDKClient` sessions must be explicitly closed with `.close()` to prevent resource leaks and connection exhaustion
+- **Session State**: Failed requests can leave sessions in inconsistent state - always check session status before reusing
+
+**MCP Configuration:**
+- **Discovery Caching**: File-based MCP servers discovered via `.claude.json` are cached on first load - restart server to refresh after config changes
+- **Environment Variables**: MCP env var resolution happens at load time - changes to `.env` require server restart
+- **SSRF Prevention**: Internal URLs (localhost, 10.x.x.x, 169.254.x.x) are blocked for security - use external IPs or proper networking
+
+**Type Safety:**
+- **External Library Types**: If `ty check` fails on external library types that return `Any`, create a typed adapter function in `adapters/` instead of using `# type: ignore`
+- **JsonValue Pattern**: Use the `JsonValue` recursive union type alias for unknown JSON structures instead of `dict[str, Any]`
+- **Protocol vs Concrete**: Always inject Protocol interfaces in constructors, never concrete implementations (breaks testability)
+
+**Testing:**
+- **Database Sync**: Always run `make db-reset` after schema changes or migrations to ensure test database matches dev database
+- **Test Isolation**: Never mutate `app_state` without restoring original values in `finally` block (causes test pollution)
+- **Async Event Loop**: Tests use `anyio` instead of `pytest-asyncio` to avoid BaseHTTPMiddleware conflicts - don't override this
+
+**Dependencies:**
+- **Circular Imports**: Watch for circular dependencies between `response_helpers.py` and `responses.py` - use `TYPE_CHECKING` guards and local imports
+- **Service Instantiation**: Never instantiate services directly in routes - always use FastAPI `Depends()` injection
+- **Redis Patterns**: When scanning Redis keys, filter patterns like `session:owner:*` separately from `session:{id}` keys to avoid type mismatches
 
 ## Mem0 OSS Integration
 

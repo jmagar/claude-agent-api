@@ -4,7 +4,7 @@ Implements the Threads API (beta) for managing conversation threads.
 https://platform.openai.com/docs/api-reference/threads
 """
 
-from typing import Annotated
+from typing import Annotated, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
@@ -21,7 +21,9 @@ from apps.api.schemas.openai.assistant_requests import (
     ModifyThreadRequest,
 )
 from apps.api.schemas.openai.assistants import (
+    OpenAIAssistantTool,
     OpenAIDeletionStatus,
+    OpenAIMessageContent,
     OpenAIRun,
     OpenAIRunList,
     OpenAIThread,
@@ -75,10 +77,13 @@ def _convert_message_to_response(message: object) -> OpenAIThreadMessage:
     """
     # Extract content
     content_raw = getattr(message, "content", []) or []
-    content: list[dict[str, object]] = []
+    content: list[OpenAIMessageContent] = []
     for block in content_raw:
         if isinstance(block, dict):
-            content.append(dict(block))
+            # Validate content block has required 'type' field before casting
+            block_type = block.get("type")
+            if block_type in ("text", "image_file", "image_url"):
+                content.append(cast("OpenAIMessageContent", dict(block)))
 
     # Extract metadata
     metadata_raw = getattr(message, "metadata", {}) or {}
@@ -94,7 +99,7 @@ def _convert_message_to_response(message: object) -> OpenAIThreadMessage:
         created_at=int(getattr(message, "created_at", 0)),
         thread_id=str(getattr(message, "thread_id", "")),
         role=getattr(message, "role", "user"),
-        content=content,  # type: ignore[typeddict-item]
+        content=content,
         metadata=metadata,
         assistant_id=getattr(message, "assistant_id", None),
         run_id=getattr(message, "run_id", None),
@@ -112,10 +117,10 @@ def _convert_run_to_response(run: object) -> OpenAIRun:
     """
     # Extract tools
     tools_raw = getattr(run, "tools", []) or []
-    tools: list[dict[str, object]] = []
+    tools: list[OpenAIAssistantTool] = []
     for tool in tools_raw:
         if isinstance(tool, dict):
-            tools.append(dict(tool))
+            tools.append(cast("OpenAIAssistantTool", dict(tool)))
 
     # Extract metadata
     metadata_raw = getattr(run, "metadata", {}) or {}
@@ -134,7 +139,7 @@ def _convert_run_to_response(run: object) -> OpenAIRun:
         status=getattr(run, "status", "queued"),
         model=str(getattr(run, "model", "")),
         instructions=getattr(run, "instructions", None),
-        tools=tools,  # type: ignore[typeddict-item]
+        tools=tools,
         metadata=metadata,
         required_action=getattr(run, "required_action", None),
         last_error=getattr(run, "last_error", None),
@@ -155,9 +160,9 @@ def _convert_run_to_response(run: object) -> OpenAIRun:
 
 @router.post("/threads", response_model=None)
 async def create_thread(
-    request: CreateThreadRequest,
     thread_service: Annotated[ThreadService, Depends(get_thread_service)],
     message_service: Annotated[MessageService, Depends(get_message_service)],
+    request: CreateThreadRequest | None = None,
 ) -> OpenAIThread:
     """Create a new thread.
 
@@ -171,7 +176,7 @@ async def create_thread(
     """
     # Convert metadata to proper type
     metadata: dict[str, str] | None = None
-    if request.metadata is not None:
+    if request and request.metadata is not None:
         metadata = {}
         for k, v in request.metadata.items():
             metadata[k] = str(v)
@@ -179,7 +184,7 @@ async def create_thread(
     thread = await thread_service.create_thread(metadata=metadata)
 
     # Create initial messages if provided
-    if request.messages:
+    if request and request.messages:
         for msg in request.messages:
             role = msg.get("role", "user")
             content = msg.get("content", "")

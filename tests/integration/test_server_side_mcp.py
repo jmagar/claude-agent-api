@@ -301,7 +301,6 @@ class TestServerSideMcpIntegration:
 
         app_state = async_client.app.state.app_state
 
-
         cache = await get_cache(app_state)
         mcp_service = McpServerConfigService(cache)
 

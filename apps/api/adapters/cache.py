@@ -346,21 +346,18 @@ class RedisCache:
         if pattern.endswith("*") or pattern.endswith("?"):
             # Check if there's a UUID-like segment (scopes the pattern)
             # UUID pattern: 8-4-4-4-12 hex digits
-            uuid_pattern = r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+            uuid_pattern = (
+                r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+            )
             # SHA-256 hash pattern: 64 hex digits
             hash_pattern = r"[0-9a-f]{64}"
 
-            if re.search(uuid_pattern, pattern) or re.search(hash_pattern, pattern):
-                return False  # Scoped to specific ID
-
-            return True  # Ends with wildcard but no specific ID
+            return not (
+                re.search(uuid_pattern, pattern) or re.search(hash_pattern, pattern)
+            )
 
         # Wildcard in the middle (matches many keys at multiple levels)
-        if "*" in pattern[:-1] or "?" in pattern[:-1]:
-            return True
-
-        # No wildcards at all (exact match)
-        return False
+        return "*" in pattern[:-1] or "?" in pattern[:-1]
 
     async def clear(self) -> bool:
         """Clear all cached entries.

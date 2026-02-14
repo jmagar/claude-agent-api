@@ -7,14 +7,13 @@ Tests for Phase 2 critical error handling fixes:
 - Task #6: UUID parsing exception specificity
 """
 
-import pytest
 from unittest.mock import AsyncMock, patch
-from uuid import UUID
+
+import pytest
 from sqlalchemy.exc import OperationalError
 
-from apps.api.services.session import SessionService
 from apps.api.exceptions.base import APIError
-
+from apps.api.services.session import SessionService
 
 # ===== Task #3: Redis Failure Masking Tests =====
 
@@ -126,7 +125,9 @@ async def test_operational_error_raises_503(
     mock_cache_miss, mock_db_repo_operational_error
 ):
     """Database operational errors should raise 503 (not return None)."""
-    service = SessionService(cache=mock_cache_miss, db_repo=mock_db_repo_operational_error)
+    service = SessionService(
+        cache=mock_cache_miss, db_repo=mock_db_repo_operational_error
+    )
 
     # Use a valid UUID format
     test_session_id = "12345678-1234-5678-1234-567812345678"
@@ -180,7 +181,7 @@ async def test_corrupted_cache_entry_deleted_and_logged(mock_cache_corrupted):
     service = SessionService(cache=mock_cache_corrupted, db_repo=None)
 
     # Should return None (cache parse failed)
-    with patch("apps.api.services.session.logger") as mock_logger:
+    with patch("apps.api.services.session_cache_manager.logger") as mock_logger:
         result = await service._get_cached_session("test-session-id")
 
     assert result is None
@@ -189,7 +190,7 @@ async def test_corrupted_cache_entry_deleted_and_logged(mock_cache_corrupted):
     mock_logger.error.assert_called_once()
     call_kwargs = mock_logger.error.call_args[1]
     assert call_kwargs["error_id"] == "ERR_CACHE_PARSE_FAILED"
-    assert "cache_data_sample" in call_kwargs
+    assert "safe_fields" in call_kwargs
 
     # Verify corrupted entry was deleted
     mock_cache_corrupted.delete.assert_called_once()
@@ -200,14 +201,14 @@ async def test_cache_parse_error_includes_data_sample(mock_cache_corrupted):
     """Cache parse errors should include data sample for debugging."""
     service = SessionService(cache=mock_cache_corrupted, db_repo=None)
 
-    with patch("apps.api.services.session.logger") as mock_logger:
+    with patch("apps.api.services.session_cache_manager.logger") as mock_logger:
         await service._get_cached_session("test-session-id")
 
-    # Check that cache_data_sample was logged
+    # Check that safe_fields was logged with session context
     call_kwargs = mock_logger.error.call_args[1]
-    assert "cache_data_sample" in call_kwargs
-    # Sample should be truncated to 200 chars
-    assert len(call_kwargs["cache_data_sample"]) <= 200
+    assert "safe_fields" in call_kwargs
+    # safe_fields should contain session_id and status
+    assert "session_id" in call_kwargs["safe_fields"]
 
 
 @pytest.mark.anyio
@@ -221,7 +222,7 @@ async def test_delete_failure_logged_but_non_fatal():
 
     service = SessionService(cache=mock_cache, db_repo=None)
 
-    with patch("apps.api.services.session.logger") as mock_logger:
+    with patch("apps.api.services.session_cache_manager.logger") as mock_logger:
         result = await service._get_cached_session("test-session-id")
 
     # Should still return None (not raise)
@@ -307,7 +308,7 @@ async def test_metadata_fetch_with_invalid_uuid_format() -> None:
 
     service = SessionService(cache=None, db_repo=mock_db_repo)
 
-    with patch("apps.api.services.session.logger") as mock_logger:
+    with patch("apps.api.services.session_metadata_manager.logger") as mock_logger:
         result = await service._get_session_metadata_for_update("not-a-uuid")
 
     # Should return empty dict
@@ -329,7 +330,7 @@ async def test_metadata_fetch_with_wrong_type_raises() -> None:
 
     service = SessionService(cache=None, db_repo=mock_db_repo)
 
-    with patch("apps.api.services.session.logger") as mock_logger:
+    with patch("apps.api.services.session_metadata_manager.logger") as mock_logger:
         with pytest.raises(TypeError):
             await service._get_session_metadata_for_update(12345)  # type: ignore
 

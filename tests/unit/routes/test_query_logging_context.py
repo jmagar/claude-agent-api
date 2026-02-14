@@ -7,12 +7,9 @@ Verifies that all error logs include:
 - error_id for each error type
 """
 
-import json
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-import structlog
 
 from apps.api.utils.crypto import hash_api_key
 
@@ -30,7 +27,10 @@ class TestQueryErrorLoggingContext:
         lines = content.split("\n")
         log_start = None
         for i, line in enumerate(lines):
-            if '"session_creation_failed"' in line or "'session_creation_failed'" in line:
+            if (
+                '"session_creation_failed"' in line
+                or "'session_creation_failed'" in line
+            ):
                 log_start = i
                 break
 
@@ -57,11 +57,15 @@ class TestQueryErrorLoggingContext:
         # Verify required context fields
         assert "session_id=" in log_text, "Missing session_id in log"
         assert "api_key_hash=" in log_text, "Missing api_key_hash in log"
-        assert "hash_api_key(api_key)" in log_text, "api_key_hash should use hash_api_key()"
+        assert "hash_api_key(api_key)" in log_text, (
+            "api_key_hash should use hash_api_key()"
+        )
         assert "prompt_preview=" in log_text, "Missing prompt_preview in log"
         assert "[:100]" in log_text, "prompt_preview should truncate to 100 chars"
         assert "error_id=" in log_text, "Missing error_id in log"
-        assert "ERR_SESSION_CREATE_FAILED" in log_text, "error_id should be ERR_SESSION_CREATE_FAILED"
+        assert "ERR_SESSION_CREATE_FAILED" in log_text, (
+            "error_id should be ERR_SESSION_CREATE_FAILED"
+        )
 
 
 class TestQueryStreamErrorLoggingContext:
@@ -77,7 +81,10 @@ class TestQueryStreamErrorLoggingContext:
         lines = content.split("\n")
         log_start = None
         for i, line in enumerate(lines):
-            if '"Failed to parse init event"' in line or "'Failed to parse init event'" in line:
+            if (
+                '"Failed to parse init event"' in line
+                or "'Failed to parse init event'" in line
+            ):
                 log_start = i
                 break
 
@@ -104,11 +111,15 @@ class TestQueryStreamErrorLoggingContext:
         # Verify required context fields
         assert "session_id=" in log_text, "Missing session_id in log"
         assert "api_key_hash=" in log_text, "Missing api_key_hash in log"
-        assert "hash_api_key(self.api_key)" in log_text, "api_key_hash should use hash_api_key()"
+        assert "hash_api_key(self.api_key)" in log_text, (
+            "api_key_hash should use hash_api_key()"
+        )
         assert "prompt_preview=" in log_text, "Missing prompt_preview in log"
         assert "[:100]" in log_text, "prompt_preview should truncate to 100 chars"
         assert "error_id=" in log_text, "Missing error_id in log"
-        assert "ERR_INIT_PARSE_FAILED" in log_text, "error_id should be ERR_INIT_PARSE_FAILED"
+        assert "ERR_INIT_PARSE_FAILED" in log_text, (
+            "error_id should be ERR_INIT_PARSE_FAILED"
+        )
 
     @pytest.mark.unit
     def test_session_create_error_includes_context(self) -> None:
@@ -120,7 +131,10 @@ class TestQueryStreamErrorLoggingContext:
         lines = content.split("\n")
         log_start = None
         for i, line in enumerate(lines):
-            if '"Failed to create session"' in line or "'Failed to create session'" in line:
+            if (
+                '"Failed to create session"' in line
+                or "'Failed to create session'" in line
+            ):
                 log_start = i
                 break
 
@@ -147,11 +161,15 @@ class TestQueryStreamErrorLoggingContext:
         # Verify required context fields
         assert "session_id=" in log_text, "Missing session_id in log"
         assert "api_key_hash=" in log_text, "Missing api_key_hash in log"
-        assert "hash_api_key(self.api_key)" in log_text, "api_key_hash should use hash_api_key()"
+        assert "hash_api_key(self.api_key)" in log_text, (
+            "api_key_hash should use hash_api_key()"
+        )
         assert "prompt_preview=" in log_text, "Missing prompt_preview in log"
         assert "[:100]" in log_text, "prompt_preview should truncate to 100 chars"
         assert "error_id=" in log_text, "Missing error_id in log"
-        assert "ERR_SESSION_CREATE_FAILED" in log_text, "error_id should be ERR_SESSION_CREATE_FAILED"
+        assert "ERR_SESSION_CREATE_FAILED" in log_text, (
+            "error_id should be ERR_SESSION_CREATE_FAILED"
+        )
 
     @pytest.mark.unit
     def test_result_parse_error_includes_context(self) -> None:
@@ -163,7 +181,10 @@ class TestQueryStreamErrorLoggingContext:
         lines = content.split("\n")
         log_start = None
         for i, line in enumerate(lines):
-            if '"failed_to_parse_result_event"' in line or "'failed_to_parse_result_event'" in line:
+            if (
+                '"failed_to_parse_result_event"' in line
+                or "'failed_to_parse_result_event'" in line
+            ):
                 log_start = i
                 break
 
@@ -190,11 +211,15 @@ class TestQueryStreamErrorLoggingContext:
         # Verify required context fields
         assert "session_id=" in log_text, "Missing session_id in log"
         assert "api_key_hash=" in log_text, "Missing api_key_hash in log"
-        assert "hash_api_key(self.api_key)" in log_text, "api_key_hash should use hash_api_key()"
+        assert "hash_api_key(self.api_key)" in log_text, (
+            "api_key_hash should use hash_api_key()"
+        )
         assert "prompt_preview=" in log_text, "Missing prompt_preview in log"
         assert "[:100]" in log_text, "prompt_preview should truncate to 100 chars"
         assert "error_id=" in log_text, "Missing error_id in log"
-        assert "ERR_RESULT_PARSE_FAILED" in log_text, "error_id should be ERR_RESULT_PARSE_FAILED"
+        assert "ERR_RESULT_PARSE_FAILED" in log_text, (
+            "error_id should be ERR_RESULT_PARSE_FAILED"
+        )
 
     @pytest.mark.unit
     def test_producer_error_includes_context(self) -> None:
@@ -206,7 +231,10 @@ class TestQueryStreamErrorLoggingContext:
         lines = content.split("\n")
         log_start = None
         for i, line in enumerate(lines):
-            if '"Producer error in event stream"' in line or "'Producer error in event stream'" in line:
+            if (
+                '"Producer error in event stream"' in line
+                or "'Producer error in event stream'" in line
+            ):
                 log_start = i
                 break
 
@@ -233,11 +261,15 @@ class TestQueryStreamErrorLoggingContext:
         # Verify required context fields
         assert "session_id=" in log_text, "Missing session_id in log"
         assert "api_key_hash=" in log_text, "Missing api_key_hash in log"
-        assert "hash_api_key(self.api_key)" in log_text, "api_key_hash should use hash_api_key()"
+        assert "hash_api_key(self.api_key)" in log_text, (
+            "api_key_hash should use hash_api_key()"
+        )
         assert "prompt_preview=" in log_text, "Missing prompt_preview in log"
         assert "[:100]" in log_text, "prompt_preview should truncate to 100 chars"
         assert "error_id=" in log_text, "Missing error_id in log"
-        assert "ERR_STREAM_PRODUCER_FAILED" in log_text, "error_id should be ERR_STREAM_PRODUCER_FAILED"
+        assert "ERR_STREAM_PRODUCER_FAILED" in log_text, (
+            "error_id should be ERR_STREAM_PRODUCER_FAILED"
+        )
 
     @pytest.mark.unit
     def test_hash_api_key_import_exists(self) -> None:

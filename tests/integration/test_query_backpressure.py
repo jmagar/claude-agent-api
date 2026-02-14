@@ -32,9 +32,7 @@ class TestQueueBackpressure:
                     "data": json.dumps({"type": "assistant", "content": f"Event {i}"}),
                 }
 
-        mock_agent_service.query_stream = AsyncMock(
-            return_value=generate_many_events()
-        )
+        mock_agent_service.query_stream = AsyncMock(return_value=generate_many_events())
         mock_agent_service.interrupt = AsyncMock()
 
         # Create mock session service
@@ -57,8 +55,6 @@ class TestQueueBackpressure:
         )
 
         # Start producer and consumer
-        producer_started = asyncio.Event()
-        producer_blocked = asyncio.Event()
         events_consumed = 0
 
         async def slow_consumer():
@@ -88,7 +84,6 @@ class TestQueueBackpressure:
         assert events_consumed < 150
         assert events_consumed >= 50  # At least some events consumed
 
-    
     @pytest.mark.anyio
     async def test_client_disconnect_unblocks_producer(
         self, async_client: AsyncClient, auth_headers: dict[str, str]
@@ -108,9 +103,7 @@ class TestQueueBackpressure:
                 i += 1
                 await asyncio.sleep(0.01)
 
-        mock_agent_service.query_stream = AsyncMock(
-            return_value=infinite_events()
-        )
+        mock_agent_service.query_stream = AsyncMock(return_value=infinite_events())
         mock_agent_service.interrupt = AsyncMock()
 
         # Create mock session service
@@ -156,7 +149,6 @@ class TestQueueBackpressure:
         # Note: interrupt may or may not be called depending on timing
         # The important thing is that the stream ended gracefully
 
-    
     @pytest.mark.anyio
     async def test_slow_client_memory_consumption(
         self, async_client: AsyncClient, auth_headers: dict[str, str]
@@ -210,7 +202,6 @@ class TestQueueBackpressure:
         # Verify queue never exceeded maxsize (memory bounded)
         # This is guaranteed by asyncio.Queue implementation
 
-    
     @pytest.mark.anyio
     async def test_producer_error_propagation_with_full_queue(
         self, async_client: AsyncClient, auth_headers: dict[str, str]
@@ -229,9 +220,7 @@ class TestQueueBackpressure:
             # Then raise an error
             raise RuntimeError("Producer error!")
 
-        mock_agent_service.query_stream = AsyncMock(
-            return_value=events_then_error()
-        )
+        mock_agent_service.query_stream = AsyncMock(return_value=events_then_error())
         mock_agent_service.interrupt = AsyncMock()
 
         # Create mock session service
@@ -269,7 +258,6 @@ class TestQueueBackpressure:
         assert error_event_received
         assert events_consumed > 100  # Some events before error
 
-    
     @pytest.mark.anyio
     async def test_queue_backpressure_timing(
         self, async_client: AsyncClient, auth_headers: dict[str, str]
@@ -336,7 +324,6 @@ class TestQueueBackpressure:
 class TestSessionLifecycle:
     """Tests for session lifecycle during streaming."""
 
-    
     @pytest.mark.anyio
     async def test_session_created_on_init_event(
         self, async_client: AsyncClient, auth_headers: dict[str, str]
@@ -348,23 +335,23 @@ class TestSessionLifecycle:
         async def events_with_init():
             yield {
                 "event": "init",
-                "data": json.dumps({
-                    "session_id": "test-session-abc",
-                    "model": "sonnet",
-                    "tools": [],
-                    "mcp_servers": [],
-                    "plugins": [],
-                    "commands": [],
-                }),
+                "data": json.dumps(
+                    {
+                        "session_id": "test-session-abc",
+                        "model": "sonnet",
+                        "tools": [],
+                        "mcp_servers": [],
+                        "plugins": [],
+                        "commands": [],
+                    }
+                ),
             }
             yield {
                 "event": "message",
                 "data": json.dumps({"type": "assistant", "content": "Hello"}),
             }
 
-        mock_agent_service.query_stream = AsyncMock(
-            return_value=events_with_init()
-        )
+        mock_agent_service.query_stream = AsyncMock(return_value=events_with_init())
         mock_agent_service.interrupt = AsyncMock()
 
         # Create mock session service
@@ -397,7 +384,6 @@ class TestSessionLifecycle:
             owner_api_key="test-key",
         )
 
-    
     @pytest.mark.anyio
     async def test_session_updated_on_completion(
         self, async_client: AsyncClient, auth_headers: dict[str, str]
@@ -409,14 +395,16 @@ class TestSessionLifecycle:
         async def events_with_result():
             yield {
                 "event": "init",
-                "data": json.dumps({
-                    "session_id": "test-session-xyz",
-                    "model": "sonnet",
-                    "tools": [],
-                    "mcp_servers": [],
-                    "plugins": [],
-                    "commands": [],
-                }),
+                "data": json.dumps(
+                    {
+                        "session_id": "test-session-xyz",
+                        "model": "sonnet",
+                        "tools": [],
+                        "mcp_servers": [],
+                        "plugins": [],
+                        "commands": [],
+                    }
+                ),
             }
             yield {
                 "event": "message",
@@ -424,17 +412,17 @@ class TestSessionLifecycle:
             }
             yield {
                 "event": "result",
-                "data": json.dumps({
-                    "session_id": "test-session-xyz",
-                    "is_error": False,
-                    "turns": 2,
-                    "total_cost_usd": 0.05,
-                }),
+                "data": json.dumps(
+                    {
+                        "session_id": "test-session-xyz",
+                        "is_error": False,
+                        "turns": 2,
+                        "total_cost_usd": 0.05,
+                    }
+                ),
             }
 
-        mock_agent_service.query_stream = AsyncMock(
-            return_value=events_with_result()
-        )
+        mock_agent_service.query_stream = AsyncMock(return_value=events_with_result())
         mock_agent_service.interrupt = AsyncMock()
 
         # Create mock session service
@@ -468,4 +456,3 @@ class TestSessionLifecycle:
             total_cost_usd=0.05,
             current_api_key="test-key",
         )
-

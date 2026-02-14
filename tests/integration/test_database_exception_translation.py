@@ -11,9 +11,10 @@ These tests ensure:
 4. Security - no internal details leaked
 """
 
+from unittest.mock import AsyncMock, patch
+
 import pytest
 from sqlalchemy.exc import IntegrityError, OperationalError
-from unittest.mock import AsyncMock, patch
 
 from apps.api.exceptions.base import APIError
 
@@ -154,72 +155,71 @@ class TestSessionRepositoryExceptionTranslation:
     """Test session repository translates database exceptions."""
 
     @pytest.mark.integration
-    async def test_add_message_integrity_error_returns_409(
-        self, db_session
-    ) -> None:
+    async def test_add_message_integrity_error_returns_409(self, db_session) -> None:
         """IntegrityError during add_message returns 409 ALREADY_EXISTS."""
-        from apps.api.adapters.session_repo import SessionRepository
         from uuid import uuid4
+
+        from apps.api.adapters.session_repo import SessionRepository
 
         repo = SessionRepository(db_session)
         session_id = uuid4()
 
         # Mock database commit to raise IntegrityError
         with patch.object(
-            db_session, "commit", side_effect=IntegrityError(
+            db_session,
+            "commit",
+            side_effect=IntegrityError(
                 "duplicate message",
                 params={},
                 orig=Exception("message_id already exists"),
+            ),
+        ), pytest.raises(APIError) as exc_info:
+            await repo.add_message(
+                session_id=session_id,
+                message_type="user",
+                content="test message",
             )
-        ):
-            with pytest.raises(APIError) as exc_info:
-                await repo.add_message(
-                    session_id=session_id,
-                    message_type="user",
-                    content="test message",
-                )
 
         assert exc_info.value.status_code == 409
         assert exc_info.value.code == "ALREADY_EXISTS"
         assert "already exists" in exc_info.value.message.lower()
 
     @pytest.mark.integration
-    async def test_add_message_operational_error_returns_503(
-        self, db_session
-    ) -> None:
+    async def test_add_message_operational_error_returns_503(self, db_session) -> None:
         """OperationalError during add_message returns 503 DATABASE_UNAVAILABLE."""
-        from apps.api.adapters.session_repo import SessionRepository
         from uuid import uuid4
+
+        from apps.api.adapters.session_repo import SessionRepository
 
         repo = SessionRepository(db_session)
         session_id = uuid4()
 
         # Mock database commit to raise OperationalError
         with patch.object(
-            db_session, "commit", side_effect=OperationalError(
+            db_session,
+            "commit",
+            side_effect=OperationalError(
                 "database locked",
                 params={},
                 orig=Exception("LOCK TIMEOUT"),
+            ),
+        ), pytest.raises(APIError) as exc_info:
+            await repo.add_message(
+                session_id=session_id,
+                message_type="user",
+                content="test message",
             )
-        ):
-            with pytest.raises(APIError) as exc_info:
-                await repo.add_message(
-                    session_id=session_id,
-                    message_type="user",
-                    content="test message",
-                )
 
         assert exc_info.value.status_code == 503
         assert exc_info.value.code == "DATABASE_UNAVAILABLE"
         assert "temporarily unavailable" in exc_info.value.message.lower()
 
     @pytest.mark.integration
-    async def test_add_checkpoint_integrity_error_returns_409(
-        self, db_session
-    ) -> None:
+    async def test_add_checkpoint_integrity_error_returns_409(self, db_session) -> None:
         """IntegrityError during add_checkpoint returns 409 ALREADY_EXISTS."""
-        from apps.api.adapters.session_repo import SessionRepository
         from uuid import uuid4
+
+        from apps.api.adapters.session_repo import SessionRepository
 
         repo = SessionRepository(db_session)
         session_id = uuid4()
@@ -227,18 +227,19 @@ class TestSessionRepositoryExceptionTranslation:
 
         # Mock database commit to raise IntegrityError
         with patch.object(
-            db_session, "commit", side_effect=IntegrityError(
+            db_session,
+            "commit",
+            side_effect=IntegrityError(
                 "duplicate checkpoint",
                 params={},
                 orig=Exception("checkpoint_id already exists"),
+            ),
+        ), pytest.raises(APIError) as exc_info:
+            await repo.add_checkpoint(
+                session_id=session_id,
+                user_message_uuid=user_message_uuid,
+                files_modified=["test.py"],
             )
-        ):
-            with pytest.raises(APIError) as exc_info:
-                await repo.add_checkpoint(
-                    session_id=session_id,
-                    user_message_uuid=user_message_uuid,
-                    files_modified=["test.py"],
-                )
 
         assert exc_info.value.status_code == 409
         assert exc_info.value.code == "ALREADY_EXISTS"
@@ -249,8 +250,9 @@ class TestSessionRepositoryExceptionTranslation:
         self, db_session
     ) -> None:
         """OperationalError during add_checkpoint returns 503 DATABASE_UNAVAILABLE."""
-        from apps.api.adapters.session_repo import SessionRepository
         from uuid import uuid4
+
+        from apps.api.adapters.session_repo import SessionRepository
 
         repo = SessionRepository(db_session)
         session_id = uuid4()
@@ -258,18 +260,19 @@ class TestSessionRepositoryExceptionTranslation:
 
         # Mock database commit to raise OperationalError
         with patch.object(
-            db_session, "commit", side_effect=OperationalError(
+            db_session,
+            "commit",
+            side_effect=OperationalError(
                 "deadlock detected",
                 params={},
                 orig=Exception("DEADLOCK"),
+            ),
+        ), pytest.raises(APIError) as exc_info:
+            await repo.add_checkpoint(
+                session_id=session_id,
+                user_message_uuid=user_message_uuid,
+                files_modified=["test.py"],
             )
-        ):
-            with pytest.raises(APIError) as exc_info:
-                await repo.add_checkpoint(
-                    session_id=session_id,
-                    user_message_uuid=user_message_uuid,
-                    files_modified=["test.py"],
-                )
 
         assert exc_info.value.status_code == 503
         assert exc_info.value.code == "DATABASE_UNAVAILABLE"

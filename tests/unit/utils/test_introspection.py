@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import functools
-from collections.abc import Callable
-from typing import ParamSpec, TypeVar
-
-import pytest
+from typing import TYPE_CHECKING, ParamSpec, TypeVar
 
 from apps.api.utils.introspection import supports_param
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 P = ParamSpec("P")
 R = TypeVar("R")
@@ -121,12 +121,13 @@ class TestSupportsParam:
         assert supports_param(print, "sep") is True
         assert supports_param(print, "end") is True
         assert supports_param(print, "file") is True
-        
+
         # len doesn't have named parameters (all positional-only)
         # but we can verify it has a signature that can be inspected
         import inspect
+
         try:
-            sig = inspect.signature(len)
+            inspect.signature(len)
             # If we can get a signature, supports_param should not crash
             # (even if it returns False for missing param names)
             assert supports_param(len, "nonexistent") is False
@@ -139,7 +140,7 @@ class TestSupportsParam:
         # In Python 3.8+, built-in methods are also inspectable
         # str.upper has signature: upper(self, /)
         assert supports_param(str.upper, "self") is True
-        
+
         # list.append has signature: append(self, object, /)
         assert supports_param(list.append, "self") is True
         assert supports_param(list.append, "object") is True

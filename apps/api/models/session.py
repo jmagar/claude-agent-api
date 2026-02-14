@@ -4,7 +4,7 @@ from datetime import datetime
 from decimal import Decimal
 from uuid import UUID, uuid4
 
-from sqlalchemy import ARRAY, ForeignKey, Index, Numeric, String, func
+from sqlalchemy import ARRAY, DateTime, ForeignKey, Index, Numeric, String, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.sql.sqltypes import UUID as SQLAUUID
@@ -40,10 +40,12 @@ class Session(Base):
         default=uuid4,
     )
     created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
         default=func.now(),
         server_default=func.now(),
     )
     updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
         default=func.now(),
         server_default=func.now(),
         onupdate=func.now(),
@@ -129,6 +131,7 @@ class SessionMessage(Base):
     message_type: Mapped[str] = mapped_column(String(20))
     content: Mapped[dict[str, object]] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
         default=func.now(),
         server_default=func.now(),
     )
@@ -168,6 +171,7 @@ class Checkpoint(Base):
         String(100),
     )
     created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
         default=func.now(),
         server_default=func.now(),
     )

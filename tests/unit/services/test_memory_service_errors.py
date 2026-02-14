@@ -18,7 +18,9 @@ class TestNetworkErrors:
         """Test that search handles network timeout to Qdrant gracefully."""
         # Create mock memory client that raises timeout
         mock_client = MagicMock()
-        mock_client.search = AsyncMock(side_effect=asyncio.TimeoutError("Connection timeout"))
+        mock_client.search = AsyncMock(
+            side_effect=TimeoutError("Connection timeout")
+        )
 
         service = MemoryService(mock_client)
 
@@ -35,7 +37,7 @@ class TestNetworkErrors:
         """Test that add_memory handles network timeout gracefully."""
         # Create mock client that times out
         mock_client = MagicMock()
-        mock_client.add = AsyncMock(side_effect=asyncio.TimeoutError("Neo4j timeout"))
+        mock_client.add = AsyncMock(side_effect=TimeoutError("Neo4j timeout"))
 
         service = MemoryService(mock_client)
 
@@ -68,9 +70,7 @@ class TestNetworkErrors:
     async def test_get_all_network_error(self) -> None:
         """Test that get_all handles network errors."""
         mock_client = MagicMock()
-        mock_client.get_all = AsyncMock(
-            side_effect=OSError("Network unreachable")
-        )
+        mock_client.get_all = AsyncMock(side_effect=OSError("Network unreachable"))
 
         service = MemoryService(mock_client)
 
@@ -108,9 +108,7 @@ class TestIdempotentOperations:
         """Test that delete handles 'not found' errors gracefully."""
         # Mock client that raises KeyError for nonexistent memory
         mock_client = MagicMock()
-        mock_client.delete = AsyncMock(
-            side_effect=KeyError("Memory not found")
-        )
+        mock_client.delete = AsyncMock(side_effect=KeyError("Memory not found"))
 
         service = MemoryService(mock_client)
 
@@ -163,9 +161,7 @@ class TestGracefulDegradation:
         """Test that format_memory_context propagates search failures."""
         # Mock client that fails
         mock_client = MagicMock()
-        mock_client.search = AsyncMock(
-            side_effect=RuntimeError("Qdrant error")
-        )
+        mock_client.search = AsyncMock(side_effect=RuntimeError("Qdrant error"))
 
         service = MemoryService(mock_client)
 
@@ -181,14 +177,16 @@ class TestGracefulDegradation:
         """Test that search can return partial results if graph lookup fails."""
         # Mock client that returns results despite graph issues
         mock_client = MagicMock()
-        mock_client.search = AsyncMock(return_value=[
-            {
-                "id": "mem-1",
-                "memory": "User prefers Python",
-                "score": 0.9,
-                "metadata": {"source": "vector_only"},
-            }
-        ])
+        mock_client.search = AsyncMock(
+            return_value=[
+                {
+                    "id": "mem-1",
+                    "memory": "User prefers Python",
+                    "score": 0.9,
+                    "metadata": {"source": "vector_only"},
+                }
+            ]
+        )
 
         service = MemoryService(mock_client)
 
@@ -211,9 +209,11 @@ class TestCorruptedData:
         """Test that search handles malformed response structure."""
         # Mock client that returns data with missing required fields
         mock_client = MagicMock()
-        mock_client.search = AsyncMock(return_value=[
-            {"id": "mem-1"},  # Missing 'memory' field
-        ])
+        mock_client.search = AsyncMock(
+            return_value=[
+                {"id": "mem-1"},  # Missing 'memory' field
+            ]
+        )
 
         service = MemoryService(mock_client)
 
@@ -248,18 +248,20 @@ class TestCorruptedData:
         """Test that get_all handles memories with corrupted metadata."""
         # Mock client that returns memories with various metadata issues
         mock_client = MagicMock()
-        mock_client.get_all = AsyncMock(return_value=[
-            {
-                "id": "mem-1",
-                "memory": "Valid memory",
-                "metadata": None,  # Null metadata
-            },
-            {
-                "id": "mem-2",
-                "memory": "Another memory",
-                "metadata": {"invalid": float("inf")},  # Invalid JSON value
-            },
-        ])
+        mock_client.get_all = AsyncMock(
+            return_value=[
+                {
+                    "id": "mem-1",
+                    "memory": "Valid memory",
+                    "metadata": None,  # Null metadata
+                },
+                {
+                    "id": "mem-2",
+                    "memory": "Another memory",
+                    "metadata": {"invalid": float("inf")},  # Invalid JSON value
+                },
+            ]
+        )
 
         service = MemoryService(mock_client)
 
@@ -275,9 +277,11 @@ class TestCorruptedData:
         """Test that format_memory_context handles memories missing 'memory' field."""
         # Mock client that returns malformed results
         mock_client = MagicMock()
-        mock_client.search = AsyncMock(return_value=[
-            {"id": "mem-1", "score": 0.9},  # Missing 'memory' field
-        ])
+        mock_client.search = AsyncMock(
+            return_value=[
+                {"id": "mem-1", "score": 0.9},  # Missing 'memory' field
+            ]
+        )
 
         service = MemoryService(mock_client)
 
@@ -315,8 +319,7 @@ class TestConcurrentOperations:
 
         # Execute multiple searches concurrently
         tasks = [
-            service.search_memories(f"query-{i}", "user-123", 10)
-            for i in range(5)
+            service.search_memories(f"query-{i}", "user-123", 10) for i in range(5)
         ]
 
         results = await asyncio.gather(*tasks)
@@ -470,20 +473,22 @@ class TestEdgeCases:
     async def test_format_memory_context_with_unicode_content(self) -> None:
         """Test that format_memory_context handles unicode characters."""
         mock_client = MagicMock()
-        mock_client.search = AsyncMock(return_value=[
-            {
-                "id": "mem-1",
-                "memory": "User likes 日本語 programming",
-                "score": 0.9,
-                "metadata": {},
-            },
-            {
-                "id": "mem-2",
-                "memory": "Préfère le français 🇫🇷",
-                "score": 0.8,
-                "metadata": {},
-            },
-        ])
+        mock_client.search = AsyncMock(
+            return_value=[
+                {
+                    "id": "mem-1",
+                    "memory": "User likes 日本語 programming",
+                    "score": 0.9,
+                    "metadata": {},
+                },
+                {
+                    "id": "mem-2",
+                    "memory": "Préfère le français 🇫🇷",
+                    "score": 0.8,
+                    "metadata": {},
+                },
+            ]
+        )
 
         service = MemoryService(mock_client)
 

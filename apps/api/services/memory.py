@@ -40,7 +40,7 @@ class MemoryService:
             query: Search query string.
             user_id: User identifier for multi-tenant isolation.
             limit: Maximum results to return.
-            enable_graph: Include graph context in search.
+            enable_graph: Include graph relationships in search.
 
         Returns:
             List of memory search results with id, memory, score, and metadata.
@@ -65,7 +65,7 @@ class MemoryService:
             messages: Content to extract memories from.
             user_id: User identifier for multi-tenant isolation.
             metadata: Optional metadata to attach to memories.
-            enable_graph: Enable graph memory extraction.
+            enable_graph: Enable graph-based entity/relationship extraction.
 
         Returns:
             List of created memory records with id and memory text.

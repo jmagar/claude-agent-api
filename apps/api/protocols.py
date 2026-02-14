@@ -1,13 +1,12 @@
 """Protocol interfaces for dependency injection."""
 
-from collections.abc import AsyncGenerator
 from typing import TYPE_CHECKING, Literal, Protocol, TypedDict, runtime_checkable
 from uuid import UUID
 
 from apps.api.types import JsonValue
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterator, Sequence
+    from collections.abc import AsyncGenerator, AsyncIterator, Sequence
 
     from apps.api.models.session import Checkpoint, Session, SessionMessage
     from apps.api.schemas.openai.requests import ChatCompletionRequest
@@ -297,6 +296,33 @@ class SessionRepositoryProtocol(Protocol):
         """
         ...
 
+    async def update_metadata(
+        self,
+        session_id: UUID,
+        metadata: dict[str, "JsonValue"],
+    ) -> "Session | None":
+        """Update session metadata.
+
+        Args:
+            session_id: Session identifier.
+            metadata: Metadata payload to store.
+
+        Returns:
+            Updated session or None if not found.
+        """
+        ...
+
+    async def delete_session(self, session_id: UUID) -> bool:
+        """Delete a session and all related data.
+
+        Args:
+            session_id: Session identifier.
+
+        Returns:
+            True if deleted, False if not found.
+        """
+        ...
+
 
 @runtime_checkable
 class Cache(Protocol):
@@ -345,6 +371,18 @@ class Cache(Protocol):
 
         Returns:
             True if exists.
+        """
+        ...
+
+    async def expire(self, key: str, ttl: int) -> bool:
+        """Set expiration on a key.
+
+        Args:
+            key: Cache key.
+            ttl: Time to live in seconds.
+
+        Returns:
+            True if expiration was set.
         """
         ...
 
@@ -486,6 +524,13 @@ class Cache(Protocol):
         """
         ...
 
+    async def close(self) -> None:
+        """Close cache connection and clean up resources.
+
+        Must be idempotent - safe to call multiple times.
+        """
+        ...
+
 
 @runtime_checkable
 class ModelMapper(Protocol):
@@ -534,7 +579,7 @@ class ResponseTranslator(Protocol):
 class AgentService(Protocol):
     """Protocol for agent service used by routes."""
 
-    async def query_stream(
+    def query_stream(
         self, request: "QueryRequest", api_key: str = ""
     ) -> "AsyncGenerator[dict[str, str], None]":
         """Stream a query to the agent."""
@@ -648,7 +693,7 @@ class MemoryProtocol(Protocol):
             query: Search query string.
             user_id: User identifier for multi-tenant isolation.
             limit: Maximum results to return.
-            enable_graph: Include graph context in search.
+            enable_graph: Include graph relationships in search.
 
         Returns:
             List of memory search results.
@@ -668,7 +713,7 @@ class MemoryProtocol(Protocol):
             messages: Content to extract memories from.
             user_id: User identifier for multi-tenant isolation.
             metadata: Optional metadata to attach to memories.
-            enable_graph: Enable graph memory extraction.
+            enable_graph: Enable graph-based entity/relationship extraction.
 
         Returns:
             List of created memory records.

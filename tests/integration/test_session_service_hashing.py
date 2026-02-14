@@ -54,7 +54,8 @@ async def redis_cache(_async_client: AsyncClient) -> Cache:
     Returns:
         Cache protocol implementation (Redis adapter).
     """
-    return await get_cache()
+    app_state = _async_client.app.state.app_state
+    return await get_cache(app_state)
 
 
 @pytest.fixture

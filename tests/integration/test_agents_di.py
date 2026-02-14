@@ -19,9 +19,9 @@ async def test_list_agents_uses_di_signature() -> None:
     assert "agent_service" in params, "Missing agent_service DI parameter"
 
     # Should NOT have cache: Cache parameter (old anti-pattern)
-    assert (
-        "cache" not in params
-    ), "Route still has cache parameter (should use agent_service)"
+    assert "cache" not in params, (
+        "Route still has cache parameter (should use agent_service)"
+    )
 
     # Verify type annotation is not empty
     agent_service_param = params["agent_service"]
@@ -40,9 +40,9 @@ async def test_create_agent_uses_di_signature() -> None:
     params = sig.parameters
 
     assert "agent_service" in params, "Missing agent_service DI parameter"
-    assert (
-        "cache" not in params
-    ), "Route still has cache parameter (should use agent_service)"
+    assert "cache" not in params, (
+        "Route still has cache parameter (should use agent_service)"
+    )
 
 
 @pytest.mark.integration
@@ -55,9 +55,9 @@ async def test_get_agent_uses_di_signature() -> None:
     params = sig.parameters
 
     assert "agent_service" in params, "Missing agent_service DI parameter"
-    assert (
-        "cache" not in params
-    ), "Route still has cache parameter (should use agent_service)"
+    assert "cache" not in params, (
+        "Route still has cache parameter (should use agent_service)"
+    )
 
 
 @pytest.mark.integration
@@ -70,9 +70,9 @@ async def test_update_agent_uses_di_signature() -> None:
     params = sig.parameters
 
     assert "agent_service" in params, "Missing agent_service DI parameter"
-    assert (
-        "cache" not in params
-    ), "Route still has cache parameter (should use agent_service)"
+    assert "cache" not in params, (
+        "Route still has cache parameter (should use agent_service)"
+    )
 
 
 @pytest.mark.integration
@@ -85,9 +85,9 @@ async def test_delete_agent_uses_di_signature() -> None:
     params = sig.parameters
 
     assert "agent_service" in params, "Missing agent_service DI parameter"
-    assert (
-        "cache" not in params
-    ), "Route still has cache parameter (should use agent_service)"
+    assert "cache" not in params, (
+        "Route still has cache parameter (should use agent_service)"
+    )
 
 
 @pytest.mark.integration
@@ -100,6 +100,6 @@ async def test_share_agent_uses_di_signature() -> None:
     params = sig.parameters
 
     assert "agent_service" in params, "Missing agent_service DI parameter"
-    assert (
-        "cache" not in params
-    ), "Route still has cache parameter (should use agent_service)"
+    assert "cache" not in params, (
+        "Route still has cache parameter (should use agent_service)"
+    )

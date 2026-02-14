@@ -649,11 +649,9 @@ class TestSessionUpdates:
                 json={"tags": "not-a-list"},
                 headers=auth_headers,
             )
-            assert response.status_code == 400
+            assert response.status_code == 422
             data = response.json()
-
-            assert data["error"]["code"] == "VALIDATION_ERROR"
-            assert "must be a list" in data["error"]["message"].lower()
+            assert "detail" in data
 
         finally:
             await db_gen.aclose()

@@ -26,6 +26,7 @@ from apps.api.exceptions.infra import (
     ServiceUnavailableError,
 )
 from apps.api.exceptions.mcp import McpShareNotFoundError
+from apps.api.exceptions.memory import MemoryNotFoundError
 from apps.api.exceptions.session import (
     SessionCompletedError,
     SessionLockedError,
@@ -48,6 +49,7 @@ __all__ = [
     "HookError",
     "InvalidCheckpointError",
     "McpShareNotFoundError",
+    "MemoryNotFoundError",
     "RateLimitError",
     "RequestTimeoutError",
     "ServiceUnavailableError",

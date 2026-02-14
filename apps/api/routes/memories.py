@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import time
 from typing import TYPE_CHECKING, cast
 
 import structlog
@@ -39,15 +41,23 @@ def _validate_memory_record(record: dict[str, JsonValue]) -> MemoryRecordDict:
     Raises:
         ValueError: If required fields are missing or invalid.
     """
-    if not isinstance(record.get("id"), str):
-        raise ValueError("Memory record missing required 'id' field")
-    if not isinstance(record.get("memory"), str):
+    memory_value = record.get("memory")
+    if not isinstance(memory_value, str):
         raise ValueError("Memory record missing required 'memory' field")
+
+    record_id = record.get("id")
+    if isinstance(record_id, str) and record_id:
+        memory_id = record_id
+    else:
+        # Include timestamp in fallback ID to prevent collisions when same content is added multiple times
+        timestamp = str(int(time.time() * 1000000))  # microsecond precision
+        content_hash = hashlib.sha256(memory_value.encode()).hexdigest()[:12]
+        memory_id = f"mem_{content_hash}_{timestamp}"
 
     # Build result with required fields
     result: MemoryRecordDict = {
-        "id": str(record["id"]),
-        "memory": str(record["memory"]),
+        "id": memory_id,
+        "memory": memory_value,
     }
 
     # Add optional fields if present
@@ -62,7 +72,7 @@ def _validate_memory_record(record: dict[str, JsonValue]) -> MemoryRecordDict:
     if "agent_id" in record and isinstance(record["agent_id"], str):
         result["agent_id"] = str(record["agent_id"])
     if "metadata" in record and isinstance(record["metadata"], dict):
-        result["metadata"] = record["metadata"]
+        result["metadata"] = cast("dict[str, object]", record["metadata"])
 
     return result
 
@@ -100,9 +110,10 @@ async def search_memories(
                 id=str(r.get("id", "")),
                 memory=str(r.get("memory", "")),
                 score=float(r.get("score", 0.0)),
-                metadata=cast(
-                    "dict[str, object]",
-                    r.get("metadata", {}),
+                metadata=(
+                    cast("dict[str, object]", r.get("metadata"))
+                    if isinstance(r.get("metadata"), dict)
+                    else {}
                 ),
             )
             for r in results
@@ -130,7 +141,7 @@ async def add_memory(
     # Hash API key to prevent plaintext storage in Qdrant/Neo4j metadata
     user_id = hash_api_key(api_key)
 
-    # Cast Any to JsonValue for service layer type safety
+    # Cast Pydantic dict[str, object] to JsonValue for service layer type safety
     metadata = cast("dict[str, JsonValue] | None", request.metadata)
 
     results = await memory_service.add_memory(
@@ -143,9 +154,7 @@ async def add_memory(
     # Validate records before returning to ensure type safety
     validated_results = [_validate_memory_record(record) for record in results]
 
-    return MemoryAddResponse(
-        memories=validated_results, count=len(validated_results)
-    )
+    return MemoryAddResponse(memories=validated_results, count=len(validated_results))
 
 
 @router.get("", response_model=MemoryListResponse)

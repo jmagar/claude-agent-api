@@ -6,7 +6,7 @@ Runs represent executions of an assistant on a thread.
 import secrets
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Literal, Protocol, TypedDict, runtime_checkable
+from typing import TYPE_CHECKING, Literal, Protocol, TypedDict, cast, runtime_checkable
 
 import structlog
 
@@ -649,7 +649,7 @@ class RunService:
                 "completed",
                 "expired",
             ):
-                status = status_val  # type: ignore[assignment]
+                status = cast("RunStatus", status_val)
 
             model = str(parsed.get("model", ""))
             instructions_raw = parsed.get("instructions")
@@ -675,17 +675,17 @@ class RunService:
             required_action_raw = parsed.get("required_action")
             required_action: RequiredAction | None = None
             if isinstance(required_action_raw, dict):
-                required_action = required_action_raw  # type: ignore[assignment]
+                required_action = cast("RequiredAction", required_action_raw)
 
             last_error_raw = parsed.get("last_error")
             last_error: RunError | None = None
             if isinstance(last_error_raw, dict):
-                last_error = last_error_raw  # type: ignore[assignment]
+                last_error = cast("RunError", last_error_raw)
 
             usage_raw = parsed.get("usage")
             usage: RunUsage | None = None
             if isinstance(usage_raw, dict):
-                usage = usage_raw  # type: ignore[assignment]
+                usage = cast("RunUsage", usage_raw)
 
             # Parse timestamps
             def parse_timestamp(val: JsonValue) -> int | None:

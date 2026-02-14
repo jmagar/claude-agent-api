@@ -28,7 +28,7 @@ async def main():
     )
     user_id = hash_api_key(api_key)
 
-    print(f"\n✓ Mem0 adapter initialized")
+    print("\n✓ Mem0 adapter initialized")
     print(f"✓ Qdrant URL: {settings.qdrant_url}")
     print(f"✓ User ID: {user_id[:16]}...")
 

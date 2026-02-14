@@ -4,6 +4,12 @@ from typing import Annotated
 
 from fastapi import Depends
 
+from apps.api.dependencies import (
+    OpenAIAssistantSvc,
+    OpenAIMessageSvc,
+    OpenAIRunSvc,
+    OpenAIThreadSvc,
+)
 from apps.api.protocols import ModelMapper, RequestTranslator, ResponseTranslator
 from apps.api.services.assistants import (
     AssistantService,
@@ -11,9 +17,7 @@ from apps.api.services.assistants import (
     RunService,
     ThreadService,
 )
-from apps.api.services.openai.models import (
-    CLAUDE_MODELS,
-)
+from apps.api.services.openai.models import CLAUDE_MODELS
 from apps.api.services.openai.models import (
     ModelMapper as ModelMapperImpl,
 )
@@ -59,40 +63,48 @@ def get_response_translator() -> ResponseTranslator:
     return ResponseTranslatorImpl()
 
 
-def get_assistant_service() -> AssistantService:
+def get_assistant_service(
+    service: OpenAIAssistantSvc,
+) -> AssistantService:
     """Get AssistantService instance.
 
     Returns:
         AssistantService for assistant CRUD operations.
     """
-    return AssistantService()
+    return service
 
 
-def get_thread_service() -> ThreadService:
+def get_thread_service(
+    service: OpenAIThreadSvc,
+) -> ThreadService:
     """Get ThreadService instance.
 
     Returns:
         ThreadService for thread CRUD operations.
     """
-    return ThreadService()
+    return service
 
 
-def get_message_service() -> MessageService:
+def get_message_service(
+    service: OpenAIMessageSvc,
+) -> MessageService:
     """Get MessageService instance.
 
     Returns:
         MessageService for message CRUD operations.
     """
-    return MessageService()
+    return service
 
 
-def get_run_service() -> RunService:
+def get_run_service(
+    service: OpenAIRunSvc,
+) -> RunService:
     """Get RunService instance.
 
     Returns:
         RunService for run CRUD operations.
     """
-    return RunService()
+    return service
 
 
 # Type aliases for dependency injection
