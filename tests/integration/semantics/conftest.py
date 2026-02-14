@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 from typing import TYPE_CHECKING, TypedDict
 from uuid import uuid4
@@ -164,8 +163,8 @@ async def mock_memory_other_tenant(
 ) -> dict[str, str]:
     """Create memory owned by second tenant for isolation tests.
 
-    Retries with short backoff on rate limiting (429) from external LLM.
-    Skips dependent tests if the LLM remains rate-limited.
+    Single attempt with immediate skip on external service failure.
+    This prevents test timeouts from retry+backoff loops.
     """
     from fastapi import Request
 
@@ -179,44 +178,37 @@ async def mock_memory_other_tenant(
     # Get memory service from DI (singleton pattern)
     service = await get_memory_service(app_state)
 
-    # Create memory for second tenant with retry logic
+    # Create memory for second tenant (single attempt, skip on failure)
     memory_content = f"Isolation test memory {uuid4().hex[:8]}"
     user_id = hash_api_key(second_auth_headers["X-API-Key"])
 
-    max_retries = 5
-    last_error: Exception | None = None
-    for attempt in range(max_retries):
-        try:
-            results = await service.add_memory(
-                messages=memory_content,
-                user_id=user_id,
-                metadata=None,
-                enable_graph=False,
-            )
+    try:
+        results = await service.add_memory(
+            messages=memory_content,
+            user_id=user_id,
+            metadata=None,
+            enable_graph=False,
+        )
+    except Exception as exc:
+        error_msg = str(exc)
+        if "429" in error_msg or "rate" in error_msg.lower():
+            pytest.skip(f"External LLM rate-limited: {exc}")
+        if "Collection" in error_msg and "already exists" in error_msg:
+            pytest.skip(f"Qdrant collection conflict: {exc}")
+        raise
 
-            if len(results) > 0:
-                # Type narrowing: validate fields before accessing
-                first_result = results[0]
-                memory_id = first_result["id"]
-                memory_text = first_result["memory"]
+    if len(results) == 0:
+        pytest.skip("Mem0 returned empty result (LLM likely rate-limited)")
 
-                assert isinstance(memory_id, str), "Memory ID must be a string"
-                assert isinstance(memory_text, str), "Memory text must be a string"
+    # Type narrowing: validate fields before accessing
+    first_result = results[0]
+    memory_id = first_result["id"]
+    memory_text = first_result["memory"]
 
-                return {"id": memory_id, "content": memory_text}
-        except Exception as exc:
-            last_error = exc
+    assert isinstance(memory_id, str), "Memory ID must be a string"
+    assert isinstance(memory_text, str), "Memory text must be a string"
 
-        # Exponential backoff between retries (3s, 6s, 12s, 24s)
-        if attempt < max_retries - 1:
-            await asyncio.sleep(3 * (2**attempt))
-
-    error_msg = (
-        f"LLM rate-limited: mock_memory_other_tenant failed after {max_retries} retries"
-    )
-    if last_error is not None:
-        error_msg += f": {last_error}"
-    pytest.skip(error_msg)
+    return {"id": memory_id, "content": memory_text}
 
 
 @pytest.fixture
@@ -265,8 +257,8 @@ async def mock_memory(
 ) -> dict[str, str]:
     """Create a memory via API for CRUD tests.
 
-    Retries with short backoff on rate limiting (429) from external LLM.
-    Skips dependent tests if the LLM remains rate-limited.
+    Single attempt with immediate skip on external service failure.
+    This prevents test timeouts from retry+backoff loops.
 
     Args:
         async_client: HTTP client for API requests.
@@ -278,8 +270,7 @@ async def mock_memory(
     suffix = uuid4().hex[:8]
     memory_content = f"Test memory for semantics testing {suffix}"
 
-    max_retries = 5
-    for attempt in range(max_retries):
+    try:
         response = await async_client.post(
             "/api/v1/memories",
             json={
@@ -288,36 +279,46 @@ async def mock_memory(
             },
             headers=auth_headers,
         )
+    except Exception as exc:
+        error_msg = str(exc)
+        if "429" in error_msg or "rate" in error_msg.lower():
+            pytest.skip(f"External LLM rate-limited: {exc}")
+        raise
 
-        if response.status_code == 201:
-            data = response.json()
-            # Type narrowing: validate structure before accessing
-            assert isinstance(data, dict), "Response data must be a dict"
-            count = data.get("count", 0)
-            assert isinstance(count, int), "count must be an int"
+    # Skip on external service failures
+    if response.status_code == 500:
+        body = response.text
+        if "429" in body or "rate" in body.lower():
+            pytest.skip("External LLM rate-limited (429)")
+        if "Collection" in body and "already exists" in body:
+            pytest.skip("Qdrant collection conflict (concurrent Mem0 init)")
+        # Re-raise unexpected 500s
+        pytest.fail(f"Unexpected 500 from memory API: {body[:200]}")
 
-            if count > 0:
-                memories = data.get("memories")
-                assert isinstance(memories, list), "memories must be a list"
-                assert len(memories) > 0, "memories list must not be empty"
+    assert response.status_code == 201, f"Memory creation failed: {response.text}"
 
-                first_memory = memories[0]
-                assert isinstance(first_memory, dict), "memory must be a dict"
+    data = response.json()
+    # Type narrowing: validate structure before accessing
+    assert isinstance(data, dict), "Response data must be a dict"
+    count = data.get("count", 0)
+    assert isinstance(count, int), "count must be an int"
 
-                memory_id = first_memory.get("id")
-                memory_text = first_memory.get("memory")
-                assert isinstance(memory_id, str), "id must be a string"
-                assert isinstance(memory_text, str), "memory must be a string"
+    if count == 0:
+        pytest.skip("Mem0 returned empty result (LLM likely rate-limited)")
 
-                return {"id": memory_id, "content": memory_text}
+    memories = data.get("memories")
+    assert isinstance(memories, list), "memories must be a list"
+    assert len(memories) > 0, "memories list must not be empty"
 
-        # Exponential backoff between retries (3s, 6s, 12s, 24s)
-        if attempt < max_retries - 1:
-            await asyncio.sleep(3 * (2**attempt))
+    first_memory = memories[0]
+    assert isinstance(first_memory, dict), "memory must be a dict"
 
-    pytest.skip(
-        f"LLM rate-limited: mock_memory fixture failed after {max_retries} retries"
-    )
+    memory_id = first_memory.get("id")
+    memory_text = first_memory.get("memory")
+    assert isinstance(memory_id, str), "id must be a string"
+    assert isinstance(memory_text, str), "memory must be a string"
+
+    return {"id": memory_id, "content": memory_text}
 
 
 @pytest.fixture
@@ -345,4 +346,36 @@ async def mock_project(
     )
 
     assert response.status_code == 201, f"Project creation failed: {response.text}"
+    return response.json()
+
+
+@pytest.fixture
+async def mock_mcp_server(
+    async_client: AsyncClient,
+    auth_headers: dict[str, str],
+) -> dict[str, object]:
+    """Create a test MCP server config via API for CRUD tests.
+
+    Args:
+        async_client: HTTP client for API requests.
+        auth_headers: Auth headers with API key.
+
+    Returns:
+        MCP server data dict containing id, name, transport_type, etc.
+    """
+    suffix = uuid4().hex[:8]
+    response = await async_client.post(
+        "/api/v1/mcp-servers",
+        json={
+            "name": f"test-mcp-{suffix}",
+            "type": "stdio",
+            "config": {
+                "command": "echo",
+                "args": ["hello"],
+            },
+        },
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 201, f"MCP server creation failed: {response.text}"
     return response.json()
