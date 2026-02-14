@@ -192,3 +192,31 @@ async def mock_memory_other_tenant(
     assert isinstance(memory_text, str), "Memory text must be a string"
 
     return {"id": memory_id, "content": memory_text}
+
+
+@pytest.fixture
+async def mock_project(
+    async_client: AsyncClient,
+    auth_headers: dict[str, str],
+) -> dict[str, object]:
+    """Create a test project via API for CRUD tests.
+
+    Args:
+        async_client: HTTP client for API requests
+        auth_headers: Auth headers with API key
+
+    Returns:
+        Project data dict containing id, name, metadata, etc.
+    """
+    suffix = uuid4().hex[:8]
+    response = await async_client.post(
+        "/api/v1/projects",
+        json={
+            "name": f"test-project-{suffix}",
+            "metadata": {"purpose": "semantics-testing"},
+        },
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 201, f"Project creation failed: {response.text}"
+    return response.json()
