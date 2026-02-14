@@ -1,7 +1,26 @@
-"""Shared fixtures for Phase 2 semantic tests."""
+"""Shared fixtures for Phase 2 semantic tests.
+
+SSE Event Types Reference
+--------------------------
+The query streaming endpoints emit the following SSE event types:
+
+- ``init``    - Session initialization (session_id, model, tools, mcp_servers, plugins, commands, permission_mode)
+- ``message`` - Agent message (type: user/assistant/system, content blocks, model, usage)
+- ``question``- AskUserQuestion tool use (tool_use_id, question, session_id)
+- ``partial`` - Streaming content deltas (content_block_start/delta/stop with index)
+- ``todo``    - TodoWrite tracking (todos list)
+- ``result``  - Final result (session_id, is_error, duration_ms, num_turns, cost, usage)
+- ``error``   - Mid-stream error (code, message, optional details)
+- ``done``    - Stream completion (reason: completed/interrupted/error)
+
+Typical happy-path sequence::
+
+    init -> [partial...] -> [message...] -> result -> done
+"""
 
 from __future__ import annotations
 
+import asyncio
 import json
 from typing import TYPE_CHECKING, TypedDict
 from uuid import uuid4
@@ -13,9 +32,39 @@ if TYPE_CHECKING:
 
     from httpx import AsyncClient, Response
 
+# Required fields per SSE event type, used by validate_sse_event_data fixture.
+# Maps event name -> set of required top-level keys in event.data.
+SSE_EVENT_REQUIRED_FIELDS: dict[str, set[str]] = {
+    "init": {"session_id", "model"},
+    "message": {"type", "content"},
+    "question": {"tool_use_id", "question", "session_id"},
+    "partial": {"type", "index"},
+    "todo": {"todos"},
+    "result": {"session_id", "is_error", "duration_ms", "num_turns"},
+    "error": {"code", "message"},
+    "done": {"reason"},
+}
+
+# Valid values for enum-like fields within SSE events.
+SSE_EVENT_VALID_VALUES: dict[str, dict[str, set[str]]] = {
+    "message": {"type": {"user", "assistant", "system"}},
+    "partial": {
+        "type": {"content_block_start", "content_block_delta", "content_block_stop"}
+    },
+    "done": {"reason": {"completed", "interrupted", "error"}},
+    "result": {
+        "stop_reason": {"completed", "max_turns_reached", "interrupted", "error"},
+    },
+}
+
 
 class SseEvent(TypedDict):
-    """SSE event structure."""
+    """SSE event structure.
+
+    Attributes:
+        event: The event type name (init, message, partial, result, error, done, etc.).
+        data: Parsed JSON data payload for the event.
+    """
 
     event: str
     data: dict[str, object]
@@ -78,6 +127,313 @@ def validate_sse_sequence() -> Callable[[list[SseEvent], list[str]], None]:
             f"Expected: {expected_sequence}\n"
             f"Actual: {actual_sequence}"
         )
+
+    return validate
+
+
+@pytest.fixture
+def validate_sse_event_data() -> Callable[[SseEvent], None]:
+    """Validate that an SSE event's data contains the required fields for its type.
+
+    Checks both required fields and enum value constraints. Unknown event types
+    are silently accepted (forward-compatible).
+
+    Usage::
+
+        def test_init_event(validate_sse_event_data):
+            event: SseEvent = {"event": "init", "data": {"session_id": "abc", "model": "sonnet"}}
+            validate_sse_event_data(event)  # passes
+
+            bad: SseEvent = {"event": "init", "data": {"model": "sonnet"}}
+            validate_sse_event_data(bad)  # fails: missing session_id
+    """
+
+    def validate(event: SseEvent) -> None:
+        """Assert event data has required fields and valid enum values.
+
+        Args:
+            event: Single SSE event to validate.
+        """
+        event_type = event["event"]
+        data = event["data"]
+
+        # Check required fields
+        required = SSE_EVENT_REQUIRED_FIELDS.get(event_type)
+        if required is not None:
+            missing = required - set(data.keys())
+            assert not missing, (
+                f"Event '{event_type}' missing required fields: {missing}\n"
+                f"Got keys: {set(data.keys())}"
+            )
+
+        # Check enum constraints on present fields
+        valid_values = SSE_EVENT_VALID_VALUES.get(event_type, {})
+        for field_name, allowed in valid_values.items():
+            value = data.get(field_name)
+            if value is not None:
+                assert value in allowed, (
+                    f"Event '{event_type}' field '{field_name}' has invalid value: {value!r}\n"
+                    f"Allowed: {allowed}"
+                )
+
+    return validate
+
+
+@pytest.fixture
+def validate_all_sse_events() -> Callable[[list[SseEvent]], None]:
+    """Validate data structures for every event in a list.
+
+    Convenience wrapper that calls validate_sse_event_data on each event.
+
+    Usage::
+
+        def test_stream(sse_event_collector, validate_all_sse_events):
+            events = await sse_event_collector(response)
+            validate_all_sse_events(events)
+    """
+
+    def validate(events: list[SseEvent]) -> None:
+        """Assert all events have valid data structures.
+
+        Args:
+            events: List of SSE events to validate.
+        """
+        for i, event in enumerate(events):
+            event_type = event["event"]
+            data = event["data"]
+
+            required = SSE_EVENT_REQUIRED_FIELDS.get(event_type)
+            if required is not None:
+                missing = required - set(data.keys())
+                assert not missing, (
+                    f"Event #{i} '{event_type}' missing required fields: {missing}\n"
+                    f"Got keys: {set(data.keys())}"
+                )
+
+            valid_values = SSE_EVENT_VALID_VALUES.get(event_type, {})
+            for field_name, allowed in valid_values.items():
+                value = data.get(field_name)
+                if value is not None:
+                    assert value in allowed, (
+                        f"Event #{i} '{event_type}' field '{field_name}' "
+                        f"has invalid value: {value!r}\n"
+                        f"Allowed: {allowed}"
+                    )
+
+    return validate
+
+
+@pytest.fixture
+def sse_event_collector_with_timeout() -> Callable[
+    [AsyncClient, str, dict[str, str], dict[str, object], float],
+    Awaitable[list[SseEvent]],
+]:
+    """Collect SSE events from a streaming POST request with timeout protection.
+
+    Prevents tests from hanging indefinitely on slow or stuck SSE streams.
+    Uses httpx's async streaming context manager for proper resource cleanup.
+
+    Usage::
+
+        async def test_query_stream(sse_event_collector_with_timeout, auth_headers):
+            events = await sse_event_collector_with_timeout(
+                async_client, "/api/v1/query", auth_headers,
+                {"prompt": "hello"}, timeout=10.0,
+            )
+            assert len(events) > 0
+    """
+
+    async def collect(
+        client: AsyncClient,
+        url: str,
+        headers: dict[str, str],
+        json_body: dict[str, object],
+        timeout: float = 30.0,
+    ) -> list[SseEvent]:
+        """Stream a POST request and collect SSE events with timeout.
+
+        Args:
+            client: Async HTTP client.
+            url: Endpoint URL.
+            headers: Request headers (must include auth).
+            json_body: JSON request body.
+            timeout: Maximum seconds to wait for stream completion.
+
+        Returns:
+            List of parsed SSE events.
+
+        Raises:
+            TimeoutError: If stream does not complete within timeout.
+        """
+        events: list[SseEvent] = []
+        event_type: str | None = None
+
+        async def _stream() -> None:
+            nonlocal event_type
+            async with client.stream(
+                "POST", url, json=json_body, headers=headers
+            ) as response:
+                async for line in response.aiter_lines():
+                    if line.startswith("event:"):
+                        event_type = line.split(":", 1)[1].strip()
+                    elif line.startswith("data:"):
+                        raw = line.split(":", 1)[1].strip()
+                        try:
+                            data = json.loads(raw)
+                        except json.JSONDecodeError:
+                            continue
+                        if event_type:
+                            events.append({"event": event_type, "data": data})
+                            event_type = None
+
+        try:
+            await asyncio.wait_for(_stream(), timeout=timeout)
+        except TimeoutError:
+            raise TimeoutError(
+                f"SSE stream did not complete within {timeout}s. "
+                f"Collected {len(events)} events so far: "
+                f"{[e['event'] for e in events]}"
+            ) from None
+
+        return events
+
+    return collect
+
+
+@pytest.fixture
+def aggregate_partial_text() -> Callable[[list[SseEvent]], str]:
+    """Aggregate text from partial SSE events into a single string.
+
+    Extracts text deltas from ``partial`` events with type ``content_block_delta``
+    and concatenates them in order.
+
+    Usage::
+
+        def test_streaming_text(aggregate_partial_text):
+            events = [...]  # collected SSE events
+            full_text = aggregate_partial_text(events)
+            assert "expected content" in full_text
+    """
+
+    def aggregate(events: list[SseEvent]) -> str:
+        """Concatenate text deltas from partial events.
+
+        Args:
+            events: List of SSE events (filters to partial events internally).
+
+        Returns:
+            Concatenated text from all content_block_delta events.
+        """
+        parts: list[str] = []
+        for event in events:
+            if event["event"] != "partial":
+                continue
+            data = event["data"]
+            if data.get("type") != "content_block_delta":
+                continue
+            delta = data.get("delta")
+            if isinstance(delta, dict):
+                text = delta.get("text")
+                if isinstance(text, str):
+                    parts.append(text)
+        return "".join(parts)
+
+    return aggregate
+
+
+@pytest.fixture
+def find_sse_event() -> Callable[[list[SseEvent], str], SseEvent | None]:
+    """Find the first SSE event matching a given event type.
+
+    Usage::
+
+        def test_has_init(find_sse_event):
+            init = find_sse_event(events, "init")
+            assert init is not None
+            assert init["data"]["session_id"]
+    """
+
+    def find(events: list[SseEvent], event_type: str) -> SseEvent | None:
+        """Return first event matching type, or None.
+
+        Args:
+            events: List of SSE events to search.
+            event_type: Event type name to find.
+
+        Returns:
+            First matching event or None.
+        """
+        for event in events:
+            if event["event"] == event_type:
+                return event
+        return None
+
+    return find
+
+
+@pytest.fixture
+def filter_sse_events() -> Callable[[list[SseEvent], str], list[SseEvent]]:
+    """Filter SSE events by event type.
+
+    Usage::
+
+        def test_message_count(filter_sse_events):
+            messages = filter_sse_events(events, "message")
+            assert len(messages) >= 1
+    """
+
+    def _filter(events: list[SseEvent], event_type: str) -> list[SseEvent]:
+        """Return all events matching the given type.
+
+        Args:
+            events: List of SSE events to filter.
+            event_type: Event type name to match.
+
+        Returns:
+            Filtered list of matching events.
+        """
+        return [e for e in events if e["event"] == event_type]
+
+    return _filter
+
+
+@pytest.fixture
+def validate_sse_sequence_contains() -> Callable[[list[SseEvent], list[str]], None]:
+    """Validate SSE event sequence contains required events in order (non-strict).
+
+    Unlike ``validate_sse_sequence`` which requires exact match, this validates
+    that the required events appear in the correct relative order, allowing
+    other events between them.
+
+    Usage::
+
+        def test_stream_has_bookends(validate_sse_sequence_contains):
+            # Validates init comes before result, result before done
+            # Allows any events between them (partial, message, etc.)
+            validate_sse_sequence_contains(events, ["init", "result", "done"])
+    """
+
+    def validate(events: list[SseEvent], required_sequence: list[str]) -> None:
+        """Assert required events appear in order within the event list.
+
+        Args:
+            events: List of SSE events.
+            required_sequence: Event types that must appear in this order.
+        """
+        actual_types = [e["event"] for e in events]
+        search_from = 0
+        for required_type in required_sequence:
+            found = False
+            for i in range(search_from, len(actual_types)):
+                if actual_types[i] == required_type:
+                    search_from = i + 1
+                    found = True
+                    break
+            assert found, (
+                f"Required event '{required_type}' not found in expected order.\n"
+                f"Required sequence: {required_sequence}\n"
+                f"Actual sequence: {actual_types}"
+            )
 
     return validate
 

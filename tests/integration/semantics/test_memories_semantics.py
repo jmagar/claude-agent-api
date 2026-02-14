@@ -51,6 +51,24 @@ def _skip_if_rate_limited(status_code: int, body: str) -> None:
         pytest.skip("Qdrant collection conflict (concurrent Mem0 init)")
 
 
+def _skip_on_llm_exception(exc: Exception) -> None:
+    """Skip test if the exception indicates LLM rate limiting.
+
+    The openai.RateLimitError can propagate through the test client when
+    the FastAPI app fails to handle it internally.
+
+    Args:
+        exc: Exception to check for rate limiting indicators.
+    """
+    error_msg = str(exc)
+    if (
+        "429" in error_msg
+        or "rate" in error_msg.lower()
+        or "cooldown" in error_msg.lower()
+    ):
+        pytest.skip(f"External LLM rate-limited: {error_msg[:200]}")
+
+
 # =============================================================================
 # CRUD Operations (8 tests)
 # =============================================================================
@@ -67,11 +85,15 @@ async def test_add_memory_succeeds(
     memory_content = f"User prefers dark mode for all applications {uuid4().hex[:8]}"
 
     # ACT
-    response = await async_client.post(
-        "/api/v1/memories",
-        json={"messages": memory_content, "enable_graph": False},
-        headers=auth_headers,
-    )
+    try:
+        response = await async_client.post(
+            "/api/v1/memories",
+            json={"messages": memory_content, "enable_graph": False},
+            headers=auth_headers,
+        )
+    except Exception as exc:
+        _skip_on_llm_exception(exc)
+        raise
 
     # Handle external service issues
     _skip_if_rate_limited(response.status_code, response.text)
@@ -110,15 +132,19 @@ async def test_add_memory_with_metadata(
     metadata = {"category": "preferences", "source": "onboarding"}
 
     # ACT
-    response = await async_client.post(
-        "/api/v1/memories",
-        json={
-            "messages": memory_content,
-            "metadata": metadata,
-            "enable_graph": False,
-        },
-        headers=auth_headers,
-    )
+    try:
+        response = await async_client.post(
+            "/api/v1/memories",
+            json={
+                "messages": memory_content,
+                "metadata": metadata,
+                "enable_graph": False,
+            },
+            headers=auth_headers,
+        )
+    except Exception as exc:
+        _skip_on_llm_exception(exc)
+        raise
 
     # Handle external service issues
     _skip_if_rate_limited(response.status_code, response.text)
@@ -247,22 +273,30 @@ async def test_list_memories_empty_after_delete_all(
     )
     assert delete_response.status_code == 200
 
-    # Small delay to allow Qdrant to process the deletion
-    await asyncio.sleep(0.5)
+    # Wait for Qdrant to process the collection reset, then verify
+    # Qdrant's collection reset is async; retry a few times with backoff
+    for check_attempt in range(5):
+        await asyncio.sleep(1 + check_attempt)
 
-    # ACT
-    response = await async_client.get(
-        "/api/v1/memories",
-        headers=auth_headers,
+        response = await async_client.get(
+            "/api/v1/memories",
+            headers=auth_headers,
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "memories" in data
+        assert "count" in data
+
+        if data["count"] == 0:
+            # Success - deletion fully propagated
+            assert data["memories"] == []
+            return
+
+    # Final assertion if retries exhausted
+    pytest.fail(
+        f"Memories not empty after delete_all + {5} checks: count={data['count']}"
     )
-
-    # ASSERT
-    assert response.status_code == 200
-    data = response.json()
-    assert "memories" in data
-    assert "count" in data
-    assert data["count"] == 0
-    assert data["memories"] == []
 
 
 @pytest.mark.integration
@@ -365,11 +399,15 @@ async def test_add_memory_scoped_to_api_key(
     memory_content = f"Tenant-scoped memory test {uuid4().hex[:8]}"
 
     # ACT - Add memory via API (user_id derived from auth_headers API key)
-    add_response = await async_client.post(
-        "/api/v1/memories",
-        json={"messages": memory_content, "enable_graph": False},
-        headers=auth_headers,
-    )
+    try:
+        add_response = await async_client.post(
+            "/api/v1/memories",
+            json={"messages": memory_content, "enable_graph": False},
+            headers=auth_headers,
+        )
+    except Exception as exc:
+        _skip_on_llm_exception(exc)
+        raise
 
     _skip_if_rate_limited(add_response.status_code, add_response.text)
     assert add_response.status_code == 201
@@ -601,11 +639,15 @@ async def test_memory_embedding_dimensions(
     memory_content = f"Embedding dimension validation test {uuid4().hex[:8]}"
 
     # ACT
-    response = await async_client.post(
-        "/api/v1/memories",
-        json={"messages": memory_content, "enable_graph": False},
-        headers=auth_headers,
-    )
+    try:
+        response = await async_client.post(
+            "/api/v1/memories",
+            json={"messages": memory_content, "enable_graph": False},
+            headers=auth_headers,
+        )
+    except Exception as exc:
+        _skip_on_llm_exception(exc)
+        raise
 
     # Handle external service issues
     _skip_if_rate_limited(response.status_code, response.text)
