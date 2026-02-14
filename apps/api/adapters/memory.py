@@ -7,6 +7,7 @@ import structlog
 from mem0 import Memory
 
 from apps.api.config import Settings
+from apps.api.exceptions.memory import MemoryNotFoundError
 from apps.api.protocols import MemorySearchResult
 from apps.api.types import JsonValue
 
@@ -390,7 +391,7 @@ class Mem0MemoryAdapter:
             user_id: User identifier for authorization check.
 
         Raises:
-            ValueError: If memory does not belong to user_id or doesn't exist.
+            MemoryNotFoundError: If memory does not exist or user is not authorized.
         """
         # Fetch memory to verify ownership before deletion
         memory_data = await asyncio.to_thread(
@@ -400,14 +401,19 @@ class Mem0MemoryAdapter:
 
         # Fail-closed: reject if not a dict (prevents authorization bypass)
         if not isinstance(memory_data, dict):
-            msg = "Memory not found or returned unexpected format"
-            raise ValueError(msg)
+            raise MemoryNotFoundError(
+                memory_id=memory_id,
+                message="Memory not found or returned unexpected format",
+            )
 
         # Verify ownership (Mem0 stores user_id in metadata or directly)
         stored_user_id = memory_data.get("user_id")
         if stored_user_id != user_id:
-            msg = "Memory does not belong to this user"
-            raise ValueError(msg)
+            # Return 404 (not 403) to prevent enumeration
+            raise MemoryNotFoundError(
+                memory_id=memory_id,
+                message="Memory not found or not authorized",
+            )
 
         # Authorized - proceed with deletion
         await asyncio.to_thread(
